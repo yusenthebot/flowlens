@@ -451,6 +451,13 @@
     .dark .pattern-count-badge { background: rgba(255,255,255,0.08); color: #cbd5e1; }
     html:not(.dark) .pattern-count-badge { background: rgba(0,0,0,0.06); color: #475569; }
 
+    /* ========== Stat card gradient tints ========== */
+    .stat-card-traces { background: linear-gradient(135deg, rgba(99,102,241,0.05), transparent); }
+    .stat-card-errors { background: linear-gradient(135deg, rgba(239,68,68,0.05), transparent); }
+    .stat-card-latency { background: linear-gradient(135deg, rgba(245,158,11,0.05), transparent); }
+    .stat-card-cost { background: linear-gradient(135deg, rgba(16,185,129,0.05), transparent); }
+    .stat-card-agents { background: linear-gradient(135deg, rgba(139,92,246,0.05), transparent); }
+
     /* ========== Smooth scroll ========== */
     html { scroll-behavior: smooth; }
     .overflow-y-auto { scroll-behavior: smooth; }
@@ -572,7 +579,7 @@
         <div class="gradient-orb" style="width:250px;height:250px;top:50%;right:30%;background:radial-gradient(circle,rgba(99,102,241,0.08),transparent 70%);animation:orbFloat 30s ease-in-out infinite 5s;"></div>
       <!-- Stats Cards -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6 stat-grid relative z-10">
-        <div class="glass rounded-xl p-5 stat-glow stat-card-enter">
+        <div class="glass rounded-xl p-5 stat-glow stat-card-enter stat-card-traces">
           <div class="flex items-center justify-between mb-3">
             <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Traces</span>
             <div class="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center">
@@ -585,9 +592,9 @@
           <div id="stat-spans" class="text-xs text-slate-500 mt-1">
             <div class="skeleton skeleton-text w-16 h-3"></div>
           </div>
-          <canvas id="sparkline-traces" class="mt-2 w-full" style="height:36px"></canvas>
+          <canvas id="sparkline-traces" class="mt-2 w-full" style="height:45px;display:block"></canvas>
         </div>
-        <div id="stat-card-error" class="glass rounded-xl p-5 stat-glow transition-colors duration-500 stat-card-enter">
+        <div id="stat-card-error" class="glass rounded-xl p-5 stat-glow transition-colors duration-500 stat-card-enter stat-card-errors">
           <div class="flex items-center justify-between mb-3">
             <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Error Rate</span>
             <div class="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center">
@@ -600,9 +607,9 @@
           <div id="stat-error-count" class="text-xs text-slate-500 mt-1">
             <div class="skeleton skeleton-text w-24 h-3"></div>
           </div>
-          <canvas id="sparkline-errors" class="mt-2 w-full" style="height:36px"></canvas>
+          <canvas id="sparkline-errors" class="mt-2 w-full" style="height:45px;display:block"></canvas>
         </div>
-        <div id="stat-card-latency" class="glass rounded-xl p-5 stat-glow transition-colors duration-500 stat-card-enter">
+        <div id="stat-card-latency" class="glass rounded-xl p-5 stat-glow transition-colors duration-500 stat-card-enter stat-card-latency">
           <div class="flex items-center justify-between mb-3">
             <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Avg Latency</span>
             <div class="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
@@ -613,9 +620,9 @@
             <div class="skeleton skeleton-text w-14"></div>
           </div>
           <div class="text-xs text-slate-500 mt-1">milliseconds</div>
-          <canvas id="sparkline-latency" class="mt-2 w-full" style="height:36px"></canvas>
+          <canvas id="sparkline-latency" class="mt-2 w-full" style="height:45px;display:block"></canvas>
         </div>
-        <div id="stat-card-cost" class="glass rounded-xl p-5 stat-glow transition-colors duration-500 stat-card-enter">
+        <div id="stat-card-cost" class="glass rounded-xl p-5 stat-glow transition-colors duration-500 stat-card-enter stat-card-cost">
           <div class="flex items-center justify-between mb-3">
             <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Cost</span>
             <div class="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
@@ -628,9 +635,9 @@
           <div id="stat-tokens" class="text-xs text-slate-500 mt-1">
             <div class="skeleton skeleton-text w-20 h-3"></div>
           </div>
-          <canvas id="sparkline-cost" class="mt-2 w-full" style="height:36px"></canvas>
+          <canvas id="sparkline-cost" class="mt-2 w-full" style="height:45px;display:block"></canvas>
         </div>
-        <div class="glass stat-glow rounded-xl p-5 stat-card-enter">
+        <div class="glass stat-glow rounded-xl p-5 stat-card-enter stat-card-agents">
           <div class="flex items-center justify-between mb-3">
             <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Active Agents</span>
             <div class="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center">
@@ -687,7 +694,7 @@
           <h2 class="text-sm font-semibold text-white">Live Monitor</h2>
           <span class="text-[10px] text-slate-500 ml-auto" id="monitor-update-time">--</span>
         </div>
-        <div id="live-monitor" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3"></div>
+        <div id="live-monitor" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-2"></div>
       </div>
 
       <!-- Activity Timeline + Recent Traces (side by side) -->
@@ -1693,18 +1700,14 @@ function renderLiveMonitor(agents) {
   container.innerHTML = agents.map(a => {
     const p = getAgentProfile(a.agent);
     const isActive = a.status === 'active';
-    const lastTool = (a.recent_tools || [])[0] || '--';
-    const timeAgo = formatTimeAgo(a.last_seen);
 
     return `
-      <div class="rounded-lg p-2.5 ${isActive ? 'bg-emerald-500/5 border border-emerald-500/20' : 'bg-slate-800/30 border border-white/5'} transition-all duration-300" data-agent="${escHtml(a.agent)}">
-        <div class="flex items-center gap-2 mb-1">
-          <div class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style="background:${p.color}">${(p.name||'?')[0]}</div>
-          <span class="text-[11px] font-medium text-white truncate">${escHtml(p.name)}</span>
-          ${isActive ? '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot ml-auto"></span>' : ''}
+      <div class="rounded-lg p-2 ${isActive ? 'bg-emerald-500/5 border border-emerald-500/20' : 'bg-slate-800/30 border border-white/5'} transition-all duration-300 flex flex-col items-center gap-1" data-agent="${escHtml(a.agent)}">
+        <div class="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white relative" style="background:${p.color}">
+          ${(p.name||'?')[0]}
+          <span class="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ${isActive ? 'bg-emerald-400 pulse-dot' : 'bg-slate-600'} border border-slate-900"></span>
         </div>
-        <div class="text-[10px] ${isActive ? 'text-emerald-400' : 'text-slate-500'}">${isActive ? escHtml(lastTool) : 'idle'}</div>
-        <div class="text-[9px] text-slate-600">${timeAgo}</div>
+        <span class="text-[10px] font-medium text-white truncate w-full text-center">${escHtml(p.name)}</span>
       </div>`;
   }).join('');
 }
@@ -2450,11 +2453,11 @@ function renderSparkline(canvasId, data, color) {
       datasets: [{
         data: data,
         borderColor: color,
-        backgroundColor: color + '20',
+        backgroundColor: color + '30',
         fill: true,
         tension: 0.4,
         pointRadius: 0,
-        borderWidth: 1.5,
+        borderWidth: 2,
       }]
     },
     options: {
@@ -3788,6 +3791,29 @@ async function loadTrendChart(hours) {
   }
 
   const buckets = data.buckets || [];
+
+  // Show fallback message if no data
+  if (!buckets || buckets.length === 0 || buckets.every(b => (b.traces || b.trace_count || 0) === 0)) {
+    const canvas = document.getElementById('chart-trend');
+    if (canvas) {
+      const container = canvas.parentElement;
+      // Remove any previous fallback message
+      const existing = container.querySelector('.trend-no-data');
+      if (existing) existing.remove();
+      const msg = document.createElement('p');
+      msg.className = 'trend-no-data text-center text-sm text-slate-500 py-8';
+      msg.textContent = 'No activity trend data available. Start tracing to see trends.';
+      container.appendChild(msg);
+    }
+    return;
+  }
+
+  // Remove any previous fallback message if data now exists
+  const trendContainer = document.getElementById('chart-trend')?.parentElement;
+  if (trendContainer) {
+    const oldMsg = trendContainer.querySelector('.trend-no-data');
+    if (oldMsg) oldMsg.remove();
+  }
 
   // Format time labels
   function formatTrendLabel(ts) {
