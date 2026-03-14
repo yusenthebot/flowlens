@@ -19,67 +19,67 @@
         extend: {
           fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
           colors: {
-            surface: { 50: '#1a1f35', 100: '#151929', 200: '#111525', 300: '#0d1020', 400: '#0a0d1a' },
-            brand: { 400: '#818cf8', 500: '#6366f1', 600: '#4f46e5' },
+            surface: { 50: '#f5f5f0', 100: '#edede8', 200: '#e8e6e1', 300: '#dddbd5', 400: '#fafaf8' },
+            brand: { 400: '#9b8ec4', 500: '#7c7aef', 600: '#6b68d9' },
           }
         }
       }
     }
     // Apply saved theme preference immediately to prevent flash
-    if (localStorage.getItem('flowlens-theme') === 'light') {
-      document.documentElement.classList.remove('dark');
-    } else {
+    if (localStorage.getItem('flowlens-theme') === 'dark') {
       document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
     }
   </script>
   <style>
     /* ========== Theme transitions ========== */
     *, *::before, *::after { transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease; }
 
-    /* ========== Dark theme (default) ========== */
-    .dark * { scrollbar-width: thin; scrollbar-color: #2a2f4f transparent; }
+    /* ========== Dark theme — warm dark gray ========== */
+    .dark * { scrollbar-width: thin; scrollbar-color: #3a3a36 transparent; }
     .dark *::-webkit-scrollbar { width: 6px; height: 6px; }
     .dark *::-webkit-scrollbar-track { background: transparent; }
-    .dark *::-webkit-scrollbar-thumb { background: #2a2f4f; border-radius: 3px; }
-    .dark body { background: linear-gradient(145deg, #0a0d1a 0%, #0d1025 50%, #0a0d1a 100%); }
-    .dark .glass { background: rgba(21, 25, 41, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.06); }
-    .dark .glass-hover:hover { background: rgba(26, 31, 53, 0.85); border-color: rgba(255,255,255,0.1); }
-    .dark .stat-glow { box-shadow: 0 0 30px -10px rgba(99, 102, 241, 0.15); }
-    .dark .waterfall-tooltip { background: rgba(15, 18, 32, 0.95); border: 1px solid rgba(255,255,255,0.1); color: #e2e8f0; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+    .dark *::-webkit-scrollbar-thumb { background: #3a3a36; border-radius: 3px; }
+    .dark body { background: linear-gradient(145deg, #2a2a28 0%, #252523 50%, #2a2a28 100%); }
+    .dark .glass { background: rgba(50, 50, 46, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.06); }
+    .dark .glass-hover:hover { background: rgba(58, 58, 54, 0.85); border-color: rgba(255,255,255,0.1); }
+    .dark .stat-glow { box-shadow: 0 0 30px -10px rgba(124, 122, 239, 0.12); }
+    .dark .waterfall-tooltip { background: rgba(42, 42, 40, 0.95); border: 1px solid rgba(255,255,255,0.1); color: #e2e0db; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
 
-    /* ========== Light theme ========== */
-    html:not(.dark) * { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+    /* ========== Light theme — warm off-white ========== */
+    html:not(.dark) * { scrollbar-width: thin; scrollbar-color: #d5d5d0 transparent; }
     html:not(.dark) *::-webkit-scrollbar { width: 6px; height: 6px; }
     html:not(.dark) *::-webkit-scrollbar-track { background: transparent; }
-    html:not(.dark) *::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-    html:not(.dark) body { background: linear-gradient(145deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%); color: #1e293b; }
-    html:not(.dark) .glass { background: rgba(255, 255, 255, 0.75); backdrop-filter: blur(12px); border: 1px solid rgba(0,0,0,0.08); }
-    html:not(.dark) .glass-hover:hover { background: rgba(255, 255, 255, 0.9); border-color: rgba(0,0,0,0.12); }
-    html:not(.dark) .stat-glow { box-shadow: 0 0 30px -10px rgba(99, 102, 241, 0.1); }
-    html:not(.dark) .waterfall-tooltip { background: rgba(255, 255, 255, 0.95); border: 1px solid rgba(0,0,0,0.1); color: #1e293b; box-shadow: 0 8px 32px rgba(0,0,0,0.12); }
+    html:not(.dark) *::-webkit-scrollbar-thumb { background: #d5d5d0; border-radius: 3px; }
+    html:not(.dark) body { background: linear-gradient(145deg, #fafaf8 0%, #f5f5f0 50%, #fafaf8 100%); color: #2c2c2a; }
+    html:not(.dark) .glass { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); border: 1px solid #e8e6e1; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+    html:not(.dark) .glass-hover:hover { background: rgba(255, 255, 255, 0.95); border-color: #dddbd5; }
+    html:not(.dark) .stat-glow { box-shadow: 0 1px 8px -2px rgba(124, 122, 239, 0.08); }
+    html:not(.dark) .waterfall-tooltip { background: rgba(255, 255, 255, 0.97); border: 1px solid #e8e6e1; color: #2c2c2a; box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
 
     /* Light theme text overrides */
-    html:not(.dark) .text-white { color: #0f172a !important; }
-    html:not(.dark) .text-slate-200 { color: #334155 !important; }
-    html:not(.dark) .text-slate-300 { color: #475569 !important; }
-    html:not(.dark) .text-slate-400 { color: #64748b !important; }
-    html:not(.dark) .text-slate-500 { color: #94a3b8 !important; }
-    html:not(.dark) .text-slate-600 { color: #94a3b8 !important; }
-    html:not(.dark) .text-slate-700 { color: #cbd5e1 !important; }
-    html:not(.dark) .bg-surface-100, html:not(.dark) .bg-surface-200 { background-color: #f1f5f9 !important; }
-    html:not(.dark) .border-white\/5, html:not(.dark) .border-white\/10 { border-color: rgba(0,0,0,0.08) !important; }
-    html:not(.dark) .divide-white\/5 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(0,0,0,0.06) !important; }
-    html:not(.dark) .hover\:bg-white\/\[0\.02\]:hover { background: rgba(0,0,0,0.03) !important; }
-    html:not(.dark) .trace-row-selected { background: rgba(99, 102, 241, 0.06) !important; border-left: 2px solid #6366f1; }
-    html:not(.dark) .skeleton { background: linear-gradient(90deg, rgba(0,0,0,0.04) 25%, rgba(0,0,0,0.08) 50%, rgba(0,0,0,0.04) 75%); background-size: 200% 100%; animation: shimmer 1.5s ease-in-out infinite; }
-    html:not(.dark) .tab-active { border-color: #6366f1; color: #4338ca !important; background: rgba(99, 102, 241, 0.06); }
-    html:not(.dark) .tab-inactive { border-color: transparent; color: #94a3b8 !important; }
-    html:not(.dark) .tab-inactive:hover { color: #64748b !important; border-color: rgba(99, 102, 241, 0.3); }
-    html:not(.dark) .filter-input { background-color: #f8fafc !important; border-color: rgba(0,0,0,0.12) !important; color: #334155 !important; }
-    html:not(.dark) .severity-critical { background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.2); color: #dc2626; }
-    html:not(.dark) .severity-warning { background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.2); color: #d97706; }
-    html:not(.dark) .severity-info { background: rgba(59, 130, 246, 0.08); border-color: rgba(59, 130, 246, 0.2); color: #2563eb; }
-    html:not(.dark) kbd { background: #e2e8f0 !important; border-color: rgba(0,0,0,0.12) !important; color: #64748b !important; }
+    html:not(.dark) .text-white { color: #2c2c2a !important; }
+    html:not(.dark) .text-slate-200 { color: #3a3a38 !important; }
+    html:not(.dark) .text-slate-300 { color: #555553 !important; }
+    html:not(.dark) .text-slate-400 { color: #8a8a86 !important; }
+    html:not(.dark) .text-slate-500 { color: #8a8a86 !important; }
+    html:not(.dark) .text-slate-600 { color: #b5b5b0 !important; }
+    html:not(.dark) .text-slate-700 { color: #d5d5d0 !important; }
+    html:not(.dark) .bg-surface-100, html:not(.dark) .bg-surface-200 { background-color: #f5f5f0 !important; }
+    html:not(.dark) .border-white\/5, html:not(.dark) .border-white\/10 { border-color: #e8e6e1 !important; }
+    html:not(.dark) .divide-white\/5 > :not([hidden]) ~ :not([hidden]) { border-color: #edede8 !important; }
+    html:not(.dark) .hover\:bg-white\/\[0\.02\]:hover { background: rgba(0,0,0,0.02) !important; }
+    html:not(.dark) .trace-row-selected { background: rgba(124, 122, 239, 0.06) !important; border-left: 2px solid #7c7aef; }
+    html:not(.dark) .skeleton { background: linear-gradient(90deg, rgba(0,0,0,0.03) 25%, rgba(0,0,0,0.06) 50%, rgba(0,0,0,0.03) 75%); background-size: 200% 100%; animation: shimmer 1.5s ease-in-out infinite; }
+    html:not(.dark) .tab-active { border-color: #7c7aef; color: #6b68d9 !important; background: rgba(124, 122, 239, 0.06); }
+    html:not(.dark) .tab-inactive { border-color: transparent; color: #8a8a86 !important; }
+    html:not(.dark) .tab-inactive:hover { color: #555553 !important; border-color: rgba(124, 122, 239, 0.3); }
+    html:not(.dark) .filter-input { background-color: #fafaf8 !important; border-color: #e8e6e1 !important; color: #2c2c2a !important; }
+    html:not(.dark) .severity-critical { background: rgba(196, 112, 112, 0.08); border-color: rgba(196, 112, 112, 0.25); color: #c47070; }
+    html:not(.dark) .severity-warning { background: rgba(196, 154, 92, 0.08); border-color: rgba(196, 154, 92, 0.25); color: #c49a5c; }
+    html:not(.dark) .severity-info { background: rgba(122, 158, 181, 0.08); border-color: rgba(122, 158, 181, 0.25); color: #7a9eb5; }
+    html:not(.dark) kbd { background: #edede8 !important; border-color: #e8e6e1 !important; color: #8a8a86 !important; }
 
     /* ========== Shared styles ========== */
     .fade-in { animation: fadeIn 0.3s ease-out; }
@@ -88,12 +88,12 @@
     .pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
     .span-bar { transition: all 0.2s ease !important; cursor: pointer; }
     .span-bar:hover { filter: brightness(1.3); transform: scaleY(1.2); }
-    .tab-active { border-color: #6366f1; color: #e0e7ff; background: rgba(99, 102, 241, 0.08); }
-    .tab-inactive { border-color: transparent; color: #64748b; }
-    .tab-inactive:hover { color: #94a3b8; border-color: rgba(99, 102, 241, 0.3); }
-    .severity-critical { background: rgba(239, 68, 68, 0.12); border-color: rgba(239, 68, 68, 0.3); color: #fca5a5; }
-    .severity-warning { background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.3); color: #fcd34d; }
-    .severity-info { background: rgba(59, 130, 246, 0.12); border-color: rgba(59, 130, 246, 0.3); color: #93c5fd; }
+    .tab-active { border-color: #7c7aef; color: #e0dff8; background: rgba(124, 122, 239, 0.08); }
+    .tab-inactive { border-color: transparent; color: #8a8a86; }
+    .tab-inactive:hover { color: #b5b5b0; border-color: rgba(124, 122, 239, 0.3); }
+    .severity-critical { background: rgba(196, 112, 112, 0.12); border-color: rgba(196, 112, 112, 0.3); color: #d9a0a0; }
+    .severity-warning { background: rgba(196, 154, 92, 0.12); border-color: rgba(196, 154, 92, 0.3); color: #d9c49a; }
+    .severity-info { background: rgba(122, 158, 181, 0.12); border-color: rgba(122, 158, 181, 0.3); color: #a0c4d9; }
     #cy-container { width: 100%; height: 500px; }
 
     /* View transitions */
@@ -117,7 +117,7 @@
 
     /* New trace highlight animation */
     @keyframes newTraceHighlight {
-      0% { background-color: rgba(99, 102, 241, 0.15); }
+      0% { background-color: rgba(124, 122, 239, 0.12); }
       100% { background-color: transparent; }
     }
     .new-trace-highlight { animation: newTraceHighlight 2s ease-out; }
@@ -146,10 +146,10 @@
     }
 
     /* Focus ring for filter inputs */
-    .filter-input:focus { outline: none; border-color: rgba(99, 102, 241, 0.5); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); }
+    .filter-input:focus { outline: none; border-color: rgba(124, 122, 239, 0.5); box-shadow: 0 0 0 3px rgba(124, 122, 239, 0.08); }
 
     /* Trace row keyboard selection */
-    .trace-row-selected { background: rgba(99, 102, 241, 0.08) !important; border-left: 2px solid #6366f1; }
+    .trace-row-selected { background: rgba(124, 122, 239, 0.08) !important; border-left: 2px solid #7c7aef; }
 
     /* Collapsible section */
     .collapsible-header { cursor: pointer; user-select: none; }
@@ -182,11 +182,11 @@
 
     /* Theme toggle button */
     .theme-toggle { position: relative; width: 44px; height: 24px; border-radius: 12px; cursor: pointer; transition: background-color 0.3s ease; }
-    .dark .theme-toggle { background: #1e293b; border: 1px solid rgba(255,255,255,0.1); }
-    html:not(.dark) .theme-toggle { background: #e2e8f0; border: 1px solid rgba(0,0,0,0.1); }
+    .dark .theme-toggle { background: #3a3a36; border: 1px solid rgba(255,255,255,0.1); }
+    html:not(.dark) .theme-toggle { background: #e8e6e1; border: 1px solid rgba(0,0,0,0.08); }
     .theme-toggle-knob { position: absolute; top: 2px; width: 18px; height: 18px; border-radius: 50%; transition: left 0.3s ease, background-color 0.3s ease; }
-    .dark .theme-toggle-knob { left: 2px; background: #f1f5f9; }
-    html:not(.dark) .theme-toggle-knob { left: 22px; background: #f59e0b; }
+    .dark .theme-toggle-knob { left: 2px; background: #edede8; }
+    html:not(.dark) .theme-toggle-knob { left: 22px; background: #c49a5c; }
 
     /* Mobile responsiveness */
     @media (max-width: 768px) {
@@ -207,7 +207,7 @@
     }
   </style>
 </head>
-<body class="dark min-h-screen font-sans text-slate-200 antialiased">
+<body class="min-h-screen font-sans text-slate-200 antialiased">
 
   <!-- Toast Container -->
   <div id="toast-container" class="fixed top-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none"></div>
@@ -216,7 +216,7 @@
   <header class="sticky top-0 z-50 glass border-b border-white/5">
     <div class="max-w-[1600px] mx-auto flex items-center justify-between px-6 py-3">
       <div class="flex items-center gap-3">
-        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-[#7c7aef] to-[#9b8ec4] flex items-center justify-center">
           <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
           </svg>
@@ -500,13 +500,13 @@
           <div class="absolute bottom-3 left-3 z-10 glass rounded-lg p-2.5 text-[10px]">
             <div class="font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">Legend</div>
             <div class="space-y-1">
-              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full" style="background:#6366f1"></span><span class="text-slate-400">LLM</span></div>
-              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full" style="background:#10b981"></span><span class="text-slate-400">Tool</span></div>
-              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full" style="background:#8b5cf6"></span><span class="text-slate-400">Agent</span></div>
-              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full" style="background:#f59e0b"></span><span class="text-slate-400">Chain</span></div>
-              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full" style="background:#06b6d4"></span><span class="text-slate-400">Retrieval</span></div>
-              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm border-2 border-red-500" style="background:#7f1d1d"></span><span class="text-slate-400">Root Cause</span></div>
-              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm border-2 border-amber-500" style="background:#78350f"></span><span class="text-slate-400">Cascaded Error</span></div>
+              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full" style="background:#9b8ec4"></span><span class="text-slate-400">LLM</span></div>
+              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full" style="background:#7ab5a0"></span><span class="text-slate-400">Tool</span></div>
+              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full" style="background:#a88ec4"></span><span class="text-slate-400">Agent</span></div>
+              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full" style="background:#c4b07a"></span><span class="text-slate-400">Chain</span></div>
+              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full" style="background:#7a9eb5"></span><span class="text-slate-400">Retrieval</span></div>
+              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm border-2 border-[#c47070]" style="background:#c47070"></span><span class="text-slate-400">Root Cause</span></div>
+              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm border-2 border-[#c49a5c]" style="background:#c49a5c"></span><span class="text-slate-400">Cascaded Error</span></div>
               <div class="flex items-center gap-1.5"><span class="w-8 h-0 border-t-2 border-red-500 border-solid"></span><span class="text-slate-400">caused_by</span></div>
               <div class="flex items-center gap-1.5"><span class="w-8 h-0 border-t-2 border-amber-500 border-dashed"></span><span class="text-slate-400">preceded_by</span></div>
             </div>
@@ -576,7 +576,7 @@
   <footer class="mt-8 border-t border-white/5 glass">
     <div class="max-w-[1600px] mx-auto px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3">
       <div class="flex items-center gap-2 text-xs text-slate-500">
-        <div class="w-5 h-5 rounded bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+        <div class="w-5 h-5 rounded bg-gradient-to-br from-[#7c7aef] to-[#9b8ec4] flex items-center justify-center flex-shrink-0">
           <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
           </svg>
@@ -1246,12 +1246,12 @@ function renderTraceDetail(data) {
 // Timeline — Waterfall Chart
 // =========================================================================
 const SPAN_KIND_COLORS = {
-  llm:       { bg: 'bg-indigo-500/20', bar: '#6366f1', text: 'text-indigo-300', label: 'LLM' },
-  tool:      { bg: 'bg-emerald-500/20', bar: '#10b981', text: 'text-emerald-300', label: 'Tool' },
-  agent:     { bg: 'bg-violet-500/20', bar: '#8b5cf6', text: 'text-violet-300', label: 'Agent' },
-  chain:     { bg: 'bg-amber-500/20',   bar: '#f59e0b', text: 'text-amber-300',  label: 'Chain' },
-  retrieval: { bg: 'bg-cyan-500/20',    bar: '#06b6d4', text: 'text-cyan-300',   label: 'Retrieval' },
-  custom:    { bg: 'bg-slate-500/20',   bar: '#64748b', text: 'text-slate-300',  label: 'Custom' },
+  llm:       { bg: 'bg-[#9b8ec4]/20', bar: '#9b8ec4', text: 'text-[#9b8ec4]', label: 'LLM' },
+  tool:      { bg: 'bg-[#7ab5a0]/20', bar: '#7ab5a0', text: 'text-[#7ab5a0]', label: 'Tool' },
+  agent:     { bg: 'bg-[#a88ec4]/20', bar: '#a88ec4', text: 'text-[#a88ec4]', label: 'Agent' },
+  chain:     { bg: 'bg-[#c4b07a]/20', bar: '#c4b07a', text: 'text-[#c4b07a]', label: 'Chain' },
+  retrieval: { bg: 'bg-[#7a9eb5]/20', bar: '#7a9eb5', text: 'text-[#7a9eb5]', label: 'Retrieval' },
+  custom:    { bg: 'bg-[#a0a09a]/20', bar: '#a0a09a', text: 'text-[#a0a09a]', label: 'Custom' },
 };
 
 function renderWaterfallTimeline(spans) {
@@ -1330,9 +1330,9 @@ function renderWaterfallTimeline(spans) {
     const durationStr = formatDuration(durationMs);
 
     const indent = depth * 20;
-    const barColor = isError ? '#ef4444' : cfg.bar;
+    const barColor = isError ? '#c47070' : cfg.bar;
     const barOpacity = isError ? 0.85 : 0.7;
-    const barBorder = isError ? '2px solid #f87171' : 'none';
+    const barBorder = isError ? '2px solid #d9a0a0' : 'none';
 
     // Build tooltip data attributes
     const tokens = span.token_usage ? (span.token_usage.total_tokens || (span.token_usage.input_tokens || 0) + (span.token_usage.output_tokens || 0) || 0) : 0;
@@ -1608,8 +1608,8 @@ function renderDAG(dagData) {
   if (cyInstance) { cyInstance.destroy(); cyInstance = null; }
 
   const kindColors = {
-    llm: '#6366f1', tool: '#10b981', agent: '#8b5cf6', chain: '#f59e0b',
-    retrieval: '#06b6d4', custom: '#64748b'
+    llm: '#9b8ec4', tool: '#7ab5a0', agent: '#a88ec4', chain: '#c4b07a',
+    retrieval: '#7a9eb5', custom: '#a0a09a'
   };
 
   const nodes = (dagData.nodes || []).map(n => {
@@ -1619,12 +1619,12 @@ function renderDAG(dagData) {
 
     if (n.status === 'error') {
       if (n.error_role === 'root_cause') {
-        borderColor = '#ef4444';
-        bgColor = '#7f1d1d';
+        borderColor = '#c47070';
+        bgColor = '#c47070';
         borderWidth = 4;
       } else if (n.error_role === 'cascaded') {
-        borderColor = '#f59e0b';
-        bgColor = '#78350f';
+        borderColor = '#c49a5c';
+        bgColor = '#c49a5c';
         borderWidth = 3;
       }
     }
@@ -1652,7 +1652,7 @@ function renderDAG(dagData) {
       source: e.source,
       target: e.target,
       relation: e.relation,
-      lineColor: e.relation === 'caused_by' ? '#ef4444' : '#f59e0b',
+      lineColor: e.relation === 'caused_by' ? '#c47070' : '#c49a5c',
       isError: e.relation === 'caused_by',
     }
   }));
@@ -1668,7 +1668,7 @@ function renderDAG(dagData) {
             source: s.parent_span_id,
             target: s.span_id,
             relation: 'parent_child',
-            lineColor: '#334155',
+            lineColor: '#b5b5b0',
             isError: false,
           }
         });
@@ -1712,14 +1712,14 @@ function renderDAG(dagData) {
           'border-color': 'data(borderColor)',
           'border-width': 'data(borderWidth)',
           'label': 'data(label)',
-          'color': '#e2e8f0',
+          'color': isDarkTheme ? '#e2e0db' : '#2c2c2a',
           'font-size': '10px',
           'font-family': 'Inter, system-ui, sans-serif',
           'text-valign': 'bottom',
           'text-margin-y': 8,
           'width': 40,
           'height': 40,
-          'text-outline-color': '#0a0d1a',
+          'text-outline-color': isDarkTheme ? '#2a2a28' : '#fafaf8',
           'text-outline-width': 2,
           'transition-property': 'border-color, border-width, background-color',
           'transition-duration': '0.2s',
@@ -1729,7 +1729,7 @@ function renderDAG(dagData) {
         selector: 'node:active',
         style: {
           'overlay-opacity': 0.1,
-          'overlay-color': '#6366f1',
+          'overlay-color': '#7c7aef',
         }
       },
       {
@@ -1866,7 +1866,7 @@ async function loadCostData() {
   }
 }
 
-const CHART_COLORS = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#06b6d4', '#84cc16'];
+const CHART_COLORS = ['#9b8ec4', '#7ab5a0', '#c49a5c', '#7a9eb5', '#c47070', '#b5a082', '#a88ec4', '#c4b07a'];
 
 function renderCostChart(canvasId, data, type) {
   if (chartInstances[canvasId]) { chartInstances[canvasId].destroy(); }
@@ -2043,7 +2043,7 @@ function exportDAGPng() {
     return;
   }
   try {
-    const pngData = cyInstance.png({ output: 'blob', bg: '#0a0d1a', scale: 2, full: true });
+    const pngData = cyInstance.png({ output: 'blob', bg: isDarkTheme ? '#2a2a28' : '#fafaf8', scale: 2, full: true });
     const url = URL.createObjectURL(pngData);
     const a = document.createElement('a');
     a.href = url;
@@ -2493,16 +2493,16 @@ function renderVirtualizedTraces(traces, containerId) {
 // Init
 // =========================================================================
 document.addEventListener('DOMContentLoaded', async () => {
-  // Apply saved theme
+  // Apply saved theme — default to light
   const savedTheme = localStorage.getItem('flowlens-theme');
-  if (savedTheme === 'light') {
-    document.documentElement.classList.remove('dark');
-    document.body.classList.remove('dark');
-    isDarkTheme = false;
-  } else {
+  if (savedTheme === 'dark') {
     document.documentElement.classList.add('dark');
     document.body.classList.add('dark');
     isDarkTheme = true;
+  } else {
+    document.documentElement.classList.remove('dark');
+    document.body.classList.remove('dark');
+    isDarkTheme = false;
   }
 
   // Setup keyboard navigation
