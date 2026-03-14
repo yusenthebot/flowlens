@@ -15,8 +15,8 @@
     }
   </script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/dagre@0.8.5/dist/dagre.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
   <script>if(typeof THREE==='undefined'){var s=document.createElement('script');s.src='/static/three.min.js';document.head.appendChild(s);}</script>
@@ -674,6 +674,22 @@
         </div>
       </div>
 
+      <!-- Overview Mini Charts -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="glass rounded-xl p-4">
+          <h3 class="text-xs font-medium text-slate-400 mb-2">Cost by Agent</h3>
+          <div style="height:160px;position:relative"><canvas id="overview-pie-agent"></canvas></div>
+        </div>
+        <div class="glass rounded-xl p-4">
+          <h3 class="text-xs font-medium text-slate-400 mb-2">Traces by Agent</h3>
+          <div style="height:160px;position:relative"><canvas id="overview-bar-agent"></canvas></div>
+        </div>
+        <div class="glass rounded-xl p-4">
+          <h3 class="text-xs font-medium text-slate-400 mb-2">Error Distribution</h3>
+          <div style="height:160px;position:relative"><canvas id="overview-pie-errors"></canvas></div>
+        </div>
+      </div>
+
       <!-- Trace Volume Trend -->
       <div class="glass rounded-xl p-4 mb-6">
         <div class="flex items-center justify-between mb-3">
@@ -684,7 +700,16 @@
             <button onclick="loadTrendChart(168)" class="trend-btn px-2 py-1 text-[10px] rounded bg-surface-100 text-slate-400 hover:text-white transition">7d</button>
           </div>
         </div>
-        <canvas id="chart-trend" height="180"></canvas>
+        <div style="height:200px;position:relative"><canvas id="chart-trend"></canvas></div>
+      </div>
+
+      <!-- Mini Agent Network -->
+      <div class="glass rounded-xl p-4 mb-6">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-xs font-medium text-slate-400">Agent Network</h3>
+          <button onclick="switchView('agents')" class="text-[10px] text-indigo-400 hover:text-indigo-300">Full View &rarr;</button>
+        </div>
+        <div id="agent-graph-mini" style="width:100%;height:200px;position:relative;background:rgba(15,23,42,0.3);border-radius:8px;"></div>
       </div>
 
       <!-- Live Agent Monitor -->
@@ -1626,7 +1651,7 @@ function switchView(view) {
   if (tabBtn) { tabBtn.classList.remove('tab-inactive'); tabBtn.classList.add('tab-active'); }
 
   // Load data for the view
-  if (view === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); loadActivityTimeline(); loadTrendChart(_trendHours || 24);  }
+  if (view === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); loadActivityTimeline(); loadTrendChart(_trendHours || 24); loadOverviewCharts(); loadAgentGraphMini(); }
   else if (view === 'traces') { loadTraces(); }
   else if (view === 'cost') { loadCostData(); }
   else if (view === 'patterns') { loadAllPatterns(); }
@@ -2241,8 +2266,119 @@ async function loadAgentGraph() {
 }
 
 async function loadAgentGraphMini() {
-  // Removed — 3D mini graph no longer shown on Overview; use Agents tab for full 3D view
-  return;
+  try {
+    const data = await apiFetch('/v1/agents/network');
+    if (!data || !data.nodes || data.nodes.length === 0) return;
+    const container = document.getElementById('agent-graph-mini');
+    if (!container || container.clientWidth === 0) return;
+
+    // Clean up previous
+    container.innerHTML = '';
+
+    if (typeof cytoscape === 'undefined') return;
+
+    const elements = [];
+    data.nodes.forEach(n => {
+      const p = getAgentProfile(n.id);
+      elements.push({ data: { id: n.id, label: p.name || n.id, color: p.color || '#6366f1' } });
+    });
+    (data.edges || []).forEach(e => {
+      elements.push({ data: { source: e.source, target: e.target, label: 'x' + (e.count || 1) } });
+    });
+
+    cytoscape({
+      container: container,
+      elements: elements,
+      style: [
+        { selector: 'node', style: {
+          'label': 'data(label)',
+          'background-color': 'data(color)',
+          'color': '#e2e8f0',
+          'font-size': '9px',
+          'text-valign': 'center',
+          'text-halign': 'center',
+          'width': 30, 'height': 30,
+          'border-width': 2,
+          'border-color': '#1e293b',
+        }},
+        { selector: 'edge', style: {
+          'width': 1.5,
+          'line-color': '#475569',
+          'target-arrow-color': '#6366f1',
+          'target-arrow-shape': 'triangle',
+          'curve-style': 'bezier',
+          'opacity': 0.6,
+        }}
+      ],
+      layout: { name: 'cose', animate: false, padding: 20 },
+    });
+  } catch (e) { console.warn('Mini graph:', e); }
+}
+
+async function loadOverviewCharts() {
+  try {
+    const summary = await apiFetch('/v1/agents/summary');
+    if (!summary || !summary.agents || summary.agents.length === 0) return;
+    const agents = summary.agents;
+
+    // Doughnut: Cost by Agent
+    const pieCanvas = document.getElementById('overview-pie-agent');
+    if (pieCanvas) {
+      if (chartInstances['overview-pie-agent']) chartInstances['overview-pie-agent'].destroy();
+      const labels = agents.map(a => getAgentProfile(a.agent).name || a.agent);
+      const costs = agents.map(a => a.total_cost || a.cost || 0);
+      const colors = agents.map(a => getAgentProfile(a.agent).color || '#6366f1');
+      chartInstances['overview-pie-agent'] = new Chart(pieCanvas, {
+        type: 'doughnut',
+        data: { labels, datasets: [{ data: costs, backgroundColor: colors }] },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 10 } } } }
+        }
+      });
+    }
+
+    // Horizontal Bar: Traces by Agent
+    const barCanvas = document.getElementById('overview-bar-agent');
+    if (barCanvas) {
+      if (chartInstances['overview-bar-agent']) chartInstances['overview-bar-agent'].destroy();
+      const labels = agents.map(a => getAgentProfile(a.agent).name || a.agent);
+      const traces = agents.map(a => a.trace_count || 0);
+      const colors = agents.map(a => getAgentProfile(a.agent).color || '#6366f1');
+      chartInstances['overview-bar-agent'] = new Chart(barCanvas, {
+        type: 'bar',
+        data: { labels, datasets: [{ label: 'Traces', data: traces, backgroundColor: colors, borderRadius: 4 }] },
+        options: {
+          indexAxis: 'y',
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true },
+            y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { display: false } }
+          }
+        }
+      });
+    }
+
+    // Doughnut: Error Distribution
+    const errCanvas = document.getElementById('overview-pie-errors');
+    if (errCanvas) {
+      if (chartInstances['overview-pie-errors']) chartInstances['overview-pie-errors'].destroy();
+      const totalErrors = agents.reduce((s, a) => s + (a.error_count || 0), 0);
+      const totalOk = agents.reduce((s, a) => s + (a.trace_count || 0), 0) - totalErrors;
+      chartInstances['overview-pie-errors'] = new Chart(errCanvas, {
+        type: 'doughnut',
+        data: {
+          labels: ['Success', 'Errors'],
+          datasets: [{ data: [Math.max(0, totalOk), totalErrors], backgroundColor: ['#10b981', '#ef4444'] }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 10 } } } }
+        }
+      });
+    }
+  } catch (err) { console.warn('Overview charts error:', err); }
 }
 
 // =========================================================================
@@ -2479,7 +2615,7 @@ async function loadSparklines() {
     const traceCounts = buckets.map(b => b.traces || b.trace_count || 0);
     const errorCounts = buckets.map(b => b.errors || b.error_count || 0);
     const latencies = buckets.map(b => b.avg_duration_ms || 0);
-    const costs = buckets.map(b => b.total_cost || 0);
+    const costs = buckets.map(b => b.cost || b.total_cost || 0);
 
     renderSparkline('sparkline-traces', traceCounts, '#6366f1');
     renderSparkline('sparkline-errors', errorCounts, '#ef4444');
@@ -4773,7 +4909,7 @@ function startAutoRefresh() {
   autoRefreshTimer = setInterval(async () => {
     const ok = await healthCheck();
     if (!ok) return;
-    if (currentView === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); loadActivityTimeline(); loadTrendChart(_trendHours || 24); }
+    if (currentView === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); loadActivityTimeline(); loadTrendChart(_trendHours || 24); loadOverviewCharts(); loadAgentGraphMini(); }
     else if (currentView === 'traces') { loadTraces(); }
   }, 15000);
 }
@@ -5255,6 +5391,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   loadAgentActivity();
   loadActivityTimeline();
   loadTrendChart(24);
+  loadOverviewCharts();
+  loadAgentGraphMini();
   startAutoRefresh();
 
   // Connect WebSocket for real-time updates
