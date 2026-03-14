@@ -1,6 +1,6 @@
 <p align="center">
   <h1 align="center">FlowLens</h1>
-  <p align="center"><strong>Agent Observability Platform — trace, analyze, and optimize your LLM agents</strong></p>
+  <p align="center"><strong>Agent Observability Platform — trace, analyze, and optimize your AI agent teams</strong></p>
 </p>
 
 <p align="center">
@@ -11,7 +11,9 @@
   <a href="https://opentelemetry.io/"><img src="https://img.shields.io/badge/OpenTelemetry-compatible-blueviolet.svg" alt="OTEL Compatible"></a>
 </p>
 
-> FlowLens shows you **why** your AI agent failed, not just *that* it failed. It traces every LLM call, tool execution, and decision point — then builds **causal error graphs** to pinpoint root causes instantly.
+> FlowLens shows you **why** your AI agent failed, not just *that* it failed.
+
+It traces every LLM call, tool execution, and decision point — then builds **causal error graphs** to pinpoint root causes instantly. Built for teams running multi-agent systems where a single failure can cascade through a dozen services.
 
 <p align="center">
   <img src="examples/dashboard_full.png" alt="FlowLens Dashboard" width="820">
@@ -21,18 +23,26 @@
 
 ---
 
-## Features
+## Key Features
 
-- **Causal DAG Analysis** — distinguishes root causes from cascaded failures
-- **15+ Anti-Pattern Detectors** — retry storms, infinite loops, context overflow, timeout cascades, token waste, cold start penalty, and more
-- **Zero-Intrusion Tracing** — decorators instrument any Python agent without touching business logic
-- **Auto-Instrumentation** — one call patches Anthropic, OpenAI, and LangChain automatically
-- **Plugin System** — extensible plugin registry with entry-point discovery
-- **Cost Attribution** — token + cost breakdown by model, tool, or service (16+ models priced)
-- **Streaming Support** — accurate token counts for streamed LLM responses
-- **Real-Time Dashboard** — FastAPI server with WebSocket live feed, DAG visualization, waterfall timeline
-- **CLI Tools** — `flowlens serve`, `export`, `import`, `stats`, `health`, `demo`
-- **Multiple Exporters** — Console, HTTP, OTLP, CSV, JSONL, with batch + gzip support
+| Feature | Description |
+|---|---|
+| **Causal DAG Analysis** | Distinguishes root causes from cascaded failures in error graphs |
+| **15+ Anti-Pattern Detectors** | Retry storms, infinite loops, context overflow, timeout cascades, token waste, cold start penalty, and more — all configurable via env vars |
+| **Zero-Intrusion Tracing** | Decorators instrument any Python agent without touching business logic |
+| **Auto-Instrumentation** | One call patches Anthropic, OpenAI, and LangChain automatically |
+| **3D Agent Network Visualization** | Three.js WebGL 3D graph with glowing agent spheres, drag rotation, hover highlights, and a mini overview preview |
+| **Real-time Agent Team Monitoring** | WebSocket live feed of agent activity with status tracking and timeline |
+| **Agent Avatar System** | SVG icons per agent with unique color identities from AGENT_PROFILES |
+| **Cost Attribution** | Token + cost breakdown by model, tool, or service (16+ models priced) |
+| **LocalCollector** | Direct SQLite access — no server required, thread-safe ingest and query |
+| **FTS5 Full-Text Search** | Fast full-text search over trace and span content with LIKE fallback |
+| **Budget Alerts with AND conditions** | Compound alert rules using `&&` / `AND` operators on any metric |
+| **Notification Panel** | WebSocket-driven alert notifications in the dashboard |
+| **Plugin System** | Extensible plugin registry with entry-point discovery |
+| **Multiple Exporters** | Console, HTTP, OTLP, CSV, JSONL, Local — with batch and gzip support |
+| **CLI Tools** | 8 commands: `serve`, `analyze`, `export`, `import`, `stats`, `health`, `demo`, `version` |
+| **Configurable Pattern Thresholds** | Override any detector threshold via environment variables |
 
 ---
 
@@ -85,12 +95,23 @@ lens = FlowLens(service_name="my-agent", export_to="http",
                 endpoint="http://localhost:8585/v1/traces/ingest")
 ```
 
+### 4. No Server? Use LocalCollector
+
+```python
+from flowlens.local import LocalCollector
+
+collector = LocalCollector(db_path="./traces.db")
+collector.ingest(trace)
+results = collector.search("timeout")
+stats = collector.stats()
+```
+
 ---
 
 ## Dashboard
 
 <p align="center">
-  <img src="examples/screenshot_overview.png" alt="Trace Timeline" width="820">
+  <img src="examples/screenshot_overview.png" alt="Trace Overview" width="820">
 </p>
 
 <p align="center">
@@ -106,13 +127,29 @@ lens = FlowLens(service_name="my-agent", export_to="http",
 </p>
 
 **Key views:**
-- **Overview** — metrics cards, latency trends, trace volume charts
-- **Trace detail** — waterfall timeline with color-coded spans (LLM/Tool/Agent/Chain/Retrieval)
+- **Overview** — metrics cards with counter animations, latency trends, trace volume charts, mini 3D agent network preview
+- **Agents** — real-time agent team status with SVG avatars, error rates, activity timelines, 3D relationship graph
+- **Trace detail** — agent-colored waterfall timeline with span breakdown, error highlights, and root cause identification
 - **Causal DAG** — interactive graph showing error propagation and root causes
-- **Cost analysis** — cost breakdown by model and service, cost trends over time
-- **Pattern alerts** — automatically detected anti-patterns with severity levels
+- **Cost analysis** — cost breakdown by model, service, and agent with trend charts
+- **Pattern alerts** — detected anti-patterns with severity levels and click-to-filter
+- **Compare** — side-by-side trace comparison with verdict badge and diff progress bars
 
 > [**Open Live Dashboard Demo**](https://yusenthebot.github.io/flowlens/demo_dashboard.html) — interactive preview with 10 embedded sample traces, no install needed.
+
+---
+
+## Agent Team Monitoring
+
+FlowLens is built for monitoring AI agent teams. Each agent gets:
+
+- A unique SVG avatar and color identity drawn from a global `AGENT_PROFILES` registry
+- Real-time status tracking (active / idle) with activity timeline showing what each agent is doing
+- 3D network visualization of agent relationships — glowing WebGL spheres sized by workload, with drag rotation and hover highlights
+- Per-agent cost breakdown and error analysis across all traces
+- Comprehensive agent detail modal with profile, roles, recent activity, related agents, and spawn hierarchy
+
+The dashboard Agents tab shows your entire team at a glance. The Overview mini graph keeps topology visible without switching views. Agent relationship graphs (powered by Cytoscape.js with a Three.js upgrade path) reveal spawn hierarchies and call patterns across complex multi-agent systems.
 
 ---
 
@@ -121,19 +158,20 @@ lens = FlowLens(service_name="my-agent", export_to="http",
 Run any example — no API keys needed (all use simulated data):
 
 ```bash
-python3 examples/quickstart.py       # basic tracing in 30 seconds
-python3 examples/rag_pipeline.py     # full RAG: embed → search → rerank → generate
-python3 examples/multi_agent.py      # 4-agent collaboration with retry logic
-python3 examples/cost_optimizer.py   # compare 4 model strategies, find savings
-python3 examples/live_dashboard.py   # launch dashboard with sample data
+python3 examples/quickstart.py           # basic tracing in 30 seconds
+python3 examples/rag_pipeline.py         # full RAG: embed → search → rerank → generate
+python3 examples/multi_agent.py          # 4-agent collaboration with retry logic
+python3 examples/cost_optimizer.py       # compare 4 model strategies, find savings
+python3 examples/live_dashboard.py       # launch dashboard with sample data
+python3 examples/auto_instrument_example.py  # zero-decorator auto-instrumentation
 ```
 
 Or use the CLI / Makefile:
 
 ```bash
-flowlens demo                        # run quickstart demo
-flowlens demo --all                  # run all demos
-make demo                           # run all demos via Makefile
+flowlens demo                            # run quickstart demo
+flowlens demo --all                      # run all demos
+make demo                               # run all demos via Makefile
 ```
 
 | Example | What it demonstrates |
@@ -143,6 +181,7 @@ make demo                           # run all demos via Makefile
 | [`multi_agent.py`](examples/multi_agent.py) | Planner → Researcher → Writer → Reviewer with rejection/retry |
 | [`cost_optimizer.py`](examples/cost_optimizer.py) | Compare sonnet+haiku vs opus vs gpt-4o, cost bar charts |
 | [`live_dashboard.py`](examples/live_dashboard.py) | Generate traces, start server, open browser to dashboard |
+| [`auto_instrument_example.py`](examples/auto_instrument_example.py) | Patch Anthropic/OpenAI/LangChain with zero decorators |
 | [`demo_dashboard.html`](https://yusenthebot.github.io/flowlens/demo_dashboard.html) | Interactive dashboard ([live demo](https://yusenthebot.github.io/flowlens/demo_dashboard.html)) |
 | [`demo_autoplay.html`](https://yusenthebot.github.io/flowlens/demo_autoplay.html) | Auto-playing product tour ([live demo](https://yusenthebot.github.io/flowlens/demo_autoplay.html)) |
 
@@ -151,31 +190,36 @@ make demo                           # run all demos via Makefile
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                       Your Agent Code                        │
-│   @trace_agent  ·  @trace_llm  ·  @trace_tool               │
-│   @trace_chain  ·  @trace_retrieval  ·  auto_instrument()    │
-└──────────────┬───────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                         Your Agent Code                          │
+│   @trace_agent  ·  @trace_llm  ·  @trace_tool                   │
+│   @trace_chain  ·  @trace_retrieval  ·  auto_instrument()        │
+└──────────────┬───────────────────────────────────────────────────┘
                │
-       ┌───────▼───────┐            ┌──────────────────────────┐
-       │   SDK Layer    │            │    Analysis Layer         │
-       │               │            │                           │
-       │ · TraceContext │            │ · Causal DAG Builder      │
-       │ · SpanContext  │            │ · 15+ Pattern Detectors   │
-       │ · Exporters    │            │ · Root Cause ID           │
-       │   Console/CSV  │            │ · Cost Engine             │
-       │   HTTP/OTLP    │            │ · Multi-Trace Correlator  │
-       │   JSONL/Batch  │            │ · Weekly Reports          │
-       │ · Plugins      │            └───────────▲──────────────┘
-       └───────┬───────┘                         │
-               └────────────────►   ┌────────────┴──────────────┐
-                     export         │     Server Layer           │
-                                    │                            │
-                                    │ · FastAPI REST API (18+)   │
-                                    │ · WebSocket live feed      │
-                                    │ · SQLite + connection pool │
-                                    │ · Interactive Dashboard    │
-                                    └────────────────────────────┘
+       ┌───────▼────────┐            ┌────────────────────────────┐
+       │   SDK Layer     │            │      Analysis Layer         │
+       │                │            │                             │
+       │ · TraceContext  │            │ · Causal DAG Builder        │
+       │ · SpanContext   │            │ · 15+ Pattern Detectors     │
+       │ · Exporters     │            │   (configurable thresholds) │
+       │   Console/CSV   │            │ · Root Cause Identification │
+       │   HTTP/OTLP     │            │ · Cost Engine (16+ models)  │
+       │   JSONL/Local   │            │ · Multi-Trace Correlator    │
+       │ · Plugins       │            │ · Budget Alert Engine       │
+       │ · LocalCollector│            │   (AND compound conditions) │
+       └───────┬────────┘            └──────────▲─────────────────┘
+               │                                │
+               └────────────────►  ┌────────────┴──────────────────┐
+                     export        │       Server Layer             │
+                                   │                                │
+                                   │ · FastAPI REST API (25+ routes)│
+                                   │ · WebSocket live feed          │
+                                   │ · SQLite + FTS5 full-text search│
+                                   │ · Agent APIs (profiles, network)│
+                                   │ · Stats & Trends APIs          │
+                                   │ · Export & Report APIs         │
+                                   │ · 3D Dashboard (Three.js)      │
+                                   └────────────────────────────────┘
 ```
 
 ---
@@ -219,20 +263,97 @@ load_plugin("anthropic")   # or "openai", "langchain"
 @trace_embedding(model="ada-002")  # embedding calls — dimensions
 ```
 
+### Configurable Pattern Thresholds
+
+Override any detector threshold via environment variables:
+
+```bash
+export FLOWLENS_RETRY_STORM_THRESHOLD=3       # default: 5
+export FLOWLENS_LOOP_REPEAT_THRESHOLD=2       # default: 3
+export FLOWLENS_CONTEXT_OVERFLOW_PCT=0.85     # default: 0.90
+export FLOWLENS_COLD_START_MS=2000            # default: 5000
+```
+
 ---
 
 ## CLI Reference
 
 ```bash
-flowlens serve    [--host HOST] [--port PORT] [--db PATH]   # start dashboard server
-flowlens analyze  <trace-file.jsonl>                         # analyze trace file
-flowlens export   [--format json|csv|jsonl] [--output FILE]  # export traces from DB
-flowlens import   <json-file> [--db PATH]                    # import traces
-flowlens stats    [--db PATH]                                # show trace statistics
-flowlens health   [--db PATH]                                # check server & DB status
-flowlens demo     [--all] [--dashboard] [--quick]            # run demo examples
-flowlens version                                             # show version
+flowlens serve    [--host HOST] [--port PORT] [--db PATH]    # start dashboard server
+flowlens analyze  <trace-file.jsonl>                          # analyze trace file
+flowlens export   [--format json|csv|jsonl] [--output FILE]   # export traces from DB
+flowlens import   <json-file> [--db PATH]                     # import traces
+flowlens stats    [--db PATH]                                 # show trace statistics
+flowlens health   [--db PATH]                                 # check server & DB status
+flowlens demo     [--all] [--dashboard] [--quick]             # run demo examples
+flowlens version                                              # show version
 ```
+
+---
+
+## API Reference
+
+Base URL: `http://localhost:8585` — interactive docs at `/docs`.
+
+### Traces
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/v1/traces/ingest` | Ingest a single trace from the SDK |
+| `POST` | `/v1/traces/import` | Bulk import from JSONL file |
+| `GET` | `/v1/traces` | List traces with pagination and filters |
+| `GET` | `/v1/traces/{trace_id}` | Get complete trace with all spans |
+| `DELETE` | `/v1/traces/{trace_id}` | Delete a trace |
+| `GET` | `/v1/traces/{trace_id}/dag` | Causal DAG + pattern analysis |
+| `GET` | `/v1/traces/errors` | Error traces only |
+| `GET` | `/v1/traces/search?q=<query>` | FTS5 full-text search |
+| `POST` | `/v1/traces/cleanup` | Delete traces older than N days |
+
+### Agents
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/v1/agents/summary` | Aggregated stats grouped by agent tag |
+| `GET` | `/v1/agents/activity` | Recent agent activity events |
+| `GET` | `/v1/agents/profiles` | All agent profiles with SVG avatars and roles |
+| `GET` | `/v1/agents/network` | Enriched topology for 3D visualization (nodes with color, size, status) |
+| `GET` | `/v1/agents/relationships` | Agent spawn graph with call counts and timing |
+
+### Activity & Stats
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/v1/activity/stream` | Time-series activity events with filtering and pagination |
+| `GET` | `/v1/stats/trends` | Trace volume trends (hourly/daily) with per-agent breakdown |
+| `GET` | `/v1/stats/summary` | Aggregate statistics with per-agent breakdown |
+| `GET` | `/v1/stats` | Global aggregate statistics |
+
+### Cost
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/v1/cost/breakdown` | Cost by service, kind, or operation name |
+| `GET` | `/v1/cost/trends` | Cost over time (hour/day/week intervals) |
+
+### Patterns & Alerts
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/v1/patterns/summary` | Aggregated pattern counts and rates |
+| `GET` | `/v1/alerts/rules` | Configured alert rules |
+
+### Export
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/v1/export/report` | Comprehensive activity report (JSON/CSV/Markdown) |
+
+### Realtime & Health
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `WS` | `/ws/traces` | WebSocket — broadcasts every ingested trace |
+| `GET` | `/health` | Server and database health check |
 
 ---
 
@@ -241,7 +362,7 @@ flowlens version                                             # show version
 | Doc | Description |
 |---|---|
 | [Quickstart Guide](docs/quickstart.md) | Step-by-step getting started |
-| [API Reference](docs/api-reference.md) | Complete REST API (18+ endpoints) |
+| [API Reference](docs/api-reference.md) | Complete REST API reference |
 | [Architecture](docs/architecture.md) | Internals and design decisions |
 | [Deployment](docs/deployment.md) | Docker, Docker Compose, production setup |
 | [Troubleshooting](docs/troubleshooting.md) | Common issues and solutions |
@@ -252,19 +373,26 @@ API docs also available at `http://localhost:8585/docs` when the server is runni
 
 ## How It Compares
 
-|  | Langfuse | LangSmith | Opik | **FlowLens** |
+|  | Langfuse | LangSmith | Opik | **FlowLens 1.0** |
 |---|:---:|:---:|:---:|:---:|
 | Open Source | Yes | No | Yes | **Yes** |
 | **Causal DAG Analysis** | No | No | No | **Yes** |
 | **Error Cascade Detection** | No | No | No | **Yes** |
-| **Anti-Pattern Detection** | No | No | No | **15+** |
+| **Anti-Pattern Detection** | No | No | No | **15+ configurable** |
+| **3D Agent Network Graph** | No | No | No | **Yes (Three.js)** |
+| **Agent Team Monitoring** | No | Partial | No | **Yes (real-time)** |
+| **Agent Avatar System** | No | No | No | **Yes (SVG)** |
+| **LocalCollector (no server)** | No | No | No | **Yes (SQLite)** |
+| **FTS5 Full-Text Search** | No | No | No | **Yes** |
+| **Budget Alerts (AND rules)** | No | Partial | No | **Yes** |
 | Auto-Instrumentation | Partial | Yes | No | **Yes** |
 | Plugin System | No | No | No | **Yes** |
 | Streaming Support | No | Partial | No | **Yes** |
 | WebSocket Live Feed | No | No | No | **Yes** |
-| Multiple Exporters | 2 | 1 | 1 | **6** |
+| Multiple Exporters | 2 | 1 | 1 | **7** |
 | CLI Tools | No | Yes | No | **8 commands** |
 | Self-Hosted | Docker | No | Docker | **pip + Docker** |
+| Cost Attribution Models | — | — | — | **16+** |
 
 ---
 
@@ -276,7 +404,7 @@ Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 git clone https://github.com/yusenthebot/flowlens.git
 cd flowlens
 pip install -e ".[dev]"
-python3 -m pytest tests/ -q   # 754 tests — all must pass
+python3 -m pytest tests/ -q   # 1071 tests — all must pass
 ```
 
 ---
