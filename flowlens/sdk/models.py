@@ -378,13 +378,17 @@ def _estimate_cost(
     model: str, input_tokens: int, output_tokens: int
 ) -> dict[str, float]:
     """估算 LLM 调用成本"""
-    # 模糊匹配模型名
+    # Longest-match-first strategy: among all pricing keys that are a substring
+    # of the model name, pick the longest one.  This prevents "gpt-4" from
+    # matching "gpt-4o-mini" when a more-specific key like "gpt-4o-mini" also
+    # matches.
     pricing = _DEFAULT_PRICING
     model_lower = model.lower()
+    best_match_len = 0
     for key, val in _MODEL_PRICING.items():
-        if key in model_lower or model_lower in key:
+        if key in model_lower and len(key) > best_match_len:
+            best_match_len = len(key)
             pricing = val
-            break
 
     input_cost = (input_tokens / 1_000_000) * pricing[0]
     output_cost = (output_tokens / 1_000_000) * pricing[1]

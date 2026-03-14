@@ -330,3 +330,72 @@ class TestSearchSpecialChars:
             store.save_trace(_make_trace(service="empty-search-svc"))
         results = store.search_traces("")
         assert len(results) >= 3
+
+
+# ---------------------------------------------------------------------------
+# FK constraint resilience: mismatched span trace_ids
+# ---------------------------------------------------------------------------
+
+class TestFKConstraintResilience:
+    def test_save_trace_with_mismatched_span_trace_id(self, store: TraceStore):
+        """Spans with a different trace_id than the parent trace must not
+        cause a FOREIGN KEY constraint failure.  The save_trace() method
+        should normalise all span trace_ids before inserting."""
+        trace_id = uuid.uuid4().hex
+        wrong_trace_id = uuid.uuid4().hex  # deliberately different
+
+        trace_data = {
+            "trace_id": trace_id,
+            "service_name": "external-hook-svc",
+            "start_time": time.time(),
+            "end_time": time.time() + 1.0,
+            "duration_ms": 1000.0,
+            "span_count": 2,
+            "total_tokens": 30,
+            "total_cost_usd": 0.002,
+            "has_errors": False,
+            "error_count": 0,
+            "metadata": {},
+            "spans": [
+                {
+                    "span_id": uuid.uuid4().hex[:16],
+                    "trace_id": wrong_trace_id,  # mismatched — simulates external hook
+                    "parent_span_id": None,
+                    "name": "root",
+                    "kind": "llm",
+                    "status": "ok",
+                    "start_time": time.time(),
+                    "end_time": time.time() + 0.5,
+                    "duration_ms": 500.0,
+                    "attributes": {},
+                    "events": [],
+                    "token_usage": {"input_tokens": 10, "output_tokens": 5, "total_cost_usd": 0.001},
+                    "error": None,
+                },
+                {
+                    "span_id": uuid.uuid4().hex[:16],
+                    "trace_id": wrong_trace_id,  # also mismatched
+                    "parent_span_id": None,
+                    "name": "child",
+                    "kind": "tool",
+                    "status": "ok",
+                    "start_time": time.time(),
+                    "end_time": time.time() + 0.2,
+                    "duration_ms": 200.0,
+                    "attributes": {},
+                    "events": [],
+                    "token_usage": {"input_tokens": 10, "output_tokens": 5, "total_cost_usd": 0.001},
+                    "error": None,
+                },
+            ],
+        }
+
+        # Must not raise IntegrityError / "FOREIGN KEY constraint failed"
+        store.save_trace(trace_data)
+
+        retrieved = store.get_trace(trace_id)
+        assert retrieved is not None
+        assert len(retrieved["spans"]) == 2
+        # All stored spans must carry the correct (normalised) trace_id
+        for span in retrieved["spans"]:
+            assert span["trace_id"] == trace_id

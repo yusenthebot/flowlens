@@ -143,6 +143,34 @@ class TestCostEstimation:
         assert round(costs["input_cost_usd"], 6) == 0.0003
         assert round(costs["output_cost_usd"], 6) == 0.00075
 
+    def test_cost_estimation_model_specificity(self):
+        """Longest-match strategy must pick the most-specific pricing key.
+
+        Prior to the fix, 'gpt-4' (a substring of 'gpt-4o-mini') would be
+        matched first due to dict iteration order, returning the wrong price.
+        """
+        # "gpt-4o-mini" must use gpt-4o-mini pricing (0.15, 0.6),
+        # NOT gpt-4o (2.5, 10.0) and NOT gpt-4.1 (2.0, 8.0).
+        costs = _estimate_cost("gpt-4o-mini", 1_000_000, 1_000_000)
+        assert costs["input_cost_usd"] == pytest.approx(0.15), (
+            "gpt-4o-mini should match gpt-4o-mini pricing, not a shorter key"
+        )
+        assert costs["output_cost_usd"] == pytest.approx(0.6)
+
+        # "claude-sonnet-4-20250514" must use the full versioned key (3.0, 15.0)
+        # and not accidentally fall back to a shorter alias.
+        costs = _estimate_cost("claude-sonnet-4-20250514", 1_000_000, 1_000_000)
+        assert costs["input_cost_usd"] == pytest.approx(3.0)
+        assert costs["output_cost_usd"] == pytest.approx(15.0)
+
+        # "gpt-4.1-nano" must match gpt-4.1-nano (0.1, 0.4),
+        # NOT the shorter gpt-4.1 (2.0, 8.0).
+        costs = _estimate_cost("gpt-4.1-nano", 1_000_000, 1_000_000)
+        assert costs["input_cost_usd"] == pytest.approx(0.1), (
+            "gpt-4.1-nano should match gpt-4.1-nano pricing, not gpt-4.1"
+        )
+        assert costs["output_cost_usd"] == pytest.approx(0.4)
+
 
 class TestSpanEdgeCases:
     def test_span_to_dict_all_fields_populated(self):

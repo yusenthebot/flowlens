@@ -413,6 +413,13 @@ class TraceStore:
 
             spans = trace_data.get("spans", [])
             if spans:
+                # Normalize trace_id on all spans to match the parent trace.
+                # External hook systems sometimes emit spans with a mismatched
+                # trace_id, which would cause a FOREIGN KEY constraint failure.
+                expected_trace_id = trace_data["trace_id"]
+                for span in spans:
+                    span["trace_id"] = expected_trace_id  # Ensure FK consistency
+
                 # Build all parameter tuples up-front then batch-insert
                 span_params = []
                 for span in spans:
