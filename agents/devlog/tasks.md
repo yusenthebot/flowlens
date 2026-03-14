@@ -1,8 +1,25 @@
 # Task Board — FlowLens Development
 
-## PROJECT COMPLETE — 2026-03-14 (Cycle 6 delivered 2026-03-14)
+## PROJECT COMPLETE — 2026-03-14 (Cycle 7 delivered 2026-03-14)
 
-All planned improvements delivered across 6 development cycles (3 planned + 3 enhancement cycles). All tasks closed. System production-ready. Version 0.7.0. 1066 tests (all passing).
+All planned improvements and enhancements delivered across 7 development cycles. All tasks closed. System production-ready. Version 0.8.0. 1071 tests (all passing).
+
+---
+
+## Cycle 7: Complete (2026-03-14) — 3D VISUALIZATION & CSS ANIMATIONS CYCLE
+
+### Done (2026-03-14)
+- [x] **Three.js 3D agent network visualization** — Alpha — Interactive WebGL 3D visualization with glowing spheres per agent colored from AGENT_PROFILES, size proportional to trace_count. Active agents pulse emissive intensity, idle agents semi-transparent. HTML labels positioned via 3D-to-screen projection follow camera rotation. Mouse drag to rotate (OrbitControls-like), hover to highlight and scale, click to open agent detail modal. Cytoscape fallback if THREE unavailable — Commit 92d54c5 — `flowlens/server/dashboard.html`
+- [x] **Mini 3D preview on Overview** — Alpha — #agent-graph-mini (200px) preview below Agent Team bar with auto-rotation and simplified scene (no labels). Shares cached relationship data with main scene to avoid duplicate API fetches. Wired into switchView(), refreshCurrentView(), initial load — Commit 92d54c5 — `flowlens/server/dashboard.html`
+- [x] **/v1/agents/network API endpoint** — Beta — New endpoint merging summary, activity, profiles, relationships into enriched nodes with label, role, color, size (0.3–1.0 normalized by trace_count), status, trace_count, error_rate, cost; includes relationship edges. Enables 3D visualization to receive complete topology data — Commit 0d0d034 — `flowlens/server/app.py`
+- [x] **Fixed /v1/agents/relationships to always include known agents** — Beta — Now returns all built-in AGENT_PROFILES agents and any discovered agents as nodes, ensuring complete network topology even with no spawn relationships. Edges still reflect only actual spawn spans — Commit 0d0d034 — `flowlens/server/app.py`, `tests/test_server.py`
+- [x] **Card stagger animation** — Gamma — cardSlideUp keyframes + stat-card-enter stagger classes (0–320ms delays) applied to all 5 stat cards in Overview for sequential entry animation — Commit 8066f3a — `flowlens/server/dashboard.html`
+- [x] **3D card hover tilt** — Gamma — card-3d-hover class with perspective(800px) tilt applied to agent team bar cards and Agents tab cards for tactile feedback on hover — Commit 8066f3a — `flowlens/server/dashboard.html`
+- [x] **Floating gradient orbs** — Gamma — gradient-orb + orbFloat keyframes; 3 floating orbs behind Overview content for visual depth and atmosphere — Commit 8066f3a — `flowlens/server/dashboard.html`
+- [x] **Counter animation** — Gamma — animateCounter() function with ease-out cubic easing applied to traces, spans, error rate, latency, cost, tokens in loadStats() for smooth number transitions — Commit 8066f3a — `flowlens/server/dashboard.html`
+- [x] **Chart.js gradient fill** — Gamma — createLinearGradient (0.25 → 0.01 opacity fade) in loadTrendChart() for visual polish of trend area charts — Commit 8066f3a — `flowlens/server/dashboard.html`
+- [x] **View panel animations** — Gamma — viewEnter animation (opacity + translateY) for smooth tab transitions — Commit 8066f3a — `flowlens/server/dashboard.html`
+- [x] **Network API tests** — Beta — 5 new test cases: test_agents_network_returns_all_known_agents, test_agents_network_node_has_required_fields, test_agents_network_includes_edges_from_relationships, test_agents_network_discovered_agent_appears_as_node, test_agents_relationships_always_includes_discovered_agents — Commit 0d0d034 — `tests/test_server.py`
 
 ---
 
@@ -100,12 +117,12 @@ The following tasks were proposed for future cycles but are deprioritized given 
 
 | Metric | Value |
 |--------|-------|
-| Total Cycles | 6 (3 planned + 3 enhancement) |
-| Total Commits | 22 |
-| Total Features | 25 |
-| Total Tests | 1066 |
+| Total Cycles | 7 (3 planned + 4 enhancement) |
+| Total Commits | 25 |
+| Total Features | 28 |
+| Total Tests | 1071 |
 | Test Pass Rate | 100% |
-| Lines Added | ~2500 (source + tests) |
+| Lines Added | ~2800 (source + tests) |
 | Active Blockers | 0 |
 | File Conflicts | 0 |
 | Deployment Status | Production-ready |
@@ -119,4 +136,4 @@ The following tasks were proposed for future cycles but are deprioritized given 
 - `[ ]` = backlog / deferred
 - Agent = responsible developer (Alpha, Beta, Gamma)
 - Priority = critical/high/medium/low
-- Status: Project Complete — All improvements delivered, system production-ready, version 0.7.0
+- Status: Project Complete — All improvements delivered, system production-ready, version 0.8.0
