@@ -139,11 +139,13 @@ class JSONLExporter(TraceExporter):
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self._file_path = self.output_dir / "traces.jsonl"
         self._file = open(self._file_path, "a", encoding="utf-8")
+        self._lock = threading.Lock()
 
     def export(self, trace: Trace) -> None:
         line = json.dumps(trace.to_dict(), ensure_ascii=False)
-        self._file.write(line + "\n")
-        self._file.flush()
+        with self._lock:
+            self._file.write(line + "\n")
+            self._file.flush()
         logger.debug(f"Exported trace {trace.trace_id[:12]} to {self._file_path}")
 
     def shutdown(self) -> None:
@@ -164,8 +166,13 @@ class CallbackExporter(TraceExporter):
 class HTTPExporter(TraceExporter):
     """POST 到 FlowLens Server"""
 
-    def __init__(self, endpoint: str = "http://localhost:8585/v1/traces/ingest") -> None:
+    def __init__(
+        self,
+        endpoint: str = "http://localhost:8585/v1/traces/ingest",
+        timeout: float = 5.0,
+    ) -> None:
         self.endpoint = endpoint
+        self.timeout = timeout
 
     def export(self, trace: Trace) -> None:
         # MVP: 同步 POST（生产环境应改为异步批量）
@@ -178,7 +185,7 @@ class HTTPExporter(TraceExporter):
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
-            urllib.request.urlopen(req, timeout=5)
+            urllib.request.urlopen(req, timeout=self.timeout)
             logger.debug(f"Exported trace {trace.trace_id[:12]} to {self.endpoint}")
         except Exception as e:
             logger.warning(f"Failed to export trace to {self.endpoint}: {e}")
@@ -878,6 +885,8 @@ class CSVExporter(TraceExporter):
             self._file = open(self._file_path, "a", newline="", encoding="utf-8")
             self._file_writer = csv.writer(self._file)
 
+        self._lock = threading.Lock()
+
     # ------------------------------------------------------------------
     # Public interface
     # ------------------------------------------------------------------
@@ -908,9 +917,10 @@ class CSVExporter(TraceExporter):
     # ------------------------------------------------------------------
 
     def _write_row(self, row: List[Any]) -> None:
-        self._mem_writer.writerow(row)
-        if self._file_writer is not None:
-            self._file_writer.writerow(row)
+        with self._lock:
+            self._mem_writer.writerow(row)
+            if self._file_writer is not None:
+                self._file_writer.writerow(row)
 
     def _span_to_row(self, span: Span, trace: Trace) -> List[Any]:
         """Extract a CSV row from a span according to self.columns."""
@@ -981,10 +991,13 @@ class JSONLStreamExporter(TraceExporter):
             self._out = open(p, "a", encoding="utf-8")
             self._owned_file = True
 
+        self._lock = threading.Lock()
+
     def export(self, trace: Trace) -> None:
         line = json.dumps(trace.to_dict(), ensure_ascii=self.ensure_ascii)
-        self._out.write(line + "\n")
-        self._out.flush()
+        with self._lock:
+            self._out.write(line + "\n")
+            self._out.flush()
         logger.debug("JSONLStreamExporter: exported trace %s", trace.trace_id[:12])
 
     def shutdown(self) -> None:

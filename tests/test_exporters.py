@@ -20,6 +20,8 @@ import pytest
 
 from flowlens.sdk.exporters import (
     CSVExporter,
+    HTTPExporter,
+    JSONLExporter,
     JSONLStreamExporter,
     OTLPBatchExporter,
     _CSV_DEFAULT_COLUMNS,
@@ -742,3 +744,154 @@ class TestOTLPExporterNotBroken:
             trace = _make_trace(_make_span())
             exp.export(trace)
             mock_send.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Thread-safety — JSONLExporter
+# ---------------------------------------------------------------------------
+
+
+class TestJSONLExporterThreadSafety:
+    """Verify that concurrent writes do not corrupt JSONL output."""
+
+    def test_jsonl_exporter_thread_safety(self, tmp_path):
+        """10 threads each writing 50 traces must produce 500 valid, complete lines."""
+        output_dir = tmp_path / "jsonl_thread_test"
+        exp = JSONLExporter(output_dir=str(output_dir))
+
+        num_threads = 10
+        traces_per_thread = 50
+        errors: List[Exception] = []
+
+        def worker(thread_idx: int) -> None:
+            for i in range(traces_per_thread):
+                span_id = f"{thread_idx:02x}{i:02x}" + "aa" * 6
+                trace = _make_trace(
+                    _make_span(name=f"t{thread_idx}_s{i}", span_id=span_id),
+                    trace_id=f"{thread_idx:02x}{i:02x}" + "ab" * 14,
+                )
+                try:
+                    exp.export(trace)
+                except Exception as exc:
+                    errors.append(exc)
+
+        threads = [threading.Thread(target=worker, args=(idx,)) for idx in range(num_threads)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        exp.shutdown()
+
+        assert errors == [], f"Threads raised exceptions: {errors}"
+
+        file_path = output_dir / "traces.jsonl"
+        raw_lines = [line for line in file_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+        assert len(raw_lines) == num_threads * traces_per_thread, (
+            f"Expected {num_threads * traces_per_thread} lines, got {len(raw_lines)}"
+        )
+
+        # Every line must be valid JSON with a trace_id field — no interleaving
+        for line in raw_lines:
+            parsed = json.loads(line)
+            assert "trace_id" in parsed
+
+
+# ---------------------------------------------------------------------------
+# Thread-safety — CSVExporter
+# ---------------------------------------------------------------------------
+
+
+class TestCSVExporterThreadSafety:
+    """Verify that concurrent writes do not corrupt CSV output."""
+
+    def test_csv_exporter_thread_safety(self):
+        """10 threads each writing 50 traces must produce exactly 500 data rows."""
+        exp = CSVExporter(write_header=True)
+
+        num_threads = 10
+        traces_per_thread = 50
+        errors: List[Exception] = []
+
+        def worker(thread_idx: int) -> None:
+            for i in range(traces_per_thread):
+                span_id = f"{thread_idx:02x}{i:02x}" + "cc" * 6
+                trace = _make_trace(
+                    _make_span(name=f"t{thread_idx}_s{i}", span_id=span_id),
+                    trace_id=f"{thread_idx:02x}{i:02x}" + "cd" * 14,
+                )
+                try:
+                    exp.export(trace)
+                except Exception as exc:
+                    errors.append(exc)
+
+        threads = [threading.Thread(target=worker, args=(idx,)) for idx in range(num_threads)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert errors == [], f"Threads raised exceptions: {errors}"
+
+        reader = csv.DictReader(io.StringIO(exp.get_csv_string()))
+        rows = list(reader)
+
+        assert len(rows) == num_threads * traces_per_thread, (
+            f"Expected {num_threads * traces_per_thread} data rows, got {len(rows)}"
+        )
+
+        # Every row must have parseable columns — no interleaving corruption
+        for row in rows:
+            assert "trace_id" in row
+            assert "name" in row
+
+
+# ---------------------------------------------------------------------------
+# HTTPExporter — configurable timeout
+# ---------------------------------------------------------------------------
+
+
+class TestHTTPExporterCustomTimeout:
+    """Verify that the timeout parameter is forwarded to urllib.request.urlopen."""
+
+    def test_default_timeout_is_five(self):
+        exp = HTTPExporter()
+        assert exp.timeout == 5.0
+
+    def test_custom_timeout_stored(self):
+        exp = HTTPExporter(timeout=12.5)
+        assert exp.timeout == 12.5
+
+    def test_custom_timeout_forwarded_to_urlopen(self):
+        """urlopen must receive the configured timeout, not a hardcoded value."""
+        captured_timeouts: List[Any] = []
+
+        def fake_urlopen(req, timeout=None):
+            captured_timeouts.append(timeout)
+            return MagicMock()
+
+        exp = HTTPExporter(
+            endpoint="http://localhost:8585/v1/traces/ingest",
+            timeout=42.0,
+        )
+
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            exp.export(_make_trace(_make_span()))
+
+        assert len(captured_timeouts) == 1
+        assert captured_timeouts[0] == pytest.approx(42.0)
+
+    def test_default_timeout_forwarded_to_urlopen(self):
+        captured_timeouts: List[Any] = []
+
+        def fake_urlopen(req, timeout=None):
+            captured_timeouts.append(timeout)
+            return MagicMock()
+
+        exp = HTTPExporter(endpoint="http://localhost:8585/v1/traces/ingest")
+
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            exp.export(_make_trace(_make_span()))
+
+        assert captured_timeouts[0] == pytest.approx(5.0)
