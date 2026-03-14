@@ -614,6 +614,16 @@
         <canvas id="chart-trend" height="120"></canvas>
       </div>
 
+      <!-- Live Agent Monitor -->
+      <div class="glass rounded-xl p-4 mb-6">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 pulse-dot"></span>
+          <h2 class="text-sm font-semibold text-white">Live Monitor</h2>
+          <span class="text-[10px] text-slate-500 ml-auto" id="monitor-update-time">--</span>
+        </div>
+        <div id="live-monitor" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3"></div>
+      </div>
+
       <!-- Activity Timeline + Recent Traces (side by side) -->
       <div class="overview-split-grid grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <!-- Activity Timeline (left) -->
@@ -1430,6 +1440,18 @@ function handleLiveTraceUpdate(traceData) {
   }
   // --- End notification hooks ---
 
+  // Flash the corresponding agent card in the Live Monitor
+  const monitorAgentName = traceData.tags?.agent || traceData.metadata?.agent || traceData.service_name;
+  if (monitorAgentName) {
+    const cards = document.querySelectorAll('#live-monitor [data-agent]');
+    cards.forEach(card => {
+      if (card.dataset.agent === monitorAgentName) {
+        card.classList.add('ring-2', 'ring-emerald-400/50');
+        setTimeout(() => card.classList.remove('ring-2', 'ring-emerald-400/50'), 2000);
+      }
+    });
+  }
+
   // Full refresh based on current view
   if (currentView === 'overview') {
     loadStats();
@@ -1494,24 +1516,57 @@ async function loadAgentActivity() {
       const p = getAgentProfile(a.agent);
       const isActive = a.status === 'active';
       const borderClass = isActive ? 'border-emerald-500/40 shadow-emerald-500/10 shadow-lg' : 'border-white/5';
-      const tools = (a.recent_tools || []).slice(0, 3).join(', ') || 'idle';
       const timeAgo = formatTimeAgo(a.last_seen);
       const delay = idx * 80;
       return `
-        <div class="glass rounded-xl p-3 min-w-[160px] border ${borderClass} cursor-pointer hover:border-indigo-500/30 transition flex-shrink-0 card-3d-hover agent-team-card" style="animation-delay:${delay}ms" onclick="filterTracesByAgent('${escHtml(a.agent)}')">
-          <div class="flex items-center gap-2.5 mb-2">
+        <div class="glass rounded-xl p-2 min-w-[130px] border ${borderClass} cursor-pointer hover:border-indigo-500/30 transition flex-shrink-0 card-3d-hover agent-team-card" style="animation-delay:${delay}ms" onclick="filterTracesByAgent('${escHtml(a.agent)}')">
+          <div class="flex items-center gap-2 mb-1">
             ${renderAgentAvatar(a.agent, 'md')}
             <div class="min-w-0">
-              <div class="text-xs font-semibold text-white truncate">${escHtml(p.name)}</div>
-              <div class="text-[10px] text-slate-500">${escHtml(p.role)}</div>
+              <div class="text-[10px] font-semibold text-white truncate">${escHtml(p.name)}</div>
+              <div class="text-[9px] text-slate-500">${escHtml(p.role)}</div>
             </div>
             ${isActive ? '<span class="w-2 h-2 rounded-full bg-emerald-500 pulse-dot ml-auto flex-shrink-0"></span>' : '<span class="w-2 h-2 rounded-full bg-slate-600 ml-auto flex-shrink-0"></span>'}
           </div>
-          <div class="text-[10px] text-slate-400 truncate">${escHtml(tools)}</div>
-          <div class="text-[10px] text-slate-500 mt-1">${timeAgo} · ${a.trace_count_1h || 0} ops</div>
+          <div class="text-[10px] text-slate-500">${timeAgo} · ${a.trace_count_1h || 0} ops</div>
         </div>`;
     }).join('');
+    renderLiveMonitor(data.agents);
   } catch (e) { /* silently fail */ }
+}
+
+// =========================================================================
+// Live Agent Monitor
+// =========================================================================
+function renderLiveMonitor(agents) {
+  const container = document.getElementById('live-monitor');
+  const timeEl = document.getElementById('monitor-update-time');
+  if (!container) return;
+
+  if (timeEl) timeEl.textContent = new Date().toLocaleTimeString();
+
+  if (!agents || agents.length === 0) {
+    container.innerHTML = '<p class="text-xs text-slate-500 col-span-full">Waiting for agents...</p>';
+    return;
+  }
+
+  container.innerHTML = agents.map(a => {
+    const p = getAgentProfile(a.agent);
+    const isActive = a.status === 'active';
+    const lastTool = (a.recent_tools || [])[0] || '--';
+    const timeAgo = formatTimeAgo(a.last_seen);
+
+    return `
+      <div class="rounded-lg p-2.5 ${isActive ? 'bg-emerald-500/5 border border-emerald-500/20' : 'bg-slate-800/30 border border-white/5'} transition-all duration-300" data-agent="${escHtml(a.agent)}">
+        <div class="flex items-center gap-2 mb-1">
+          <div class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style="background:${p.color}">${(p.name||'?')[0]}</div>
+          <span class="text-[11px] font-medium text-white truncate">${escHtml(p.name)}</span>
+          ${isActive ? '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot ml-auto"></span>' : ''}
+        </div>
+        <div class="text-[10px] ${isActive ? 'text-emerald-400' : 'text-slate-500'}">${isActive ? escHtml(lastTool) : 'idle'}</div>
+        <div class="text-[9px] text-slate-600">${timeAgo}</div>
+      </div>`;
+  }).join('');
 }
 
 // =========================================================================
