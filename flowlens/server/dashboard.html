@@ -914,6 +914,42 @@ function handleLiveTrace(traceData) {
 }
 
 // =========================================================================
+// Live Pulse Indicator
+// =========================================================================
+let _livePulseTimer = null;
+function flashLivePulse() {
+  const pulse = document.getElementById('live-pulse');
+  if (!pulse) return;
+  pulse.classList.remove('hidden');
+  if (_livePulseTimer) clearTimeout(_livePulseTimer);
+  _livePulseTimer = setTimeout(() => {
+    pulse.classList.add('hidden');
+    _livePulseTimer = null;
+  }, 2000);
+}
+
+// =========================================================================
+// WebSocket Live Update Handler
+// =========================================================================
+function handleLiveTraceUpdate(traceData) {
+  flashLivePulse();
+
+  // Toast for new trace (existing showToast signature: message, type, duration)
+  showToast(`New trace from ${traceData.service_name || 'agent'}`, 'info', 3000);
+
+  // Full refresh based on current view
+  if (currentView === 'overview') {
+    loadStats();
+    loadRecentTraces();
+    if (typeof loadAgentActivity === 'function') loadAgentActivity();
+  } else if (currentView === 'traces') {
+    loadTraces();
+  } else if (currentView === 'agents') {
+    if (typeof loadAgentData === 'function') loadAgentData();
+  }
+}
+
+// =========================================================================
 // View Switching (with smooth transitions)
 // =========================================================================
 function switchView(view) {
