@@ -21,6 +21,8 @@
   <script>if(typeof Chart==='undefined'){var s=document.createElement('script');s.src='/static/chart.min.js';document.head.appendChild(s);}</script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
   <script>if(typeof THREE==='undefined'){var s=document.createElement('script');s.src='/static/three.min.js';document.head.appendChild(s);}</script>
+  <script src="https://cdn.jsdelivr.net/npm/3d-force-graph@1"></script>
+  <script>if(typeof ForceGraph3D==='undefined'){var s=document.createElement('script');s.src='/static/3d-force-graph.min.js';document.head.appendChild(s);}</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <script>
@@ -2388,8 +2390,13 @@ async function loadOverviewAgents() {
 
 // --- Overview 3D cleanup state ---
 let _overview3D = null;
+let _forceGraph = null;
 
 function _cleanupOverview3D() {
+  if (_forceGraph) {
+    _forceGraph._destructor && _forceGraph._destructor();
+    _forceGraph = null;
+  }
   if (!_overview3D) return;
   const { renderer, scene, ro, labels, animId, tooltip, cleanup } = _overview3D;
   if (animId) cancelAnimationFrame(animId);
@@ -2413,10 +2420,98 @@ async function loadOverviewGraph() {
     ]);
 
     const container = document.getElementById('overview-agent-graph');
-    if (!container || !container.clientWidth || typeof THREE === 'undefined') return;
+    if (!container || !container.clientWidth) return;
 
     _cleanupOverview3D();
     container.innerHTML = '';
+
+    // ========= 3D-FORCE-GRAPH (high-level, beautiful) =========
+    if (typeof ForceGraph3D !== 'undefined') {
+      const nodes = (netData?.nodes || []).filter(n => n.id !== 'Agent').map(n => {
+        const p = getAgentProfile(n.id);
+        return { id: n.id, name: p.name || n.id, role: p.role || 'Agent', color: p.color || '#6366f1',
+          val: Math.max(4, (n.trace_count || 1) / 3), traceCount: n.trace_count || 0,
+          cost: n.cost || 0, errorRate: n.error_rate || 0, status: n.status || 'idle' };
+      });
+      const links = (relData?.edges || []).filter(e =>
+        nodes.some(n => n.id === e.source) && nodes.some(n => n.id === e.target)
+      ).map(e => ({ source: e.source, target: e.target, value: e.count || 1 }));
+
+      _forceGraph = ForceGraph3D({ controlType: 'orbit' })(container)
+        .graphData({ nodes, links })
+        .backgroundColor('#080c18')
+        .width(container.clientWidth)
+        .height(container.clientHeight || 450)
+        .nodeLabel(n => `<div style="background:rgba(8,12,24,0.95);color:#e2e8f0;padding:10px 14px;border-radius:10px;font-size:12px;border:1px solid ${n.color}50;backdrop-filter:blur(8px)">
+          <div style="font-weight:700;color:${n.color};font-size:15px">${n.name}</div>
+          <div style="color:#64748b;font-size:10px;margin-bottom:6px">${n.role}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;font-size:11px">
+            <span>Traces: <b>${n.traceCount}</b></span><span>Cost: <b>$${n.cost.toFixed(2)}</b></span>
+            <span>Errors: <b>${(n.errorRate*100).toFixed(0)}%</b></span>
+            <span style="color:${n.status==='active'?'#10b981':'#475569'}">● ${n.status}</span>
+          </div></div>`)
+        .nodeColor(n => n.color)
+        .nodeOpacity(0.95)
+        .nodeResolution(24)
+        .nodeRelSize(1.2)
+        .linkColor(() => 'rgba(99,102,241,0.25)')
+        .linkWidth(l => 0.8 + l.value * 0.4)
+        .linkOpacity(0.5)
+        .linkDirectionalParticles(l => 2 + Math.min(l.value, 4))
+        .linkDirectionalParticleSpeed(0.006)
+        .linkDirectionalParticleWidth(2)
+        .linkDirectionalParticleColor(l => {
+          const srcId = typeof l.source === 'object' ? l.source.id : l.source;
+          const src = nodes.find(n => n.id === srcId);
+          return src ? src.color : '#6366f1';
+        })
+        .linkCurvature(0.2)
+        .linkCurveRotation(l => l.value * 0.4)
+        .onNodeClick(n => filterTracesByAgent(n.id))
+        .onNodeHover(n => { container.style.cursor = n ? 'pointer' : 'default'; })
+        .enableNodeDrag(true)
+        .enableNavigationControls(true)
+        .showNavInfo(false)
+        .warmupTicks(50)
+        .cooldownTicks(100);
+
+      // Custom glowing node objects
+      _forceGraph.nodeThreeObject(node => {
+        const grp = new THREE.Group();
+        const r = node.val * 0.7;
+        // Core
+        const core = new THREE.Mesh(
+          new THREE.SphereGeometry(r, 32, 32),
+          new THREE.MeshPhongMaterial({ color: node.color, emissive: node.color, emissiveIntensity: node.status==='active'?0.5:0.2, shininess: 120, transparent: true, opacity: 0.95 })
+        );
+        grp.add(core);
+        // Glow
+        const glow = new THREE.Mesh(
+          new THREE.SphereGeometry(r * 2.2, 16, 16),
+          new THREE.MeshBasicMaterial({ color: node.color, transparent: true, opacity: node.status==='active'?0.1:0.03 })
+        );
+        grp.add(glow);
+        // Name sprite
+        const c = document.createElement('canvas'); c.width = 300; c.height = 64;
+        const cx = c.getContext('2d');
+        cx.font = 'bold 26px Inter,system-ui,sans-serif'; cx.fillStyle = '#e2e8f0'; cx.textAlign = 'center';
+        cx.fillText(node.name, 150, 28);
+        cx.font = '16px Inter,system-ui,sans-serif'; cx.fillStyle = '#94a3b8';
+        cx.fillText(node.traceCount + ' traces · $' + node.cost.toFixed(1), 150, 50);
+        const tex = new THREE.CanvasTexture(c);
+        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0.85 }));
+        sp.scale.set(14, 3, 1); sp.position.y = r * 3 + 4;
+        grp.add(sp);
+        return grp;
+      });
+
+      // Animate camera into position
+      setTimeout(() => _forceGraph.cameraPosition({ x: 0, y: 30, z: 100 }, { x: 0, y: 0, z: 0 }, 2000), 300);
+      return;
+    }
+
+    // ========= FALLBACK: basic if no ForceGraph3D =========
+    if (typeof THREE === 'undefined') return;
 
     const W = container.clientWidth, H = container.clientHeight || 450;
 
