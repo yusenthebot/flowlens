@@ -811,7 +811,12 @@ class TraceStore:
                    LIMIT ?""",
                 (query, limit),
             ).fetchall()
-            return [self._deserialise_trace(row) for row in rows]
+            results = [self._deserialise_trace(row) for row in rows]
+            if results:
+                return results
+            # FTS matched nothing — fall through to LIKE which also
+            # searches service_name (not indexed by FTS).
+            return self._search_traces_like(query, limit, offset)
         except Exception:
             # Fallback to LIKE if FTS fails (e.g., invalid FTS syntax)
             return self._search_traces_like(query, limit, offset)
