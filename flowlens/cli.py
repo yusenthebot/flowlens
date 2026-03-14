@@ -127,6 +127,7 @@ def serve(
         port=resolved_port,
         log_level=resolved_level.lower(),
         reload=dev,
+        ws="websockets",
     )
 
 
