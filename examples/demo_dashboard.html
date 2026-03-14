@@ -1,1687 +1,1830 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FlowLens v0.5.0 — Agent Observability Dashboard (Demo)</title>
+  <title>FlowLens — Agent Observability Dashboard (Demo)</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%236366f1'/%3E%3Cstop offset='100%25' stop-color='%238b5cf6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='6' fill='url(%23g)'/%3E%3Cpath d='M8 22V14a2 2 0 014 0v8m4 0V10a2 2 0 014 0v12' stroke='white' stroke-width='2.5' stroke-linecap='round' fill='none'/%3E%3C/svg%3E">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dagre@0.8.5/dist/dagre.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          colors: {
+            surface: { 50: '#1a1f35', 100: '#151929', 200: '#111525', 300: '#0d1020', 400: '#0a0d1a' },
+            brand: { 400: '#818cf8', 500: '#6366f1', 600: '#4f46e5' },
+          }
+        }
+      }
+    }
+    if (localStorage.getItem('flowlens-theme') === 'light') {
+      document.documentElement.classList.remove('dark');
+    } else {
+      document.documentElement.classList.add('dark');
+    }
+  </script>
   <style>
-    :root {
-      --bg-primary: #0a0e27;
-      --bg-secondary: #141829;
-      --bg-tertiary: #1a1f3a;
-      --border-color: #2a2f4f;
-      --text-primary: #e4e4e7;
-      --text-secondary: #a1a1a6;
-      --text-muted: #71717a;
-      --accent-blue: #3b82f6;
-      --accent-green: #10b981;
-      --accent-red: #ef4444;
-      --accent-orange: #f59e0b;
-      --accent-purple: #8b5cf6;
-      --success: #10b981;
-      --error: #ef4444;
-      --warning: #f59e0b;
-      --info: #3b82f6;
-    }
-
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    html, body {
-      width: 100%;
-      height: 100%;
-      overflow-x: hidden;
-    }
-
-    body {
-      background: linear-gradient(135deg, var(--bg-primary) 0%, #0f1433 100%);
-      color: var(--text-primary);
-      font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif;
-      font-size: 14px;
-      line-height: 1.5;
-      font-feature-settings: "cv11" 1;
-    }
-
-    /* ============== HEADER ============== */
-    .header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 20px 32px;
-      border-bottom: 1px solid var(--border-color);
-      background: rgba(10, 14, 39, 0.4);
-      backdrop-filter: blur(10px);
-      position: sticky;
-      top: 0;
-      z-index: 100;
-    }
-
-    .header-left {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-
-    .logo {
-      width: 36px;
-      height: 36px;
-      background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
-      font-weight: 700;
-      color: white;
-      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
-    }
-
-    .header-title {
-      display: flex;
-      flex-direction: column;
-    }
-
-    .header-title h1 {
-      font-size: 20px;
-      font-weight: 700;
-      letter-spacing: -0.3px;
-    }
-
-    .header-title .subtitle {
-      font-size: 11px;
-      color: var(--text-muted);
-      margin-top: 2px;
-    }
-
-    .header-center {
-      flex: 1;
-      text-align: center;
-      margin: 0 32px;
-    }
-
-    .trace-info {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 12px;
-      color: var(--text-secondary);
-    }
-
-    .trace-id {
-      font-family: 'Monaco', 'Courier New', monospace;
-      color: var(--accent-blue);
-      font-weight: 600;
-      background: rgba(59, 130, 246, 0.1);
-      padding: 4px 8px;
-      border-radius: 4px;
-    }
-
-    .header-right {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .status-badge {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
-      background: rgba(16, 185, 129, 0.1);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      border-radius: 6px;
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--success);
-    }
-
-    .status-badge::before {
-      content: '';
-      width: 6px;
-      height: 6px;
-      background: var(--success);
-      border-radius: 50%;
-      animation: pulse 2s infinite;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.4; }
-    }
-
-    .btn-replay {
-      padding: 8px 14px;
-      background: linear-gradient(135deg, var(--accent-blue) 0%, #2563eb 100%);
-      border: none;
-      border-radius: 6px;
-      color: white;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
-    }
-
-    .btn-replay:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-    }
-
-    .btn-replay:active {
-      transform: translateY(0);
-    }
-
-    .btn-replay.replaying {
-      background: linear-gradient(135deg, var(--accent-green) 0%, #059669 100%);
-      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.2);
-    }
-
-    /* ============== MAIN LAYOUT ============== */
-    .container {
-      display: grid;
-      grid-template-columns: 1fr 400px;
-      gap: 24px;
-      padding: 24px 32px;
-      height: calc(100vh - 80px);
-      overflow: hidden;
-    }
-
-    .main-panel {
-      display: flex;
-      flex-direction: column;
-      gap: 24px;
-      overflow-y: auto;
-      padding-right: 8px;
-    }
-
-    .main-panel::-webkit-scrollbar {
-      width: 6px;
-    }
-
-    .main-panel::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    .main-panel::-webkit-scrollbar-thumb {
-      background: var(--border-color);
-      border-radius: 3px;
-    }
-
-    .main-panel::-webkit-scrollbar-thumb:hover {
-      background: var(--text-muted);
-    }
-
-    /* ============== CARDS ============== */
-    .card {
-      background: linear-gradient(135deg, rgba(20, 24, 41, 0.5) 0%, rgba(26, 31, 58, 0.3) 100%);
-      border: 1px solid var(--border-color);
-      border-radius: 12px;
-      padding: 24px;
-      backdrop-filter: blur(10px);
-      transition: all 0.3s ease;
-      animation: fadeInUp 0.5s ease-out;
-    }
-
-    @keyframes fadeInUp {
-      from {
-        opacity: 0;
-        transform: translateY(12px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .card:hover {
-      border-color: rgba(59, 130, 246, 0.3);
-      background: linear-gradient(135deg, rgba(20, 24, 41, 0.6) 0%, rgba(26, 31, 58, 0.4) 100%);
-    }
-
-    .card-title {
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--text-secondary);
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      margin-bottom: 20px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    /* ============== STATS ROW ============== */
-    .stats-row {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: 16px;
-      animation: fadeInUp 0.6s ease-out 0.1s both;
-    }
-
-    .stat-card {
-      background: rgba(26, 31, 58, 0.6);
-      border: 1px solid var(--border-color);
-      border-radius: 8px;
-      padding: 16px;
-      text-align: center;
-      transition: all 0.3s ease;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .stat-card::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background: linear-gradient(90deg, transparent, var(--accent-blue), transparent);
-      opacity: 0;
-      transition: opacity 0.3s ease;
-    }
-
-    .stat-card:hover::before {
-      opacity: 1;
-    }
-
-    .stat-card:hover {
-      border-color: var(--accent-blue);
-      background: rgba(59, 130, 246, 0.05);
-    }
-
-    .stat-value {
-      font-size: 28px;
-      font-weight: 700;
-      font-variant-numeric: tabular-nums;
-      margin-bottom: 8px;
-      letter-spacing: -0.5px;
-    }
-
-    .stat-value.success { color: var(--success); }
-    .stat-value.error { color: var(--error); }
-    .stat-value.warning { color: var(--warning); }
-    .stat-value.info { color: var(--accent-blue); }
-    .stat-value.purple { color: var(--accent-purple); }
-
-    .stat-label {
-      font-size: 11px;
-      color: var(--text-muted);
-      font-weight: 500;
-    }
-
-    .stat-card.animated .stat-value {
-      animation: countUp 0.8s ease-out;
-    }
-
-    @keyframes countUp {
-      from {
-        opacity: 0;
-        transform: scale(0.9);
-      }
-      to {
-        opacity: 1;
-        transform: scale(1);
-      }
-    }
-
-    /* ============== TIMELINE / GANTT ============== */
-    .timeline-section {
-      animation: fadeInUp 0.6s ease-out 0.2s both;
-    }
-
-    .timeline-controls {
-      display: flex;
-      gap: 12px;
-      margin-bottom: 20px;
-      margin-top: -8px;
-    }
-
-    .timeline-btn {
-      padding: 6px 12px;
-      background: var(--bg-tertiary);
-      border: 1px solid var(--border-color);
-      border-radius: 5px;
-      color: var(--text-secondary);
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-
-    .timeline-btn:hover {
-      border-color: var(--accent-blue);
-      color: var(--accent-blue);
-    }
-
-    .timeline-btn.active {
-      background: var(--accent-blue);
-      border-color: var(--accent-blue);
-      color: white;
-    }
-
-    .timeline-container {
-      position: relative;
-      min-height: 320px;
-      overflow-x: auto;
-      overflow-y: hidden;
-      background: rgba(10, 14, 39, 0.3);
-      border-radius: 8px;
-      padding: 16px;
-      border: 1px solid var(--border-color);
-    }
-
-    .timeline-container::-webkit-scrollbar {
-      height: 6px;
-    }
-
-    .timeline-container::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    .timeline-container::-webkit-scrollbar-thumb {
-      background: var(--border-color);
-      border-radius: 3px;
-    }
-
-    svg.gantt {
-      display: block;
-      min-width: 100%;
-    }
-
-    .gantt-span {
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-
-    .gantt-span:hover rect {
-      filter: brightness(1.3);
-    }
-
-    .gantt-span text {
-      font-size: 11px;
-      font-weight: 500;
-      pointer-events: none;
-    }
-
-    .gantt-tooltip {
-      position: fixed;
-      background: var(--bg-secondary);
-      border: 1px solid var(--border-color);
-      border-radius: 6px;
-      padding: 12px;
-      font-size: 11px;
-      pointer-events: none;
-      z-index: 1000;
-      display: none;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-      max-width: 280px;
-    }
-
-    .gantt-tooltip.visible {
-      display: block;
-    }
-
-    .gantt-tooltip-title {
-      font-weight: 600;
-      color: var(--text-primary);
-      margin-bottom: 6px;
-    }
-
-    .gantt-tooltip-row {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      color: var(--text-secondary);
-      margin: 3px 0;
-    }
-
-    /* ============== ERROR DAG ============== */
-    .dag-section {
-      animation: fadeInUp 0.6s ease-out 0.3s both;
-    }
-
-    .dag-container {
-      position: relative;
-      min-height: 400px;
-      background: rgba(10, 14, 39, 0.3);
-      border-radius: 8px;
-      border: 1px solid var(--border-color);
-      padding: 16px;
-      overflow: auto;
-    }
-
-    svg.dag-svg {
-      position: absolute;
-      top: 0;
-      left: 0;
-      pointer-events: none;
-    }
-
-    .dag-nodes {
-      position: relative;
-      z-index: 10;
-    }
-
-    .dag-node {
-      position: absolute;
-      padding: 12px 14px;
-      border-radius: 8px;
-      font-size: 12px;
-      font-weight: 600;
-      border: 2px solid;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      text-align: center;
-      white-space: nowrap;
-      min-width: 120px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-    }
-
-    .dag-node.ok {
-      background: rgba(16, 185, 129, 0.1);
-      border-color: var(--success);
-      color: var(--success);
-    }
-
-    .dag-node.cascaded {
-      background: rgba(245, 158, 11, 0.1);
-      border-color: var(--warning);
-      color: var(--warning);
-    }
-
-    .dag-node.root-cause {
-      background: rgba(239, 68, 68, 0.15);
-      border-color: var(--error);
-      color: var(--error);
-      box-shadow: 0 2px 12px rgba(239, 68, 68, 0.3), inset 0 0 0 1px rgba(239, 68, 68, 0.2);
-      animation: pulse-error 2s infinite;
-    }
-
-    @keyframes pulse-error {
-      0%, 100% {
-        box-shadow: 0 2px 12px rgba(239, 68, 68, 0.3), inset 0 0 0 1px rgba(239, 68, 68, 0.2);
-      }
-      50% {
-        box-shadow: 0 2px 16px rgba(239, 68, 68, 0.4), inset 0 0 0 1px rgba(239, 68, 68, 0.3);
-      }
-    }
-
-    .dag-node:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-      border-width: 2px;
-    }
-
-    .dag-node-label {
-      font-size: 11px;
-      margin-top: 4px;
-      opacity: 0.8;
-    }
-
-    /* ============== PATTERNS PANEL ============== */
-    .patterns-section {
-      animation: fadeInUp 0.6s ease-out 0.4s both;
-    }
-
-    .patterns-list {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .pattern-card {
-      background: rgba(26, 31, 58, 0.4);
-      border-left: 3px solid;
-      border-radius: 8px;
-      padding: 14px;
-      transition: all 0.2s ease;
-      cursor: pointer;
-    }
-
-    .pattern-card.critical {
-      border-left-color: var(--error);
-      background: rgba(239, 68, 68, 0.08);
-    }
-
-    .pattern-card.warning {
-      border-left-color: var(--warning);
-      background: rgba(245, 158, 11, 0.08);
-    }
-
-    .pattern-card.info {
-      border-left-color: var(--info);
-      background: rgba(59, 130, 246, 0.08);
-    }
-
-    .pattern-card:hover {
-      transform: translateX(4px);
-      background: rgba(26, 31, 58, 0.6);
-    }
-
-    .pattern-icon {
-      font-size: 14px;
-      display: inline-block;
-      margin-right: 8px;
-    }
-
-    .pattern-title {
-      font-weight: 600;
-      color: var(--text-primary);
-      margin-bottom: 6px;
-    }
-
-    .pattern-desc {
-      font-size: 12px;
-      color: var(--text-secondary);
-      line-height: 1.5;
-      margin-bottom: 8px;
-    }
-
-    .pattern-tags {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-    }
-
-    .pattern-tag {
-      display: inline-block;
-      background: var(--bg-tertiary);
-      padding: 3px 8px;
-      border-radius: 4px;
-      font-size: 10px;
-      color: var(--text-muted);
-      font-weight: 500;
-    }
-
-    /* ============== COST CHART ============== */
-    .cost-section {
-      animation: fadeInUp 0.6s ease-out 0.5s both;
-    }
-
-    .cost-list {
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      margin-bottom: 20px;
-    }
-
-    .cost-item {
-      display: grid;
-      grid-template-columns: 140px 1fr 80px;
-      gap: 12px;
-      align-items: center;
-    }
-
-    .cost-label {
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--text-secondary);
-      white-space: nowrap;
-    }
-
-    .cost-bar-bg {
-      height: 28px;
-      background: var(--bg-tertiary);
-      border-radius: 6px;
-      overflow: hidden;
-      border: 1px solid var(--border-color);
-      position: relative;
-    }
-
-    .cost-bar-fill {
-      height: 100%;
-      display: flex;
-      align-items: center;
-      padding: 0 8px;
-      font-size: 11px;
-      font-weight: 600;
-      color: white;
-      border-radius: 6px;
-      transition: all 0.3s ease;
-      min-width: 40px;
-    }
-
-    .cost-bar-fill.llm {
-      background: linear-gradient(90deg, #8b5cf6 0%, #a78bfa 100%);
-    }
-
-    .cost-bar-fill.tool {
-      background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%);
-    }
-
-    .cost-bar-fill:hover {
-      filter: brightness(1.1);
-    }
-
-    .cost-value {
-      text-align: right;
-      font-size: 12px;
-      font-variant-numeric: tabular-nums;
-      color: var(--text-secondary);
-      font-weight: 600;
-    }
-
-    .cost-summary {
-      background: var(--bg-tertiary);
-      border: 1px solid var(--border-color);
-      border-radius: 8px;
-      padding: 14px;
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 12px;
-      font-size: 12px;
-    }
-
-    .cost-summary-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .cost-summary-label {
-      color: var(--text-secondary);
-    }
-
-    .cost-summary-value {
-      font-weight: 600;
-      color: var(--text-primary);
-    }
-
-    /* ============== SIDEBAR ============== */
-    .sidebar {
-      display: flex;
-      flex-direction: column;
-      gap: 0;
-      overflow: hidden;
-      border: 1px solid var(--border-color);
-      border-radius: 12px;
-      background: linear-gradient(135deg, rgba(20, 24, 41, 0.5) 0%, rgba(26, 31, 58, 0.3) 100%);
-      animation: slideInRight 0.4s ease-out;
-    }
-
-    @keyframes slideInRight {
-      from {
-        opacity: 0;
-        transform: translateX(100px);
-      }
-      to {
-        opacity: 1;
-        transform: translateX(0);
-      }
-    }
-
-    .sidebar-header {
-      padding: 20px;
-      border-bottom: 1px solid var(--border-color);
-      background: rgba(26, 31, 58, 0.6);
-    }
-
-    .sidebar-title {
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--text-secondary);
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      margin-bottom: 8px;
-    }
-
-    .sidebar-span-name {
-      font-size: 15px;
-      font-weight: 700;
-      color: var(--text-primary);
-      word-break: break-word;
-    }
-
-    .sidebar-close {
-      position: absolute;
-      top: 16px;
-      right: 16px;
-      width: 28px;
-      height: 28px;
-      background: var(--bg-tertiary);
-      border: 1px solid var(--border-color);
-      border-radius: 6px;
-      color: var(--text-secondary);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 16px;
-      transition: all 0.2s ease;
-    }
-
-    .sidebar-close:hover {
-      background: var(--accent-blue);
-      border-color: var(--accent-blue);
-      color: white;
-    }
-
-    .sidebar-content {
-      flex: 1;
-      overflow-y: auto;
-      padding: 20px;
-    }
-
-    .sidebar-content::-webkit-scrollbar {
-      width: 6px;
-    }
-
-    .sidebar-content::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    .sidebar-content::-webkit-scrollbar-thumb {
-      background: var(--border-color);
-      border-radius: 3px;
-    }
-
-    .sidebar-section {
-      margin-bottom: 20px;
-    }
-
-    .sidebar-section-title {
-      font-size: 11px;
-      font-weight: 700;
-      color: var(--text-secondary);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 10px;
-      display: block;
-    }
-
-    .sidebar-field {
-      margin-bottom: 12px;
-      font-size: 12px;
-    }
-
-    .sidebar-label {
-      color: var(--text-muted);
-      margin-bottom: 3px;
-      display: block;
-    }
-
-    .sidebar-value {
-      color: var(--text-primary);
-      font-weight: 500;
-      font-family: 'Monaco', 'Courier New', monospace;
-      background: rgba(26, 31, 58, 0.5);
-      padding: 6px 8px;
-      border-radius: 4px;
-      word-break: break-all;
-    }
-
-    .sidebar-empty {
-      text-align: center;
-      color: var(--text-muted);
-      padding: 40px 20px;
-      font-size: 12px;
-    }
-
-    .sidebar-empty-icon {
-      font-size: 32px;
-      margin-bottom: 12px;
-      opacity: 0.5;
-    }
-
-    /* ============== FOOTER ============== */
-    .footer {
-      padding: 16px 32px;
-      border-top: 1px solid var(--border-color);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 11px;
-      color: var(--text-muted);
-      background: rgba(10, 14, 39, 0.4);
-    }
-
-    .footer a {
-      color: var(--accent-blue);
-      text-decoration: none;
-      transition: color 0.2s ease;
-    }
-
-    .footer a:hover {
-      color: var(--accent-purple);
-    }
-
-    /* ============== RESPONSIVE ============== */
-    @media (max-width: 1400px) {
-      .container {
-        grid-template-columns: 1fr 350px;
-      }
-    }
-
-    @media (max-width: 1200px) {
-      .container {
-        grid-template-columns: 1fr;
-      }
-
-      .sidebar {
-        position: fixed;
-        right: 0;
-        top: 80px;
-        bottom: 50px;
-        width: 380px;
-        z-index: 200;
-        border-left: 1px solid var(--border-color);
-        border-radius: 0;
-        transform: translateX(400px);
-        transition: transform 0.3s ease;
-      }
-
-      .sidebar.visible {
-        transform: translateX(0);
-      }
-
-      .main-panel {
-        padding-right: 0;
-      }
-    }
+    *, *::before, *::after { transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease; }
+
+    /* Dark theme */
+    .dark * { scrollbar-width: thin; scrollbar-color: #2a2f4f transparent; }
+    .dark *::-webkit-scrollbar { width: 6px; height: 6px; }
+    .dark *::-webkit-scrollbar-track { background: transparent; }
+    .dark *::-webkit-scrollbar-thumb { background: #2a2f4f; border-radius: 3px; }
+    .dark body { background: linear-gradient(145deg, #0a0d1a 0%, #0d1025 50%, #0a0d1a 100%); }
+    .dark .glass { background: rgba(21, 25, 41, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.06); }
+    .dark .glass-hover:hover { background: rgba(26, 31, 53, 0.85); border-color: rgba(255,255,255,0.1); }
+    .dark .stat-glow { box-shadow: 0 0 30px -10px rgba(99, 102, 241, 0.15); }
+    .dark .waterfall-tooltip { background: rgba(15, 18, 32, 0.95); border: 1px solid rgba(255,255,255,0.1); color: #e2e8f0; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+
+    /* Light theme */
+    html:not(.dark) * { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+    html:not(.dark) *::-webkit-scrollbar { width: 6px; height: 6px; }
+    html:not(.dark) *::-webkit-scrollbar-track { background: transparent; }
+    html:not(.dark) *::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    html:not(.dark) body { background: linear-gradient(145deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%); color: #1e293b; }
+    html:not(.dark) .glass { background: rgba(255, 255, 255, 0.75); backdrop-filter: blur(12px); border: 1px solid rgba(0,0,0,0.08); }
+    html:not(.dark) .glass-hover:hover { background: rgba(255, 255, 255, 0.9); border-color: rgba(0,0,0,0.12); }
+    html:not(.dark) .stat-glow { box-shadow: 0 0 30px -10px rgba(99, 102, 241, 0.1); }
+    html:not(.dark) .waterfall-tooltip { background: rgba(255, 255, 255, 0.95); border: 1px solid rgba(0,0,0,0.1); color: #1e293b; box-shadow: 0 8px 32px rgba(0,0,0,0.12); }
+    html:not(.dark) .text-white { color: #0f172a !important; }
+    html:not(.dark) .text-slate-200 { color: #334155 !important; }
+    html:not(.dark) .text-slate-300 { color: #475569 !important; }
+    html:not(.dark) .text-slate-400 { color: #64748b !important; }
+    html:not(.dark) .text-slate-500 { color: #94a3b8 !important; }
+    html:not(.dark) .text-slate-600 { color: #94a3b8 !important; }
+    html:not(.dark) .bg-surface-100, html:not(.dark) .bg-surface-200 { background-color: #f1f5f9 !important; }
+    html:not(.dark) .border-white\/5, html:not(.dark) .border-white\/10 { border-color: rgba(0,0,0,0.08) !important; }
+    html:not(.dark) .divide-white\/5 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(0,0,0,0.06) !important; }
+    html:not(.dark) .hover\:bg-white\/\[0\.02\]:hover { background: rgba(0,0,0,0.03) !important; }
+    html:not(.dark) .trace-row-selected { background: rgba(99, 102, 241, 0.06) !important; border-left: 2px solid #6366f1; }
+    html:not(.dark) .skeleton { background: linear-gradient(90deg, rgba(0,0,0,0.04) 25%, rgba(0,0,0,0.08) 50%, rgba(0,0,0,0.04) 75%); }
+    html:not(.dark) .tab-active { border-color: #6366f1; color: #4338ca !important; background: rgba(99, 102, 241, 0.06); }
+    html:not(.dark) .tab-inactive { border-color: transparent; color: #94a3b8 !important; }
+    html:not(.dark) .tab-inactive:hover { color: #64748b !important; border-color: rgba(99, 102, 241, 0.3); }
+    html:not(.dark) .filter-input { background-color: #f8fafc !important; border-color: rgba(0,0,0,0.12) !important; color: #334155 !important; }
+    html:not(.dark) .severity-critical { background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.2); color: #dc2626; }
+    html:not(.dark) .severity-warning { background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.2); color: #d97706; }
+    html:not(.dark) .severity-info { background: rgba(59, 130, 246, 0.08); border-color: rgba(59, 130, 246, 0.2); color: #2563eb; }
+    html:not(.dark) kbd { background: #e2e8f0 !important; border-color: rgba(0,0,0,0.12) !important; color: #64748b !important; }
+
+    /* Shared */
+    .fade-in { animation: fadeIn 0.3s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
+    .span-bar { transition: all 0.2s ease !important; cursor: pointer; }
+    .span-bar:hover { filter: brightness(1.3); transform: scaleY(1.2); }
+    .tab-active { border-color: #6366f1; color: #e0e7ff; background: rgba(99, 102, 241, 0.08); }
+    .tab-inactive { border-color: transparent; color: #64748b; }
+    .tab-inactive:hover { color: #94a3b8; border-color: rgba(99, 102, 241, 0.3); }
+    .severity-critical { background: rgba(239, 68, 68, 0.12); border-color: rgba(239, 68, 68, 0.3); color: #fca5a5; }
+    .severity-warning { background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.3); color: #fcd34d; }
+    .severity-info { background: rgba(59, 130, 246, 0.12); border-color: rgba(59, 130, 246, 0.3); color: #93c5fd; }
+    #cy-container { width: 100%; height: 500px; }
+    .view-panel { transition: opacity 0.25s ease, transform 0.25s ease; }
+    .view-enter { animation: viewEnter 0.3s ease-out forwards; }
+    @keyframes viewEnter { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+    .skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.07) 50%, rgba(255,255,255,0.03) 75%); background-size: 200% 100%; animation: shimmer 1.5s ease-in-out infinite; border-radius: 6px; }
+    .skeleton-text { height: 14px; margin-bottom: 8px; border-radius: 4px; }
+    .skeleton-bar { height: 24px; border-radius: 4px; }
+    @keyframes toastSlideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    @keyframes toastSlideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+    .toast-enter { animation: toastSlideIn 0.3s ease-out; }
+    .toast-exit { animation: toastSlideOut 0.3s ease-in forwards; }
+    .waterfall-tooltip { position: absolute; z-index: 100; backdrop-filter: blur(12px); border-radius: 8px; padding: 10px 14px; font-size: 12px; pointer-events: none; white-space: nowrap; }
+    .filter-input:focus { outline: none; border-color: rgba(99, 102, 241, 0.5); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); }
+    .trace-row-selected { background: rgba(99, 102, 241, 0.08) !important; border-left: 2px solid #6366f1; }
+    .collapsible-header { cursor: pointer; user-select: none; }
+    .collapsible-header:hover { opacity: 0.8; }
+    .collapsible-content { overflow: hidden; transition: max-height 0.3s ease, opacity 0.2s ease; }
+    .collapsible-content.collapsed { max-height: 0 !important; opacity: 0; }
+    .collapsible-chevron { transition: transform 0.2s ease; }
+    .collapsible-chevron.rotated { transform: rotate(90deg); }
+    .span-tree-line { border-left: 1px solid rgba(255,255,255,0.08); }
+    html:not(.dark) .span-tree-line { border-left: 1px solid rgba(0,0,0,0.08); }
+    .compare-diff-better { background: rgba(16, 185, 129, 0.08); }
+    .compare-diff-worse { background: rgba(239, 68, 68, 0.08); }
+    .compare-checkbox { opacity: 0; transition: opacity 0.15s ease; }
+    .trace-row:hover .compare-checkbox { opacity: 1; }
+    .compare-checkbox.checked { opacity: 1; }
+    .shortcuts-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 200; display: flex; align-items: center; justify-content: center; }
+    .shortcuts-modal { max-width: 480px; width: 90%; max-height: 80vh; overflow-y: auto; }
+    .theme-toggle { position: relative; width: 44px; height: 24px; border-radius: 12px; cursor: pointer; transition: background-color 0.3s ease; }
+    .dark .theme-toggle { background: #1e293b; border: 1px solid rgba(255,255,255,0.1); }
+    html:not(.dark) .theme-toggle { background: #e2e8f0; border: 1px solid rgba(0,0,0,0.1); }
+    .theme-toggle-knob { position: absolute; top: 2px; width: 18px; height: 18px; border-radius: 50%; transition: left 0.3s ease, background-color 0.3s ease; }
+    .dark .theme-toggle-knob { left: 2px; background: #f1f5f9; }
+    html:not(.dark) .theme-toggle-knob { left: 22px; background: #f59e0b; }
 
     @media (max-width: 768px) {
-      .header {
-        padding: 16px 20px;
-      }
-
-      .header-center {
-        display: none;
-      }
-
-      .container {
-        padding: 16px 20px;
-        gap: 16px;
-      }
-
-      .stats-row {
-        grid-template-columns: repeat(2, 1fr);
-      }
-
-      .sidebar {
-        width: 100%;
-        height: 50vh;
-        bottom: 0;
-        right: 0;
-        border-radius: 12px 12px 0 0;
-      }
-
-      .cost-summary {
-        grid-template-columns: 1fr;
-      }
+      .stat-grid { grid-template-columns: 1fr 1fr !important; }
+      .filter-row { flex-direction: column; }
+      .filter-row > * { width: 100% !important; }
+      .span-label-col { width: 120px !important; min-width: 120px !important; }
+      #span-detail-panel { width: 100% !important; left: 0; right: 0; }
+      .dag-controls { flex-wrap: wrap; }
     }
+    @media (max-width: 480px) {
+      .stat-grid { grid-template-columns: 1fr !important; }
+    }
+
+    /* Chart.js dark theme overrides */
+    .chart-container canvas { border-radius: 8px; }
   </style>
 </head>
-<body>
+<body class="dark min-h-screen font-sans text-slate-200 antialiased">
 
-<!-- Demo Notice Banner -->
-<div style="background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%); padding: 12px 24px; text-align: center; font-size: 14px; color: #e0e7ff; font-family: 'Inter', sans-serif;">
-  This is a <strong>standalone demo</strong> with hardcoded data. For the <strong>live dashboard</strong>, run <code style="background: rgba(0,0,0,0.3); padding: 2px 8px; border-radius: 4px; font-size: 13px;">flowlens-server</code> and visit <a href="http://localhost:8585/" style="color: #c7d2fe; text-decoration: underline;">http://localhost:8585/</a>
-</div>
+  <!-- Toast Container -->
+  <div id="toast-container" class="fixed top-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none"></div>
 
-<!-- HEADER -->
-<div class="header">
-  <div class="header-left">
-    <div class="logo">F</div>
-    <div class="header-title">
-      <h1>FlowLens</h1>
-      <div class="subtitle">Agent Observability Platform</div>
-    </div>
-  </div>
-  <div class="header-center">
-    <div class="trace-info">
-      Trace: <span class="trace-id">4ebd4d69d75b</span>
-    </div>
-  </div>
-  <div class="header-right">
-    <div class="status-badge">Completed</div>
-    <button class="btn-replay" onclick="replayTimeline()">▶ Replay</button>
-  </div>
-</div>
-
-<!-- MAIN CONTAINER -->
-<div class="container">
-  <div class="main-panel">
-
-    <!-- STATS SECTION -->
-    <div class="card">
-      <div class="card-title">📊 Trace Overview — research_bot</div>
-      <div class="stats-row">
-        <div class="stat-card animated">
-          <div class="stat-value info">8</div>
-          <div class="stat-label">Total Spans</div>
+  <!-- Header -->
+  <header class="sticky top-0 z-50 glass border-b border-white/5">
+    <div class="max-w-[1600px] mx-auto flex items-center justify-between px-6 py-3">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+          </svg>
         </div>
-        <div class="stat-card animated">
-          <div class="stat-value success">253ms</div>
-          <div class="stat-label">Duration</div>
+        <div>
+          <h1 class="text-lg font-semibold text-white tracking-tight">FlowLens</h1>
+          <p class="text-[10px] text-slate-500 -mt-0.5 tracking-wider uppercase">Agent Observability</p>
         </div>
-        <div class="stat-card animated">
-          <div class="stat-value purple">2,967</div>
-          <div class="stat-label">Total Tokens</div>
+      </div>
+      <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2 text-xs text-emerald-400">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 pulse-dot"></span>
+          <span>Demo Mode</span>
         </div>
-        <div class="stat-card animated">
-          <div class="stat-value warning">$0.019</div>
-          <div class="stat-label">Total Cost</div>
-        </div>
-        <div class="stat-card animated">
-          <div class="stat-value error">2</div>
-          <div class="stat-label">Errors</div>
-        </div>
-        <div class="stat-card animated">
-          <div class="stat-value error">1</div>
-          <div class="stat-label">Root Causes</div>
+        <button onclick="toggleTheme()" class="theme-toggle" title="Toggle light/dark theme (t)" aria-label="Toggle theme">
+          <div class="theme-toggle-knob"></div>
+        </button>
+        <div class="hidden sm:flex items-center gap-2 text-[10px] text-slate-600">
+          <span class="flex items-center gap-1">
+            <kbd class="px-1 py-0.5 rounded bg-surface-100 border border-white/10 font-mono">?</kbd>
+            <span>Help</span>
+          </span>
         </div>
       </div>
     </div>
+  </header>
 
-    <!-- TIMELINE SECTION -->
-    <div class="card timeline-section">
-      <div class="card-title">⏱️ Execution Timeline</div>
-      <div class="timeline-controls">
-        <button class="timeline-btn active" onclick="setTimelineView('relative')">Relative</button>
-        <button class="timeline-btn" onclick="setTimelineView('absolute')">Absolute</button>
-      </div>
-      <div class="timeline-container">
-        <svg class="gantt" id="ganttChart"></svg>
-      </div>
-      <div class="gantt-tooltip" id="ganttTooltip"></div>
+  <!-- Navigation Tabs -->
+  <nav class="max-w-[1600px] mx-auto px-6 pt-4">
+    <div class="flex gap-1 border-b border-white/5 overflow-x-auto">
+      <button onclick="switchView('overview')" data-tab="overview" class="tab-btn tab-active px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg whitespace-nowrap">Overview</button>
+      <button onclick="switchView('traces')" data-tab="traces" class="tab-btn tab-inactive px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg whitespace-nowrap">Traces</button>
+      <button onclick="switchView('cost')" data-tab="cost" class="tab-btn tab-inactive px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg whitespace-nowrap">Cost Analysis</button>
+      <button onclick="switchView('patterns')" data-tab="patterns" class="tab-btn tab-inactive px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg whitespace-nowrap">Patterns</button>
+      <button onclick="switchView('compare')" data-tab="compare" class="tab-btn tab-inactive px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg whitespace-nowrap">
+        Compare
+        <span id="compare-badge" class="hidden ml-1 px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-indigo-500 text-white">0</span>
+      </button>
     </div>
+  </nav>
 
-    <!-- ERROR DAG SECTION -->
-    <div class="card dag-section">
-      <div class="card-title">🔗 Causal Error DAG</div>
-      <div class="dag-container" id="dagContainer">
-        <svg class="dag-svg" id="dagEdges"></svg>
-        <div class="dag-nodes" id="dagNodes"></div>
-      </div>
-    </div>
+  <!-- Main Content -->
+  <main class="max-w-[1600px] mx-auto px-6 py-6">
 
-    <!-- PATTERNS & COST SECTION (Grid) -->
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
-      <!-- PATTERNS -->
-      <div class="card patterns-section">
-        <div class="card-title">🎯 Detected Patterns</div>
-        <div class="patterns-list" id="patternsList"></div>
-      </div>
-
-      <!-- COST -->
-      <div class="card cost-section">
-        <div class="card-title">💰 Cost Attribution</div>
-        <div class="cost-list" id="costList"></div>
-        <div class="cost-summary" id="costSummary"></div>
-      </div>
-    </div>
-
-  </div>
-
-  <!-- SIDEBAR -->
-  <div class="sidebar" id="sidebar">
-    <div class="sidebar-header" style="position: relative;">
-      <div class="sidebar-close" onclick="closeSidebar()">✕</div>
-      <div class="sidebar-title">Span Details</div>
-      <div class="sidebar-span-name" id="sidebarSpanName">Select a span</div>
-    </div>
-    <div class="sidebar-content" id="sidebarContent">
-      <div class="sidebar-empty">
-        <div class="sidebar-empty-icon">👈</div>
-        <div>Click on a span in the timeline or DAG to view details</div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- FOOTER -->
-<div class="footer">
-  <span>FlowLens v0.5.0 — Powered by FlowLens Agent Observability</span>
-  <span>
-    <a href="https://github.com/yusenhan/flowlens" target="_blank" rel="noopener noreferrer">GitHub</a>
-    &nbsp;|&nbsp;
-    <a href="https://github.com/yusenhan/flowlens#readme" target="_blank" rel="noopener noreferrer">Docs</a>
-    &nbsp;|&nbsp; MIT License
-  </span>
-</div>
-
-<script>
-// ============== DATA STRUCTURE ==============
-const traceData = {
-  traceId: '4ebd4d69d75b',
-  agent: 'research_bot',
-  startTime: 0,
-  endTime: 253,
-  totalSpans: 8,
-  spans: [
-    {
-      id: 'span_0',
-      name: 'research_bot',
-      type: 'agent',
-      status: 'ok',
-      startMs: 0,
-      durationMs: 253,
-      tokens: 0,
-      cost: 0,
-      errorType: null,
-      errorMsg: null,
-      parent: null,
-      children: ['span_1', 'span_2', 'span_3', 'span_4', 'span_5', 'span_6', 'span_7'],
-    },
-    {
-      id: 'span_1',
-      name: 'planner',
-      type: 'llm',
-      status: 'ok',
-      startMs: 0,
-      durationMs: 55,
-      tokens: 1771,
-      cost: 0.012,
-      errorType: null,
-      errorMsg: null,
-      parent: 'span_0',
-      children: [],
-    },
-    {
-      id: 'span_2',
-      name: 'web_search',
-      type: 'tool',
-      status: 'error',
-      role: 'root_cause',
-      startMs: 55,
-      durationMs: 37,
-      tokens: 0,
-      cost: 0,
-      errorType: 'TimeoutError',
-      errorMsg: 'web_search timed out after 30s',
-      parent: 'span_0',
-      children: [],
-    },
-    {
-      id: 'span_3',
-      name: 'fetch_page',
-      type: 'tool',
-      status: 'error',
-      role: 'cascaded',
-      startMs: 92,
-      durationMs: 25,
-      tokens: 0,
-      cost: 0,
-      errorType: 'ValueError',
-      errorMsg: 'received empty URL from failed search',
-      parent: 'span_0',
-      children: [],
-      causedBy: 'span_2',
-    },
-    {
-      id: 'span_4',
-      name: 'web_search',
-      type: 'tool',
-      status: 'ok',
-      role: 'ok',
-      startMs: 117,
-      durationMs: 31,
-      tokens: 0,
-      cost: 0,
-      errorType: null,
-      errorMsg: null,
-      parent: 'span_0',
-      children: [],
-      retryOf: 'span_2',
-    },
-    {
-      id: 'span_5',
-      name: 'fetch_page',
-      type: 'tool',
-      status: 'ok',
-      role: 'ok',
-      startMs: 148,
-      durationMs: 25,
-      tokens: 0,
-      cost: 0,
-      errorType: null,
-      errorMsg: null,
-      parent: 'span_0',
-      children: [],
-      retryOf: 'span_3',
-    },
-    {
-      id: 'span_6',
-      name: 'summarize',
-      type: 'tool',
-      status: 'ok',
-      role: 'ok',
-      startMs: 173,
-      durationMs: 24,
-      tokens: 0,
-      cost: 0,
-      errorType: null,
-      errorMsg: null,
-      parent: 'span_0',
-      children: [],
-    },
-    {
-      id: 'span_7',
-      name: 'planner',
-      type: 'llm',
-      status: 'ok',
-      role: 'ok',
-      startMs: 197,
-      durationMs: 56,
-      tokens: 1196,
-      cost: 0.007,
-      errorType: null,
-      errorMsg: null,
-      parent: 'span_0',
-      children: [],
-    },
-  ],
-  patterns: [
-    {
-      id: 'pat_0',
-      type: 'timeout_cascade',
-      severity: 'critical',
-      title: 'Timeout Cascade',
-      description: 'web_search timed out, causing fetch_page to receive invalid input and fail.',
-      affectedSpans: ['span_2', 'span_3'],
-      cascadeDepth: 1,
-    },
-    {
-      id: 'pat_1',
-      type: 'retry_detected',
-      severity: 'warning',
-      title: 'Retry Pattern',
-      description: 'web_search and fetch_page were each called 2× — successful after retry.',
-      affectedSpans: ['span_2', 'span_4', 'span_3', 'span_5'],
-      retryOverhead: 0.007,
-    },
-  ],
-};
-
-// ============== TIMELINE/GANTT ==============
-let timelineView = 'relative';
-
-function setTimelineView(view) {
-  timelineView = view;
-  renderGanttChart();
-  document.querySelectorAll('.timeline-btn').forEach((btn, idx) => {
-    btn.classList.toggle('active', (idx === 0 && view === 'relative') || (idx === 1 && view === 'absolute'));
-  });
-}
-
-function renderGanttChart() {
-  const chart = document.getElementById('ganttChart');
-  const lineHeight = 32;
-  const topPadding = 16;
-  const leftPadding = 160;
-  const chartWidth = 800;
-  const maxDuration = traceData.endTime;
-
-  const sortedSpans = traceData.spans.filter(s => s.id !== 'span_0').sort((a, b) => a.startMs - b.startMs);
-  const height = topPadding + (sortedSpans.length + 1) * lineHeight + 20;
-
-  chart.setAttribute('viewBox', `0 0 ${leftPadding + chartWidth + 100} ${height}`);
-  chart.setAttribute('width', '100%');
-  chart.setAttribute('height', height);
-
-  // Clear
-  chart.innerHTML = '';
-
-  // Grid lines
-  const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-  const pattern = document.createElementNS('http://www.w3.org/2000/svg', 'pattern');
-  pattern.setAttribute('id', 'grid');
-  pattern.setAttribute('width', '40');
-  pattern.setAttribute('height', '100%');
-  pattern.setAttribute('patternUnits', 'userSpaceOnUse');
-  const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-  line.setAttribute('x1', '40');
-  line.setAttribute('y1', '0');
-  line.setAttribute('x2', '40');
-  line.setAttribute('y2', '100%');
-  line.setAttribute('stroke', 'rgba(42, 47, 79, 0.3)');
-  pattern.appendChild(line);
-  defs.appendChild(pattern);
-  chart.appendChild(defs);
-
-  // Background
-  const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-  bg.setAttribute('width', leftPadding + chartWidth);
-  bg.setAttribute('height', height);
-  bg.setAttribute('fill', 'url(#grid)');
-  chart.appendChild(bg);
-
-  // Time labels
-  const timeStep = 50;
-  for (let t = 0; t <= maxDuration; t += timeStep) {
-    const x = leftPadding + (t / maxDuration) * chartWidth;
-    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    text.setAttribute('x', x);
-    text.setAttribute('y', topPadding - 4);
-    text.setAttribute('text-anchor', 'middle');
-    text.setAttribute('font-size', '11');
-    text.setAttribute('fill', 'rgba(161, 161, 166, 0.6)');
-    text.textContent = t + 'ms';
-    chart.appendChild(text);
-  }
-
-  // Spans
-  sortedSpans.forEach((span, idx) => {
-    const y = topPadding + idx * lineHeight;
-
-    // Name
-    const nameText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    nameText.setAttribute('x', 12);
-    nameText.setAttribute('y', y + 20);
-    nameText.setAttribute('font-size', '12');
-    nameText.setAttribute('font-weight', '500');
-    nameText.setAttribute('fill', 'var(--text-primary)');
-    nameText.textContent = span.name.substring(0, 20);
-    chart.appendChild(nameText);
-
-    // Bar
-    const x = leftPadding + (span.startMs / maxDuration) * chartWidth;
-    const width = Math.max(2, (span.durationMs / maxDuration) * chartWidth);
-
-    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    g.classList.add('gantt-span');
-    g.setAttribute('data-span-id', span.id);
-
-    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    rect.setAttribute('x', x);
-    rect.setAttribute('y', y + 6);
-    rect.setAttribute('width', width);
-    rect.setAttribute('height', 20);
-    rect.setAttribute('rx', '3');
-
-    const statusColor = {
-      ok: '#10b981',
-      error: '#ef4444',
-    }[span.status] || '#3b82f6';
-
-    rect.setAttribute('fill', statusColor);
-    rect.setAttribute('opacity', span.status === 'error' ? '0.9' : '0.7');
-    g.appendChild(rect);
-
-    // Label
-    if (width > 50) {
-      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      label.setAttribute('x', x + width / 2);
-      label.setAttribute('y', y + 20);
-      label.setAttribute('text-anchor', 'middle');
-      label.setAttribute('font-size', '10');
-      label.setAttribute('fill', 'white');
-      label.setAttribute('pointer-events', 'none');
-      label.textContent = span.durationMs + 'ms';
-      g.appendChild(label);
-    }
-
-    g.addEventListener('mouseenter', (e) => {
-      const tooltip = document.getElementById('ganttTooltip');
-      const html = `
-        <div class="gantt-tooltip-title">${span.name}</div>
-        <div class="gantt-tooltip-row">
-          <span>Duration:</span>
-          <span>${span.durationMs}ms</span>
+    <!-- OVERVIEW VIEW -->
+    <div id="view-overview" class="view-panel view-enter">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 stat-grid">
+        <div class="glass rounded-xl p-5 stat-glow">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Traces</span>
+            <div class="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center">
+              <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7"/></svg>
+            </div>
+          </div>
+          <div id="stat-traces" class="text-2xl font-bold text-white">--</div>
+          <div id="stat-spans" class="text-xs text-slate-500 mt-1">-- spans</div>
         </div>
-        <div class="gantt-tooltip-row">
-          <span>Start:</span>
-          <span>${span.startMs}ms</span>
+        <div class="glass rounded-xl p-5 stat-glow">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Error Rate</span>
+            <div class="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center">
+              <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+            </div>
+          </div>
+          <div id="stat-error-rate" class="text-2xl font-bold text-white">--</div>
+          <div id="stat-error-count" class="text-xs text-slate-500 mt-1">-- error traces</div>
         </div>
-        ${span.tokens > 0 ? `<div class="gantt-tooltip-row"><span>Tokens:</span><span>${span.tokens}</span></div>` : ''}
-        ${span.errorMsg ? `<div class="gantt-tooltip-row" style="color: var(--error); margin-top: 6px;"><span>Error:</span></div><div style="font-size: 10px; color: var(--error); margin-top: 3px;">${span.errorMsg}</div>` : ''}
-      `;
-      tooltip.innerHTML = html;
-      tooltip.classList.add('visible');
-      const rect = e.target.getBoundingClientRect();
-      tooltip.style.left = (rect.left + rect.width / 2 - 140) + 'px';
-      tooltip.style.top = (rect.top - 100) + 'px';
-    });
-
-    g.addEventListener('mouseleave', () => {
-      document.getElementById('ganttTooltip').classList.remove('visible');
-    });
-
-    g.addEventListener('click', () => openSpanDetails(span));
-
-    chart.appendChild(g);
-  });
-}
-
-// ============== SIDEBAR ==============
-function openSpanDetails(span) {
-  const sidebar = document.getElementById('sidebar');
-  sidebar.classList.add('visible');
-
-  document.getElementById('sidebarSpanName').textContent = span.name;
-
-  const content = document.getElementById('sidebarContent');
-  let html = '';
-
-  // Basic info
-  html += `
-    <div class="sidebar-section">
-      <span class="sidebar-section-title">Basic Info</span>
-      <div class="sidebar-field">
-        <label class="sidebar-label">Span ID</label>
-        <div class="sidebar-value">${span.id}</div>
-      </div>
-      <div class="sidebar-field">
-        <label class="sidebar-label">Type</label>
-        <div class="sidebar-value">${span.type}</div>
-      </div>
-      <div class="sidebar-field">
-        <label class="sidebar-label">Status</label>
-        <div class="sidebar-value" style="color: ${span.status === 'ok' ? 'var(--success)' : 'var(--error)'}">${span.status.toUpperCase()}</div>
-      </div>
-    </div>
-  `;
-
-  // Timing
-  html += `
-    <div class="sidebar-section">
-      <span class="sidebar-section-title">Timing</span>
-      <div class="sidebar-field">
-        <label class="sidebar-label">Start Time</label>
-        <div class="sidebar-value">${span.startMs}ms</div>
-      </div>
-      <div class="sidebar-field">
-        <label class="sidebar-label">Duration</label>
-        <div class="sidebar-value">${span.durationMs}ms</div>
-      </div>
-      <div class="sidebar-field">
-        <label class="sidebar-label">End Time</label>
-        <div class="sidebar-value">${span.startMs + span.durationMs}ms</div>
-      </div>
-    </div>
-  `;
-
-  // Resources
-  if (span.tokens > 0 || span.cost > 0) {
-    html += `
-      <div class="sidebar-section">
-        <span class="sidebar-section-title">Resources</span>
-        ${span.tokens > 0 ? `<div class="sidebar-field">
-          <label class="sidebar-label">Tokens</label>
-          <div class="sidebar-value">${span.tokens.toLocaleString()}</div>
-        </div>` : ''}
-        ${span.cost > 0 ? `<div class="sidebar-field">
-          <label class="sidebar-label">Cost</label>
-          <div class="sidebar-value">$${span.cost.toFixed(4)}</div>
-        </div>` : ''}
-      </div>
-    `;
-  }
-
-  // Error info
-  if (span.errorMsg) {
-    html += `
-      <div class="sidebar-section">
-        <span class="sidebar-section-title">Error Details</span>
-        <div class="sidebar-field">
-          <label class="sidebar-label">Error Type</label>
-          <div class="sidebar-value" style="color: var(--error)">${span.errorType}</div>
+        <div class="glass rounded-xl p-5 stat-glow">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Avg Latency</span>
+            <div class="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
+              <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+          </div>
+          <div id="stat-latency" class="text-2xl font-bold text-white">--</div>
+          <div class="text-xs text-slate-500 mt-1">milliseconds</div>
         </div>
-        <div class="sidebar-field">
-          <label class="sidebar-label">Message</label>
-          <div class="sidebar-value" style="color: var(--error); font-size: 11px;">${span.errorMsg}</div>
+        <div class="glass rounded-xl p-5 stat-glow">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Cost</span>
+            <div class="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+          </div>
+          <div id="stat-cost" class="text-2xl font-bold text-white">--</div>
+          <div id="stat-tokens" class="text-xs text-slate-500 mt-1">-- tokens</div>
         </div>
       </div>
-    `;
-  }
 
-  // Relationships
-  html += `
-    <div class="sidebar-section">
-      <span class="sidebar-section-title">Relationships</span>
-      ${span.parent && span.parent !== 'span_0' ? `<div class="sidebar-field">
-        <label class="sidebar-label">Parent</label>
-        <div class="sidebar-value">${span.parent}</div>
-      </div>` : ''}
-      ${span.children && span.children.length > 0 ? `<div class="sidebar-field">
-        <label class="sidebar-label">Children (${span.children.length})</label>
-        <div class="sidebar-value">${span.children.join(', ')}</div>
-      </div>` : ''}
-      ${span.retryOf ? `<div class="sidebar-field">
-        <label class="sidebar-label">Retry Of</label>
-        <div class="sidebar-value">${span.retryOf}</div>
-      </div>` : ''}
-      ${span.causedBy ? `<div class="sidebar-field">
-        <label class="sidebar-label">Caused By</label>
-        <div class="sidebar-value" style="color: var(--error)">${span.causedBy}</div>
-      </div>` : ''}
-    </div>
-  `;
-
-  content.innerHTML = html;
-}
-
-function closeSidebar() {
-  document.getElementById('sidebar').classList.remove('visible');
-}
-
-// ============== DAG GRAPH ==============
-function renderDAG() {
-  const container = document.getElementById('dagContainer');
-  const nodesDiv = document.getElementById('dagNodes');
-  const svgEdges = document.getElementById('dagEdges');
-
-  nodesDiv.innerHTML = '';
-  svgEdges.innerHTML = '';
-
-  // Simple hierarchical layout
-  const positions = {
-    span_0: { x: 100, y: 30 },
-    span_1: { x: 280, y: 100 },
-    span_2: { x: 60, y: 100 },
-    span_3: { x: 60, y: 190 },
-    span_4: { x: 280, y: 190 },
-    span_5: { x: 60, y: 280 },
-    span_6: { x: 220, y: 280 },
-    span_7: { x: 360, y: 280 },
-  };
-
-  // Draw edges
-  const edges = [
-    { from: 'span_2', to: 'span_3', type: 'caused_by' },
-    { from: 'span_2', to: 'span_4', type: 'retry' },
-    { from: 'span_3', to: 'span_5', type: 'retry' },
-  ];
-
-  edges.forEach(edge => {
-    const from = positions[edge.from];
-    const to = positions[edge.to];
-    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    line.setAttribute('x1', from.x + 60);
-    line.setAttribute('y1', from.y + 25);
-    line.setAttribute('x2', to.x + 60);
-    line.setAttribute('y2', to.y - 5);
-    line.setAttribute('stroke', edge.type === 'caused_by' ? 'var(--error)' : 'var(--warning)');
-    line.setAttribute('stroke-width', '2');
-    line.setAttribute('stroke-dasharray', edge.type === 'caused_by' ? '6 3' : '4 4');
-    line.setAttribute('opacity', '0.5');
-    svgEdges.appendChild(line);
-
-    // Arrow
-    const arrowColor = edge.type === 'caused_by' ? '#ef4444' : '#f59e0b';
-    if (!svgEdges.querySelector(`#arrow-${edge.type}`)) {
-      const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-      const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
-      marker.setAttribute('id', `arrow-${edge.type}`);
-      marker.setAttribute('markerWidth', '8');
-      marker.setAttribute('markerHeight', '8');
-      marker.setAttribute('refX', '6');
-      marker.setAttribute('refY', '4');
-      marker.setAttribute('orient', 'auto');
-      const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-      polygon.setAttribute('points', '0 0, 8 4, 0 8');
-      polygon.setAttribute('fill', arrowColor);
-      marker.appendChild(polygon);
-      defs.appendChild(marker);
-      svgEdges.appendChild(defs);
-    }
-  });
-
-  // Draw nodes
-  Object.entries(positions).forEach(([spanId, pos]) => {
-    const span = traceData.spans.find(s => s.id === spanId);
-    if (!span) return;
-
-    const node = document.createElement('div');
-    node.className = 'dag-node ' + (span.role || span.status);
-    node.style.left = pos.x + 'px';
-    node.style.top = pos.y + 'px';
-    node.setAttribute('data-span-id', spanId);
-
-    let content = `<div style="font-weight: 700">${span.name}</div>`;
-    if (span.role === 'root_cause') {
-      content += `<div class="dag-node-label">⚡ ROOT CAUSE</div>`;
-    } else if (span.role === 'cascaded') {
-      content += `<div class="dag-node-label">⚠️ CASCADED</div>`;
-    } else if (span.tokens > 0) {
-      content += `<div class="dag-node-label">${span.tokens} tokens</div>`;
-    }
-
-    node.innerHTML = content;
-    node.addEventListener('click', () => openSpanDetails(span));
-    nodesDiv.appendChild(node);
-  });
-
-  // Size SVG
-  svgEdges.setAttribute('viewBox', '0 0 500 350');
-  svgEdges.setAttribute('width', '100%');
-  svgEdges.setAttribute('height', '100%');
-}
-
-// ============== PATTERNS ==============
-function renderPatterns() {
-  const list = document.getElementById('patternsList');
-  list.innerHTML = '';
-
-  traceData.patterns.forEach(pattern => {
-    const card = document.createElement('div');
-    card.className = `pattern-card ${pattern.severity}`;
-
-    let icon = '🔴';
-    if (pattern.severity === 'warning') icon = '🟡';
-    else if (pattern.severity === 'info') icon = '🔵';
-
-    card.innerHTML = `
-      <div class="pattern-title">${icon} ${pattern.title}</div>
-      <div class="pattern-desc">${pattern.description}</div>
-      <div class="pattern-tags">
-        ${pattern.affectedSpans.map(s => `<span class="pattern-tag">${s}</span>`).join('')}
-        ${pattern.severity === 'critical' ? `<span class="pattern-tag" style="color: var(--error); border: 1px solid var(--error);">Critical</span>` : ''}
+      <!-- Charts Row -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        <div class="glass rounded-xl p-5">
+          <h3 class="text-sm font-semibold text-white mb-4">Latency Trend (Last 24h)</h3>
+          <div class="h-52"><canvas id="chart-latency-trend"></canvas></div>
+        </div>
+        <div class="glass rounded-xl p-5">
+          <h3 class="text-sm font-semibold text-white mb-4">Trace Volume</h3>
+          <div class="h-52"><canvas id="chart-trace-volume"></canvas></div>
+        </div>
       </div>
-    `;
 
-    list.appendChild(card);
-  });
-}
+      <!-- Recent Traces -->
+      <div class="glass rounded-xl overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-white/5">
+          <h2 class="text-sm font-semibold text-white">Recent Traces</h2>
+          <button onclick="switchView('traces')" class="text-xs text-indigo-400 hover:text-indigo-300 transition">View all</button>
+        </div>
+        <div id="recent-traces-list" class="divide-y divide-white/5"></div>
+      </div>
+    </div>
 
-// ============== COST ==============
-function renderCost() {
-  const list = document.getElementById('costList');
-  const summary = document.getElementById('costSummary');
+    <!-- TRACES VIEW -->
+    <div id="view-traces" class="view-panel hidden">
+      <div class="flex flex-wrap gap-3 mb-4 filter-row">
+        <div class="relative">
+          <input id="filter-service" type="text" placeholder="Search by service or trace ID..."
+            class="filter-input bg-surface-100 border border-white/10 rounded-lg pl-8 pr-3 py-2 text-sm text-slate-200 placeholder-slate-600 w-72 transition" oninput="filterTraces()" />
+          <svg class="w-4 h-4 text-slate-600 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-xs text-slate-500 mr-1">Status:</span>
+          <label class="flex items-center gap-1 text-xs text-red-300 cursor-pointer select-none hover:text-red-200">
+            <input type="checkbox" id="filter-errors" class="rounded bg-surface-100 border-white/10 text-red-500 focus:ring-red-500/30" onchange="filterTraces()" /> Errors only
+          </label>
+        </div>
+        <button onclick="filterTraces()" class="px-3 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition">Apply</button>
+        <button onclick="clearFilters()" class="px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-slate-200 bg-surface-100 rounded-lg border border-white/10 hover:border-white/20 transition">Clear</button>
+      </div>
+      <div class="glass rounded-xl overflow-hidden">
+        <div id="traces-list" class="divide-y divide-white/5"></div>
+      </div>
+    </div>
 
-  // Calculate costs
-  const costItems = [
-    { name: '🧠 planner #1', tokens: 1771, cost: 0.012, type: 'llm' },
-    { name: '🧠 planner #2', tokens: 1196, cost: 0.007, type: 'llm' },
-    { name: '🔧 web_search ×2', tokens: 0, cost: 0, type: 'tool' },
-    { name: '🔧 fetch_page ×2', tokens: 0, cost: 0, type: 'tool' },
-    { name: '🔧 summarize', tokens: 0, cost: 0, type: 'tool' },
-  ];
-
-  const totalCost = costItems.reduce((sum, item) => sum + item.cost, 0);
-  const maxCost = Math.max(...costItems.map(c => c.cost));
-
-  list.innerHTML = costItems.map(item => {
-    const percentage = maxCost > 0 ? (item.cost / maxCost) * 100 : 0;
-    return `
-      <div class="cost-item">
-        <div class="cost-label">${item.name}</div>
-        <div class="cost-bar-bg">
-          <div class="cost-bar-fill ${item.type}" style="width: ${percentage}%">
-            ${item.tokens > 0 ? item.tokens.toLocaleString() + ' tok' : ''}
+    <!-- TRACE DETAIL VIEW -->
+    <div id="view-trace-detail" class="view-panel hidden">
+      <button onclick="backToTraces()" class="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-200 mb-4 transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        Back to traces
+        <kbd class="ml-2 px-1 py-0.5 text-[10px] rounded bg-surface-100 border border-white/10 font-mono text-slate-600">Esc</kbd>
+      </button>
+      <div class="glass rounded-xl p-5 mb-4">
+        <div class="flex flex-col sm:flex-row items-start justify-between gap-4">
+          <div class="flex-1 min-w-0">
+            <h2 id="detail-trace-id" class="text-lg font-semibold text-white font-mono truncate">--</h2>
+            <div id="detail-trace-meta" class="flex flex-wrap gap-4 mt-2 text-xs text-slate-400"></div>
+          </div>
+          <div class="flex gap-1">
+            <button onclick="showDetailTab('timeline')" data-dtab="timeline" class="dtab-btn tab-active px-3 py-1.5 text-xs font-medium border-b-2 rounded-t transition">Timeline</button>
+            <button onclick="showDetailTab('dag')" data-dtab="dag" class="dtab-btn tab-inactive px-3 py-1.5 text-xs font-medium border-b-2 rounded-t transition">Causal DAG</button>
           </div>
         </div>
-        <div class="cost-value">$${item.cost.toFixed(4)}</div>
       </div>
-    `;
-  }).join('');
+      <!-- Timeline -->
+      <div id="detail-timeline" class="detail-panel">
+        <div class="glass rounded-xl overflow-hidden">
+          <div id="timeline-container" class="p-4 relative">
+            <div class="text-center text-slate-600 text-sm py-8">Select a trace to view timeline</div>
+          </div>
+        </div>
+      </div>
+      <!-- DAG -->
+      <div id="detail-dag" class="detail-panel hidden">
+        <div class="glass rounded-xl overflow-hidden relative">
+          <div class="dag-controls absolute top-3 right-3 z-10 flex gap-1">
+            <button onclick="dagZoom('in')" title="Zoom in" class="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-200/80 backdrop-blur border border-white/10 text-slate-400 hover:text-white hover:bg-surface-100 transition text-lg font-bold">+</button>
+            <button onclick="dagZoom('out')" title="Zoom out" class="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-200/80 backdrop-blur border border-white/10 text-slate-400 hover:text-white hover:bg-surface-100 transition text-lg font-bold">-</button>
+            <button onclick="dagZoom('fit')" title="Fit to view" class="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-200/80 backdrop-blur border border-white/10 text-slate-400 hover:text-white hover:bg-surface-100 transition">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+            </button>
+          </div>
+          <div class="absolute bottom-3 left-3 z-10 glass rounded-lg p-2.5 text-[10px]">
+            <div class="font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">Legend</div>
+            <div class="space-y-1">
+              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full" style="background:#6366f1"></span><span class="text-slate-400">LLM</span></div>
+              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full" style="background:#10b981"></span><span class="text-slate-400">Tool</span></div>
+              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full" style="background:#8b5cf6"></span><span class="text-slate-400">Agent</span></div>
+              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full" style="background:#f59e0b"></span><span class="text-slate-400">Chain</span></div>
+              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full" style="background:#06b6d4"></span><span class="text-slate-400">Retrieval</span></div>
+              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm border-2 border-red-500" style="background:#7f1d1d"></span><span class="text-slate-400">Error</span></div>
+            </div>
+          </div>
+          <div id="cy-container"></div>
+        </div>
+        <div id="dag-patterns" class="mt-4"></div>
+      </div>
+      <!-- Span Detail Sidebar -->
+      <div id="span-detail-panel" class="hidden fixed right-0 top-0 h-full w-96 glass border-l border-white/10 z-50 overflow-y-auto shadow-2xl shadow-black/50 fade-in">
+        <div class="p-5">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-semibold text-white">Span Detail</h3>
+            <button onclick="closeSpanDetail()" class="text-slate-500 hover:text-slate-300 transition" title="Close (Esc)">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <div id="span-detail-content"></div>
+        </div>
+      </div>
+    </div>
 
-  summary.innerHTML = `
-    <div class="cost-summary-item">
-      <span class="cost-summary-label">Total Cost</span>
-      <span class="cost-summary-value">$${totalCost.toFixed(4)}</span>
+    <!-- COST VIEW -->
+    <div id="view-cost" class="view-panel hidden">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+        <div class="glass rounded-xl p-5">
+          <h3 class="text-sm font-semibold text-white mb-4">Cost by Model</h3>
+          <div class="h-72"><canvas id="chart-cost-model"></canvas></div>
+        </div>
+        <div class="glass rounded-xl p-5">
+          <h3 class="text-sm font-semibold text-white mb-4">Cost by Service</h3>
+          <div class="h-72"><canvas id="chart-cost-service"></canvas></div>
+        </div>
+      </div>
+      <div class="glass rounded-xl p-5">
+        <h3 class="text-sm font-semibold text-white mb-4">Cost Trend Over Time</h3>
+        <div class="h-64"><canvas id="chart-cost-trend"></canvas></div>
+      </div>
+      <!-- Cost summary table -->
+      <div class="glass rounded-xl overflow-hidden mt-4">
+        <div class="px-5 py-4 border-b border-white/5">
+          <h3 class="text-sm font-semibold text-white">Cost Breakdown by Trace</h3>
+        </div>
+        <div id="cost-table" class="divide-y divide-white/5"></div>
+      </div>
     </div>
-    <div class="cost-summary-item">
-      <span class="cost-summary-label">LLM Calls</span>
-      <span class="cost-summary-value">$0.019 (100%)</span>
+
+    <!-- PATTERNS VIEW -->
+    <div id="view-patterns" class="view-panel hidden">
+      <div id="patterns-list"></div>
     </div>
-    <div class="cost-summary-item">
-      <span class="cost-summary-label">Tool Calls</span>
-      <span class="cost-summary-value">$0.000</span>
+
+    <!-- COMPARE VIEW -->
+    <div id="view-compare" class="view-panel hidden">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-semibold text-white">Trace Comparison</h2>
+        <button onclick="clearComparison()" class="px-3 py-1.5 text-xs font-medium text-slate-400 bg-surface-100 rounded-lg border border-white/10 hover:border-white/20 hover:text-slate-200 transition">Clear Selection</button>
+      </div>
+      <div id="compare-instructions" class="glass rounded-xl p-8 text-center">
+        <svg class="w-16 h-16 text-slate-700 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/>
+        </svg>
+        <p class="text-sm text-slate-400 mb-2">Select 2 traces to compare</p>
+        <p class="text-xs text-slate-600">Use the checkboxes in the Traces view to select traces for side-by-side comparison.</p>
+      </div>
+      <div id="compare-content" class="hidden"></div>
     </div>
-    <div class="cost-summary-item">
-      <span class="cost-summary-label">Retry Overhead</span>
-      <span class="cost-summary-value">~$0.007 (37%)</span>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="mt-8 border-t border-white/5 glass">
+    <div class="max-w-[1600px] mx-auto px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div class="flex items-center gap-2 text-xs text-slate-500">
+        <div class="w-5 h-5 rounded bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+          <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+          </svg>
+        </div>
+        <span class="font-medium text-slate-400">FlowLens v0.5.0</span>
+        <span class="text-slate-700">|</span>
+        <span>Agent Observability Platform</span>
+      </div>
+      <div class="flex items-center gap-4 text-xs text-slate-500">
+        <a href="https://github.com/yusenhan/flowlens" target="_blank" rel="noopener noreferrer"
+           class="flex items-center gap-1.5 hover:text-slate-300 transition-colors duration-200">
+          <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+            <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+          </svg>
+          GitHub
+        </a>
+        <a href="https://github.com/yusenhan/flowlens#readme" target="_blank" rel="noopener noreferrer"
+           class="flex items-center gap-1.5 hover:text-slate-300 transition-colors duration-200">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+          </svg>
+          Docs
+        </a>
+        <span class="text-slate-700">|</span>
+        <span class="italic text-slate-600">This is a standalone demo with embedded sample data</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Keyboard Shortcuts Modal -->
+  <div id="shortcuts-modal" class="shortcuts-modal-overlay hidden" onclick="if(event.target===this)closeShortcutsModal()">
+    <div class="shortcuts-modal glass rounded-2xl p-6 fade-in">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-base font-semibold text-white">Keyboard Shortcuts</h3>
+        <button onclick="closeShortcutsModal()" class="text-slate-500 hover:text-slate-300 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="space-y-3">
+        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Navigation</div>
+        <div class="grid grid-cols-2 gap-2">
+          <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">j</kbd><span class="text-slate-300">Next trace</span></div>
+          <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">k</kbd><span class="text-slate-300">Previous trace</span></div>
+          <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">Enter</kbd><span class="text-slate-300">Open trace</span></div>
+          <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">Esc</kbd><span class="text-slate-300">Close / Go back</span></div>
+        </div>
+        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider pt-2">Views</div>
+        <div class="grid grid-cols-2 gap-2">
+          <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">1</kbd><span class="text-slate-300">Overview</span></div>
+          <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">2</kbd><span class="text-slate-300">Traces</span></div>
+          <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">3</kbd><span class="text-slate-300">Cost Analysis</span></div>
+          <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">4</kbd><span class="text-slate-300">Patterns</span></div>
+          <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">5</kbd><span class="text-slate-300">Compare</span></div>
+        </div>
+        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider pt-2">Actions</div>
+        <div class="grid grid-cols-2 gap-2">
+          <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">/</kbd><span class="text-slate-300">Focus search</span></div>
+          <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">?</kbd><span class="text-slate-300">Show shortcuts</span></div>
+          <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">t</kbd><span class="text-slate-300">Toggle theme</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+'use strict';
+
+// =========================================================================
+// EMBEDDED SAMPLE DATA — Realistic AI agent traces
+// =========================================================================
+const NOW = Date.now() / 1000;
+
+function makeSpan(id, parentId, name, kind, startOffset, duration, opts = {}) {
+  const start = NOW - 3600 + startOffset;
+  const end = start + duration;
+  return {
+    span_id: id,
+    parent_span_id: parentId,
+    name,
+    kind,
+    start_time: start,
+    end_time: end,
+    duration_ms: duration * 1000,
+    status: opts.error ? 'error' : 'ok',
+    error: opts.error ? { message: opts.error } : null,
+    token_usage: opts.tokens ? {
+      input_tokens: opts.tokens[0],
+      output_tokens: opts.tokens[1],
+      total_tokens: opts.tokens[0] + opts.tokens[1],
+      total_cost_usd: opts.cost || 0,
+    } : null,
+    attributes: opts.attrs || {},
+    events: opts.events || [],
+  };
+}
+
+const SAMPLE_TRACES = [
+  // 1. RAG Pipeline
+  {
+    trace_id: 'tr-rag-8f2a1b3c4d5e',
+    service_name: 'rag-pipeline',
+    start_time: NOW - 3580,
+    duration_ms: 2340,
+    span_count: 5,
+    total_tokens: 8420,
+    total_cost_usd: 0.0487,
+    has_errors: false,
+    spans: [
+      makeSpan('sp-rag-root', null, 'RAGPipeline.query', 'agent', 0, 2.34, { attrs: { 'query': 'How does FlowLens handle error propagation?' } }),
+      makeSpan('sp-rag-embed', 'sp-rag-root', 'embed_query', 'llm', 0.05, 0.18, { tokens: [32, 0], cost: 0.0001, attrs: { 'model': 'text-embedding-3-small' } }),
+      makeSpan('sp-rag-retrieve', 'sp-rag-root', 'vector_search', 'retrieval', 0.24, 0.42, { attrs: { 'top_k': 10, 'db': 'pinecone', 'results': 10 } }),
+      makeSpan('sp-rag-rerank', 'sp-rag-root', 'cross_encoder_rerank', 'tool', 0.68, 0.31, { tokens: [1200, 0], cost: 0.0006, attrs: { 'model': 'cross-encoder/ms-marco', 'input_docs': 10, 'output_docs': 5 } }),
+      makeSpan('sp-rag-gen', 'sp-rag-root', 'generate_answer', 'llm', 1.02, 1.28, { tokens: [3200, 3988], cost: 0.048, attrs: { 'model': 'claude-sonnet-4-20250514', 'temperature': 0.3, 'max_tokens': 4096 } }),
+    ],
+    patterns: [],
+  },
+  // 2. Multi-step Agent
+  {
+    trace_id: 'tr-agent-2c7d9e1f0a3b',
+    service_name: 'research-agent',
+    start_time: NOW - 3200,
+    duration_ms: 4580,
+    span_count: 7,
+    total_tokens: 15230,
+    total_cost_usd: 0.1245,
+    has_errors: false,
+    spans: [
+      makeSpan('sp-agent-root', null, 'ResearchAgent.run', 'agent', 0, 4.58, { attrs: { 'goal': 'Summarize recent advances in retrieval-augmented generation' } }),
+      makeSpan('sp-agent-plan', 'sp-agent-root', 'plan_steps', 'llm', 0.05, 0.82, { tokens: [1500, 620], cost: 0.012, attrs: { 'model': 'claude-sonnet-4-20250514' } }),
+      makeSpan('sp-agent-search1', 'sp-agent-root', 'web_search', 'tool', 0.9, 1.2, { attrs: { 'query': 'RAG advances 2024', 'engine': 'tavily', 'results': 8 } }),
+      makeSpan('sp-agent-search2', 'sp-agent-root', 'web_search', 'tool', 0.9, 0.95, { attrs: { 'query': 'retrieval augmented generation benchmarks', 'engine': 'tavily', 'results': 6 } }),
+      makeSpan('sp-agent-read', 'sp-agent-root', 'read_documents', 'tool', 2.15, 0.45, { tokens: [4200, 0], cost: 0.002, attrs: { 'doc_count': 5 } }),
+      makeSpan('sp-agent-analyze', 'sp-agent-root', 'analyze_findings', 'llm', 2.65, 0.88, { tokens: [3800, 1200], cost: 0.038, attrs: { 'model': 'gpt-4o' } }),
+      makeSpan('sp-agent-synth', 'sp-agent-root', 'synthesize_report', 'llm', 3.58, 0.98, { tokens: [2400, 1510], cost: 0.0725, attrs: { 'model': 'claude-sonnet-4-20250514', 'temperature': 0.4 } }),
+    ],
+    patterns: [],
+  },
+  // 3. Customer Support Chatbot with error recovery
+  {
+    trace_id: 'tr-chat-4a5b6c7d8e9f',
+    service_name: 'support-chatbot',
+    start_time: NOW - 2800,
+    duration_ms: 3120,
+    span_count: 6,
+    total_tokens: 6340,
+    total_cost_usd: 0.0312,
+    has_errors: true,
+    error_count: 1,
+    spans: [
+      makeSpan('sp-chat-root', null, 'ChatBot.respond', 'agent', 0, 3.12, { attrs: { 'session_id': 'sess-abc123', 'user_message': 'I need help with my billing' } }),
+      makeSpan('sp-chat-classify', 'sp-chat-root', 'classify_intent', 'llm', 0.03, 0.35, { tokens: [420, 85], cost: 0.0008, attrs: { 'model': 'gpt-4o-mini', 'intent': 'billing_inquiry' } }),
+      makeSpan('sp-chat-lookup', 'sp-chat-root', 'lookup_account', 'tool', 0.4, 0.22, { attrs: { 'tool': 'crm_api', 'customer_id': 'cust-789' } }),
+      makeSpan('sp-chat-llm-fail', 'sp-chat-root', 'generate_response', 'llm', 0.65, 0.45, { tokens: [1800, 0], cost: 0.0054, error: 'Rate limit exceeded: 429 Too Many Requests', attrs: { 'model': 'claude-sonnet-4-20250514', 'attempt': 1 } }),
+      makeSpan('sp-chat-llm-retry', 'sp-chat-root', 'generate_response', 'llm', 1.15, 1.2, { tokens: [1800, 1420], cost: 0.018, attrs: { 'model': 'claude-sonnet-4-20250514', 'attempt': 2, 'retry_after_ms': 500 } }),
+      makeSpan('sp-chat-format', 'sp-chat-root', 'format_output', 'chain', 2.38, 0.12, { tokens: [620, 195], cost: 0.007, attrs: { 'format': 'markdown' } }),
+    ],
+    patterns: [
+      { pattern: 'retry_storm', severity: 'warning', description: 'LLM call failed with rate limit and required retry. Consider implementing request throttling.', involved_spans: ['sp-chat-llm-fail', 'sp-chat-llm-retry'] },
+    ],
+  },
+  // 4. Code Generation with streaming
+  {
+    trace_id: 'tr-code-1e2f3a4b5c6d',
+    service_name: 'code-gen-agent',
+    start_time: NOW - 2400,
+    duration_ms: 5680,
+    span_count: 6,
+    total_tokens: 22450,
+    total_cost_usd: 0.2156,
+    has_errors: false,
+    spans: [
+      makeSpan('sp-code-root', null, 'CodeGenAgent.generate', 'agent', 0, 5.68, { attrs: { 'language': 'python', 'task': 'Build a REST API with FastAPI' } }),
+      makeSpan('sp-code-plan', 'sp-code-root', 'plan_architecture', 'llm', 0.05, 1.1, { tokens: [2200, 1800], cost: 0.032, attrs: { 'model': 'claude-sonnet-4-20250514', 'streaming': true } }),
+      makeSpan('sp-code-gen1', 'sp-code-root', 'generate_models', 'llm', 1.2, 1.4, { tokens: [3200, 4500], cost: 0.058, attrs: { 'model': 'claude-sonnet-4-20250514', 'streaming': true, 'file': 'models.py' } }),
+      makeSpan('sp-code-gen2', 'sp-code-root', 'generate_routes', 'llm', 2.65, 1.6, { tokens: [3800, 5200], cost: 0.072, attrs: { 'model': 'claude-sonnet-4-20250514', 'streaming': true, 'file': 'routes.py' } }),
+      makeSpan('sp-code-lint', 'sp-code-root', 'lint_code', 'tool', 4.3, 0.35, { attrs: { 'tool': 'ruff', 'errors': 0, 'warnings': 2 } }),
+      makeSpan('sp-code-test', 'sp-code-root', 'run_tests', 'tool', 4.7, 0.92, { attrs: { 'tool': 'pytest', 'passed': 12, 'failed': 0, 'duration_s': 0.92 } }),
+    ],
+    patterns: [],
+  },
+  // 5. Data Analysis with parallel tool calls
+  {
+    trace_id: 'tr-data-7f8e9d0c1b2a',
+    service_name: 'data-analyst',
+    start_time: NOW - 2000,
+    duration_ms: 3890,
+    span_count: 8,
+    total_tokens: 11800,
+    total_cost_usd: 0.0934,
+    has_errors: false,
+    spans: [
+      makeSpan('sp-data-root', null, 'DataAnalyst.analyze', 'agent', 0, 3.89, { attrs: { 'dataset': 'sales_2024_q4.csv', 'question': 'What are the top revenue drivers?' } }),
+      makeSpan('sp-data-plan', 'sp-data-root', 'plan_analysis', 'llm', 0.03, 0.55, { tokens: [1200, 580], cost: 0.012, attrs: { 'model': 'gpt-4o' } }),
+      makeSpan('sp-data-load', 'sp-data-root', 'load_dataset', 'tool', 0.6, 0.28, { attrs: { 'tool': 'pandas', 'rows': 45230, 'columns': 18 } }),
+      makeSpan('sp-data-sql1', 'sp-data-root', 'run_query_revenue', 'tool', 0.9, 0.42, { attrs: { 'query': 'SELECT product, SUM(revenue)...', 'rows_returned': 25 } }),
+      makeSpan('sp-data-sql2', 'sp-data-root', 'run_query_trends', 'tool', 0.9, 0.38, { attrs: { 'query': 'SELECT month, category...', 'rows_returned': 48 } }),
+      makeSpan('sp-data-sql3', 'sp-data-root', 'run_query_segments', 'tool', 0.9, 0.55, { attrs: { 'query': 'SELECT segment, COUNT(*)...', 'rows_returned': 8 } }),
+      makeSpan('sp-data-viz', 'sp-data-root', 'create_visualizations', 'tool', 1.5, 0.65, { attrs: { 'charts': 3, 'format': 'plotly' } }),
+      makeSpan('sp-data-narrate', 'sp-data-root', 'narrate_findings', 'llm', 2.2, 1.65, { tokens: [5800, 4220], cost: 0.0814, attrs: { 'model': 'claude-sonnet-4-20250514', 'temperature': 0.2 } }),
+    ],
+    patterns: [],
+  },
+  // 6. Failed pipeline with cascading errors
+  {
+    trace_id: 'tr-fail-3b4c5d6e7f8a',
+    service_name: 'etl-pipeline',
+    start_time: NOW - 1600,
+    duration_ms: 1850,
+    span_count: 5,
+    total_tokens: 3200,
+    total_cost_usd: 0.0089,
+    has_errors: true,
+    error_count: 2,
+    spans: [
+      makeSpan('sp-fail-root', null, 'ETLPipeline.run', 'agent', 0, 1.85, { error: 'Pipeline failed: downstream errors', attrs: { 'pipeline': 'user-activity-sync' } }),
+      makeSpan('sp-fail-extract', 'sp-fail-root', 'extract_data', 'tool', 0.05, 0.45, { attrs: { 'source': 'postgres', 'table': 'user_events' } }),
+      makeSpan('sp-fail-transform', 'sp-fail-root', 'transform_data', 'chain', 0.55, 0.38, { attrs: { 'transformations': ['deduplicate', 'normalize', 'enrich'] } }),
+      makeSpan('sp-fail-enrich', 'sp-fail-transform', 'enrich_with_llm', 'llm', 0.6, 0.8, { tokens: [3200, 0], cost: 0.0089, error: 'Connection timeout: upstream LLM provider unreachable after 800ms', attrs: { 'model': 'gpt-4o', 'timeout_ms': 800 } }),
+      makeSpan('sp-fail-load', 'sp-fail-root', 'load_to_warehouse', 'tool', 1.4, 0.42, { error: 'Cannot load: transform stage produced no output', attrs: { 'destination': 'bigquery' } }),
+    ],
+    patterns: [
+      { pattern: 'cascading_failure', severity: 'critical', description: 'LLM connection timeout in enrich_with_llm caused downstream load_to_warehouse to fail. Consider adding circuit breakers and fallback logic.', involved_spans: ['sp-fail-enrich', 'sp-fail-load'] },
+      { pattern: 'missing_fallback', severity: 'warning', description: 'No fallback mechanism for LLM enrichment step. Pipeline should gracefully degrade when LLM is unavailable.', involved_spans: ['sp-fail-enrich'] },
+    ],
+  },
+  // 7. High-cost token-heavy trace
+  {
+    trace_id: 'tr-cost-9a8b7c6d5e4f',
+    service_name: 'document-processor',
+    start_time: NOW - 1200,
+    duration_ms: 8920,
+    span_count: 5,
+    total_tokens: 128500,
+    total_cost_usd: 1.2340,
+    has_errors: false,
+    spans: [
+      makeSpan('sp-doc-root', null, 'DocProcessor.summarize', 'agent', 0, 8.92, { attrs: { 'document': 'annual_report_2024.pdf', 'pages': 142 } }),
+      makeSpan('sp-doc-parse', 'sp-doc-root', 'parse_pdf', 'tool', 0.1, 1.8, { attrs: { 'tool': 'pypdf2', 'pages_parsed': 142, 'chars_extracted': 425000 } }),
+      makeSpan('sp-doc-chunk', 'sp-doc-root', 'chunk_text', 'chain', 1.95, 0.35, { attrs: { 'chunk_size': 4000, 'overlap': 200, 'chunks': 108 } }),
+      makeSpan('sp-doc-summarize', 'sp-doc-root', 'summarize_chunks', 'llm', 2.35, 5.2, { tokens: [108000, 18500], cost: 1.18, attrs: { 'model': 'claude-sonnet-4-20250514', 'chunks_processed': 108, 'strategy': 'map-reduce' } }),
+      makeSpan('sp-doc-final', 'sp-doc-root', 'final_summary', 'llm', 7.6, 1.28, { tokens: [1500, 500], cost: 0.054, attrs: { 'model': 'claude-sonnet-4-20250514', 'temperature': 0.1 } }),
+    ],
+    patterns: [
+      { pattern: 'token_waste', severity: 'warning', description: 'Extremely high token usage (128,500 tokens) in document summarization. Consider using hierarchical summarization or extractive methods to reduce costs.', involved_spans: ['sp-doc-summarize'] },
+    ],
+  },
+  // 8. Multi-modal agent
+  {
+    trace_id: 'tr-multi-0f1e2d3c4b5a',
+    service_name: 'multimodal-agent',
+    start_time: NOW - 800,
+    duration_ms: 3450,
+    span_count: 6,
+    total_tokens: 9800,
+    total_cost_usd: 0.0678,
+    has_errors: false,
+    spans: [
+      makeSpan('sp-mm-root', null, 'MultimodalAgent.process', 'agent', 0, 3.45, { attrs: { 'input_type': 'image+text', 'task': 'Describe and analyze product image' } }),
+      makeSpan('sp-mm-vision', 'sp-mm-root', 'analyze_image', 'llm', 0.05, 1.2, { tokens: [1500, 850], cost: 0.018, attrs: { 'model': 'gpt-4o', 'image_size': '1024x768', 'detail': 'high' } }),
+      makeSpan('sp-mm-extract', 'sp-mm-root', 'extract_features', 'tool', 1.3, 0.45, { attrs: { 'tool': 'opencv', 'features': ['color_histogram', 'edge_detection', 'text_ocr'] } }),
+      makeSpan('sp-mm-search', 'sp-mm-root', 'similar_products', 'retrieval', 1.8, 0.55, { attrs: { 'index': 'product-embeddings', 'top_k': 5, 'similarity_threshold': 0.85 } }),
+      makeSpan('sp-mm-gen', 'sp-mm-root', 'generate_description', 'llm', 2.4, 0.82, { tokens: [3200, 2100], cost: 0.038, attrs: { 'model': 'claude-sonnet-4-20250514', 'temperature': 0.5 } }),
+      makeSpan('sp-mm-tags', 'sp-mm-root', 'generate_tags', 'llm', 2.4, 0.45, { tokens: [1200, 950], cost: 0.0118, attrs: { 'model': 'gpt-4o-mini' } }),
+    ],
+    patterns: [],
+  },
+  // 9. Agentic workflow with tool errors
+  {
+    trace_id: 'tr-tool-6a5b4c3d2e1f',
+    service_name: 'task-automation',
+    start_time: NOW - 400,
+    duration_ms: 2780,
+    span_count: 7,
+    total_tokens: 7650,
+    total_cost_usd: 0.0445,
+    has_errors: true,
+    error_count: 1,
+    spans: [
+      makeSpan('sp-task-root', null, 'TaskAgent.execute', 'agent', 0, 2.78, { attrs: { 'task': 'Create Jira ticket from Slack thread' } }),
+      makeSpan('sp-task-read', 'sp-task-root', 'read_slack_thread', 'tool', 0.05, 0.32, { attrs: { 'tool': 'slack_api', 'channel': '#eng-incidents', 'thread_ts': '1710345600.123' } }),
+      makeSpan('sp-task-summ', 'sp-task-root', 'summarize_thread', 'llm', 0.4, 0.65, { tokens: [2800, 620], cost: 0.014, attrs: { 'model': 'gpt-4o-mini' } }),
+      makeSpan('sp-task-classify', 'sp-task-root', 'classify_priority', 'llm', 1.1, 0.28, { tokens: [420, 35], cost: 0.001, attrs: { 'model': 'gpt-4o-mini', 'priority': 'P1' } }),
+      makeSpan('sp-task-jira-fail', 'sp-task-root', 'create_jira_ticket', 'tool', 1.4, 0.35, { error: 'JIRA API: 403 Forbidden - insufficient permissions for project INFRA', attrs: { 'tool': 'jira_api', 'project': 'INFRA' } }),
+      makeSpan('sp-task-jira-retry', 'sp-task-root', 'create_jira_ticket', 'tool', 1.8, 0.42, { attrs: { 'tool': 'jira_api', 'project': 'ENG', 'fallback': true, 'ticket_key': 'ENG-4521' } }),
+      makeSpan('sp-task-notify', 'sp-task-root', 'notify_slack', 'tool', 2.25, 0.18, { attrs: { 'tool': 'slack_api', 'message': 'Created ENG-4521' } }),
+    ],
+    patterns: [
+      { pattern: 'tool_permission_error', severity: 'warning', description: 'JIRA ticket creation failed due to permissions on project INFRA. Agent fell back to project ENG. Review API credentials.', involved_spans: ['sp-task-jira-fail'] },
+    ],
+  },
+  // 10. Fast inference pipeline
+  {
+    trace_id: 'tr-fast-2b3c4d5e6f7a',
+    service_name: 'content-filter',
+    start_time: NOW - 120,
+    duration_ms: 340,
+    span_count: 3,
+    total_tokens: 890,
+    total_cost_usd: 0.0004,
+    has_errors: false,
+    spans: [
+      makeSpan('sp-filter-root', null, 'ContentFilter.check', 'chain', 0, 0.34, { attrs: { 'content_type': 'user_message', 'length': 156 } }),
+      makeSpan('sp-filter-classify', 'sp-filter-root', 'classify_safety', 'llm', 0.02, 0.18, { tokens: [420, 45], cost: 0.0002, attrs: { 'model': 'gpt-4o-mini', 'categories': ['safe', 'unsafe', 'borderline'], 'result': 'safe' } }),
+      makeSpan('sp-filter-pii', 'sp-filter-root', 'detect_pii', 'tool', 0.02, 0.12, { attrs: { 'tool': 'presidio', 'pii_found': false } }),
+    ],
+    patterns: [],
+  },
+];
+
+// =========================================================================
+// State
+// =========================================================================
+let currentView = 'overview';
+let currentTraceId = null;
+let currentTraceData = null;
+let cyInstance = null;
+let chartInstances = {};
+let selectedTraceIndex = -1;
+let compareSelection = [];
+let isDarkTheme = document.documentElement.classList.contains('dark');
+
+// =========================================================================
+// Utilities
+// =========================================================================
+function escHtml(str) {
+  if (!str) return '';
+  const div = document.createElement('div');
+  div.textContent = String(str);
+  return div.innerHTML;
+}
+
+function formatDuration(ms) {
+  if (ms < 1) return '<1ms';
+  if (ms < 1000) return ms.toFixed(0) + 'ms';
+  return (ms / 1000).toFixed(2) + 's';
+}
+
+const SPAN_KIND_COLORS = {
+  llm:       { bg: 'bg-indigo-500/20', bar: '#6366f1', text: 'text-indigo-300', label: 'LLM' },
+  tool:      { bg: 'bg-emerald-500/20', bar: '#10b981', text: 'text-emerald-300', label: 'Tool' },
+  agent:     { bg: 'bg-violet-500/20', bar: '#8b5cf6', text: 'text-violet-300', label: 'Agent' },
+  chain:     { bg: 'bg-amber-500/20',  bar: '#f59e0b', text: 'text-amber-300',  label: 'Chain' },
+  retrieval: { bg: 'bg-cyan-500/20',   bar: '#06b6d4', text: 'text-cyan-300',   label: 'Retrieval' },
+  custom:    { bg: 'bg-slate-500/20',  bar: '#64748b', text: 'text-slate-300',  label: 'Custom' },
+};
+
+const CHART_COLORS = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#06b6d4', '#84cc16'];
+
+// =========================================================================
+// Toast Notifications
+// =========================================================================
+function showToast(message, type = 'info', duration = 3000) {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  const colors = {
+    info: 'border-indigo-500/40 bg-indigo-500/10 text-indigo-200',
+    error: 'border-red-500/40 bg-red-500/10 text-red-200',
+    success: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200',
+    warning: 'border-amber-500/40 bg-amber-500/10 text-amber-200',
+  };
+  toast.className = `toast-enter pointer-events-auto flex items-center gap-2 px-4 py-3 rounded-xl border backdrop-blur-lg text-sm ${colors[type] || colors.info} shadow-lg max-w-sm`;
+  toast.innerHTML = `<span class="flex-1">${escHtml(message)}</span>`;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.remove('toast-enter');
+    toast.classList.add('toast-exit');
+    setTimeout(() => toast.remove(), 300);
+  }, duration);
+}
+
+// =========================================================================
+// View Switching
+// =========================================================================
+function switchView(view) {
+  currentView = view;
+  selectedTraceIndex = -1;
+  document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('tab-active'); b.classList.add('tab-inactive'); });
+
+  const panel = document.getElementById(`view-${view}`);
+  if (panel) {
+    panel.classList.remove('hidden');
+    panel.classList.remove('view-enter');
+    void panel.offsetWidth;
+    panel.classList.add('view-enter');
+  }
+
+  const tabBtn = document.querySelector(`[data-tab="${view}"]`);
+  if (tabBtn) { tabBtn.classList.remove('tab-inactive'); tabBtn.classList.add('tab-active'); }
+
+  if (view === 'overview') loadOverview();
+  else if (view === 'traces') renderTracesList(SAMPLE_TRACES);
+  else if (view === 'cost') loadCostView();
+  else if (view === 'patterns') loadPatterns();
+  else if (view === 'compare') renderCompareView();
+}
+
+function showDetailTab(tab) {
+  document.querySelectorAll('.detail-panel').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.dtab-btn').forEach(b => { b.classList.remove('tab-active'); b.classList.add('tab-inactive'); });
+  const panel = document.getElementById(`detail-${tab}`);
+  if (panel) panel.classList.remove('hidden');
+  const btn = document.querySelector(`[data-dtab="${tab}"]`);
+  if (btn) { btn.classList.remove('tab-inactive'); btn.classList.add('tab-active'); }
+  if (tab === 'dag' && currentTraceData) renderDAG(currentTraceData);
+}
+
+function backToTraces() {
+  document.getElementById('view-trace-detail').classList.add('hidden');
+  closeSpanDetail();
+  if (currentView === 'overview') document.getElementById('view-overview').classList.remove('hidden');
+  else document.getElementById('view-traces').classList.remove('hidden');
+}
+
+// =========================================================================
+// Overview
+// =========================================================================
+function loadOverview() {
+  const traces = SAMPLE_TRACES;
+  const totalTraces = traces.length;
+  const totalSpans = traces.reduce((s, t) => s + t.span_count, 0);
+  const errorTraces = traces.filter(t => t.has_errors).length;
+  const errorRate = totalTraces > 0 ? ((errorTraces / totalTraces) * 100).toFixed(1) : '0';
+  const avgLatency = (traces.reduce((s, t) => s + t.duration_ms, 0) / totalTraces).toFixed(0);
+  const totalCost = traces.reduce((s, t) => s + t.total_cost_usd, 0);
+  const totalTokens = traces.reduce((s, t) => s + t.total_tokens, 0);
+
+  document.getElementById('stat-traces').textContent = totalTraces.toLocaleString();
+  document.getElementById('stat-spans').textContent = `${totalSpans} spans`;
+  document.getElementById('stat-error-rate').textContent = errorRate + '%';
+  document.getElementById('stat-error-count').textContent = `${errorTraces} error traces`;
+  document.getElementById('stat-latency').textContent = avgLatency;
+  document.getElementById('stat-cost').textContent = '$' + totalCost.toFixed(4);
+  document.getElementById('stat-tokens').textContent = `${totalTokens.toLocaleString()} tokens`;
+
+  // Render recent traces
+  const container = document.getElementById('recent-traces-list');
+  container.innerHTML = traces.slice(0, 6).map(t => renderTraceRow(t, true)).join('');
+
+  // Render charts
+  renderLatencyTrendChart();
+  renderTraceVolumeChart();
+}
+
+function renderLatencyTrendChart() {
+  if (chartInstances['chart-latency-trend']) chartInstances['chart-latency-trend'].destroy();
+  const canvas = document.getElementById('chart-latency-trend');
+  if (!canvas) return;
+  const hours = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(Date.now() - (11 - i) * 3600000);
+    return d.getHours() + ':00';
+  });
+  const data = [2340, 1890, 3200, 2780, 4580, 3120, 1850, 5680, 3890, 3450, 2780, 340];
+  const isLight = !document.documentElement.classList.contains('dark');
+  chartInstances['chart-latency-trend'] = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: hours,
+      datasets: [{
+        label: 'Avg Latency (ms)',
+        data: data,
+        borderColor: '#6366f1',
+        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.4,
+        pointRadius: 3,
+        pointBackgroundColor: '#6366f1',
+        pointBorderColor: '#6366f1',
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: isLight ? '#64748b' : '#64748b', font: { size: 10 } }, grid: { color: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.03)' } },
+        y: { ticks: { color: isLight ? '#64748b' : '#64748b', font: { size: 10 }, callback: v => v + 'ms' }, grid: { color: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.03)' } },
+      }
+    }
+  });
+}
+
+function renderTraceVolumeChart() {
+  if (chartInstances['chart-trace-volume']) chartInstances['chart-trace-volume'].destroy();
+  const canvas = document.getElementById('chart-trace-volume');
+  if (!canvas) return;
+  const hours = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(Date.now() - (11 - i) * 3600000);
+    return d.getHours() + ':00';
+  });
+  const isLight = !document.documentElement.classList.contains('dark');
+  chartInstances['chart-trace-volume'] = new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: hours,
+      datasets: [
+        { label: 'Success', data: [5, 3, 8, 4, 6, 7, 3, 9, 5, 4, 6, 2], backgroundColor: 'rgba(16, 185, 129, 0.6)', borderRadius: 4, borderSkipped: false },
+        { label: 'Error', data: [0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0], backgroundColor: 'rgba(239, 68, 68, 0.6)', borderRadius: 4, borderSkipped: false },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: isLight ? '#475569' : '#94a3b8', font: { size: 11 } } } },
+      scales: {
+        x: { stacked: true, ticks: { color: '#64748b', font: { size: 10 } }, grid: { display: false } },
+        y: { stacked: true, ticks: { color: '#64748b', font: { size: 10 }, stepSize: 2 }, grid: { color: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.03)' } },
+      }
+    }
+  });
+}
+
+// =========================================================================
+// Trace List Rendering
+// =========================================================================
+function renderTraceRow(trace, compact = false) {
+  const hasErrors = trace.has_errors;
+  const statusDot = hasErrors
+    ? '<span class="w-2 h-2 rounded-full bg-red-500 flex-shrink-0"></span>'
+    : '<span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>';
+  const timeStr = new Date(trace.start_time * 1000).toLocaleString();
+  const duration = trace.duration_ms.toFixed(0);
+  const cost = trace.total_cost_usd.toFixed(4);
+  const traceIdShort = trace.trace_id.substring(0, 16);
+  const isSelected = compareSelection.includes(trace.trace_id);
+
+  return `
+    <div class="trace-row flex items-center gap-4 px-5 py-3.5 hover:bg-white/[0.02] cursor-pointer transition group" data-trace-id="${escHtml(trace.trace_id)}" onclick="openTrace('${escHtml(trace.trace_id)}')">
+      ${!compact ? `<input type="checkbox" class="compare-checkbox ${isSelected ? 'checked' : ''} w-3.5 h-3.5 rounded bg-surface-100 border-white/10 text-indigo-500 focus:ring-indigo-500/30 flex-shrink-0" title="Select for comparison" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleCompare('${escHtml(trace.trace_id)}', this)" />` : ''}
+      ${statusDot}
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-sm font-medium text-slate-200 group-hover:text-white transition font-mono">${traceIdShort}</span>
+          <span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">${escHtml(trace.service_name)}</span>
+          ${hasErrors ? `<span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-red-500/10 text-red-300 border border-red-500/20">${trace.error_count || 1} error${(trace.error_count || 1) > 1 ? 's' : ''}</span>` : ''}
+        </div>
+        ${!compact ? `<div class="text-xs text-slate-500 mt-0.5">${timeStr}</div>` : ''}
+      </div>
+      <div class="flex items-center gap-6 text-xs text-slate-500">
+        <div class="text-right">
+          <div class="text-slate-400 tabular-nums">${duration}ms</div>
+          ${!compact ? `<div>${trace.span_count} spans</div>` : ''}
+        </div>
+        <div class="text-right">
+          <div class="text-slate-400 tabular-nums">$${cost}</div>
+          ${!compact ? `<div>${trace.total_tokens.toLocaleString()} tok</div>` : ''}
+        </div>
+        <svg class="w-4 h-4 text-slate-600 group-hover:text-slate-400 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      </div>
     </div>
   `;
 }
 
-// ============== REPLAY ANIMATION ==============
-function replayTimeline() {
-  const btn = document.querySelector('.btn-replay');
-  btn.classList.add('replaying');
-  btn.disabled = true;
-
-  const sortedSpans = traceData.spans.filter(s => s.id !== 'span_0').sort((a, b) => a.startMs - b.startMs);
-  const ganttSpans = document.querySelectorAll('.gantt-span');
-
-  // Reset all spans
-  ganttSpans.forEach(span => {
-    span.style.opacity = '0.2';
-    span.querySelector('rect').style.filter = 'grayscale(100%)';
-  });
-
-  let delay = 0;
-  sortedSpans.forEach((span, idx) => {
-    setTimeout(() => {
-      const spanEl = document.querySelector(`[data-span-id="${span.id}"]`);
-      if (spanEl) {
-        spanEl.style.animation = 'none';
-        spanEl.offsetHeight;
-        spanEl.style.animation = 'fadeInUp 0.3s ease-out forwards';
-        spanEl.style.opacity = '1';
-        spanEl.querySelector('rect').style.filter = 'grayscale(0%)';
-      }
-    }, delay);
-
-    delay += 150;
-  });
-
-  setTimeout(() => {
-    ganttSpans.forEach(span => {
-      span.style.opacity = '1';
-      span.querySelector('rect').style.filter = 'grayscale(0%)';
-    });
-    btn.classList.remove('replaying');
-    btn.disabled = false;
-  }, delay + 300);
+function renderTracesList(traces) {
+  const container = document.getElementById('traces-list');
+  if (!traces || traces.length === 0) {
+    container.innerHTML = '<div class="p-8 text-center text-slate-600 text-sm">No traces found</div>';
+    return;
+  }
+  container.innerHTML = traces.map(t => renderTraceRow(t, false)).join('');
 }
 
-// ============== INIT ==============
+function filterTraces() {
+  const search = (document.getElementById('filter-service').value || '').toLowerCase().trim();
+  const errorsOnly = document.getElementById('filter-errors').checked;
+  let filtered = SAMPLE_TRACES.filter(t => {
+    if (errorsOnly && !t.has_errors) return false;
+    if (search && !t.service_name.toLowerCase().includes(search) && !t.trace_id.toLowerCase().includes(search)) return false;
+    return true;
+  });
+  renderTracesList(filtered);
+}
+
+function clearFilters() {
+  document.getElementById('filter-service').value = '';
+  document.getElementById('filter-errors').checked = false;
+  renderTracesList(SAMPLE_TRACES);
+}
+
+// =========================================================================
+// Trace Detail
+// =========================================================================
+function openTrace(traceId) {
+  const trace = SAMPLE_TRACES.find(t => t.trace_id === traceId);
+  if (!trace) return;
+  currentTraceId = traceId;
+  currentTraceData = trace;
+
+  document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
+  const detailPanel = document.getElementById('view-trace-detail');
+  detailPanel.classList.remove('hidden');
+  detailPanel.classList.remove('view-enter');
+  void detailPanel.offsetWidth;
+  detailPanel.classList.add('view-enter');
+
+  showDetailTab('timeline');
+  renderTraceDetail(trace);
+}
+
+function renderTraceDetail(data) {
+  document.getElementById('detail-trace-id').textContent = data.trace_id;
+  const hasErrors = data.has_errors;
+  const timeStr = new Date(data.start_time * 1000).toLocaleString();
+  const meta = [
+    `<span>Service: <strong class="text-slate-200">${escHtml(data.service_name)}</strong></span>`,
+    `<span>Duration: <strong class="text-slate-200">${formatDuration(data.duration_ms)}</strong></span>`,
+    `<span>Spans: <strong class="text-slate-200">${data.span_count}</strong></span>`,
+    `<span>Tokens: <strong class="text-slate-200">${data.total_tokens.toLocaleString()}</strong></span>`,
+    `<span>Cost: <strong class="text-slate-200">$${data.total_cost_usd.toFixed(4)}</strong></span>`,
+    `<span>Time: <strong class="text-slate-200">${timeStr}</strong></span>`,
+    hasErrors ? '<span class="text-red-400">Has Errors</span>' : '<span class="text-emerald-400">OK</span>',
+  ];
+  document.getElementById('detail-trace-meta').innerHTML = meta.join('');
+  renderWaterfallTimeline(data.spans || []);
+}
+
+// =========================================================================
+// Waterfall Timeline
+// =========================================================================
+function renderWaterfallTimeline(spans) {
+  const container = document.getElementById('timeline-container');
+  if (!spans || spans.length === 0) {
+    container.innerHTML = '<div class="text-center text-slate-600 text-sm py-8">No spans</div>';
+    return;
+  }
+
+  spans.sort((a, b) => (a.start_time || 0) - (b.start_time || 0));
+  const minTime = Math.min(...spans.map(s => s.start_time || 0));
+  const maxTime = Math.max(...spans.map(s => s.end_time || s.start_time || 0));
+  const totalDuration = maxTime - minTime || 1;
+  const totalDurationMs = totalDuration * 1000;
+
+  // Build hierarchy
+  const childMap = {};
+  spans.forEach(s => {
+    if (s.parent_span_id) {
+      childMap[s.parent_span_id] = childMap[s.parent_span_id] || [];
+      childMap[s.parent_span_id].push(s);
+    }
+  });
+  const rootSpans = spans.filter(s => !s.parent_span_id || !spans.find(p => p.span_id === s.parent_span_id));
+  const flatList = [];
+  function dfs(span, depth) {
+    flatList.push({ span, depth });
+    (childMap[span.span_id] || []).forEach(c => dfs(c, depth + 1));
+  }
+  rootSpans.forEach(s => dfs(s, 0));
+
+  // Time axis
+  const timeMarkers = 5;
+  let timeAxisHtml = '<div class="flex justify-between text-[10px] text-slate-600 mb-1 ml-[220px] mr-[70px]">';
+  for (let i = 0; i <= timeMarkers; i++) {
+    timeAxisHtml += `<span>${formatDuration(totalDurationMs * i / timeMarkers)}</span>`;
+  }
+  timeAxisHtml += '</div>';
+
+  // Legend
+  let legendHtml = '<div class="flex flex-wrap gap-3 mb-3 pb-3 border-b border-white/5">';
+  for (const [kind, cfg] of Object.entries(SPAN_KIND_COLORS)) {
+    legendHtml += `<div class="flex items-center gap-1.5 text-xs ${cfg.text}"><span class="w-3 h-1.5 rounded-full" style="background:${cfg.bar}"></span>${cfg.label}</div>`;
+  }
+  legendHtml += '</div>';
+
+  // Gridlines
+  let gridHtml = '<div class="absolute inset-0 ml-[220px] mr-[70px] pointer-events-none">';
+  for (let i = 1; i < timeMarkers; i++) {
+    gridHtml += `<div class="absolute top-0 bottom-0 border-l border-white/[0.03]" style="left:${(i / timeMarkers) * 100}%"></div>`;
+  }
+  gridHtml += '</div>';
+
+  const hasChildren = {};
+  spans.forEach(s => { if (s.parent_span_id) hasChildren[s.parent_span_id] = true; });
+
+  let rowsHtml = '';
+  flatList.forEach(({ span, depth }) => {
+    const kind = (span.kind || 'custom').toLowerCase();
+    const cfg = SPAN_KIND_COLORS[kind] || SPAN_KIND_COLORS.custom;
+    const isError = span.status === 'error';
+    const spanStart = (span.start_time || 0) - minTime;
+    const spanDuration = (span.end_time || span.start_time || 0) - (span.start_time || 0);
+    const leftPct = (spanStart / totalDuration) * 100;
+    const widthPct = Math.max((spanDuration / totalDuration) * 100, 0.5);
+    const durationMs = span.duration_ms || spanDuration * 1000 || 0;
+    const durationStr = formatDuration(durationMs);
+    const indent = depth * 20;
+    const barColor = isError ? '#ef4444' : cfg.bar;
+    const barOpacity = isError ? 0.85 : 0.7;
+    const barBorder = isError ? '2px solid #f87171' : 'none';
+    const tokens = span.token_usage ? (span.token_usage.total_tokens || 0) : 0;
+    const cost = span.token_usage ? (span.token_usage.total_cost_usd || 0) : 0;
+    const canCollapse = hasChildren[span.span_id];
+
+    rowsHtml += `
+      <div class="flex items-center gap-0 py-1 px-2 rounded-lg hover:bg-white/[0.03] cursor-pointer transition group waterfall-row"
+           data-span-id="${span.span_id}"
+           onclick="openSpanDetail('${span.span_id}')"
+           data-span-name="${escHtml(span.name)}"
+           data-span-kind="${cfg.label}"
+           data-span-duration="${durationStr}"
+           data-span-status="${isError ? 'error' : 'ok'}"
+           data-span-tokens="${tokens}"
+           data-span-cost="${cost.toFixed(6)}"
+           onmouseenter="showWaterfallTooltip(event, this)"
+           onmouseleave="hideWaterfallTooltip()">
+        <div class="span-label-col flex items-center gap-1 w-[220px] min-w-[220px] flex-shrink-0" style="padding-left:${indent}px">
+          ${canCollapse ? `<button class="collapsible-chevron rotated w-4 h-4 flex items-center justify-center text-slate-600 hover:text-slate-400 flex-shrink-0 transition" onclick="event.stopPropagation(); toggleSpanChildren('${span.span_id}', this)"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg></button>` : (depth > 0 ? '<span class="w-4 flex-shrink-0"></span>' : '')}
+          <span class="px-1.5 py-0.5 text-[10px] font-medium rounded flex-shrink-0 ${cfg.bg} ${cfg.text}">${cfg.label}</span>
+          <span class="text-xs text-slate-300 truncate group-hover:text-white transition">${escHtml(span.name)}</span>
+          ${isError ? '<span class="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" title="Error"></span>' : ''}
+        </div>
+        <div class="flex-1 relative h-7 min-w-0">
+          <div class="span-bar absolute top-1 h-5 rounded flex items-center overflow-hidden"
+               style="left:${leftPct}%;width:${widthPct}%;background:${barColor};opacity:${barOpacity};border:${barBorder}">
+            ${widthPct > 8 ? `<span class="px-1.5 text-[10px] font-medium text-white/90 whitespace-nowrap">${durationStr}</span>` : ''}
+          </div>
+          ${widthPct <= 8 ? `<span class="absolute top-1.5 text-[10px] text-slate-500 whitespace-nowrap" style="left:${leftPct + widthPct + 0.5}%">${durationStr}</span>` : ''}
+        </div>
+        <div class="text-xs text-slate-500 w-[70px] text-right flex-shrink-0 tabular-nums">${durationStr}</div>
+      </div>`;
+  });
+
+  container.innerHTML = `
+    ${legendHtml}
+    ${timeAxisHtml}
+    <div class="relative">
+      ${gridHtml}
+      <div class="space-y-0 relative z-10">${rowsHtml}</div>
+    </div>
+  `;
+}
+
+// Collapse/expand span children
+function toggleSpanChildren(spanId, btn) {
+  const isCollapsed = btn.classList.contains('rotated');
+  if (isCollapsed) {
+    btn.classList.remove('rotated');
+  } else {
+    btn.classList.add('rotated');
+  }
+  // Find all descendant rows and toggle
+  const rows = document.querySelectorAll('.waterfall-row');
+  let hiding = false;
+  let parentDepth = -1;
+  rows.forEach(row => {
+    if (row.dataset.spanId === spanId) {
+      hiding = true;
+      parentDepth = parseInt(row.querySelector('.span-label-col')?.style.paddingLeft) || 0;
+      return;
+    }
+    if (hiding) {
+      const rowIndent = parseInt(row.querySelector('.span-label-col')?.style.paddingLeft) || 0;
+      if (rowIndent <= parentDepth) {
+        hiding = false;
+        return;
+      }
+      row.style.display = isCollapsed ? 'none' : '';
+    }
+  });
+}
+
+// Waterfall tooltip
+let tooltipEl = null;
+function showWaterfallTooltip(event, row) {
+  if (!tooltipEl) {
+    tooltipEl = document.createElement('div');
+    tooltipEl.className = 'waterfall-tooltip';
+    document.body.appendChild(tooltipEl);
+  }
+  const name = row.dataset.spanName;
+  const kind = row.dataset.spanKind;
+  const duration = row.dataset.spanDuration;
+  const status = row.dataset.spanStatus;
+  const tokens = parseInt(row.dataset.spanTokens);
+  const cost = parseFloat(row.dataset.spanCost);
+  tooltipEl.innerHTML = `
+    <div class="font-semibold text-white mb-1">${escHtml(name)}</div>
+    <div class="space-y-0.5 text-slate-400">
+      <div>Kind: <span class="text-slate-200">${kind}</span></div>
+      <div>Duration: <span class="text-slate-200">${duration}</span></div>
+      <div>Status: <span class="${status === 'error' ? 'text-red-400' : 'text-emerald-400'}">${status}</span></div>
+      ${tokens > 0 ? `<div>Tokens: <span class="text-slate-200">${tokens.toLocaleString()}</span></div>` : ''}
+      ${cost > 0 ? `<div>Cost: <span class="text-emerald-300">$${cost}</span></div>` : ''}
+    </div>`;
+  tooltipEl.style.display = 'block';
+  const rect = row.getBoundingClientRect();
+  tooltipEl.style.top = (rect.top - 10) + 'px';
+  tooltipEl.style.left = (event.clientX + 16) + 'px';
+  const ttRect = tooltipEl.getBoundingClientRect();
+  if (ttRect.right > window.innerWidth) tooltipEl.style.left = (event.clientX - ttRect.width - 16) + 'px';
+  if (ttRect.top < 0) tooltipEl.style.top = (rect.bottom + 4) + 'px';
+}
+
+function hideWaterfallTooltip() {
+  if (tooltipEl) tooltipEl.style.display = 'none';
+}
+
+// =========================================================================
+// Span Detail Sidebar
+// =========================================================================
+function openSpanDetail(spanId) {
+  if (!currentTraceData || !currentTraceData.spans) return;
+  const span = currentTraceData.spans.find(s => s.span_id === spanId);
+  if (!span) return;
+
+  const panel = document.getElementById('span-detail-panel');
+  panel.classList.remove('hidden');
+  panel.classList.remove('fade-in');
+  void panel.offsetWidth;
+  panel.classList.add('fade-in');
+
+  const kind = (span.kind || 'custom').toLowerCase();
+  const cfg = SPAN_KIND_COLORS[kind] || SPAN_KIND_COLORS.custom;
+  const isError = span.status === 'error';
+
+  let html = '';
+
+  // Header
+  html += `<div class="mb-4">
+    <div class="flex items-center gap-2 mb-2">
+      <span class="px-2 py-0.5 text-xs font-medium rounded ${cfg.bg} ${cfg.text}">${cfg.label}</span>
+      ${isError ? '<span class="px-2 py-0.5 text-xs font-medium rounded bg-red-500/10 text-red-300 border border-red-500/20">ERROR</span>' : '<span class="px-2 py-0.5 text-xs font-medium rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">OK</span>'}
+    </div>
+    <h4 class="text-base font-semibold text-white">${escHtml(span.name)}</h4>
+    <div class="text-xs text-slate-500 font-mono mt-1">${span.span_id}</div>
+  </div>`;
+
+  // Timing
+  const durationMs = span.duration_ms || ((span.end_time - span.start_time) * 1000);
+  html += renderCollapsibleSection('Timing', `
+    <div class="space-y-1 text-xs">
+      <div class="flex justify-between"><span class="text-slate-500">Start</span><span class="text-slate-300">${new Date(span.start_time * 1000).toLocaleTimeString()}</span></div>
+      <div class="flex justify-between"><span class="text-slate-500">Duration</span><span class="text-slate-300">${formatDuration(durationMs)}</span></div>
+    </div>
+  `, true);
+
+  // Token Usage
+  const tu = span.token_usage;
+  if (tu) {
+    const totalTok = (tu.input_tokens || 0) + (tu.output_tokens || 0);
+    const inputPct = totalTok > 0 ? ((tu.input_tokens || 0) / totalTok * 100).toFixed(0) : 0;
+    const outputPct = totalTok > 0 ? ((tu.output_tokens || 0) / totalTok * 100).toFixed(0) : 0;
+    html += renderCollapsibleSection('Token Usage', `
+      <div class="space-y-2 text-xs">
+        <div class="flex justify-between"><span class="text-slate-500">Input</span><span class="text-slate-300">${(tu.input_tokens || 0).toLocaleString()}</span></div>
+        <div class="flex justify-between"><span class="text-slate-500">Output</span><span class="text-slate-300">${(tu.output_tokens || 0).toLocaleString()}</span></div>
+        ${totalTok > 0 ? `<div class="flex h-2 rounded-full overflow-hidden bg-surface-200 mt-1">
+          <div class="bg-blue-500/60" style="width:${inputPct}%"></div>
+          <div class="bg-emerald-500/60" style="width:${outputPct}%"></div>
+        </div>
+        <div class="flex justify-between text-[10px] text-slate-600"><span>Input ${inputPct}%</span><span>Output ${outputPct}%</span></div>` : ''}
+        <div class="flex justify-between border-t border-white/5 pt-1"><span class="text-slate-500">Cost</span><span class="text-emerald-300">$${(tu.total_cost_usd || 0).toFixed(6)}</span></div>
+      </div>
+    `, true);
+  }
+
+  // Error
+  if (span.error) {
+    html += renderCollapsibleSection('Error', `
+      <div class="p-3 rounded-lg bg-red-500/5 border border-red-500/20 text-xs text-red-300 font-mono break-all">${escHtml(span.error.message)}</div>
+    `, true, 'text-red-400');
+  }
+
+  // Attributes
+  const attrs = span.attributes || {};
+  if (Object.keys(attrs).length > 0) {
+    let attrHtml = '<div class="space-y-1">';
+    for (const [key, val] of Object.entries(attrs)) {
+      attrHtml += `<div class="flex justify-between text-xs gap-2">
+        <span class="text-slate-500 truncate">${escHtml(key)}</span>
+        <span class="text-slate-300 text-right break-all">${escHtml(String(val))}</span>
+      </div>`;
+    }
+    attrHtml += '</div>';
+    html += renderCollapsibleSection(`Attributes (${Object.keys(attrs).length})`, attrHtml, true);
+  }
+
+  document.getElementById('span-detail-content').innerHTML = html;
+}
+
+function closeSpanDetail() {
+  document.getElementById('span-detail-panel').classList.add('hidden');
+}
+
+function renderCollapsibleSection(title, content, startOpen = true, titleClass = '') {
+  const id = 'coll-' + Math.random().toString(36).substr(2, 6);
+  return `
+    <div class="mb-3">
+      <div class="collapsible-header flex items-center gap-2 py-2 border-b border-white/5" onclick="toggleCollapsible('${id}')">
+        <svg class="collapsible-chevron w-3 h-3 text-slate-500 ${startOpen ? 'rotated' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24" id="${id}-chevron"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider ${titleClass}">${title}</span>
+      </div>
+      <div class="collapsible-content ${startOpen ? '' : 'collapsed'}" id="${id}" style="max-height:${startOpen ? '500px' : '0'}">
+        <div class="pt-2">${content}</div>
+      </div>
+    </div>
+  `;
+}
+
+function toggleCollapsible(id) {
+  const content = document.getElementById(id);
+  const chevron = document.getElementById(id + '-chevron');
+  if (content.classList.contains('collapsed')) {
+    content.classList.remove('collapsed');
+    content.style.maxHeight = '500px';
+    chevron.classList.add('rotated');
+  } else {
+    content.classList.add('collapsed');
+    content.style.maxHeight = '0';
+    chevron.classList.remove('rotated');
+  }
+}
+
+// =========================================================================
+// DAG Visualization
+// =========================================================================
+function renderDAG(traceData) {
+  if (cyInstance) { cyInstance.destroy(); cyInstance = null; }
+
+  const spans = traceData.spans || [];
+  if (spans.length === 0) return;
+
+  const kindColors = { llm: '#6366f1', tool: '#10b981', agent: '#8b5cf6', chain: '#f59e0b', retrieval: '#06b6d4', custom: '#64748b' };
+
+  const nodes = spans.map(s => {
+    const kind = (s.kind || 'custom').toLowerCase();
+    let bgColor = kindColors[kind] || '#64748b';
+    let borderColor = bgColor;
+    let borderWidth = 2;
+    if (s.status === 'error') {
+      borderColor = '#ef4444';
+      bgColor = '#7f1d1d';
+      borderWidth = 4;
+    }
+    return {
+      data: {
+        id: s.span_id,
+        label: s.name.length > 22 ? s.name.substring(0, 20) + '..' : s.name,
+        bgColor, borderColor, borderWidth,
+        duration: formatDuration(s.duration_ms || 0),
+      }
+    };
+  });
+
+  const edges = [];
+  const spanIds = new Set(spans.map(s => s.span_id));
+  spans.forEach((s, i) => {
+    if (s.parent_span_id && spanIds.has(s.parent_span_id)) {
+      edges.push({
+        data: {
+          id: `e${i}`,
+          source: s.parent_span_id,
+          target: s.span_id,
+          lineColor: s.status === 'error' ? '#ef4444' : '#334155',
+        }
+      });
+    }
+  });
+
+  if (typeof cytoscape !== 'undefined' && typeof cytoscapeDagre !== 'undefined') {
+    try { cytoscape.use(cytoscapeDagre); } catch (e) { /* already registered */ }
+  }
+
+  const layoutConfig = typeof dagre !== 'undefined'
+    ? { name: 'dagre', rankDir: 'TB', nodeSep: 50, rankSep: 70, padding: 40 }
+    : { name: 'breadthfirst', directed: true, spacingFactor: 1.3, padding: 30 };
+
+  const isLight = !document.documentElement.classList.contains('dark');
+  cyInstance = cytoscape({
+    container: document.getElementById('cy-container'),
+    elements: [...nodes, ...edges],
+    style: [
+      {
+        selector: 'node',
+        style: {
+          'background-color': 'data(bgColor)',
+          'border-color': 'data(borderColor)',
+          'border-width': 'data(borderWidth)',
+          'label': 'data(label)',
+          'color': isLight ? '#1e293b' : '#e2e8f0',
+          'font-size': '10px',
+          'font-family': 'Inter, system-ui, sans-serif',
+          'text-valign': 'bottom',
+          'text-margin-y': 8,
+          'width': 40,
+          'height': 40,
+          'text-outline-color': isLight ? '#f1f5f9' : '#0a0d1a',
+          'text-outline-width': 2,
+        }
+      },
+      {
+        selector: 'edge',
+        style: {
+          'line-color': 'data(lineColor)',
+          'target-arrow-color': 'data(lineColor)',
+          'target-arrow-shape': 'triangle',
+          'curve-style': 'bezier',
+          'width': 2,
+          'opacity': 0.7,
+          'arrow-scale': 0.8,
+        }
+      },
+    ],
+    layout: layoutConfig,
+    minZoom: 0.2,
+    maxZoom: 4,
+  });
+
+  cyInstance.on('tap', 'node', function(evt) { openSpanDetail(evt.target.id()); });
+  cyInstance.on('mouseover', 'node', function(evt) {
+    evt.target.style({ 'border-width': 4, 'width': 48, 'height': 48 });
+    document.getElementById('cy-container').style.cursor = 'pointer';
+  });
+  cyInstance.on('mouseout', 'node', function(evt) {
+    evt.target.style({ 'border-width': evt.target.data('borderWidth'), 'width': 40, 'height': 40 });
+    document.getElementById('cy-container').style.cursor = 'default';
+  });
+
+  // Render pattern alerts below DAG
+  const dagPatterns = document.getElementById('dag-patterns');
+  if (traceData.patterns && traceData.patterns.length > 0) {
+    dagPatterns.innerHTML = '<div class="space-y-2">' + traceData.patterns.map(p => `
+      <div class="rounded-xl p-4 border severity-${p.severity}">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="px-2 py-0.5 text-[10px] font-bold uppercase rounded severity-${p.severity}">${p.severity}</span>
+          <span class="text-xs font-medium text-slate-300">${escHtml(p.pattern.replace(/_/g, ' '))}</span>
+        </div>
+        <p class="text-xs text-slate-400">${escHtml(p.description)}</p>
+      </div>
+    `).join('') + '</div>';
+  } else {
+    dagPatterns.innerHTML = '<div class="glass rounded-xl p-4 text-sm text-slate-500">No patterns detected in this trace.</div>';
+  }
+}
+
+function dagZoom(action) {
+  if (!cyInstance) return;
+  const z = cyInstance.zoom();
+  if (action === 'in') cyInstance.animate({ zoom: { level: z * 1.3, position: cyInstance.pan() }, duration: 200 });
+  else if (action === 'out') cyInstance.animate({ zoom: { level: z / 1.3, position: cyInstance.pan() }, duration: 200 });
+  else if (action === 'fit') cyInstance.animate({ fit: { padding: 40 }, duration: 300 });
+}
+
+// =========================================================================
+// Cost Analysis
+// =========================================================================
+function loadCostView() {
+  renderCostByModel();
+  renderCostByService();
+  renderCostTrend();
+  renderCostTable();
+}
+
+function renderCostByModel() {
+  if (chartInstances['chart-cost-model']) chartInstances['chart-cost-model'].destroy();
+  const canvas = document.getElementById('chart-cost-model');
+  if (!canvas) return;
+
+  // Aggregate cost by model
+  const modelCosts = {};
+  SAMPLE_TRACES.forEach(t => {
+    (t.spans || []).forEach(s => {
+      const model = s.attributes?.model;
+      if (model && s.token_usage) {
+        modelCosts[model] = (modelCosts[model] || 0) + (s.token_usage.total_cost_usd || 0);
+      }
+    });
+  });
+
+  const labels = Object.keys(modelCosts);
+  const costs = Object.values(modelCosts);
+  const isLight = !document.documentElement.classList.contains('dark');
+
+  chartInstances['chart-cost-model'] = new Chart(canvas.getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{ data: costs, backgroundColor: CHART_COLORS.slice(0, labels.length), borderWidth: 0 }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'right', labels: { color: isLight ? '#475569' : '#94a3b8', font: { family: 'Inter', size: 11 }, padding: 12 } },
+        tooltip: { callbacks: { label: ctx => ` $${costs[ctx.dataIndex].toFixed(4)}` } }
+      },
+    }
+  });
+}
+
+function renderCostByService() {
+  if (chartInstances['chart-cost-service']) chartInstances['chart-cost-service'].destroy();
+  const canvas = document.getElementById('chart-cost-service');
+  if (!canvas) return;
+
+  const serviceCosts = {};
+  SAMPLE_TRACES.forEach(t => { serviceCosts[t.service_name] = (serviceCosts[t.service_name] || 0) + t.total_cost_usd; });
+  const labels = Object.keys(serviceCosts);
+  const costs = Object.values(serviceCosts);
+  const isLight = !document.documentElement.classList.contains('dark');
+
+  chartInstances['chart-cost-service'] = new Chart(canvas.getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{ data: costs, backgroundColor: CHART_COLORS.slice(0, labels.length), borderWidth: 0 }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'right', labels: { color: isLight ? '#475569' : '#94a3b8', font: { family: 'Inter', size: 11 }, padding: 12 } },
+        tooltip: { callbacks: { label: ctx => ` $${costs[ctx.dataIndex].toFixed(4)}` } }
+      },
+    }
+  });
+}
+
+function renderCostTrend() {
+  if (chartInstances['chart-cost-trend']) chartInstances['chart-cost-trend'].destroy();
+  const canvas = document.getElementById('chart-cost-trend');
+  if (!canvas) return;
+  const isLight = !document.documentElement.classList.contains('dark');
+
+  // Simulate hourly cost trend
+  const hours = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(Date.now() - (11 - i) * 3600000);
+    return d.getHours() + ':00';
+  });
+  const costData = [0.0487, 0.0312, 0.1245, 0.0445, 0.2156, 0.0934, 0.0089, 1.234, 0.0678, 0.0004, 0.0312, 0.0487];
+
+  chartInstances['chart-cost-trend'] = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: hours,
+      datasets: [{
+        label: 'Cost (USD)',
+        data: costData,
+        borderColor: '#10b981',
+        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.4,
+        pointRadius: 4,
+        pointBackgroundColor: '#10b981',
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.03)' } },
+        y: { ticks: { color: '#64748b', font: { size: 10 }, callback: v => '$' + v.toFixed(2) }, grid: { color: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.03)' } },
+      }
+    }
+  });
+}
+
+function renderCostTable() {
+  const container = document.getElementById('cost-table');
+  const sorted = [...SAMPLE_TRACES].sort((a, b) => b.total_cost_usd - a.total_cost_usd);
+  container.innerHTML = sorted.map(t => `
+    <div class="flex items-center gap-4 px-5 py-3 hover:bg-white/[0.02] cursor-pointer transition" onclick="openTrace('${t.trace_id}')">
+      <div class="flex-1 min-w-0">
+        <div class="text-sm font-medium text-slate-200 font-mono">${t.trace_id.substring(0, 16)}</div>
+        <div class="text-xs text-slate-500">${t.service_name}</div>
+      </div>
+      <div class="text-right">
+        <div class="text-sm font-semibold ${t.total_cost_usd > 0.5 ? 'text-amber-400' : 'text-slate-300'} tabular-nums">$${t.total_cost_usd.toFixed(4)}</div>
+        <div class="text-xs text-slate-500">${t.total_tokens.toLocaleString()} tokens</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// =========================================================================
+// Patterns View
+// =========================================================================
+function loadPatterns() {
+  const container = document.getElementById('patterns-list');
+  const allPatterns = [];
+  SAMPLE_TRACES.forEach(t => {
+    (t.patterns || []).forEach(p => {
+      allPatterns.push({ ...p, trace_id: t.trace_id, service_name: t.service_name });
+    });
+  });
+
+  if (allPatterns.length === 0) {
+    container.innerHTML = `
+      <div class="glass rounded-xl p-8 text-center">
+        <svg class="w-16 h-16 text-emerald-500/20 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <p class="text-sm text-slate-400">No anti-patterns detected</p>
+      </div>`;
+    return;
+  }
+
+  let html = `
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-sm font-semibold text-white">${allPatterns.length} Pattern(s) Detected</h2>
+      <span class="text-xs text-slate-500">Across ${new Set(allPatterns.map(p => p.trace_id)).size} traces</span>
+    </div>
+    <div class="space-y-2">`;
+
+  allPatterns.forEach(p => {
+    html += `
+      <div class="rounded-xl p-4 border severity-${p.severity} glass-hover cursor-pointer transition" onclick="openTrace('${p.trace_id}')">
+        <div class="flex items-center gap-2 mb-1.5">
+          <span class="px-2 py-0.5 text-[10px] font-bold uppercase rounded severity-${p.severity}">${p.severity}</span>
+          <span class="text-xs font-medium text-slate-300">${escHtml(p.pattern.replace(/_/g, ' '))}</span>
+          <span class="ml-auto flex items-center gap-1.5">
+            <span class="px-1.5 py-0.5 text-[10px] rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">${p.service_name}</span>
+            <span class="text-[10px] text-slate-600 font-mono">${p.trace_id.substring(0, 14)}...</span>
+          </span>
+        </div>
+        <p class="text-xs text-slate-400">${escHtml(p.description)}</p>
+        ${p.involved_spans ? `<div class="text-[10px] text-slate-600 mt-1">${p.involved_spans.length} span(s) involved</div>` : ''}
+      </div>`;
+  });
+
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+// =========================================================================
+// Compare View
+// =========================================================================
+function toggleCompare(traceId, checkbox) {
+  const idx = compareSelection.indexOf(traceId);
+  if (idx >= 0) {
+    compareSelection.splice(idx, 1);
+    checkbox.classList.remove('checked');
+  } else {
+    if (compareSelection.length >= 2) {
+      showToast('Maximum 2 traces for comparison', 'warning');
+      checkbox.checked = false;
+      return;
+    }
+    compareSelection.push(traceId);
+    checkbox.classList.add('checked');
+  }
+  updateCompareBadge();
+}
+
+function updateCompareBadge() {
+  const badge = document.getElementById('compare-badge');
+  if (compareSelection.length > 0) {
+    badge.classList.remove('hidden');
+    badge.textContent = compareSelection.length;
+  } else {
+    badge.classList.add('hidden');
+  }
+}
+
+function clearComparison() {
+  compareSelection = [];
+  updateCompareBadge();
+  renderCompareView();
+  // Uncheck all compare checkboxes
+  document.querySelectorAll('.compare-checkbox').forEach(cb => { cb.checked = false; cb.classList.remove('checked'); });
+}
+
+function renderCompareView() {
+  const instructions = document.getElementById('compare-instructions');
+  const content = document.getElementById('compare-content');
+
+  if (compareSelection.length < 2) {
+    instructions.classList.remove('hidden');
+    content.classList.add('hidden');
+    return;
+  }
+
+  instructions.classList.add('hidden');
+  content.classList.remove('hidden');
+
+  const t1 = SAMPLE_TRACES.find(t => t.trace_id === compareSelection[0]);
+  const t2 = SAMPLE_TRACES.find(t => t.trace_id === compareSelection[1]);
+  if (!t1 || !t2) return;
+
+  function diffCell(v1, v2, unit = '', lower_is_better = true) {
+    const diff = v2 - v1;
+    const isBetter = lower_is_better ? diff < 0 : diff > 0;
+    const cls = diff === 0 ? '' : isBetter ? 'text-emerald-400' : 'text-red-400';
+    const arrow = diff === 0 ? '' : isBetter ? ' ↓' : ' ↑';
+    return cls ? `<span class="${cls}">${diff > 0 ? '+' : ''}${typeof v1 === 'number' && v1 % 1 !== 0 ? diff.toFixed(4) : diff}${unit}${arrow}</span>` : '<span class="text-slate-600">--</span>';
+  }
+
+  content.innerHTML = `
+    <div class="glass rounded-xl overflow-hidden">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-white/5">
+            <th class="px-5 py-3 text-left text-xs font-medium text-slate-500 uppercase">Metric</th>
+            <th class="px-5 py-3 text-right text-xs font-medium text-indigo-400 uppercase">${t1.trace_id.substring(0, 14)}</th>
+            <th class="px-5 py-3 text-right text-xs font-medium text-violet-400 uppercase">${t2.trace_id.substring(0, 14)}</th>
+            <th class="px-5 py-3 text-right text-xs font-medium text-slate-500 uppercase">Delta</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-white/5">
+          <tr class="hover:bg-white/[0.02]"><td class="px-5 py-3 text-slate-400">Service</td><td class="px-5 py-3 text-right text-slate-200">${t1.service_name}</td><td class="px-5 py-3 text-right text-slate-200">${t2.service_name}</td><td class="px-5 py-3 text-right">--</td></tr>
+          <tr class="hover:bg-white/[0.02]"><td class="px-5 py-3 text-slate-400">Duration</td><td class="px-5 py-3 text-right text-slate-200 tabular-nums">${t1.duration_ms}ms</td><td class="px-5 py-3 text-right text-slate-200 tabular-nums">${t2.duration_ms}ms</td><td class="px-5 py-3 text-right tabular-nums">${diffCell(t1.duration_ms, t2.duration_ms, 'ms')}</td></tr>
+          <tr class="hover:bg-white/[0.02]"><td class="px-5 py-3 text-slate-400">Spans</td><td class="px-5 py-3 text-right text-slate-200 tabular-nums">${t1.span_count}</td><td class="px-5 py-3 text-right text-slate-200 tabular-nums">${t2.span_count}</td><td class="px-5 py-3 text-right tabular-nums">${diffCell(t1.span_count, t2.span_count)}</td></tr>
+          <tr class="hover:bg-white/[0.02]"><td class="px-5 py-3 text-slate-400">Tokens</td><td class="px-5 py-3 text-right text-slate-200 tabular-nums">${t1.total_tokens.toLocaleString()}</td><td class="px-5 py-3 text-right text-slate-200 tabular-nums">${t2.total_tokens.toLocaleString()}</td><td class="px-5 py-3 text-right tabular-nums">${diffCell(t1.total_tokens, t2.total_tokens)}</td></tr>
+          <tr class="hover:bg-white/[0.02]"><td class="px-5 py-3 text-slate-400">Cost</td><td class="px-5 py-3 text-right text-slate-200 tabular-nums">$${t1.total_cost_usd.toFixed(4)}</td><td class="px-5 py-3 text-right text-slate-200 tabular-nums">$${t2.total_cost_usd.toFixed(4)}</td><td class="px-5 py-3 text-right tabular-nums">${diffCell(t1.total_cost_usd, t2.total_cost_usd, '')}</td></tr>
+          <tr class="hover:bg-white/[0.02]"><td class="px-5 py-3 text-slate-400">Errors</td><td class="px-5 py-3 text-right">${t1.has_errors ? '<span class="text-red-400">Yes</span>' : '<span class="text-emerald-400">No</span>'}</td><td class="px-5 py-3 text-right">${t2.has_errors ? '<span class="text-red-400">Yes</span>' : '<span class="text-emerald-400">No</span>'}</td><td class="px-5 py-3 text-right">--</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+      <div class="glass rounded-xl p-4">
+        <h4 class="text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-2">${t1.trace_id.substring(0, 14)} - Span Breakdown</h4>
+        <div class="space-y-1">${(t1.spans || []).map(s => {
+          const cfg = SPAN_KIND_COLORS[(s.kind || 'custom').toLowerCase()] || SPAN_KIND_COLORS.custom;
+          return `<div class="flex items-center gap-2 text-xs"><span class="px-1 py-0.5 text-[9px] rounded ${cfg.bg} ${cfg.text}">${cfg.label}</span><span class="text-slate-300 truncate flex-1">${escHtml(s.name)}</span><span class="text-slate-500 tabular-nums">${formatDuration(s.duration_ms)}</span></div>`;
+        }).join('')}</div>
+      </div>
+      <div class="glass rounded-xl p-4">
+        <h4 class="text-xs font-semibold text-violet-400 uppercase tracking-wider mb-2">${t2.trace_id.substring(0, 14)} - Span Breakdown</h4>
+        <div class="space-y-1">${(t2.spans || []).map(s => {
+          const cfg = SPAN_KIND_COLORS[(s.kind || 'custom').toLowerCase()] || SPAN_KIND_COLORS.custom;
+          return `<div class="flex items-center gap-2 text-xs"><span class="px-1 py-0.5 text-[9px] rounded ${cfg.bg} ${cfg.text}">${cfg.label}</span><span class="text-slate-300 truncate flex-1">${escHtml(s.name)}</span><span class="text-slate-500 tabular-nums">${formatDuration(s.duration_ms)}</span></div>`;
+        }).join('')}</div>
+      </div>
+    </div>
+  `;
+}
+
+// =========================================================================
+// Theme Toggle
+// =========================================================================
+function toggleTheme() {
+  isDarkTheme = !isDarkTheme;
+  if (isDarkTheme) {
+    document.documentElement.classList.add('dark');
+    document.body.classList.add('dark');
+    localStorage.setItem('flowlens-theme', 'dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+    document.body.classList.remove('dark');
+    localStorage.setItem('flowlens-theme', 'light');
+  }
+  // Re-render charts for theme
+  if (currentView === 'overview') { renderLatencyTrendChart(); renderTraceVolumeChart(); }
+  else if (currentView === 'cost') loadCostView();
+  showToast(isDarkTheme ? 'Dark theme' : 'Light theme', 'info', 1500);
+}
+
+// =========================================================================
+// Keyboard Navigation
+// =========================================================================
+function isInputFocused() {
+  const el = document.activeElement;
+  return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+}
+
+function highlightTraceRow(rows) {
+  rows.forEach((r, i) => {
+    r.classList.toggle('trace-row-selected', i === selectedTraceIndex);
+  });
+  if (rows[selectedTraceIndex]) {
+    rows[selectedTraceIndex].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+}
+
+function openShortcutsModal() { document.getElementById('shortcuts-modal').classList.remove('hidden'); }
+function closeShortcutsModal() { document.getElementById('shortcuts-modal').classList.add('hidden'); }
+
+document.addEventListener('keydown', (e) => {
+  const modal = document.getElementById('shortcuts-modal');
+  if (e.key === 'Escape' && !modal.classList.contains('hidden')) { closeShortcutsModal(); return; }
+
+  if (e.key === '?' && !isInputFocused()) { e.preventDefault(); openShortcutsModal(); return; }
+  if (e.key === '/' && !isInputFocused()) {
+    e.preventDefault();
+    switchView('traces');
+    setTimeout(() => document.getElementById('filter-service')?.focus(), 100);
+    return;
+  }
+  if (e.key === 't' && !isInputFocused()) { toggleTheme(); return; }
+
+  if (!isInputFocused()) {
+    const viewMap = { '1': 'overview', '2': 'traces', '3': 'cost', '4': 'patterns', '5': 'compare' };
+    if (viewMap[e.key]) { switchView(viewMap[e.key]); return; }
+  }
+
+  if (e.key === 'Escape') {
+    const spanPanel = document.getElementById('span-detail-panel');
+    if (!spanPanel.classList.contains('hidden')) { closeSpanDetail(); return; }
+    const detailPanel = document.getElementById('view-trace-detail');
+    if (!detailPanel.classList.contains('hidden')) { backToTraces(); return; }
+  }
+
+  if (currentView === 'traces' || currentView === 'overview') {
+    const listId = currentView === 'traces' ? 'traces-list' : 'recent-traces-list';
+    const rows = document.querySelectorAll(`#${listId} .trace-row`);
+    if (rows.length === 0) return;
+    if ((e.key === 'j' || e.key === 'ArrowDown') && !isInputFocused()) {
+      e.preventDefault();
+      selectedTraceIndex = Math.min(selectedTraceIndex + 1, rows.length - 1);
+      highlightTraceRow(rows);
+    } else if ((e.key === 'k' || e.key === 'ArrowUp') && !isInputFocused()) {
+      e.preventDefault();
+      selectedTraceIndex = Math.max(selectedTraceIndex - 1, 0);
+      highlightTraceRow(rows);
+    } else if (e.key === 'Enter' && selectedTraceIndex >= 0 && !isInputFocused()) {
+      e.preventDefault();
+      const traceId = rows[selectedTraceIndex]?.dataset?.traceId;
+      if (traceId) openTrace(traceId);
+    }
+  }
+});
+
+// =========================================================================
+// Initialize
+// =========================================================================
 document.addEventListener('DOMContentLoaded', () => {
-  renderGanttChart();
-  renderDAG();
-  renderPatterns();
-  renderCost();
+  loadOverview();
+  showToast('Demo dashboard loaded with sample data', 'success', 3000);
 });
 </script>
-
 </body>
 </html>

@@ -9,7 +9,7 @@ Commands:
     flowlens stats   [--db PATH]
     flowlens health  [--db PATH]
     flowlens version
-    flowlens demo
+    flowlens demo    [--all] [--dashboard] [--quick]
 """
 
 from __future__ import annotations
@@ -602,25 +602,174 @@ def health(db_path: str | None, host: str | None, port: int | None) -> None:
 # `flowlens demo`
 # ---------------------------------------------------------------------------
 
+# ANSI colour helpers (no external deps required)
+_RESET  = "\033[0m"
+_BOLD   = "\033[1m"
+_DIM    = "\033[2m"
+_CYAN   = "\033[96m"
+_GREEN  = "\033[92m"
+_YELLOW = "\033[93m"
+_RED    = "\033[91m"
+_BLUE   = "\033[94m"
+
+
+def _demo_banner(title: str, subtitle: str = "") -> None:
+    width = 64
+    click.echo("")
+    click.echo(f"{_CYAN}{_BOLD}{'═' * width}{_RESET}")
+    click.echo(f"{_CYAN}{_BOLD}  {title}{_RESET}")
+    if subtitle:
+        click.echo(f"{_DIM}  {subtitle}{_RESET}")
+    click.echo(f"{_CYAN}{_BOLD}{'═' * width}{_RESET}")
+    click.echo("")
+
+
+def _demo_section(title: str, description: str = "") -> None:
+    width = 64
+    click.echo("")
+    click.echo(f"{_BLUE}{_BOLD}{'─' * width}{_RESET}")
+    click.echo(f"{_BLUE}{_BOLD}  {title}{_RESET}")
+    if description:
+        click.echo(f"{_DIM}  {description}{_RESET}")
+    click.echo(f"{_BLUE}{_BOLD}{'─' * width}{_RESET}")
+    click.echo("")
+
+
+def _demo_ok(msg: str) -> None:
+    click.echo(f"{_GREEN}{_BOLD}  ✓ {msg}{_RESET}")
+
+
+def _demo_warn(msg: str) -> None:
+    click.echo(f"{_YELLOW}{_BOLD}  ! {msg}{_RESET}")
+
+
+def _demo_err(msg: str) -> None:
+    click.echo(f"{_RED}{_BOLD}  ✗ {msg}{_RESET}")
+
+
 @cli.command()
-def demo() -> None:
-    """Run the built-in FlowLens demo agent.
+@click.option(
+    "--all",
+    "run_all",
+    is_flag=True,
+    default=False,
+    help="Run all available demos sequentially (quickstart, RAG agent, auto-instrument, analysis).",
+)
+@click.option(
+    "--dashboard",
+    "run_dashboard",
+    is_flag=True,
+    default=False,
+    help="Launch the live dashboard with sample data (starts a local server).",
+)
+@click.option(
+    "--quick",
+    is_flag=True,
+    default=False,
+    help="With --all, skip the blocking dashboard demo.",
+)
+def demo(run_all: bool, run_dashboard: bool, quick: bool) -> None:
+    """Run FlowLens demos.
 
-    Executes a simulated multi-step research agent that deliberately triggers
-    timeouts and cascading errors, then prints a causal analysis report.
+    \b
+    Without flags      — run the quickstart tutorial
+    --all              — run all demos sequentially with timing summary
+    --dashboard        — launch the live dashboard with sample data
+    --all --quick      — run all demos but skip the blocking dashboard
+
+    \b
+    Examples:
+      flowlens demo
+      flowlens demo --all
+      flowlens demo --all --quick
+      flowlens demo --dashboard
     """
-    try:
-        import asyncio
-        from examples.demo_agent import main as _demo_main  # type: ignore[import]
-    except ImportError:
-        click.echo(
-            "Could not import the demo agent.  Make sure you are running from "
-            "the project root directory:\n    flowlens demo",
-            err=True,
-        )
-        sys.exit(1)
+    import subprocess
 
-    asyncio.run(_demo_main())
+    project_root = Path(__file__).parent.parent
+
+    if run_dashboard:
+        # ── Dashboard mode ──────────────────────────────────────────────────
+        _demo_banner(
+            "FlowLens Live Dashboard",
+            "Launching server_demo.py — visit http://localhost:8585 in your browser",
+        )
+        click.echo(f"  {_DIM}Press Ctrl-C to stop the server.{_RESET}\n")
+        dashboard_script = project_root / "examples" / "server_demo.py"
+        if not dashboard_script.exists():
+            _demo_warn("examples/server_demo.py not found. Make sure you are in the project root.")
+            sys.exit(1)
+        try:
+            subprocess.run([sys.executable, str(dashboard_script)], cwd=str(project_root), check=True)
+        except KeyboardInterrupt:
+            click.echo("\n\nDashboard stopped.")
+        except subprocess.CalledProcessError as exc:
+            _demo_err(f"Dashboard exited with code {exc.returncode}")
+            sys.exit(exc.returncode)
+        return
+
+    if run_all:
+        # ── Run all demos via the master runner ─────────────────────────────
+        _demo_banner(
+            "FlowLens — All Demos",
+            "Running all example scripts sequentially",
+        )
+        runner_script = project_root / "examples" / "run_all_demos.py"
+        if not runner_script.exists():
+            _demo_err("examples/run_all_demos.py not found.")
+            sys.exit(1)
+        cmd = [sys.executable, str(runner_script)]
+        if quick:
+            cmd.append("--quick")
+        try:
+            result = subprocess.run(cmd, cwd=str(project_root), check=False)
+            sys.exit(result.returncode)
+        except KeyboardInterrupt:
+            click.echo("\nDemo run interrupted.")
+            sys.exit(1)
+
+    # ── Default: quickstart demo ─────────────────────────────────────────────
+    _demo_banner(
+        "FlowLens Quickstart Demo",
+        "Five progressive examples — from zero to full agent observability",
+    )
+
+    click.echo(f"  {_DIM}Tip: run `flowlens demo --all` to see every demo,")
+    click.echo(f"       or   `flowlens demo --dashboard` to launch the live UI.{_RESET}\n")
+
+    quickstart_script = project_root / "examples" / "quickstart.py"
+    if quickstart_script.exists():
+        try:
+            result = subprocess.run(
+                [sys.executable, str(quickstart_script)],
+                cwd=str(project_root),
+                check=False,
+            )
+            if result.returncode != 0:
+                _demo_err(f"Quickstart exited with code {result.returncode}")
+                sys.exit(result.returncode)
+        except KeyboardInterrupt:
+            click.echo("\nDemo interrupted.")
+            sys.exit(1)
+    else:
+        # Fall back to inline import (legacy behaviour)
+        try:
+            import asyncio
+            from examples.demo_agent import main as _demo_main  # type: ignore[import]
+        except ImportError:
+            _demo_err(
+                "Could not find the demo scripts.  Make sure you are running from "
+                "the project root directory:\n    flowlens demo"
+            )
+            sys.exit(1)
+        asyncio.run(_demo_main())
+
+    _demo_section("What to explore next")
+    click.echo(f"  {_CYAN}flowlens demo --all{_RESET}        — run all demos with timing summary")
+    click.echo(f"  {_CYAN}flowlens demo --dashboard{_RESET}  — launch live observability dashboard")
+    click.echo(f"  {_CYAN}flowlens serve{_RESET}             — start the FlowLens API server")
+    click.echo(f"  {_CYAN}flowlens analyze <file>{_RESET}    — analyze a JSONL trace file")
+    click.echo("")
 
 
 # ---------------------------------------------------------------------------

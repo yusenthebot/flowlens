@@ -1,8 +1,9 @@
 .PHONY: all install test lint format serve demo \
+        demo-quickstart demo-rag demo-agents demo-cost demo-dashboard demo-all \
         docker-build docker-run clean help
 
 # ─── Configuration ────────────────────────────────────────────────────────────
-PYTHON      ?= python
+PYTHON      ?= python3
 PORT        ?= 8585
 IMAGE_NAME  ?= flowlens
 CONTAINER_NAME ?= flowlens-server
@@ -13,16 +14,24 @@ all: lint test
 help:
 	@echo "FlowLens — available make targets:"
 	@echo ""
-	@echo "  install       Install package with dev dependencies"
-	@echo "  test          Run the full test suite"
-	@echo "  lint          Run ruff + black check + mypy"
-	@echo "  format        Auto-format with black and ruff --fix"
-	@echo "  serve         Start the FlowLens API server (port $(PORT))"
-	@echo "  demo          Run the demo agent"
-	@echo "  docker-build  Build the Docker image"
-	@echo "  docker-run    Run the server in Docker"
-	@echo "  clean         Remove build artefacts and caches"
-	@echo "  all           Run lint then test (default)"
+	@echo "  install           Install package with dev dependencies"
+	@echo "  test              Run the full test suite"
+	@echo "  lint              Run ruff + black check + mypy"
+	@echo "  format            Auto-format with black and ruff --fix"
+	@echo "  serve             Start the FlowLens API server (port $(PORT))"
+	@echo ""
+	@echo "  demo              Alias for demo-all (run all demos)"
+	@echo "  demo-quickstart   Run quickstart example"
+	@echo "  demo-rag          Run RAG pipeline / demo agent example"
+	@echo "  demo-agents       Run multi-agent / auto-instrument example"
+	@echo "  demo-cost         Run multi-trace cost analysis example"
+	@echo "  demo-dashboard    Launch live dashboard with sample data"
+	@echo "  demo-all          Run all demos sequentially"
+	@echo ""
+	@echo "  docker-build      Build the Docker image"
+	@echo "  docker-run        Run the server in Docker"
+	@echo "  clean             Remove build artefacts and caches"
+	@echo "  all               Run lint then test (default)"
 
 # ─── Development setup ────────────────────────────────────────────────────────
 install:
@@ -53,8 +62,25 @@ serve:
 	$(PYTHON) -m uvicorn flowlens.server.app:create_app \
 		--factory --host 0.0.0.0 --port $(PORT) --reload
 
-demo:
-	$(PYTHON) -m examples.demo_agent
+demo-quickstart:
+	$(PYTHON) examples/quickstart.py
+
+demo-rag:
+	$(PYTHON) examples/demo_agent.py
+
+demo-agents:
+	$(PYTHON) examples/auto_instrument_example.py
+
+demo-cost:
+	$(PYTHON) examples/multi_trace_analysis.py
+
+demo-dashboard:
+	$(PYTHON) examples/server_demo.py
+
+demo-all:
+	$(PYTHON) examples/run_all_demos.py
+
+demo: demo-all
 
 # ─── Docker ───────────────────────────────────────────────────────────────────
 docker-build:
