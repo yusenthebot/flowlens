@@ -984,3 +984,47 @@ class TestAPI:
         ghost = next((a for a in agents if a["agent"] == "ghost-agent"), None)
         # Agent should not appear since trace is outside the 1-hour window
         assert ghost is None
+
+    # ------------------------------------------------------------------
+    # New: GET /v1/agents/profiles
+    # ------------------------------------------------------------------
+
+    def test_agents_profiles_endpoint(self, client):
+        resp = client.get("/v1/agents/profiles")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "agents" in data
+        # Should have built-in profiles
+        names = [a["agent"] for a in data["agents"]]
+        assert "vr-alpha" in names
+        assert "vr-lead" in names
+
+    def test_agents_profiles_discovers_from_traces(self, client):
+        # Ingest a trace with a custom agent
+        client.post("/v1/traces/ingest", json=_make_trace_data("p1", tags={"agent": "custom-bot"}))
+        resp = client.get("/v1/agents/profiles")
+        names = [a["agent"] for a in resp.json()["agents"]]
+        assert "custom-bot" in names
+
+    # ------------------------------------------------------------------
+    # New: GET /v1/activity/stream
+    # ------------------------------------------------------------------
+
+    def test_activity_stream_empty(self, client):
+        resp = client.get("/v1/activity/stream")
+        assert resp.status_code == 200
+        assert resp.json()["events"] == []
+
+    def test_activity_stream_with_traces(self, client):
+        client.post("/v1/traces/ingest", json=_make_trace_data("as1", tags={"agent": "vr-alpha"}))
+        resp = client.get("/v1/activity/stream?limit=10")
+        assert resp.status_code == 200
+        events = resp.json()["events"]
+        assert len(events) > 0
+        assert events[0]["agent"] == "vr-alpha"
+
+    def test_activity_stream_limit(self, client):
+        for i in range(5):
+            client.post("/v1/traces/ingest", json=_make_trace_data(f"lim-{i}", tags={"agent": "bot"}))
+        resp = client.get("/v1/activity/stream?limit=3")
+        assert len(resp.json()["events"]) <= 3

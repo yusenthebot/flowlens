@@ -18,6 +18,8 @@ Endpoints:
 - GET    /v1/patterns/summary       — aggregate pattern statistics
 - GET    /v1/agents/summary         — agent-level trace statistics
 - GET    /v1/agents/activity        — real-time per-agent activity (last hour)
+- GET    /v1/agents/profiles        — profile info for all known agents
+- GET    /v1/activity/stream        — recent activity events across all agents
 - GET    /health                    — health check
 - WS     /ws/traces                 — real-time trace stream
 """
@@ -309,6 +311,21 @@ class _RateLimiter:
             else int(self._window - (now - self._counts[key][0]))
         )
         return allowed, remaining, limit, retry_after
+
+
+# ---------------------------------------------------------------------------
+# Built-in agent profile definitions
+# ---------------------------------------------------------------------------
+
+_AGENT_PROFILES = {
+    "vr-alpha": {"name": "Alpha", "role": "Core Developer", "color": "#3b82f6", "icon": "shield"},
+    "vr-beta": {"name": "Beta", "role": "Worker Engineer", "color": "#10b981", "icon": "gear"},
+    "vr-gamma": {"name": "Gamma", "role": "Test & Monitor", "color": "#8b5cf6", "icon": "bolt"},
+    "vr-lead": {"name": "Lead", "role": "Architect", "color": "#f59e0b", "icon": "crown"},
+    "vr-scribe": {"name": "Scribe", "role": "Documentation", "color": "#6b7280", "icon": "book"},
+    "main": {"name": "Main", "role": "Session", "color": "#6366f1", "icon": "terminal"},
+    "Explore": {"name": "Explore", "role": "Explorer", "color": "#06b6d4", "icon": "search"},
+}
 
 
 # ---------------------------------------------------------------------------
@@ -1410,6 +1427,103 @@ def create_app(db_path: str | None = None) -> FastAPI:
         # Sort: active agents first, then by last_seen descending
         result.sort(key=lambda x: (0 if x["status"] == "active" else 1, -x["last_seen"]))
         return JSONResponse({"agents": result})
+
+    # -----------------------------------------------------------------------
+    # Agents profiles
+    # -----------------------------------------------------------------------
+
+    @app.get("/v1/agents/profiles")
+    async def agents_profiles() -> JSONResponse:
+        """Return profile info for all known agents.
+
+        Merges built-in profiles with dynamically discovered agents from traces.
+        """
+        # Get all known agent names from traces
+        traces = store.list_traces(limit=1000)
+        discovered = set()
+        for t in traces:
+            tags = t.get("tags") or {}
+            if isinstance(tags, str):
+                import json as _json
+                tags = _json.loads(tags)
+            agent = tags.get("agent")
+            if agent:
+                discovered.add(agent)
+
+        result = []
+        # Add all built-in profiles
+        for agent_name, profile in _AGENT_PROFILES.items():
+            result.append({
+                "agent": agent_name,
+                "known": True,
+                **profile,
+            })
+
+        # Add any discovered agents not in built-in
+        for agent_name in discovered:
+            if agent_name not in _AGENT_PROFILES:
+                result.append({
+                    "agent": agent_name,
+                    "name": agent_name,
+                    "role": "Agent",
+                    "color": "#9ca3af",
+                    "icon": "user",
+                    "known": False,
+                })
+
+        return JSONResponse({"agents": result})
+
+    # -----------------------------------------------------------------------
+    # Activity stream
+    # -----------------------------------------------------------------------
+
+    @app.get("/v1/activity/stream")
+    async def activity_stream(limit: int = 50) -> JSONResponse:
+        """Return recent activity events across all agents.
+
+        Extracts individual tool calls from spans, ordered by time (newest first).
+        Used for the Activity Timeline view.
+        """
+        limit = min(limit, 200)
+
+        # Get recent traces
+        recent = store.list_traces(limit=100)
+
+        events = []
+        for trace_meta in recent:
+            trace_id = trace_meta["trace_id"]
+            tags = trace_meta.get("tags") or {}
+            if isinstance(tags, str):
+                import json as _json
+                tags = _json.loads(tags)
+            agent = tags.get("agent", "unknown")
+
+            # Get full trace with spans
+            full = store.get_trace(trace_id)
+            if not full or not full.get("spans"):
+                continue
+
+            for span in full["spans"]:
+                tool_name = span.get("name", "")
+                # Extract tool from "agent/Tool" format
+                if "/" in tool_name:
+                    tool_name = tool_name.split("/", 1)[1]
+
+                events.append({
+                    "agent": agent,
+                    "tool": tool_name,
+                    "status": span.get("status", "ok"),
+                    "timestamp": span.get("start_time", 0),
+                    "duration_ms": span.get("duration_ms", 0),
+                    "trace_id": trace_id,
+                    "error": span.get("error_message") or (span.get("error", {}) or {}).get("message"),
+                })
+
+        # Sort by timestamp descending and limit
+        events.sort(key=lambda e: e["timestamp"], reverse=True)
+        events = events[:limit]
+
+        return JSONResponse({"events": events, "total": len(events)})
 
     # -----------------------------------------------------------------------
     # Dashboard
