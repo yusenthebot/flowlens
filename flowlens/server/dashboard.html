@@ -19,20 +19,7 @@
   <script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script>if(typeof Chart==='undefined'){var s=document.createElement('script');s.src='/static/chart.min.js';document.head.appendChild(s);}</script>
-  <!-- Three.js loaded lazily when Agents tab is opened -->
-  <script>
-    function loadThreeJS() {
-      if (typeof THREE !== 'undefined') return Promise.resolve();
-      return new Promise(resolve => {
-        var s = document.createElement('script');
-        s.src = '/static/three.min.js';
-        s.onload = resolve;
-        s.onerror = () => { s.src = 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js'; s.onload = resolve; };
-        document.head.appendChild(s);
-      });
-    }
-  </script>
-  <!-- 3d-force-graph removed: overview graph now uses SVG -->
+  <!-- Three.js removed: agent network now uses lightweight 2D SVG rendering -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <script>

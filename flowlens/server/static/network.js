@@ -1,306 +1,176 @@
-/* FlowLens Dashboard — Agent Network Visualization (Three.js + Cytoscape fallback) */
+/* FlowLens Dashboard — Agent Network Visualization (Lightweight SVG) */
 'use strict';
 
-
 // =========================================================================
-// Agent Relationship Graph — Three.js 3D Visualization
+// Agent Relationship Graph — 2D SVG Visualization
 // =========================================================================
+// Replaces the previous Three.js WebGL implementation.
+// Uses SVG + CSS/SMIL animations for GPU-composited rendering with
+// dramatically lower memory and CPU usage.
 
-let _three3D = null;    // main 3D scene state
-let _threeMini = null;  // mini 3D scene state (overview)
-let _agentRelData = null; // cached relationship data shared between scenes
-
-/** Dispose all Three.js resources in a scene state object. */
-function _disposeThreeScene(state) {
-  if (!state) return;
-  if (state.animFrameId) { cancelAnimationFrame(state.animFrameId); }
-  if (state.labelContainer && state.labelContainer.parentNode) {
-    state.labelContainer.parentNode.removeChild(state.labelContainer);
-  }
-  if (state.resizeObserver) { state.resizeObserver.disconnect(); }
-  (state.meshes || []).forEach(m => {
-    if (m.geometry) m.geometry.dispose();
-    if (m.material) m.material.dispose();
-  });
-  (state.lines || []).forEach(l => {
-    if (l.geometry) l.geometry.dispose();
-    if (l.material) l.material.dispose();
-  });
-  if (state.particleGeom) state.particleGeom.dispose();
-  if (state.particleMat) state.particleMat.dispose();
-  if (state.renderer) {
-    state.renderer.dispose();
-    if (state.renderer.domElement && state.renderer.domElement.parentNode) {
-      state.renderer.domElement.parentNode.removeChild(state.renderer.domElement);
-    }
-  }
-}
-
-/** Compute circle positions for n nodes at radius r. */
-function _circlePositions(n, r) {
-  const pos = [];
-  for (let i = 0; i < n; i++) {
-    const a = (i / n) * Math.PI * 2 - Math.PI / 2;
-    pos.push([Math.cos(a) * r, Math.sin(a) * r, 0]);
-  }
-  return pos;
-}
-
-/** Parse '#rrggbb' to {r,g,b} in [0,1]. */
-function _hexToRgb01(hex) {
-  const h = (hex || '#9ca3af').replace('#', '');
-  return {
-    r: parseInt(h.substring(0, 2), 16) / 255,
-    g: parseInt(h.substring(2, 4), 16) / 255,
-    b: parseInt(h.substring(4, 6), 16) / 255,
-  };
-}
+let _agentRelData = null;        // cached relationship data
+let _agentGraphResizeObserver = null;
+let _agentGraphResizeTimer = null;
 
 /**
- * Build and start a Three.js 3D scene inside `container`.
- * opts: { showLabels, autoRotate, miniMode }
- * Returns a state object to pass to _disposeThreeScene().
+ * Build a 2D SVG network graph inside `container` using data.nodes / data.edges.
+ * Particles flow along edges via SVG animateMotion (GPU-composited, no JS loop).
+ * Active nodes pulse via CSS animation class.
  */
-function _buildThreeScene(container, data, opts) {
-  if (typeof THREE === 'undefined') return null;
-  opts = Object.assign({ showLabels: true, autoRotate: true, miniMode: false }, opts);
-
-  const bgColor = isDarkTheme ? 0x0f172a : 0xfafaf8;
-  const cw = container.clientWidth || 600;
-  const ch = container.clientHeight || 350;
-
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setSize(cw, ch);
-  renderer.setClearColor(bgColor, 1);
-  renderer.domElement.style.cssText = 'display:block;width:100%;height:100%;';
-  container.appendChild(renderer.domElement);
-
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(55, cw / ch, 0.1, 1000);
-  camera.position.set(0, 0, opts.miniMode ? 4.5 : 5.5);
-
-  scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-  const ptLight = new THREE.PointLight(0xffffff, 1.2, 50);
-  ptLight.position.set(0, 5, 5);
-  scene.add(ptLight);
-
+function _buildSVGNetwork(container, data) {
   const nodes = data.nodes || [];
   const edges = data.edges || [];
-  const maxCount = nodes.reduce((acc, n) => Math.max(acc, n.trace_count || 1), 1);
-  const maxEdgeCount = edges.reduce((acc, e) => Math.max(acc, e.count || 1), 1);
-  const radius = Math.max(1.4, nodes.length * 0.38);
-  const positions = _circlePositions(nodes.length, radius);
+  if (nodes.length === 0) {
+    container.innerHTML = '<p style="text-align:center;padding:60px 0;color:#94a3b8;font-size:13px;">No agent data</p>';
+    return;
+  }
 
-  const nodeIndex = {};
-  nodes.forEach((n, i) => { nodeIndex[n.id] = i; });
+  const W = container.clientWidth || 700;
+  const H = container.clientHeight || 400;
+  const dark = isDarkTheme;
 
-  const meshes = [];
-  const lines = [];
-  const rotationGroup = new THREE.Group();
-  scene.add(rotationGroup);
+  // Layout: hub-and-spoke — main/unknown in center, others on ellipse
+  const cx = W / 2, cy = H / 2;
+  const rx = Math.min(W * 0.36, 240), ry = Math.min(H * 0.32, 140);
+  const nodePos = {};
 
-  // Spheres (one per agent node)
-  nodes.forEach((n, i) => {
+  const mainNode = nodes.find(n => n.id === 'main' || n.id === 'unknown');
+  const others = nodes.filter(n => n !== mainNode);
+  if (mainNode) nodePos[mainNode.id] = { x: cx, y: cy };
+  others.forEach((n, i) => {
+    const angle = (i / Math.max(others.length, 1)) * Math.PI * 2 - Math.PI / 2;
+    nodePos[n.id] = { x: cx + Math.cos(angle) * rx, y: cy + Math.sin(angle) * ry };
+  });
+
+  const maxCount = nodes.reduce((a, n) => Math.max(a, n.trace_count || 1), 1);
+  const maxEdge  = edges.reduce((a, e) => Math.max(a, e.count || 1), 1);
+  const bgColor  = dark ? '#0f172a' : '#fafaf8';
+  const dotColor = dark ? 'rgba(148,163,184,0.15)' : 'rgba(100,116,139,0.12)';
+
+  const ns = 'http://www.w3.org/2000/svg';
+
+  // ---- Build SVG string ----
+  let defs = `<defs>
+    <filter id="svg-glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="svg-glow-sm" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="2.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>`;
+  // Radial gradient per agent color
+  nodes.forEach(n => {
     const p = getAgentProfile(n.id);
-    const rgb = _hexToRgb01(p.color);
-    const color = new THREE.Color(rgb.r, rgb.g, rgb.b);
-    const normSize = 0.3 + ((n.trace_count || 1) / maxCount) * 0.7;
-    const r = opts.miniMode ? normSize * 0.7 : normSize;
-    const geo = new THREE.SphereGeometry(r, 32, 32);
-    const isActive = n.status === 'active';
-    const mat = new THREE.MeshPhongMaterial({
-      color, emissive: color,
-      emissiveIntensity: isActive ? 0.55 : 0.1,
-      transparent: !isActive, opacity: isActive ? 1.0 : 0.45,
-      shininess: 120, specular: new THREE.Color(0x444466),
-      reflectivity: 0.6,
-    });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(...positions[i]);
-    mesh.userData = { agentId: n.id, baseEmissive: isActive ? 0.55 : 0.1, isActive };
-    rotationGroup.add(mesh);
-    meshes.push(mesh);
+    const c = p.color || '#6366f1';
+    defs += `<radialGradient id="ng-${n.id}" cx="38%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="${c}" stop-opacity="1"/>
+      <stop offset="100%" stop-color="${c}" stop-opacity="0.6"/>
+    </radialGradient>`;
   });
+  defs += '</defs>';
 
-  // Glowing lines for spawn-relationship edges (core + outer glow)
-  edges.forEach(e => {
-    const si = nodeIndex[e.source], ti = nodeIndex[e.target];
-    if (si === undefined || ti === undefined) return;
-    const pts = [new THREE.Vector3(...positions[si]), new THREE.Vector3(...positions[ti])];
-    const opacity = 0.2 + ((e.count || 1) / maxEdgeCount) * 0.5;
+  // Background
+  let body = `<rect width="${W}" height="${H}" fill="${bgColor}"/>`;
 
-    // Outer glow line (thicker, very transparent)
-    const geoGlow = new THREE.BufferGeometry().setFromPoints(pts);
-    const matGlow = new THREE.LineBasicMaterial({
-      color: 0x6366f1, transparent: true, opacity: opacity * 0.25, linewidth: 3,
-    });
-    const glowLine = new THREE.Line(geoGlow, matGlow);
-    rotationGroup.add(glowLine);
-    lines.push(glowLine);
-
-    // Core line (dashed, brighter)
-    const geoL = new THREE.BufferGeometry().setFromPoints(pts);
-    const matL = new THREE.LineDashedMaterial({
-      color: 0x818cf8, transparent: true, opacity, dashSize: 0.18, gapSize: 0.09,
-    });
-    const line = new THREE.Line(geoL, matL);
-    line.computeLineDistances();
-    rotationGroup.add(line);
-    lines.push(line);
-  });
-
-  // Floating particle background
-  const particleCount = 200;
-  const particleGeom = new THREE.BufferGeometry();
-  const particlePositions = new Float32Array(particleCount * 3);
-  for (let i = 0; i < particleCount; i++) {
-    particlePositions[i * 3]     = (Math.random() - 0.5) * 20;
-    particlePositions[i * 3 + 1] = (Math.random() - 0.5) * 20;
-    particlePositions[i * 3 + 2] = (Math.random() - 0.5) * 20;
-  }
-  particleGeom.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
-  const particleMat = new THREE.PointsMaterial({ color: 0x6366f1, size: 0.05, transparent: true, opacity: 0.3 });
-  const particles = new THREE.Points(particleGeom, particleMat);
-  scene.add(particles);
-
-  // HTML labels positioned via 3D projection (main scene only)
-  let labelContainer = null;
-  const labelEls = [];
-  if (opts.showLabels) {
-    container.style.position = 'relative';
-    labelContainer = document.createElement('div');
-    labelContainer.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:hidden;';
-    container.appendChild(labelContainer);
-
-    nodes.forEach((n) => {
-      const p = getAgentProfile(n.id);
-      const el = document.createElement('div');
-      el.style.cssText = [
-        'position:absolute', 'transform:translate(-50%,-100%)', 'pointer-events:none', 'white-space:nowrap',
-        'font-family:Inter,system-ui,sans-serif', 'line-height:1.3', 'padding:2px 6px', 'border-radius:4px',
-        isDarkTheme ? 'background:rgba(42,42,38,0.85)' : 'background:rgba(250,250,248,0.85)',
-        'backdrop-filter:blur(4px)', 'border:1px solid rgba(255,255,255,0.08)',
-      ].join(';');
-      el.innerHTML = `<span style="font-size:10px;font-weight:600;color:${p.color}">${p.name || n.id}</span>`
-        + `<br><span style="font-size:9px;color:${isDarkTheme ? '#94a3b8' : '#64748b'}">${p.role || ''}</span>`;
-      labelContainer.appendChild(el);
-      labelEls.push(el);
-    });
-  }
-
-  // Mouse drag to rotate, hover highlight, click to open agent detail modal
-  let isDragging = false;
-  let lastMouseX = 0, lastMouseY = 0;
-  let rotX = 0, rotY = 0;
-  let hoveredMesh = null;
-  const raycaster = new THREE.Raycaster();
-  const mouse2D = new THREE.Vector2();
-
-  function onMouseDown(e) { isDragging = true; lastMouseX = e.clientX; lastMouseY = e.clientY; }
-  function onMouseMove(e) {
-    const rect = renderer.domElement.getBoundingClientRect();
-    mouse2D.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    mouse2D.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-    if (isDragging) {
-      rotY += (e.clientX - lastMouseX) * 0.008;
-      rotX += (e.clientY - lastMouseY) * 0.008;
-      rotX = Math.max(-1.2, Math.min(1.2, rotX));
-      lastMouseX = e.clientX; lastMouseY = e.clientY;
+  // Grid dots
+  const step = 40;
+  for (let gx = step; gx < W; gx += step) {
+    for (let gy = step; gy < H; gy += step) {
+      body += `<circle cx="${gx}" cy="${gy}" r="0.7" fill="${dotColor}"/>`;
     }
-    raycaster.setFromCamera(mouse2D, camera);
-    const hits = raycaster.intersectObjects(meshes);
-    if (hits.length > 0) {
-      const hit = hits[0].object;
-      if (hoveredMesh !== hit) {
-        if (hoveredMesh) { hoveredMesh.scale.setScalar(1.0); hoveredMesh.material.emissiveIntensity = hoveredMesh.userData.baseEmissive; }
-        hoveredMesh = hit;
-        hit.scale.setScalar(1.3);
-        hit.material.emissiveIntensity = Math.min(1.0, hit.userData.baseEmissive + 0.4);
-      }
-      renderer.domElement.style.cursor = 'pointer';
+  }
+
+  // Edges
+  edges.forEach((edge, idx) => {
+    const src = nodePos[edge.source], tgt = nodePos[edge.target];
+    if (!src || !tgt) return;
+    const p = getAgentProfile(edge.source);
+    const color = p.color || '#6366f1';
+    const opacity = 0.18 + ((edge.count || 1) / maxEdge) * 0.45;
+
+    // Quadratic bezier with mid-point offset for curve
+    const mx = (src.x + tgt.x) / 2;
+    const my = (src.y + tgt.y) / 2 - 28;
+    const d = `M${src.x.toFixed(1)},${src.y.toFixed(1)} Q${mx.toFixed(1)},${my.toFixed(1)} ${tgt.x.toFixed(1)},${tgt.y.toFixed(1)}`;
+    const pathId = `ep${idx}`;
+
+    // Glow + core path
+    body += `<path d="${d}" stroke="${color}" stroke-width="3.5" fill="none" opacity="${(opacity * 0.18).toFixed(3)}" filter="url(#svg-glow)"/>`;
+    body += `<path id="${pathId}" d="${d}" stroke="${color}" stroke-width="1.5" fill="none" opacity="${opacity.toFixed(3)}" stroke-dasharray="5 4">
+      <animate attributeName="stroke-dashoffset" from="0" to="-18" dur="1.6s" repeatCount="indefinite"/>
+    </path>`;
+
+    // Animated particles (1-3 depending on edge weight)
+    const numParticles = Math.min(3, 1 + Math.floor(((edge.count || 1) / maxEdge) * 2));
+    for (let pi = 0; pi < numParticles; pi++) {
+      const delay = (pi / numParticles) * 2.8;
+      const dur = 2.2 + pi * 0.4;
+      body += `<circle r="2.8" fill="${color}" filter="url(#svg-glow-sm)" opacity="0.9">
+        <animateMotion dur="${dur.toFixed(1)}s" repeatCount="indefinite" begin="${delay.toFixed(1)}s"><mpath href="#${pathId}"/></animateMotion>
+        <animate attributeName="opacity" values="0;0.9;0.9;0" dur="${dur.toFixed(1)}s" repeatCount="indefinite" begin="${delay.toFixed(1)}s"/>
+      </circle>`;
+    }
+  });
+
+  // Nodes
+  nodes.forEach(node => {
+    const pos = nodePos[node.id];
+    if (!pos) return;
+    const profile = getAgentProfile(node.id);
+    const color = profile.color || '#6366f1';
+    const isActive = node.status === 'active';
+    const normSize = 0.35 + ((node.trace_count || 0) / maxCount) * 0.65;
+    const r = Math.round(16 + normSize * 16); // 16..32px radius
+    const { x, y } = pos;
+
+    // Outer pulse ring (CSS animated for active, static for idle)
+    const pulseR = r + 12;
+    if (isActive) {
+      body += `<circle cx="${x}" cy="${y}" r="${pulseR}" fill="none" stroke="${color}" stroke-width="1.5" opacity="0.2" class="svg-net-pulse">
+        <animate attributeName="r" values="${pulseR};${pulseR+8};${pulseR}" dur="2.2s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values="0.18;0.05;0.18" dur="2.2s" repeatCount="indefinite"/>
+      </circle>`;
     } else {
-      if (hoveredMesh) { hoveredMesh.scale.setScalar(1.0); hoveredMesh.material.emissiveIntensity = hoveredMesh.userData.baseEmissive; hoveredMesh = null; }
-      renderer.domElement.style.cursor = 'default';
+      body += `<circle cx="${x}" cy="${y}" r="${pulseR}" fill="none" stroke="${color}" stroke-width="1" opacity="0.1"/>`;
     }
-  }
-  function onMouseUp(e) {
-    if (!isDragging) return;
-    isDragging = false;
-    if (Math.abs(e.clientX - lastMouseX) < 4 && Math.abs(e.clientY - lastMouseY) < 4) {
-      raycaster.setFromCamera(mouse2D, camera);
-      const hits = raycaster.intersectObjects(meshes);
-      if (hits.length > 0) { openAgentDetailModal(hits[0].object.userData.agentId); }
-    }
-  }
-  function onMouseLeave() { isDragging = false; }
 
-  if (!opts.miniMode) {
-    renderer.domElement.addEventListener('mousedown', onMouseDown);
-    renderer.domElement.addEventListener('mousemove', onMouseMove);
-    renderer.domElement.addEventListener('mouseup', onMouseUp);
-    renderer.domElement.addEventListener('mouseleave', onMouseLeave);
-  }
+    // Soft glow halo
+    body += `<circle cx="${x}" cy="${y}" r="${r + 6}" fill="${color}" opacity="0.08" filter="url(#svg-glow)"/>`;
 
-  // requestAnimationFrame render loop
-  let frame = 0;
-  let animFrameId = null;
-  function animate() {
-    animFrameId = requestAnimationFrame(animate);
-    frame++;
-    if (!isDragging && opts.autoRotate) rotY += 0.0008;
-    rotationGroup.rotation.y = rotY;
-    rotationGroup.rotation.x = rotX;
+    // Core node circle — clickable, opens agent detail modal
+    const nodeOpacity = isActive ? '0.9' : '0.55';
+    body += `<circle cx="${x}" cy="${y}" r="${r}" fill="url(#ng-${node.id})" opacity="${nodeOpacity}" class="node-core" filter="url(#svg-glow-sm)" onclick="openAgentDetailModal('${escHtml(node.id)}')">
+      <title>${escHtml(profile.name || node.id)}: ${node.trace_count || 0} traces</title>
+    </circle>`;
 
-    // Pulse emissive intensity for active agents
-    meshes.forEach(m => {
-      if (m.userData.isActive && m !== hoveredMesh) {
-        m.material.emissiveIntensity = 0.55 + Math.sin(frame * 0.05) * 0.25;
-      }
-    });
+    // Specular highlight
+    body += `<circle cx="${(x - r*0.28).toFixed(1)}" cy="${(y - r*0.28).toFixed(1)}" r="${(r*0.32).toFixed(1)}" fill="white" opacity="0.22" pointer-events="none"/>`;
 
-    // Slowly rotate particle field
-    particles.rotation.y += 0.0003;
-    particles.rotation.x += 0.0001;
+    // Label — name
+    const textColor = dark ? '#e2e8f0' : '#1e293b';
+    const subColor  = dark ? '#64748b' : '#64748b';
+    body += `<text x="${x}" y="${y + r + 17}" text-anchor="middle" fill="${textColor}" font-size="12" font-weight="600" font-family="Inter,system-ui,sans-serif">${escHtml(profile.name || node.id)}</text>`;
 
-    renderer.render(scene, camera);
-
-    // Update HTML label screen positions
-    if (opts.showLabels && labelContainer) {
-      const elW = container.clientWidth, elH = container.clientHeight;
-      nodes.forEach((n, i) => {
-        if (!labelEls[i] || !meshes[i]) return;
-        const wp = new THREE.Vector3();
-        meshes[i].getWorldPosition(wp);
-        const proj = wp.clone().project(camera);
-        const sx = (proj.x * 0.5 + 0.5) * elW;
-        const wpTop = wp.clone();
-        wpTop.y += (meshes[i].geometry.parameters.radius || 0.5);
-        const sy = (-(wpTop.clone().project(camera).y) * 0.5 + 0.5) * elH;
-        labelEls[i].style.left = sx + 'px';
-        labelEls[i].style.top = sy + 'px';
-        labelEls[i].style.display = proj.z < 1 ? 'block' : 'none';
-      });
-    }
-  }
-  animate();
-
-  // Responsive resize
-  const resizeObserver = new ResizeObserver(() => {
-    const nw = container.clientWidth, nh = container.clientHeight;
-    if (nw && nh) {
-      renderer.setSize(nw, nh);
-      camera.aspect = nw / nh;
-      camera.updateProjectionMatrix();
+    // Sub-label: trace count + cost
+    const cost = node.cost != null ? `$${Number(node.cost).toFixed(2)}` : '';
+    const sub = [node.trace_count ? `${node.trace_count} traces` : '', cost].filter(Boolean).join(' \u00b7 ');
+    if (sub) {
+      body += `<text x="${x}" y="${y + r + 31}" text-anchor="middle" fill="${subColor}" font-size="10" font-family="Inter,system-ui,sans-serif">${escHtml(sub)}</text>`;
     }
   });
-  resizeObserver.observe(container);
 
-  return { renderer, scene, camera, meshes, lines, rotationGroup, labelContainer, labelEls, resizeObserver, animFrameId, particles, particleGeom, particleMat };
+  const svgStr = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="${ns}" style="display:block;width:100%;height:100%;">${defs}${body}</svg>`;
+  container.innerHTML = svgStr;
 }
 
-// Cytoscape fallback when THREE.js is unavailable
+
+// =========================================================================
+// Cytoscape fallback (when relationship data is unavailable)
+// =========================================================================
+
 let _agentCyInstance = null;
+
 function _loadAgentGraphCytoscape(data) {
   const container = document.getElementById('agent-graph');
   if (!container || typeof cytoscape === 'undefined') return;
@@ -325,6 +195,11 @@ function _loadAgentGraphCytoscape(data) {
   _agentCyInstance.on('mouseout', 'node', evt => { evt.target.style('border-color', '#3a3a36'); });
   _agentCyInstance.on('tap', 'node', evt => { filterTracesByAgent(evt.target.id()); });
 }
+
+
+// =========================================================================
+// CSS-grid fallback (no external lib needed)
+// =========================================================================
 
 function _renderAgentGridFallback(containerId, agents) {
   const container = document.getElementById(containerId);
@@ -354,13 +229,23 @@ function _renderAgentGridFallback(containerId, agents) {
   container.appendChild(grid);
 }
 
+
+// =========================================================================
+// Public entry point — loadAgentGraph
+// =========================================================================
+
 async function loadAgentGraph() {
+  const container = document.getElementById('agent-graph');
+  if (!container) return;
+
+  // Disconnect any previous resize observer
+  if (_agentGraphResizeObserver) { _agentGraphResizeObserver.disconnect(); _agentGraphResizeObserver = null; }
+
   try {
     const data = await apiFetch('/v1/agents/relationships');
     _agentRelData = data;
 
     if (!data.nodes || data.nodes.length === 0) {
-      // Fallback: try agent summary for at least showing agent cards
       try {
         const summary = await apiFetch('/v1/agents/summary');
         if (summary.agents && summary.agents.length > 0) {
@@ -370,21 +255,37 @@ async function loadAgentGraph() {
       return;
     }
 
-    if (typeof THREE !== 'undefined') {
-      const container = document.getElementById('agent-graph');
-      if (!container) return;
-      if (_three3D) { _disposeThreeScene(_three3D); _three3D = null; }
+    // Use IntersectionObserver to defer render until visible (saves work if tab is hidden)
+    const render = () => {
       container.innerHTML = '';
       container.style.height = '400px';
-      _three3D = _buildThreeScene(container, data, { showLabels: true, autoRotate: true, miniMode: false });
-    } else if (typeof cytoscape !== 'undefined') {
-      _loadAgentGraphCytoscape(data);
+      _buildSVGNetwork(container, data);
+
+      // Debounced responsive resize: re-render SVG on container size change
+      _agentGraphResizeObserver = new ResizeObserver(() => {
+        clearTimeout(_agentGraphResizeTimer);
+        _agentGraphResizeTimer = setTimeout(() => {
+          if (container.clientWidth > 0 && _agentRelData) {
+            _buildSVGNetwork(container, _agentRelData);
+          }
+        }, 150);
+      });
+      _agentGraphResizeObserver.observe(container);
+    };
+
+    if ('IntersectionObserver' in window) {
+      const io = new IntersectionObserver(entries => {
+        if (entries[0].isIntersecting) {
+          io.disconnect();
+          render();
+        }
+      }, { threshold: 0.1 });
+      io.observe(container);
     } else {
-      // Pure CSS fallback
-      _renderAgentGridFallback('agent-graph', data.nodes);
+      render();
     }
+
   } catch (e) {
-    // On error, try showing agent summary as grid fallback
     try {
       const summary = await apiFetch('/v1/agents/summary');
       if (summary.agents && summary.agents.length > 0) {
@@ -394,54 +295,14 @@ async function loadAgentGraph() {
   }
 }
 
+
+// =========================================================================
+// Mini graph + Overview graph
+// =========================================================================
+
 async function loadAgentGraphMini() {
-  try {
-    const data = await apiFetch('/v1/agents/network');
-    if (!data || !data.nodes || data.nodes.length === 0) return;
-    const container = document.getElementById('agent-graph-mini');
-    if (!container || container.clientWidth === 0) return;
-
-    // Clean up previous
-    container.innerHTML = '';
-
-    if (typeof cytoscape === 'undefined') return;
-
-    const elements = [];
-    data.nodes.forEach(n => {
-      const p = getAgentProfile(n.id);
-      elements.push({ data: { id: n.id, label: p.name || n.id, color: p.color || '#6366f1' } });
-    });
-    (data.edges || []).forEach(e => {
-      elements.push({ data: { source: e.source, target: e.target, label: 'x' + (e.count || 1) } });
-    });
-
-    cytoscape({
-      container: container,
-      elements: elements,
-      style: [
-        { selector: 'node', style: {
-          'label': 'data(label)',
-          'background-color': 'data(color)',
-          'color': '#e2e8f0',
-          'font-size': '9px',
-          'text-valign': 'center',
-          'text-halign': 'center',
-          'width': 30, 'height': 30,
-          'border-width': 2,
-          'border-color': '#1e293b',
-        }},
-        { selector: 'edge', style: {
-          'width': 1.5,
-          'line-color': '#475569',
-          'target-arrow-color': '#6366f1',
-          'target-arrow-shape': 'triangle',
-          'curve-style': 'bezier',
-          'opacity': 0.6,
-        }}
-      ],
-      layout: { name: 'cose', animate: false, padding: 20 },
-    });
-  } catch (e) { console.warn('Mini graph:', e); }
+  // Mini graph is no longer needed with SVG — the main graph is already lightweight
+  return;
 }
 
 async function loadOverviewAgents() {
@@ -507,16 +368,8 @@ async function loadOverviewAgents() {
   } catch (e) { console.warn('Overview agents:', e); }
 }
 
-// --- Overview 3D cleanup state ---
-let _overview3D = null;
-let _forceGraph = null;
 
-function _cleanupOverview3D() {
-  if (_forceGraph) { try { _forceGraph._destructor(); } catch(e){} _forceGraph = null; }
-  _overview3D = null;
-  const c = document.getElementById('overview-agent-graph');
-  if (c) c.innerHTML = '';
-}
+// --- Overview graph uses same SVG approach ---
 
 async function loadOverviewGraph() {
   try {
@@ -528,124 +381,14 @@ async function loadOverviewGraph() {
     const container = document.getElementById('overview-agent-graph');
     if (!container) return;
 
-    _cleanupOverview3D();
+    container.innerHTML = '';
 
     const nodes = (netData?.nodes || []).filter(n => n.id !== 'Agent');
     const edges = relData?.edges || [];
     if (nodes.length === 0) { container.innerHTML = '<p class="text-center text-slate-500 py-20">No agent data</p>'; return; }
 
-    const W = container.clientWidth || 800;
-    const H = container.clientHeight || 450;
-
-    // Position nodes in an elliptical layout
-    const cx = W / 2, cy = H / 2;
-    const rx = W * 0.35, ry = H * 0.3;
-    const nodePositions = {};
-
-    // Find "main"/"unknown" -> put in center
-    const mainNode = nodes.find(n => n.id === 'main' || n.id === 'unknown');
-    const otherNodes = nodes.filter(n => n !== mainNode);
-
-    if (mainNode) {
-      nodePositions[mainNode.id] = { x: cx, y: cy };
-    }
-    otherNodes.forEach((n, i) => {
-      const angle = (i / otherNodes.length) * Math.PI * 2 - Math.PI / 2;
-      nodePositions[n.id] = {
-        x: cx + Math.cos(angle) * rx,
-        y: cy + Math.sin(angle) * ry,
-      };
-    });
-
-    // Build SVG
-    let svg = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
-
-    // Defs: gradients, filters, animations
-    svg += `<defs>
-      <radialGradient id="bg-grad"><stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#f8fafc"/></radialGradient>
-      <filter id="glow"><feGaussianBlur stdDeviation="4" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-      <filter id="glow-strong"><feGaussianBlur stdDeviation="8" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-    </defs>`;
-
-    // Background
-    svg += `<rect width="${W}" height="${H}" fill="url(#bg-grad)"/>`;
-
-    // Grid dots background
-    for (let gx = 30; gx < W; gx += 40) {
-      for (let gy = 30; gy < H; gy += 40) {
-        svg += `<circle cx="${gx}" cy="${gy}" r="0.5" fill="#cbd5e1" opacity="0.3"/>`;
-      }
-    }
-
-    // Draw edges (connections) with animated particles
-    edges.forEach((edge, idx) => {
-      const src = nodePositions[edge.source];
-      const tgt = nodePositions[edge.target];
-      if (!src || !tgt) return;
-
-      const srcProfile = getAgentProfile(edge.source);
-      const color = srcProfile.color || '#6366f1';
-
-      // Curved path
-      const mx = (src.x + tgt.x) / 2;
-      const my = (src.y + tgt.y) / 2 - 30 - Math.random() * 20;
-      const pathId = `path-${idx}`;
-      const d = `M${src.x},${src.y} Q${mx},${my} ${tgt.x},${tgt.y}`;
-
-      // Connection line (outer glow + inner)
-      svg += `<path d="${d}" stroke="${color}" stroke-width="3" fill="none" opacity="0.08" filter="url(#glow-strong)"/>`;
-      svg += `<path id="${pathId}" d="${d}" stroke="${color}" stroke-width="1.5" fill="none" opacity="0.25"/>`;
-
-      // Animated particles along path
-      const particleCount = 1 + (edge.count || 1);
-      for (let p = 0; p < particleCount; p++) {
-        const delay = (p / particleCount) * 3;
-        const dur = 2.5 + Math.random() * 1.5;
-        svg += `<circle r="2.5" fill="${color}" filter="url(#glow)">
-          <animateMotion dur="${dur}s" repeatCount="indefinite" begin="${delay}s"><mpath href="#${pathId}"/></animateMotion>
-          <animate attributeName="opacity" values="0;1;1;0" dur="${dur}s" repeatCount="indefinite" begin="${delay}s"/>
-        </circle>`;
-      }
-    });
-
-    // Draw nodes
-    nodes.forEach(node => {
-      const pos = nodePositions[node.id];
-      if (!pos) return;
-      const profile = getAgentProfile(node.id);
-      const color = profile.color || '#6366f1';
-      const isActive = node.status === 'active';
-      const size = 18 + Math.min((node.trace_count || 0) / 10, 20);
-
-      // Outer glow ring (pulsing for active)
-      if (isActive) {
-        svg += `<circle cx="${pos.x}" cy="${pos.y}" r="${size + 15}" fill="none" stroke="${color}" stroke-width="1" opacity="0.15">
-          <animate attributeName="r" values="${size+10};${size+20};${size+10}" dur="2s" repeatCount="indefinite"/>
-          <animate attributeName="opacity" values="0.1;0.25;0.1" dur="2s" repeatCount="indefinite"/>
-        </circle>`;
-      } else {
-        svg += `<circle cx="${pos.x}" cy="${pos.y}" r="${size + 15}" fill="none" stroke="${color}" stroke-width="1" opacity="0.15"/>`;
-      }
-
-      // Second glow ring
-      svg += `<circle cx="${pos.x}" cy="${pos.y}" r="${size + 8}" fill="${color}" opacity="0.06" filter="url(#glow-strong)"/>`;
-
-      // Core circle
-      svg += `<circle cx="${pos.x}" cy="${pos.y}" r="${size}" fill="${color}" opacity="0.85" filter="url(#glow)" style="cursor:pointer" onclick="filterTracesByAgent('${escHtml(node.id)}')">
-        <title>${escHtml(profile.name || node.id)}: ${node.trace_count || 0} traces</title>
-      </circle>`;
-
-      // Inner highlight
-      svg += `<circle cx="${pos.x - size*0.25}" cy="${pos.y - size*0.25}" r="${size*0.35}" fill="white" opacity="0.2"/>`;
-
-      // Label
-      svg += `<text x="${pos.x}" y="${pos.y + size + 18}" text-anchor="middle" fill="#1e293b" font-size="12" font-weight="600" font-family="Inter,system-ui,sans-serif">${escHtml(profile.name || node.id)}</text>`;
-      svg += `<text x="${pos.x}" y="${pos.y + size + 32}" text-anchor="middle" fill="#64748b" font-size="10" font-family="Inter,system-ui,sans-serif">${node.trace_count || 0} traces \u00b7 $${(node.cost || 0).toFixed(1)}</text>`;
-    });
-
-    svg += `</svg>`;
-    container.innerHTML = svg;
+    // Reuse the same SVG builder
+    _buildSVGNetwork(container, { nodes, edges });
 
   } catch (e) { console.warn('Network graph:', e); }
 }
-

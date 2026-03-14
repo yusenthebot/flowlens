@@ -184,6 +184,13 @@
     @keyframes dashFlow {
       to { stroke-dashoffset: -20; }
     }
+    @keyframes svgNodePulse {
+      0%, 100% { r: attr(r); opacity: 0.18; }
+      50% { opacity: 0.05; }
+    }
+    .svg-net-pulse { animation: svgNodePulse 2.2s ease-in-out infinite; }
+    .node-core { cursor: pointer; transition: opacity 0.2s; }
+    .node-core:hover { opacity: 1 !important; }
 
     /* Focus ring for filter inputs */
     .filter-input:focus { outline: none; border-color: rgba(124, 122, 239, 0.5); box-shadow: 0 0 0 3px rgba(124, 122, 239, 0.08); }
