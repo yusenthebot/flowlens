@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from collections import defaultdict
 from contextlib import asynccontextmanager
@@ -39,8 +40,8 @@ from fastapi import (
     WebSocketDisconnect,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
-from pydantic import BaseModel, Field
+from fastapi.responses import HTMLResponse, JSONResponse
+from pydantic import BaseModel, Field, field_validator
 
 from .storage import TraceStore
 from ..sdk.models import Span, SpanKind, SpanStatus, Trace, TokenUsage
@@ -51,6 +52,40 @@ from ..logging_config import configure_logging
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Security constants
+# ---------------------------------------------------------------------------
+
+# Maximum allowed length for string identifiers (trace_id, service_name, etc.)
+_MAX_ID_LENGTH = 512
+# Maximum number of spans per ingest request
+_MAX_SPANS_PER_INGEST = 10_000
+# Allowed characters for identifiers: alphanumeric, hyphens, underscores, dots, colons
+_SAFE_ID_RE = re.compile(r"^[\w\-.:/ ]+$")
+# Allowed base directories for the import endpoint (empty means disabled)
+_ALLOWED_IMPORT_DIRS: list[Path] = []
+
+
+def _sanitize_id(value: str, field_name: str = "identifier") -> str:
+    """
+    Validate a string ID for safety.
+
+    - Enforces a maximum length to prevent oversized inputs.
+    - Rejects values containing path-traversal sequences (../).
+    - Does NOT restrict to a strict character whitelist so that legitimate
+      Unicode service names remain accepted.
+
+    Raises HTTPException(400) when the value fails validation.
+    """
+    if len(value) > _MAX_ID_LENGTH:
+        raise HTTPException(
+            400,
+            f"Invalid {field_name}: exceeds maximum length of {_MAX_ID_LENGTH} characters",
+        )
+    if ".." in value or value.startswith("/") or "\x00" in value:
+        raise HTTPException(400, f"Invalid {field_name}: contains disallowed sequences")
+    return value
+
 
 # ---------------------------------------------------------------------------
 # Pydantic models
@@ -58,8 +93,8 @@ logger = logging.getLogger(__name__)
 
 class TraceIngestRequest(BaseModel):
     """Payload for POST /v1/traces/ingest."""
-    trace_id: str = Field(..., min_length=1, description="Unique trace identifier")
-    service_name: str = ""
+    trace_id: str = Field(..., min_length=1, max_length=_MAX_ID_LENGTH, description="Unique trace identifier")
+    service_name: str = Field("", max_length=_MAX_ID_LENGTH)
     start_time: float = 0
     end_time: float = 0
     duration_ms: float = 0
@@ -69,7 +104,21 @@ class TraceIngestRequest(BaseModel):
     error_count: int = Field(0, ge=0)
     span_count: int = Field(0, ge=0)
     metadata: dict[str, Any] = {}
-    spans: list[dict[str, Any]] = []
+    spans: list[dict[str, Any]] = Field(default_factory=list, max_length=_MAX_SPANS_PER_INGEST)
+
+    @field_validator("trace_id")
+    @classmethod
+    def validate_trace_id(cls, v: str) -> str:
+        if ".." in v or "\x00" in v:
+            raise ValueError("trace_id contains disallowed sequences")
+        return v
+
+    @field_validator("service_name")
+    @classmethod
+    def validate_service_name(cls, v: str) -> str:
+        if v and ("\x00" in v or ".." in v):
+            raise ValueError("service_name contains disallowed sequences")
+        return v
 
 
 class CleanupRequest(BaseModel):
@@ -139,32 +188,76 @@ class ConnectionManager:
 
 class _RateLimiter:
     """
-    Very lightweight per-IP rate limiter using a sliding-window counter.
+    Lightweight per-IP rate limiter using a sliding-window counter.
+
+    Supports per-key limits so ingest endpoints can be granted a higher
+    budget than read/search endpoints.
 
     Not suitable for multi-process deployments — use Redis for those.
     """
 
+    # Cleanup stale entries every N seconds
+    _STALE_CLEANUP_INTERVAL = 300  # 5 minutes
+
     def __init__(self, requests_per_minute: int = 120) -> None:
-        self._limit = requests_per_minute
+        self._default_limit = requests_per_minute
         self._window = 60  # seconds
-        self._counts: dict[str, list[float]] = defaultdict(list)
+        # Maps (client_ip, limit_key) -> list[float]
+        self._counts: dict[tuple[str, str], list[float]] = defaultdict(list)
+        self._last_cleanup = time.time()
 
-    def check(self, client_ip: str) -> tuple[int, int, int]:
+    def _maybe_cleanup(self, now: float) -> None:
+        """Periodically purge stale (all-expired) entries to prevent unbounded growth."""
+        if now - self._last_cleanup < self._STALE_CLEANUP_INTERVAL:
+            return
+        window_start = now - self._window
+        stale_keys = [
+            k for k, hits in self._counts.items()
+            if not any(t > window_start for t in hits)
+        ]
+        for k in stale_keys:
+            del self._counts[k]
+        self._last_cleanup = now
+        if stale_keys:
+            logger.debug("Rate limiter: purged %d stale entries", len(stale_keys))
+
+    def check(
+        self,
+        client_ip: str,
+        limit_key: str = "default",
+        limit_override: Optional[int] = None,
+    ) -> tuple[bool, int, int, int]:
         """
-        Record a request and return (remaining, limit, retry_after_seconds).
+        Record a request and return (allowed, remaining, limit, retry_after_seconds).
 
-        retry_after_seconds is 0 when the request is within budget.
+        ``allowed`` is False when the caller has exceeded the budget for this window.
+        ``retry_after_seconds`` is 0 when the request is within budget.
+        ``limit_override`` lets callers specify a per-endpoint limit.
         """
         now = time.time()
+        self._maybe_cleanup(now)
+
+        limit = limit_override if limit_override is not None else self._default_limit
         window_start = now - self._window
-        hits = self._counts[client_ip]
+        key = (client_ip, limit_key)
+        hits = self._counts[key]
+
         # Purge expired timestamps
-        self._counts[client_ip] = [t for t in hits if t > window_start]
-        self._counts[client_ip].append(now)
-        used = len(self._counts[client_ip])
-        remaining = max(0, self._limit - used)
-        retry_after = 0 if used <= self._limit else int(self._window - (now - self._counts[client_ip][0]))
-        return remaining, self._limit, retry_after
+        self._counts[key] = [t for t in hits if t > window_start]
+        used = len(self._counts[key])
+
+        allowed = used < limit
+        if allowed:
+            self._counts[key].append(now)
+            used += 1
+
+        remaining = max(0, limit - used)
+        retry_after = (
+            0
+            if allowed
+            else int(self._window - (now - self._counts[key][0]))
+        )
+        return allowed, remaining, limit, retry_after
 
 
 # ---------------------------------------------------------------------------
@@ -200,28 +293,78 @@ def create_app(db_path: str | None = None) -> FastAPI:
     )
 
     # -----------------------------------------------------------------------
-    # Middleware — request logging + rate-limit headers
+    # Middleware — security headers + request logging + rate-limit
     # -----------------------------------------------------------------------
 
     @app.middleware("http")
-    async def logging_and_rate_limit(request: Request, call_next):  # type: ignore[no-untyped-def]
+    async def security_and_rate_limit(request: Request, call_next):  # type: ignore[no-untyped-def]
         start = time.perf_counter()
         client_ip = request.client.host if request.client else "unknown"
 
-        remaining, limit, retry_after = rate_limiter.check(client_ip)
+        # Per-endpoint rate-limit budget: ingest gets 3× the default allowance.
+        path = request.url.path
+        if path == "/v1/traces/ingest":
+            limit_key = "ingest"
+            limit_override = settings.rate_limit * 3
+        elif path.startswith("/v1/traces/search"):
+            limit_key = "search"
+            limit_override = max(1, settings.rate_limit // 2)
+        else:
+            limit_key = "default"
+            limit_override = None
 
-        response: Response = await call_next(request)
+        allowed, remaining, limit, retry_after = rate_limiter.check(
+            client_ip, limit_key=limit_key, limit_override=limit_override
+        )
+
+        if not allowed:
+            logger.warning(
+                "Rate limit exceeded for %s on %s (key=%s)",
+                client_ip, path, limit_key,
+            )
+            response = JSONResponse(
+                status_code=429,
+                content={"detail": "Rate limit exceeded. Please slow down."},
+                headers={
+                    "X-RateLimit-Limit": str(limit),
+                    "X-RateLimit-Remaining": "0",
+                    "X-RateLimit-Retry-After": str(retry_after),
+                    "Retry-After": str(retry_after),
+                },
+            )
+            return response
+
+        try:
+            response: Response = await call_next(request)
+        except Exception:
+            # Catch unhandled exceptions and return a generic 500 without
+            # leaking internal details (stack traces, file paths, etc.).
+            logger.exception("Unhandled exception processing %s %s", request.method, path)
+            response = JSONResponse(
+                status_code=500,
+                content={"detail": "An internal server error occurred."},
+            )
 
         elapsed_ms = (time.perf_counter() - start) * 1000
         logger.info(
             "%s %s %d %.1fms",
             request.method,
-            request.url.path,
+            path,
             response.status_code,
             elapsed_ms,
         )
 
-        # Attach standard rate-limit headers to every response
+        # Security headers — prevent common web vulnerabilities
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+            "style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+        )
+
+        # Standard rate-limit headers
         response.headers["X-RateLimit-Limit"] = str(limit)
         response.headers["X-RateLimit-Remaining"] = str(remaining)
         if retry_after:
@@ -265,8 +408,19 @@ def create_app(db_path: str | None = None) -> FastAPI:
     @app.post("/v1/traces/ingest", status_code=201)
     async def ingest_trace(req: TraceIngestRequest) -> dict[str, str]:
         """Receive and persist trace data; broadcast to WebSocket subscribers."""
-        payload = req.model_dump()
-        store.save_trace(payload)
+        # Enforce spans list size limit (belt-and-suspenders beyond Pydantic)
+        if len(req.spans) > _MAX_SPANS_PER_INGEST:
+            raise HTTPException(
+                400,
+                f"spans list exceeds maximum allowed size of {_MAX_SPANS_PER_INGEST}",
+            )
+
+        try:
+            payload = req.model_dump()
+            store.save_trace(payload)
+        except Exception:
+            logger.exception("Failed to save trace %s", req.trace_id[:32])
+            raise HTTPException(500, "Failed to persist trace data")
 
         # Broadcast lightweight summary (not full spans) to WS clients
         if ws_manager.connection_count:
@@ -281,25 +435,68 @@ def create_app(db_path: str | None = None) -> FastAPI:
 
     @app.post("/v1/traces/import", status_code=201)
     async def import_jsonl(file_path: str) -> dict[str, Any]:
-        """Bulk-import traces from a JSONL file."""
-        path = Path(file_path)
-        if not path.exists():
-            raise HTTPException(404, f"File not found: {file_path}")
+        """
+        Bulk-import traces from a JSONL file.
+
+        The ``file_path`` parameter is restricted to pre-approved directories
+        defined in ``_ALLOWED_IMPORT_DIRS``.  When that list is empty (the
+        default), the endpoint is effectively disabled for security.
+
+        Configure allowed directories by appending to
+        ``flowlens.server.app._ALLOWED_IMPORT_DIRS`` before calling
+        ``create_app()``.
+        """
+        # Resolve the path and check for path-traversal attacks
+        try:
+            resolved = Path(file_path).resolve()
+        except Exception:
+            raise HTTPException(400, "Invalid file path")
+
+        # Check null bytes and traversal sequences in the raw input
+        if "\x00" in file_path or ".." in file_path:
+            raise HTTPException(400, "Invalid file path: disallowed sequences detected")
+
+        # If allowed directories are configured, enforce membership
+        if _ALLOWED_IMPORT_DIRS:
+            if not any(
+                _is_subpath(resolved, allowed)
+                for allowed in _ALLOWED_IMPORT_DIRS
+            ):
+                raise HTTPException(
+                    403,
+                    "Access denied: file_path is outside the allowed directories",
+                )
+        else:
+            # No allowed directories configured — endpoint is disabled
+            raise HTTPException(
+                403,
+                "Import endpoint is disabled. Configure _ALLOWED_IMPORT_DIRS to enable it.",
+            )
+
+        if not resolved.exists():
+            raise HTTPException(404, "File not found")
+
+        if not resolved.is_file():
+            raise HTTPException(400, "Path does not point to a regular file")
 
         count = 0
         errors = 0
-        with open(path) as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    trace_data = json.loads(line)
-                    store.save_trace(trace_data)
-                    count += 1
-                except Exception as e:
-                    errors += 1
-                    logger.warning("Failed to import trace: %s", e)
+        try:
+            with open(resolved) as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        trace_data = json.loads(line)
+                        store.save_trace(trace_data)
+                        count += 1
+                    except Exception as e:
+                        errors += 1
+                        logger.warning("Failed to import trace line: %s", e)
+        except OSError:
+            logger.exception("Failed to read import file")
+            raise HTTPException(500, "Failed to read the specified file")
 
         return {"imported": count, "errors": errors}
 
@@ -315,23 +512,33 @@ def create_app(db_path: str | None = None) -> FastAPI:
         offset: int = Query(0, ge=0),
     ) -> TraceListResponse:
         """Return only traces that contain at least one error span."""
-        traces = store.get_error_traces(limit=limit, offset=offset)
+        try:
+            traces = store.get_error_traces(limit=limit, offset=offset)
+        except Exception:
+            logger.exception("Failed to list error traces")
+            raise HTTPException(500, "Failed to retrieve error traces")
         return TraceListResponse(
             traces=traces, total=len(traces), limit=limit, offset=offset
         )
 
     @app.get("/v1/traces/search")
     async def search_traces(
-        q: str = Query(..., min_length=1, description="Search term"),
+        q: str = Query(..., min_length=1, max_length=200, description="Search term"),
         limit: int = Query(50, ge=1, le=200),
         offset: int = Query(0, ge=0),
     ) -> TraceListResponse:
         """
         Full-text search across trace service_name and span name / error_message.
         """
-        if not q.strip():
+        q_stripped = q.strip()
+        if not q_stripped:
             raise HTTPException(400, "Search query must not be blank")
-        traces = store.search_traces(query=q.strip(), limit=limit, offset=offset)
+
+        try:
+            traces = store.search_traces(query=q_stripped, limit=limit, offset=offset)
+        except Exception:
+            logger.exception("Search failed for query: %s", q_stripped[:50])
+            raise HTTPException(500, "Search failed")
         return TraceListResponse(
             traces=traces, total=len(traces), limit=limit, offset=offset
         )
@@ -339,23 +546,35 @@ def create_app(db_path: str | None = None) -> FastAPI:
     @app.post("/v1/traces/cleanup", status_code=200)
     async def cleanup_traces(req: CleanupRequest) -> dict[str, Any]:
         """Delete all traces older than ``req.days`` days."""
-        deleted = store.cleanup_old_traces(days=req.days)
+        try:
+            deleted = store.cleanup_old_traces(days=req.days)
+        except Exception:
+            logger.exception("Cleanup failed")
+            raise HTTPException(500, "Cleanup operation failed")
         return {"deleted": deleted, "days": req.days}
 
     @app.get("/v1/traces")
     async def list_traces(
         limit: int = Query(50, ge=1, le=200),
         offset: int = Query(0, ge=0),
-        service: Optional[str] = None,
+        service: Optional[str] = Query(None, max_length=_MAX_ID_LENGTH),
         errors_only: bool = False,
     ) -> TraceListResponse:
         """List traces (paginated). Filter by service or errors."""
-        traces = store.list_traces(
-            limit=limit,
-            offset=offset,
-            service_name=service,
-            has_errors=True if errors_only else None,
-        )
+        # Sanitize the service filter against path traversal
+        if service is not None:
+            _sanitize_id(service, "service")
+
+        try:
+            traces = store.list_traces(
+                limit=limit,
+                offset=offset,
+                service_name=service,
+                has_errors=True if errors_only else None,
+            )
+        except Exception:
+            logger.exception("Failed to list traces")
+            raise HTTPException(500, "Failed to retrieve traces")
         return TraceListResponse(
             traces=traces, total=len(traces), limit=limit, offset=offset
         )
@@ -363,9 +582,14 @@ def create_app(db_path: str | None = None) -> FastAPI:
     @app.get("/v1/traces/{trace_id}")
     async def get_trace(trace_id: str) -> dict[str, Any]:
         """Fetch full trace detail including all spans."""
-        trace = store.get_trace(trace_id)
+        _sanitize_id(trace_id, "trace_id")
+        try:
+            trace = store.get_trace(trace_id)
+        except Exception:
+            logger.exception("Failed to get trace %s", trace_id[:32])
+            raise HTTPException(500, "Failed to retrieve trace")
         if not trace:
-            raise HTTPException(404, f"Trace not found: {trace_id}")
+            raise HTTPException(404, "Trace not found")
         return trace
 
     @app.delete("/v1/traces/{trace_id}", status_code=200)
@@ -375,9 +599,14 @@ def create_app(db_path: str | None = None) -> FastAPI:
 
         Returns 404 if the trace does not exist.
         """
-        deleted = store.delete_trace(trace_id)
+        _sanitize_id(trace_id, "trace_id")
+        try:
+            deleted = store.delete_trace(trace_id)
+        except Exception:
+            logger.exception("Failed to delete trace %s", trace_id[:32])
+            raise HTTPException(500, "Failed to delete trace")
         if not deleted:
-            raise HTTPException(404, f"Trace not found: {trace_id}")
+            raise HTTPException(404, "Trace not found")
         return {"status": "deleted", "trace_id": trace_id}
 
     # -----------------------------------------------------------------------
@@ -387,14 +616,23 @@ def create_app(db_path: str | None = None) -> FastAPI:
     @app.get("/v1/traces/{trace_id}/dag")
     async def get_trace_dag(trace_id: str) -> dict[str, Any]:
         """Build and return the causal DAG for a trace."""
-        trace_data = store.get_trace(trace_id)
+        _sanitize_id(trace_id, "trace_id")
+        try:
+            trace_data = store.get_trace(trace_id)
+        except Exception:
+            logger.exception("Failed to get trace for DAG %s", trace_id[:32])
+            raise HTTPException(500, "Failed to retrieve trace")
         if not trace_data:
-            raise HTTPException(404, f"Trace not found: {trace_id}")
+            raise HTTPException(404, "Trace not found")
 
-        trace = _reconstruct_trace(trace_data)
-        dag = build_causal_dag(trace)
-        detect_patterns(trace, dag)
-        return dag.to_dict()
+        try:
+            trace = _reconstruct_trace(trace_data)
+            dag = build_causal_dag(trace)
+            detect_patterns(trace, dag)
+            return dag.to_dict()
+        except Exception:
+            logger.exception("Failed to build DAG for trace %s", trace_id[:32])
+            raise HTTPException(500, "Failed to build causal DAG")
 
     # -----------------------------------------------------------------------
     # Cost
@@ -405,7 +643,11 @@ def create_app(db_path: str | None = None) -> FastAPI:
         group_by: str = Query("service_name", pattern="^(service_name|kind|name)$"),
     ) -> list[dict[str, Any]]:
         """Cost attribution grouped by service, span kind, or span name."""
-        return store.get_cost_breakdown(group_by=group_by)
+        try:
+            return store.get_cost_breakdown(group_by=group_by)
+        except Exception:
+            logger.exception("Failed to get cost breakdown")
+            raise HTTPException(500, "Failed to retrieve cost breakdown")
 
     @app.get("/v1/cost/trends")
     async def cost_trends(
@@ -419,7 +661,11 @@ def create_app(db_path: str | None = None) -> FastAPI:
         ``limit`` controls how many time buckets are returned (most recent first
         in the raw query; the response is sorted oldest-to-newest).
         """
-        return store.get_cost_trends(granularity=granularity, limit=limit)
+        try:
+            return store.get_cost_trends(granularity=granularity, limit=limit)
+        except Exception:
+            logger.exception("Failed to get cost trends")
+            raise HTTPException(500, "Failed to retrieve cost trends")
 
     # -----------------------------------------------------------------------
     # Patterns
@@ -433,7 +679,11 @@ def create_app(db_path: str | None = None) -> FastAPI:
         Aggregate pattern statistics: per-kind and per-name span counts,
         plus the top recurring error messages.
         """
-        return store.get_pattern_summary(limit=limit)
+        try:
+            return store.get_pattern_summary(limit=limit)
+        except Exception:
+            logger.exception("Failed to get pattern summary")
+            raise HTTPException(500, "Failed to retrieve pattern summary")
 
     # -----------------------------------------------------------------------
     # Stats
@@ -442,7 +692,11 @@ def create_app(db_path: str | None = None) -> FastAPI:
     @app.get("/v1/stats")
     async def get_stats() -> StatsResponse:
         """Global aggregate statistics."""
-        stats = store.get_stats()
+        try:
+            stats = store.get_stats()
+        except Exception:
+            logger.exception("Failed to get stats")
+            raise HTTPException(500, "Failed to retrieve statistics")
         return StatsResponse(
             total_traces=stats.get("total_traces") or 0,
             total_spans=stats.get("total_spans") or 0,
@@ -484,6 +738,19 @@ def create_app(db_path: str | None = None) -> FastAPI:
         return HTMLResponse(content=_load_dashboard())
 
     return app
+
+
+# ---------------------------------------------------------------------------
+# Helper — path containment check
+# ---------------------------------------------------------------------------
+
+def _is_subpath(child: Path, parent: Path) -> bool:
+    """Return True if *child* is the same as or inside *parent*."""
+    try:
+        child.relative_to(parent)
+        return True
+    except ValueError:
+        return False
 
 
 # ---------------------------------------------------------------------------

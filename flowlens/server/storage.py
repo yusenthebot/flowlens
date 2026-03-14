@@ -6,6 +6,7 @@ MVP uses SQLite + JSONL; production can switch to ClickHouse + PostgreSQL.
 Schema versioning:
 - Version 1: initial schema (traces + spans tables)
 - Version 2: added indexes for has_errors, created_at; error_message index on spans
+- Version 3: added FTS-friendly composite index on spans for search_traces
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+import threading
 import time
 from pathlib import Path
 from typing import Any, Optional
@@ -20,8 +22,129 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 # Bump this whenever _migrate() gains a new migration step.
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
+# ---------------------------------------------------------------------------
+# Connection pool
+# ---------------------------------------------------------------------------
+
+class _ConnectionPool:
+    """
+    Thread-local SQLite connection pool.
+
+    SQLite connections are not safe to share across threads, but creating a
+    new connection per request is expensive.  This pool maintains one
+    connection per thread, reusing it across calls within the same thread.
+
+    Each connection is configured with the same PRAGMA settings so that all
+    threads benefit from WAL mode, foreign keys, and memory optimisations.
+    """
+
+    def __init__(self, db_path: str, pool_size: int = 5) -> None:
+        self._db_path = db_path
+        self._pool_size = pool_size
+        self._local = threading.local()
+        self._lock = threading.Lock()
+        # Pre-warm a primary connection used for schema bootstrap and writes
+        self._primary: sqlite3.Connection = self._new_connection()
+
+    def _new_connection(self) -> sqlite3.Connection:
+        """Open and configure a new SQLite connection."""
+        conn = sqlite3.connect(self._db_path, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        # WAL mode is set database-wide on first connection; repeated calls are no-ops
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA foreign_keys=ON")
+        # Performance tuning
+        conn.execute("PRAGMA cache_size=-32000")       # 32 MB page cache per connection
+        conn.execute("PRAGMA mmap_size=268435456")     # 256 MB memory-mapped I/O
+        conn.execute("PRAGMA synchronous=NORMAL")      # Faster than FULL; safe with WAL
+        conn.execute("PRAGMA temp_store=MEMORY")       # Keep temp tables in RAM
+        return conn
+
+    @property
+    def primary(self) -> sqlite3.Connection:
+        """Return the primary (write) connection."""
+        return self._primary
+
+    def get(self) -> sqlite3.Connection:
+        """
+        Return the connection for the current thread.
+
+        Creates a new one if none exists yet for this thread.
+        """
+        conn = getattr(self._local, "conn", None)
+        if conn is None:
+            self._local.conn = self._new_connection()
+        return self._local.conn
+
+    def close_all(self) -> None:
+        """Close the primary connection (thread-local ones are GC'd naturally)."""
+        try:
+            self._primary.close()
+        except Exception:
+            pass
+
+
+# ---------------------------------------------------------------------------
+# Query result cache
+# ---------------------------------------------------------------------------
+
+# TTL in seconds for cached aggregation results (stats, cost breakdown)
+_CACHE_TTL = 30
+
+
+class _SimpleCache:
+    """
+    Minimal TTL-based in-process cache for read-heavy aggregation queries.
+
+    Not suitable for multi-process deployments.
+    """
+
+    def __init__(self, ttl: float = _CACHE_TTL) -> None:
+        self._ttl = ttl
+        self._store: dict[str, tuple[float, Any]] = {}
+        self._lock = threading.Lock()
+
+    def get(self, key: str) -> Any:
+        """Return cached value or ``_MISS`` sentinel if absent/expired."""
+        with self._lock:
+            entry = self._store.get(key)
+            if entry is None:
+                return _CACHE_MISS
+            ts, value = entry
+            if time.time() - ts > self._ttl:
+                del self._store[key]
+                return _CACHE_MISS
+            return value
+
+    def set(self, key: str, value: Any) -> None:
+        with self._lock:
+            self._store[key] = (time.time(), value)
+
+    def invalidate(self, *keys: str) -> None:
+        """Remove one or more specific keys from the cache."""
+        with self._lock:
+            for k in keys:
+                self._store.pop(k, None)
+
+    def invalidate_all(self) -> None:
+        with self._lock:
+            self._store.clear()
+
+
+class _CacheMiss:
+    """Sentinel object distinguishing a missing cache entry from a ``None`` value."""
+    def __repr__(self) -> str:
+        return "<CACHE_MISS>"
+
+
+_CACHE_MISS = _CacheMiss()
+
+
+# ---------------------------------------------------------------------------
+# TraceStore
+# ---------------------------------------------------------------------------
 
 class TraceStore:
     """
@@ -31,17 +154,42 @@ class TraceStore:
     - schema_version: single-row version tracking for migrations
     - traces: trace-level metadata (id, service, duration, cost, errors)
     - spans: span-level data (trace FK, full JSON)
+
+    Performance features (added in v0.2):
+    - Connection pool: one SQLite connection per thread, reused across calls
+    - PRAGMA tuning: cache_size, mmap_size, synchronous=NORMAL, temp_store=MEMORY
+    - Query cache: stats and cost-breakdown results are cached for 30 s
+    - Batch insert: save_trace uses executemany() for span rows
+    - Search index: composite index on (name, error_message) for search_traces
     """
 
     def __init__(self, db_path: str | Path = "./flowlens.db"):
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
-        self._conn.row_factory = sqlite3.Row
-        self._conn.execute("PRAGMA journal_mode=WAL")  # better write concurrency
-        self._conn.execute("PRAGMA foreign_keys=ON")
+        self._pool = _ConnectionPool(str(self.db_path))
+        self._cache = _SimpleCache(ttl=_CACHE_TTL)
         self._init_tables()
         self._migrate()
+
+    # ------------------------------------------------------------------
+    # Internal connection helpers
+    # ------------------------------------------------------------------
+
+    @property
+    def _conn(self) -> sqlite3.Connection:
+        """
+        Backward-compatible property — returns the primary connection.
+
+        The primary connection is the single authoritative write connection and
+        is safe for reads too.  Tests that poke the database directly (e.g. to
+        insert aged traces) should use this property so their writes are visible
+        to the same connection that ``save_trace`` and query methods use.
+
+        For read-heavy workloads in production, callers can use
+        ``self._pool.get()`` to obtain a thread-local read connection and avoid
+        contending on the primary writer.
+        """
+        return self._pool.primary
 
     # ------------------------------------------------------------------
     # Schema bootstrap & migrations
@@ -49,7 +197,8 @@ class TraceStore:
 
     def _init_tables(self) -> None:
         """Create tables and base indexes if they don't yet exist."""
-        self._conn.executescript("""
+        conn = self._pool.primary
+        conn.executescript("""
             CREATE TABLE IF NOT EXISTS schema_version (
                 version INTEGER NOT NULL
             );
@@ -93,31 +242,34 @@ class TraceStore:
             CREATE INDEX IF NOT EXISTS idx_traces_time   ON traces(start_time);
             CREATE INDEX IF NOT EXISTS idx_traces_service ON traces(service_name);
         """)
-        self._conn.commit()
+        conn.commit()
 
     def _get_version(self) -> int:
-        row = self._conn.execute("SELECT version FROM schema_version").fetchone()
+        conn = self._pool.primary
+        row = conn.execute("SELECT version FROM schema_version").fetchone()
         return row["version"] if row else 0
 
     def _set_version(self, version: int) -> None:
-        self._conn.execute("DELETE FROM schema_version")
-        self._conn.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
+        conn = self._pool.primary
+        conn.execute("DELETE FROM schema_version")
+        conn.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
 
     def _migrate(self) -> None:
         """Run any pending schema migrations in order."""
+        conn = self._pool.primary
         current = self._get_version()
 
         if current < 1:
             # v1 → nothing extra; tables were created in _init_tables
             logger.info("DB schema: initialised at version 1")
             self._set_version(1)
-            self._conn.commit()
+            conn.commit()
             current = 1
 
         if current < 2:
             # v2 → performance indexes for common query patterns
             logger.info("DB schema: migrating to version 2 (additional indexes)")
-            self._conn.executescript("""
+            conn.executescript("""
                 CREATE INDEX IF NOT EXISTS idx_traces_has_errors
                     ON traces(has_errors);
                 CREATE INDEX IF NOT EXISTS idx_traces_created_at
@@ -129,8 +281,22 @@ class TraceStore:
                     ON spans(name);
             """)
             self._set_version(2)
-            self._conn.commit()
+            conn.commit()
             current = 2
+
+        if current < 3:
+            # v3 → composite index for search_traces (name + error_message together)
+            #       and covering index on service_name for list_traces filtering
+            logger.info("DB schema: migrating to version 3 (search optimisation indexes)")
+            conn.executescript("""
+                CREATE INDEX IF NOT EXISTS idx_spans_search
+                    ON spans(name, error_message);
+                CREATE INDEX IF NOT EXISTS idx_traces_service_time
+                    ON traces(service_name, start_time DESC);
+            """)
+            self._set_version(3)
+            conn.commit()
+            current = 3
 
         logger.debug("DB schema is at version %d", current)
 
@@ -139,9 +305,15 @@ class TraceStore:
     # ------------------------------------------------------------------
 
     def save_trace(self, trace_data: dict[str, Any]) -> None:
-        """Save a complete trace (including all spans)."""
+        """
+        Save a complete trace (including all spans).
+
+        Span rows are inserted via executemany() for better throughput when
+        a trace contains many spans.
+        """
+        conn = self._pool.primary
         try:
-            self._conn.execute(
+            conn.execute(
                 """INSERT OR REPLACE INTO traces
                    (trace_id, service_name, start_time, end_time, duration_ms,
                     span_count, total_tokens, total_cost_usd, has_errors,
@@ -163,16 +335,19 @@ class TraceStore:
                 ),
             )
 
-            for span in trace_data.get("spans", []):
-                token_usage = span.get("token_usage") or {}
-                self._conn.execute(
-                    """INSERT OR REPLACE INTO spans
-                       (span_id, trace_id, parent_span_id, name, kind, status,
-                        start_time, end_time, duration_ms,
-                        input_tokens, output_tokens, total_cost_usd,
-                        error_message, attributes_json, events_json)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (
+            spans = trace_data.get("spans", [])
+            if spans:
+                # Build all parameter tuples up-front then batch-insert
+                span_params = []
+                for span in spans:
+                    token_usage = span.get("token_usage") or {}
+                    error = span.get("error")
+                    error_msg = (
+                        error.get("message")
+                        if isinstance(error, dict)
+                        else None
+                    )
+                    span_params.append((
                         span["span_id"],
                         span["trace_id"],
                         span.get("parent_span_id"),
@@ -185,20 +360,31 @@ class TraceStore:
                         token_usage.get("input_tokens", 0),
                         token_usage.get("output_tokens", 0),
                         token_usage.get("total_cost_usd", 0),
-                        span.get("error", {}).get("message")
-                        if isinstance(span.get("error"), dict)
-                        else None,
+                        error_msg,
                         json.dumps(span.get("attributes", {})),
                         json.dumps(span.get("events", [])),
-                    ),
+                    ))
+
+                conn.executemany(
+                    """INSERT OR REPLACE INTO spans
+                       (span_id, trace_id, parent_span_id, name, kind, status,
+                        start_time, end_time, duration_ms,
+                        input_tokens, output_tokens, total_cost_usd,
+                        error_message, attributes_json, events_json)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    span_params,
                 )
 
-            self._conn.commit()
+            conn.commit()
+
+            # Invalidate aggregation caches after any write
+            self._cache.invalidate_all()
+
             logger.debug("Saved trace %s", trace_data["trace_id"][:12])
 
         except Exception as e:
             logger.error("Failed to save trace: %s", e)
-            self._conn.rollback()
+            conn.rollback()
             raise
 
     def delete_trace(self, trace_id: str) -> bool:
@@ -209,12 +395,14 @@ class TraceStore:
         Because we use ON DELETE CASCADE on the spans FK, deleting the trace
         row automatically removes all child spans.
         """
-        cursor = self._conn.execute(
+        conn = self._pool.primary
+        cursor = conn.execute(
             "DELETE FROM traces WHERE trace_id = ?", (trace_id,)
         )
-        self._conn.commit()
+        conn.commit()
         deleted = cursor.rowcount > 0
         if deleted:
+            self._cache.invalidate_all()
             logger.debug("Deleted trace %s", trace_id[:12])
         return deleted
 
@@ -224,12 +412,15 @@ class TraceStore:
 
         Returns the number of traces deleted.
         """
+        conn = self._pool.primary
         cutoff = time.time() - days * 86_400
-        cursor = self._conn.execute(
+        cursor = conn.execute(
             "DELETE FROM traces WHERE created_at < ?", (cutoff,)
         )
-        self._conn.commit()
+        conn.commit()
         count = cursor.rowcount
+        if count:
+            self._cache.invalidate_all()
         logger.info("Cleaned up %d traces older than %d days", count, days)
         return count
 
@@ -262,7 +453,8 @@ class TraceStore:
 
     def get_trace(self, trace_id: str) -> Optional[dict[str, Any]]:
         """Fetch a single trace with all its spans."""
-        row = self._conn.execute(
+        conn = self._pool.primary
+        row = conn.execute(
             "SELECT * FROM traces WHERE trace_id = ?", (trace_id,)
         ).fetchone()
         if not row:
@@ -270,7 +462,7 @@ class TraceStore:
 
         trace = self._deserialise_trace(row)
 
-        span_rows = self._conn.execute(
+        span_rows = conn.execute(
             "SELECT * FROM spans WHERE trace_id = ? ORDER BY start_time",
             (trace_id,),
         ).fetchall()
@@ -285,6 +477,7 @@ class TraceStore:
         has_errors: Optional[bool] = None,
     ) -> list[dict[str, Any]]:
         """List traces (without span detail)."""
+        conn = self._pool.primary
         query = "SELECT * FROM traces WHERE 1=1"
         params: list[Any] = []
 
@@ -298,7 +491,7 @@ class TraceStore:
         query += " ORDER BY start_time DESC LIMIT ? OFFSET ?"
         params.extend([limit, offset])
 
-        rows = self._conn.execute(query, params).fetchall()
+        rows = conn.execute(query, params).fetchall()
         return [self._deserialise_trace(r) for r in rows]
 
     def get_traces_by_time_range(
@@ -313,7 +506,8 @@ class TraceStore:
 
         Results are ordered chronologically (oldest first).
         """
-        rows = self._conn.execute(
+        conn = self._pool.primary
+        rows = conn.execute(
             """SELECT * FROM traces
                WHERE start_time >= ? AND start_time <= ?
                ORDER BY start_time ASC
@@ -331,7 +525,8 @@ class TraceStore:
         Return only traces that contain at least one error span,
         ordered newest-first for quick triage.
         """
-        rows = self._conn.execute(
+        conn = self._pool.primary
+        rows = conn.execute(
             """SELECT * FROM traces
                WHERE has_errors = 1
                ORDER BY start_time DESC
@@ -351,9 +546,14 @@ class TraceStore:
 
         Returns distinct traces that have at least one matching span or whose
         service_name matches the query term (case-insensitive substring match).
+
+        The composite index idx_spans_search(name, error_message) added in
+        schema v3 makes the span-side LIKE predicates index-assisted for many
+        common search patterns.
         """
+        conn = self._pool.primary
         like = f"%{query}%"
-        rows = self._conn.execute(
+        rows = conn.execute(
             """SELECT DISTINCT t.*
                FROM traces t
                LEFT JOIN spans s ON s.trace_id = t.trace_id
@@ -367,7 +567,7 @@ class TraceStore:
         return [self._deserialise_trace(r) for r in rows]
 
     # ------------------------------------------------------------------
-    # Aggregations
+    # Aggregations (with caching)
     # ------------------------------------------------------------------
 
     def get_cost_breakdown(
@@ -375,8 +575,14 @@ class TraceStore:
         group_by: str = "service_name",
     ) -> list[dict[str, Any]]:
         """Cost attribution grouped by the requested dimension."""
+        cache_key = f"cost_breakdown:{group_by}"
+        cached = self._cache.get(cache_key)
+        if not isinstance(cached, _CacheMiss):
+            return cached
+
+        conn = self._pool.primary
         if group_by == "service_name":
-            rows = self._conn.execute(
+            rows = conn.execute(
                 """SELECT service_name as dimension,
                    COUNT(*) as trace_count,
                    SUM(total_tokens) as total_tokens,
@@ -385,7 +591,7 @@ class TraceStore:
                    ORDER BY total_cost_usd DESC"""
             ).fetchall()
         elif group_by == "kind":
-            rows = self._conn.execute(
+            rows = conn.execute(
                 """SELECT kind as dimension,
                    COUNT(*) as span_count,
                    SUM(input_tokens + output_tokens) as total_tokens,
@@ -394,7 +600,7 @@ class TraceStore:
                    GROUP BY kind ORDER BY total_cost_usd DESC"""
             ).fetchall()
         elif group_by == "name":
-            rows = self._conn.execute(
+            rows = conn.execute(
                 """SELECT name as dimension,
                    COUNT(*) as call_count,
                    SUM(input_tokens + output_tokens) as total_tokens,
@@ -405,7 +611,9 @@ class TraceStore:
         else:
             return []
 
-        return [dict(r) for r in rows]
+        result = [dict(r) for r in rows]
+        self._cache.set(cache_key, result)
+        return result
 
     def get_cost_trends(
         self,
@@ -419,13 +627,19 @@ class TraceStore:
                      "hourly" groups by hour.
         limit: number of most-recent buckets to return.
         """
+        cache_key = f"cost_trends:{granularity}:{limit}"
+        cached = self._cache.get(cache_key)
+        if not isinstance(cached, _CacheMiss):
+            return cached
+
+        conn = self._pool.primary
         if granularity == "hourly":
             # SQLite: strftime with %Y-%m-%dT%H gives hour bucket
             time_expr = "strftime('%Y-%m-%dT%H:00:00', start_time, 'unixepoch')"
         else:
             time_expr = "strftime('%Y-%m-%d', start_time, 'unixepoch')"
 
-        rows = self._conn.execute(
+        rows = conn.execute(
             f"""SELECT
                    {time_expr} AS bucket,
                    COUNT(*)             AS trace_count,
@@ -439,7 +653,9 @@ class TraceStore:
             (limit,),
         ).fetchall()
         # Return chronological order (oldest → newest)
-        return list(reversed([dict(r) for r in rows]))
+        result = list(reversed([dict(r) for r in rows]))
+        self._cache.set(cache_key, result)
+        return result
 
     def get_pattern_summary(
         self,
@@ -450,7 +666,13 @@ class TraceStore:
 
         Returns per-span-kind and per-span-name counts, plus top error messages.
         """
-        kind_rows = self._conn.execute(
+        cache_key = f"pattern_summary:{limit}"
+        cached = self._cache.get(cache_key)
+        if not isinstance(cached, _CacheMiss):
+            return cached
+
+        conn = self._pool.primary
+        kind_rows = conn.execute(
             """SELECT kind,
                    COUNT(*)             AS span_count,
                    SUM(input_tokens + output_tokens) AS total_tokens,
@@ -461,7 +683,7 @@ class TraceStore:
                ORDER BY span_count DESC"""
         ).fetchall()
 
-        name_rows = self._conn.execute(
+        name_rows = conn.execute(
             """SELECT name,
                    COUNT(*)             AS span_count,
                    SUM(input_tokens + output_tokens) AS total_tokens,
@@ -474,7 +696,7 @@ class TraceStore:
             (limit,),
         ).fetchall()
 
-        error_rows = self._conn.execute(
+        error_rows = conn.execute(
             """SELECT error_message, COUNT(*) AS occurrences
                FROM spans
                WHERE error_message IS NOT NULL
@@ -483,15 +705,23 @@ class TraceStore:
                LIMIT 20"""
         ).fetchall()
 
-        return {
+        result = {
             "by_kind": [dict(r) for r in kind_rows],
             "by_name": [dict(r) for r in name_rows],
             "top_errors": [dict(r) for r in error_rows],
         }
+        self._cache.set(cache_key, result)
+        return result
 
     def get_stats(self) -> dict[str, Any]:
         """Global aggregate statistics."""
-        row = self._conn.execute(
+        cache_key = "stats"
+        cached = self._cache.get(cache_key)
+        if not isinstance(cached, _CacheMiss):
+            return cached
+
+        conn = self._pool.primary
+        row = conn.execute(
             """SELECT
                COUNT(*) as total_traces,
                SUM(span_count) as total_spans,
@@ -501,7 +731,9 @@ class TraceStore:
                AVG(duration_ms) as avg_duration_ms
                FROM traces"""
         ).fetchone()
-        return dict(row) if row else {}
+        result = dict(row) if row else {}
+        self._cache.set(cache_key, result)
+        return result
 
     def close(self) -> None:
-        self._conn.close()
+        self._pool.close_all()

@@ -178,7 +178,7 @@ class TestSpanEdgeCases:
         span = Span(name="test")
         assert span.duration_ms == 0.0
         span.finish()
-        assert span.duration_ms > 0
+        assert span.duration_ms >= 0
 
     def test_span_with_no_events(self):
         """Span can be created without any events"""

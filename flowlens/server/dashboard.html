@@ -4,8 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FlowLens — Agent Observability Dashboard</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%236366f1'/%3E%3Cstop offset='100%25' stop-color='%238b5cf6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='6' fill='url(%23g)'/%3E%3Cpath d='M8 22V14a2 2 0 014 0v8m4 0V10a2 2 0 014 0v12' stroke='white' stroke-width='2.5' stroke-linecap='round' fill='none'/%3E%3C/svg%3E">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dagre@0.8.5/dist/dagre.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -36,8 +39,8 @@
     @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
     .pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
-    .span-bar { transition: all 0.2s ease; }
-    .span-bar:hover { filter: brightness(1.3); transform: scaleY(1.15); }
+    .span-bar { transition: all 0.2s ease; cursor: pointer; }
+    .span-bar:hover { filter: brightness(1.3); transform: scaleY(1.2); }
     .tab-active { border-color: #6366f1; color: #e0e7ff; background: rgba(99, 102, 241, 0.08); }
     .tab-inactive { border-color: transparent; color: #64748b; }
     .tab-inactive:hover { color: #94a3b8; border-color: rgba(99, 102, 241, 0.3); }
@@ -45,9 +48,85 @@
     .severity-warning { background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.3); color: #fcd34d; }
     .severity-info { background: rgba(59, 130, 246, 0.12); border-color: rgba(59, 130, 246, 0.3); color: #93c5fd; }
     #cy-container { width: 100%; height: 500px; }
+
+    /* View transitions */
+    .view-panel { transition: opacity 0.25s ease, transform 0.25s ease; }
+    .view-enter { animation: viewEnter 0.3s ease-out forwards; }
+    @keyframes viewEnter { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Skeleton loading animation */
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+    .skeleton {
+      background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.07) 50%, rgba(255,255,255,0.03) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s ease-in-out infinite;
+      border-radius: 6px;
+    }
+    .skeleton-text { height: 14px; margin-bottom: 8px; border-radius: 4px; }
+    .skeleton-bar { height: 24px; border-radius: 4px; }
+
+    /* New trace highlight animation */
+    @keyframes newTraceHighlight {
+      0% { background-color: rgba(99, 102, 241, 0.15); }
+      100% { background-color: transparent; }
+    }
+    .new-trace-highlight { animation: newTraceHighlight 2s ease-out; }
+
+    /* Toast notification */
+    @keyframes toastSlideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    @keyframes toastSlideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+    .toast-enter { animation: toastSlideIn 0.3s ease-out; }
+    .toast-exit { animation: toastSlideOut 0.3s ease-in forwards; }
+
+    /* Waterfall tooltip */
+    .waterfall-tooltip {
+      position: absolute;
+      z-index: 100;
+      background: rgba(15, 18, 32, 0.95);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12px;
+      color: #e2e8f0;
+      pointer-events: none;
+      white-space: nowrap;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+
+    /* DAG edge animation for error paths */
+    @keyframes dashFlow {
+      to { stroke-dashoffset: -20; }
+    }
+
+    /* Focus ring for filter inputs */
+    .filter-input:focus { outline: none; border-color: rgba(99, 102, 241, 0.5); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); }
+
+    /* Trace row keyboard selection */
+    .trace-row-selected { background: rgba(99, 102, 241, 0.08) !important; border-left: 2px solid #6366f1; }
+
+    /* Mobile responsiveness */
+    @media (max-width: 768px) {
+      .stat-grid { grid-template-columns: 1fr 1fr !important; }
+      .filter-row { flex-direction: column; }
+      .filter-row > * { width: 100% !important; }
+      .trace-row-details { flex-direction: column; gap: 4px !important; }
+      .span-label-col { width: 120px !important; min-width: 120px !important; }
+      #span-detail-panel { width: 100% !important; }
+      .dag-controls { flex-wrap: wrap; }
+    }
+    @media (max-width: 480px) {
+      .stat-grid { grid-template-columns: 1fr !important; }
+    }
   </style>
 </head>
 <body class="dark min-h-screen font-sans text-slate-200 antialiased">
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="fixed top-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none"></div>
 
   <!-- Header -->
   <header class="sticky top-0 z-50 glass border-b border-white/5">
@@ -64,11 +143,16 @@
         </div>
       </div>
       <div class="flex items-center gap-4">
-        <div id="connection-status" class="flex items-center gap-2 text-xs text-slate-500">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 pulse-dot"></span>
-          <span>Connected</span>
+        <div id="ws-status" class="flex items-center gap-2 text-xs text-slate-500" title="WebSocket connection status">
+          <span id="ws-dot" class="w-2 h-2 rounded-full bg-slate-600"></span>
+          <span id="ws-label">Connecting...</span>
         </div>
         <div class="text-xs text-slate-600" id="last-refresh">--</div>
+        <!-- Keyboard shortcut hint -->
+        <div class="hidden sm:flex items-center gap-1 text-[10px] text-slate-600">
+          <kbd class="px-1 py-0.5 rounded bg-surface-100 border border-white/10 font-mono">/</kbd>
+          <span>Search</span>
+        </div>
       </div>
     </div>
   </header>
@@ -87,9 +171,9 @@
   <main class="max-w-[1600px] mx-auto px-6 py-6">
 
     <!-- OVERVIEW VIEW -->
-    <div id="view-overview" class="view-panel fade-in">
+    <div id="view-overview" class="view-panel view-enter">
       <!-- Stats Cards -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 stat-grid">
         <div class="glass rounded-xl p-5 stat-glow">
           <div class="flex items-center justify-between mb-3">
             <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Traces</span>
@@ -97,8 +181,12 @@
               <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7"/></svg>
             </div>
           </div>
-          <div id="stat-traces" class="text-2xl font-bold text-white">--</div>
-          <div id="stat-spans" class="text-xs text-slate-500 mt-1">-- spans</div>
+          <div id="stat-traces" class="text-2xl font-bold text-white">
+            <div class="skeleton skeleton-text w-20"></div>
+          </div>
+          <div id="stat-spans" class="text-xs text-slate-500 mt-1">
+            <div class="skeleton skeleton-text w-16 h-3"></div>
+          </div>
         </div>
         <div class="glass rounded-xl p-5 stat-glow">
           <div class="flex items-center justify-between mb-3">
@@ -107,8 +195,12 @@
               <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
             </div>
           </div>
-          <div id="stat-error-rate" class="text-2xl font-bold text-white">--</div>
-          <div id="stat-error-count" class="text-xs text-slate-500 mt-1">-- error traces</div>
+          <div id="stat-error-rate" class="text-2xl font-bold text-white">
+            <div class="skeleton skeleton-text w-16"></div>
+          </div>
+          <div id="stat-error-count" class="text-xs text-slate-500 mt-1">
+            <div class="skeleton skeleton-text w-24 h-3"></div>
+          </div>
         </div>
         <div class="glass rounded-xl p-5 stat-glow">
           <div class="flex items-center justify-between mb-3">
@@ -117,7 +209,9 @@
               <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             </div>
           </div>
-          <div id="stat-latency" class="text-2xl font-bold text-white">--</div>
+          <div id="stat-latency" class="text-2xl font-bold text-white">
+            <div class="skeleton skeleton-text w-14"></div>
+          </div>
           <div class="text-xs text-slate-500 mt-1">milliseconds</div>
         </div>
         <div class="glass rounded-xl p-5 stat-glow">
@@ -127,8 +221,12 @@
               <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             </div>
           </div>
-          <div id="stat-cost" class="text-2xl font-bold text-white">--</div>
-          <div id="stat-tokens" class="text-xs text-slate-500 mt-1">-- tokens</div>
+          <div id="stat-cost" class="text-2xl font-bold text-white">
+            <div class="skeleton skeleton-text w-20"></div>
+          </div>
+          <div id="stat-tokens" class="text-xs text-slate-500 mt-1">
+            <div class="skeleton skeleton-text w-20 h-3"></div>
+          </div>
         </div>
       </div>
 
@@ -139,27 +237,104 @@
           <button onclick="switchView('traces')" class="text-xs text-indigo-400 hover:text-indigo-300 transition">View all</button>
         </div>
         <div id="recent-traces-list" class="divide-y divide-white/5">
-          <div class="p-8 text-center text-slate-600 text-sm">Loading...</div>
+          <!-- Skeleton loading state -->
+          <div class="p-4 space-y-3">
+            <div class="flex items-center gap-4"><div class="skeleton w-2 h-2 rounded-full"></div><div class="skeleton skeleton-text flex-1"></div><div class="skeleton skeleton-text w-16"></div></div>
+            <div class="flex items-center gap-4"><div class="skeleton w-2 h-2 rounded-full"></div><div class="skeleton skeleton-text flex-1"></div><div class="skeleton skeleton-text w-16"></div></div>
+            <div class="flex items-center gap-4"><div class="skeleton w-2 h-2 rounded-full"></div><div class="skeleton skeleton-text flex-1"></div><div class="skeleton skeleton-text w-16"></div></div>
+          </div>
         </div>
       </div>
     </div>
 
     <!-- TRACES VIEW -->
-    <div id="view-traces" class="view-panel hidden fade-in">
+    <div id="view-traces" class="view-panel hidden">
       <!-- Filters -->
-      <div class="flex flex-wrap gap-3 mb-4">
-        <input id="filter-service" type="text" placeholder="Filter by service..."
-          class="bg-surface-100 border border-white/10 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 w-64 transition" />
+      <div class="flex flex-wrap gap-3 mb-4 filter-row">
+        <!-- Search input -->
+        <div class="relative">
+          <input id="filter-service" type="text" placeholder="Search by service..."
+            class="filter-input bg-surface-100 border border-white/10 rounded-lg pl-8 pr-3 py-2 text-sm text-slate-200 placeholder-slate-600 w-64 transition" />
+          <svg class="w-4 h-4 text-slate-600 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        </div>
+
+        <!-- Span kind filter checkboxes -->
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-xs text-slate-500 mr-1">Kind:</span>
+          <label class="flex items-center gap-1 text-xs text-purple-300 cursor-pointer select-none hover:text-purple-200">
+            <input type="checkbox" class="filter-kind rounded bg-surface-100 border-white/10 text-purple-500 focus:ring-purple-500/30" value="llm" /> LLM
+          </label>
+          <label class="flex items-center gap-1 text-xs text-blue-300 cursor-pointer select-none hover:text-blue-200">
+            <input type="checkbox" class="filter-kind rounded bg-surface-100 border-white/10 text-blue-500 focus:ring-blue-500/30" value="tool" /> Tool
+          </label>
+          <label class="flex items-center gap-1 text-xs text-emerald-300 cursor-pointer select-none hover:text-emerald-200">
+            <input type="checkbox" class="filter-kind rounded bg-surface-100 border-white/10 text-emerald-500 focus:ring-emerald-500/30" value="agent" /> Agent
+          </label>
+          <label class="flex items-center gap-1 text-xs text-amber-300 cursor-pointer select-none hover:text-amber-200">
+            <input type="checkbox" class="filter-kind rounded bg-surface-100 border-white/10 text-amber-500 focus:ring-amber-500/30" value="chain" /> Chain
+          </label>
+          <label class="flex items-center gap-1 text-xs text-cyan-300 cursor-pointer select-none hover:text-cyan-200">
+            <input type="checkbox" class="filter-kind rounded bg-surface-100 border-white/10 text-cyan-500 focus:ring-cyan-500/30" value="retrieval" /> Retrieval
+          </label>
+        </div>
+
+        <!-- Errors only -->
         <label class="flex items-center gap-2 text-sm text-slate-400 cursor-pointer select-none">
-          <input id="filter-errors" type="checkbox" class="rounded bg-surface-100 border-white/10 text-indigo-500 focus:ring-indigo-500/30" />
-          Errors only
+          <input id="filter-errors" type="checkbox" class="rounded bg-surface-100 border-white/10 text-red-500 focus:ring-red-500/30" />
+          <span class="text-xs">Errors only</span>
         </label>
-        <button onclick="loadTraces()" class="ml-auto px-3 py-2 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition">Refresh</button>
       </div>
+
+      <!-- Advanced Filters Row -->
+      <div class="flex flex-wrap gap-3 mb-4 filter-row">
+        <!-- Date range filter -->
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-slate-500">From:</span>
+          <input id="filter-date-from" type="date"
+            class="filter-input bg-surface-100 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-300 w-36 transition" />
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-slate-500">To:</span>
+          <input id="filter-date-to" type="date"
+            class="filter-input bg-surface-100 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-300 w-36 transition" />
+        </div>
+
+        <!-- Token count filter -->
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-slate-500">Tokens:</span>
+          <input id="filter-tokens-min" type="number" placeholder="Min" min="0"
+            class="filter-input bg-surface-100 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-300 w-20 transition" />
+          <span class="text-xs text-slate-600">-</span>
+          <input id="filter-tokens-max" type="number" placeholder="Max" min="0"
+            class="filter-input bg-surface-100 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-300 w-20 transition" />
+        </div>
+
+        <!-- Cost filter -->
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-slate-500">Cost $:</span>
+          <input id="filter-cost-min" type="number" step="0.0001" placeholder="Min" min="0"
+            class="filter-input bg-surface-100 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-300 w-24 transition" />
+          <span class="text-xs text-slate-600">-</span>
+          <input id="filter-cost-max" type="number" step="0.0001" placeholder="Max" min="0"
+            class="filter-input bg-surface-100 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-300 w-24 transition" />
+        </div>
+
+        <button onclick="traceOffset = 0; loadTraces();" class="px-3 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition">Apply</button>
+        <button onclick="clearFilters()" class="px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-slate-200 bg-surface-100 rounded-lg border border-white/10 hover:border-white/20 transition">Clear</button>
+        <button onclick="loadTraces()" class="ml-auto px-3 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition">Refresh</button>
+      </div>
+
       <!-- Trace List -->
       <div class="glass rounded-xl overflow-hidden">
         <div id="traces-list" class="divide-y divide-white/5">
-          <div class="p-8 text-center text-slate-600 text-sm">Loading...</div>
+          <!-- Skeleton loading -->
+          <div class="p-4 space-y-3">
+            <div class="flex items-center gap-4"><div class="skeleton w-2 h-2 rounded-full"></div><div class="skeleton skeleton-text flex-1"></div><div class="skeleton skeleton-text w-20"></div></div>
+            <div class="flex items-center gap-4"><div class="skeleton w-2 h-2 rounded-full"></div><div class="skeleton skeleton-text flex-1"></div><div class="skeleton skeleton-text w-20"></div></div>
+            <div class="flex items-center gap-4"><div class="skeleton w-2 h-2 rounded-full"></div><div class="skeleton skeleton-text flex-1"></div><div class="skeleton skeleton-text w-20"></div></div>
+            <div class="flex items-center gap-4"><div class="skeleton w-2 h-2 rounded-full"></div><div class="skeleton skeleton-text flex-1"></div><div class="skeleton skeleton-text w-20"></div></div>
+            <div class="flex items-center gap-4"><div class="skeleton w-2 h-2 rounded-full"></div><div class="skeleton skeleton-text flex-1"></div><div class="skeleton skeleton-text w-20"></div></div>
+          </div>
         </div>
       </div>
       <!-- Pagination -->
@@ -170,36 +345,78 @@
       </div>
     </div>
 
-    <!-- TRACE DETAIL VIEW (shown when clicking a trace) -->
-    <div id="view-trace-detail" class="view-panel hidden fade-in">
+    <!-- TRACE DETAIL VIEW -->
+    <div id="view-trace-detail" class="view-panel hidden">
       <button onclick="backToTraces()" class="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-200 mb-4 transition">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
         Back to traces
+        <kbd class="ml-2 px-1 py-0.5 text-[10px] rounded bg-surface-100 border border-white/10 font-mono text-slate-600">Esc</kbd>
       </button>
       <!-- Trace Header -->
       <div class="glass rounded-xl p-5 mb-4">
-        <div class="flex items-start justify-between">
-          <div>
-            <h2 id="detail-trace-id" class="text-lg font-semibold text-white font-mono">--</h2>
+        <div class="flex flex-col sm:flex-row items-start justify-between gap-4">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <h2 id="detail-trace-id" class="text-lg font-semibold text-white font-mono truncate">--</h2>
+              <!-- Copy trace ID button -->
+              <button onclick="copyTraceId()" title="Copy trace ID" class="p-1 rounded hover:bg-white/5 text-slate-500 hover:text-slate-300 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+              </button>
+            </div>
             <div id="detail-trace-meta" class="flex flex-wrap gap-4 mt-2 text-xs text-slate-400"></div>
           </div>
-          <div class="flex gap-2">
-            <button onclick="showDetailTab('timeline')" data-dtab="timeline" class="dtab-btn tab-active px-3 py-1.5 text-xs font-medium border-b-2 rounded-t transition">Timeline</button>
-            <button onclick="showDetailTab('dag')" data-dtab="dag" class="dtab-btn tab-inactive px-3 py-1.5 text-xs font-medium border-b-2 rounded-t transition">Causal DAG</button>
+          <div class="flex gap-2 flex-wrap">
+            <!-- Export buttons -->
+            <button onclick="exportTraceJSON()" title="Export trace as JSON" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-400 bg-surface-100 rounded-lg border border-white/10 hover:border-white/20 hover:text-slate-200 transition">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              JSON
+            </button>
+            <button id="btn-export-dag-png" onclick="exportDAGPng()" title="Export DAG as PNG" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-400 bg-surface-100 rounded-lg border border-white/10 hover:border-white/20 hover:text-slate-200 transition hidden">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+              DAG PNG
+            </button>
+            <!-- Tabs -->
+            <div class="flex gap-1 ml-2">
+              <button onclick="showDetailTab('timeline')" data-dtab="timeline" class="dtab-btn tab-active px-3 py-1.5 text-xs font-medium border-b-2 rounded-t transition">Timeline</button>
+              <button onclick="showDetailTab('dag')" data-dtab="dag" class="dtab-btn tab-inactive px-3 py-1.5 text-xs font-medium border-b-2 rounded-t transition">Causal DAG</button>
+            </div>
           </div>
         </div>
       </div>
       <!-- Timeline Panel -->
       <div id="detail-timeline" class="detail-panel">
         <div class="glass rounded-xl overflow-hidden">
-          <div id="timeline-container" class="p-4">
+          <div id="timeline-container" class="p-4 relative">
             <div class="text-center text-slate-600 text-sm py-8">Loading spans...</div>
           </div>
         </div>
       </div>
       <!-- DAG Panel -->
       <div id="detail-dag" class="detail-panel hidden">
-        <div class="glass rounded-xl overflow-hidden">
+        <div class="glass rounded-xl overflow-hidden relative">
+          <!-- DAG Zoom Controls -->
+          <div class="dag-controls absolute top-3 right-3 z-10 flex gap-1">
+            <button onclick="dagZoom('in')" title="Zoom in" class="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-200/80 backdrop-blur border border-white/10 text-slate-400 hover:text-white hover:bg-surface-100 transition text-lg font-bold">+</button>
+            <button onclick="dagZoom('out')" title="Zoom out" class="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-200/80 backdrop-blur border border-white/10 text-slate-400 hover:text-white hover:bg-surface-100 transition text-lg font-bold">-</button>
+            <button onclick="dagZoom('fit')" title="Fit to view" class="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-200/80 backdrop-blur border border-white/10 text-slate-400 hover:text-white hover:bg-surface-100 transition">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+            </button>
+          </div>
+          <!-- DAG Legend -->
+          <div class="absolute bottom-3 left-3 z-10 glass rounded-lg p-2.5 text-[10px]">
+            <div class="font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">Legend</div>
+            <div class="space-y-1">
+              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full" style="background:#8b5cf6"></span><span class="text-slate-400">LLM</span></div>
+              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full" style="background:#3b82f6"></span><span class="text-slate-400">Tool</span></div>
+              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full" style="background:#10b981"></span><span class="text-slate-400">Agent</span></div>
+              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full" style="background:#f59e0b"></span><span class="text-slate-400">Chain</span></div>
+              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full" style="background:#06b6d4"></span><span class="text-slate-400">Retrieval</span></div>
+              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm border-2 border-red-500" style="background:#7f1d1d"></span><span class="text-slate-400">Root Cause</span></div>
+              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm border-2 border-amber-500" style="background:#78350f"></span><span class="text-slate-400">Cascaded Error</span></div>
+              <div class="flex items-center gap-1.5"><span class="w-8 h-0 border-t-2 border-red-500 border-solid"></span><span class="text-slate-400">caused_by</span></div>
+              <div class="flex items-center gap-1.5"><span class="w-8 h-0 border-t-2 border-amber-500 border-dashed"></span><span class="text-slate-400">preceded_by</span></div>
+            </div>
+          </div>
           <div id="cy-container"></div>
         </div>
         <div id="dag-patterns" class="mt-4"></div>
@@ -209,7 +426,7 @@
         <div class="p-5">
           <div class="flex items-center justify-between mb-4">
             <h3 class="text-sm font-semibold text-white">Span Detail</h3>
-            <button onclick="closeSpanDetail()" class="text-slate-500 hover:text-slate-300 transition">
+            <button onclick="closeSpanDetail()" class="text-slate-500 hover:text-slate-300 transition" title="Close (Esc)">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
           </div>
@@ -219,7 +436,7 @@
     </div>
 
     <!-- COST VIEW -->
-    <div id="view-cost" class="view-panel hidden fade-in">
+    <div id="view-cost" class="view-panel hidden">
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div class="glass rounded-xl p-5">
           <h3 class="text-sm font-semibold text-white mb-4">Cost by Service</h3>
@@ -237,7 +454,7 @@
     </div>
 
     <!-- PATTERNS VIEW -->
-    <div id="view-patterns" class="view-panel hidden fade-in">
+    <div id="view-patterns" class="view-panel hidden">
       <div id="patterns-list">
         <div class="p-8 text-center text-slate-600 text-sm">Select a trace to view detected patterns, or patterns will appear here from recent traces.</div>
       </div>
@@ -246,7 +463,9 @@
   </main>
 
 <script>
-// ========== State ==========
+// =========================================================================
+// State
+// =========================================================================
 const API_BASE = window.location.origin;
 let currentView = 'overview';
 let traceOffset = 0;
@@ -257,8 +476,14 @@ let cyInstance = null;
 let autoRefreshTimer = null;
 let chartInstances = {};
 let allPatterns = [];
+let selectedTraceIndex = -1; // For keyboard navigation
+let wsConnection = null;
+let wsReconnectTimer = null;
+let wsReconnectAttempts = 0;
 
-// ========== API Helpers ==========
+// =========================================================================
+// API Helpers
+// =========================================================================
 async function apiFetch(path, opts = {}) {
   try {
     const res = await fetch(`${API_BASE}${path}`, opts);
@@ -278,19 +503,199 @@ function updateRefreshTime() {
   el.textContent = `Updated ${new Date().toLocaleTimeString()}`;
 }
 
-// ========== View Switching ==========
+// =========================================================================
+// Utilities
+// =========================================================================
+function escHtml(str) {
+  if (!str) return '';
+  const div = document.createElement('div');
+  div.textContent = String(str);
+  return div.innerHTML;
+}
+
+function formatDuration(ms) {
+  if (ms < 1) return '<1ms';
+  if (ms < 1000) return ms.toFixed(0) + 'ms';
+  return (ms / 1000).toFixed(2) + 's';
+}
+
+// =========================================================================
+// Toast Notifications
+// =========================================================================
+function showToast(message, type = 'info', duration = 4000) {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  const colors = {
+    info: 'border-indigo-500/40 bg-indigo-500/10 text-indigo-200',
+    error: 'border-red-500/40 bg-red-500/10 text-red-200',
+    success: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200',
+    warning: 'border-amber-500/40 bg-amber-500/10 text-amber-200',
+  };
+  const icons = {
+    info: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>',
+    error: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>',
+    success: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>',
+    warning: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>',
+  };
+
+  toast.className = `toast-enter pointer-events-auto flex items-center gap-2 px-4 py-3 rounded-xl border backdrop-blur-lg text-sm ${colors[type] || colors.info} shadow-lg max-w-sm`;
+  toast.innerHTML = `
+    <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">${icons[type] || icons.info}</svg>
+    <span class="flex-1">${escHtml(message)}</span>
+  `;
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.classList.remove('toast-enter');
+    toast.classList.add('toast-exit');
+    setTimeout(() => toast.remove(), 300);
+  }, duration);
+}
+
+// =========================================================================
+// WebSocket — Real-time trace stream
+// =========================================================================
+function connectWebSocket() {
+  if (wsConnection && wsConnection.readyState === WebSocket.OPEN) return;
+
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${protocol}//${window.location.host}/ws/traces`;
+
+  try {
+    wsConnection = new WebSocket(wsUrl);
+  } catch (err) {
+    console.warn('WebSocket connection failed:', err);
+    updateWsStatus('error');
+    scheduleWsReconnect();
+    return;
+  }
+
+  wsConnection.onopen = () => {
+    console.log('WebSocket connected');
+    wsReconnectAttempts = 0;
+    updateWsStatus('connected');
+  };
+
+  wsConnection.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      if (msg.event === 'connected') {
+        console.log('WS handshake:', msg.data.message);
+      } else if (msg.event === 'trace_ingested') {
+        handleLiveTrace(msg.data);
+      }
+    } catch (err) {
+      console.warn('WS message parse error:', err);
+    }
+  };
+
+  wsConnection.onclose = () => {
+    console.log('WebSocket disconnected');
+    updateWsStatus('disconnected');
+    scheduleWsReconnect();
+  };
+
+  wsConnection.onerror = (err) => {
+    console.warn('WebSocket error:', err);
+    updateWsStatus('error');
+  };
+}
+
+function scheduleWsReconnect() {
+  if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
+  wsReconnectAttempts++;
+  // Exponential backoff: 1s, 2s, 4s, 8s, ... max 30s
+  const delay = Math.min(1000 * Math.pow(2, wsReconnectAttempts - 1), 30000);
+  console.log(`WS reconnecting in ${delay}ms (attempt ${wsReconnectAttempts})`);
+  wsReconnectTimer = setTimeout(connectWebSocket, delay);
+}
+
+function updateWsStatus(state) {
+  const dot = document.getElementById('ws-dot');
+  const label = document.getElementById('ws-label');
+  if (state === 'connected') {
+    dot.className = 'w-2 h-2 rounded-full bg-emerald-500 pulse-dot';
+    label.textContent = 'Live';
+    label.className = 'text-emerald-400';
+  } else if (state === 'disconnected') {
+    dot.className = 'w-2 h-2 rounded-full bg-amber-500';
+    label.textContent = 'Reconnecting...';
+    label.className = 'text-amber-400';
+  } else {
+    dot.className = 'w-2 h-2 rounded-full bg-red-500';
+    label.textContent = 'Disconnected';
+    label.className = 'text-red-400';
+  }
+}
+
+/** Handle a newly ingested trace received via WebSocket */
+function handleLiveTrace(traceData) {
+  // Show toast for error traces
+  if (traceData.has_errors) {
+    showToast(`Error trace: ${traceData.trace_id.substring(0, 12)}... (${traceData.service_name || 'unknown'})`, 'error', 5000);
+  }
+
+  // If on overview, prepend to recent traces list
+  if (currentView === 'overview') {
+    const container = document.getElementById('recent-traces-list');
+    // Check if it contains the skeleton placeholder
+    const isEmpty = container.querySelector('.skeleton');
+    if (isEmpty) container.innerHTML = '';
+
+    const rowHtml = renderTraceRow(traceData, true);
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = rowHtml;
+    const newRow = tempDiv.firstElementChild;
+    if (newRow) {
+      newRow.classList.add('new-trace-highlight');
+      // Remove existing dividers by wrapping
+      const wrapper = document.createElement('div');
+      wrapper.className = 'border-b border-white/5';
+      wrapper.appendChild(newRow);
+      container.insertBefore(wrapper, container.firstChild);
+
+      // Keep only 8 most recent
+      while (container.children.length > 8) {
+        container.removeChild(container.lastChild);
+      }
+    }
+    // Also refresh stats
+    loadStats();
+  }
+
+  // If on traces list, prepend there too
+  if (currentView === 'traces') {
+    const container = document.getElementById('traces-list');
+    const isEmpty = container.querySelector('.skeleton');
+    if (isEmpty) container.innerHTML = '';
+
+    const rowHtml = renderTraceRow(traceData, false);
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = rowHtml;
+    const newRow = tempDiv.firstElementChild;
+    if (newRow) {
+      newRow.classList.add('new-trace-highlight');
+      container.insertBefore(newRow, container.firstChild);
+    }
+  }
+}
+
+// =========================================================================
+// View Switching (with smooth transitions)
+// =========================================================================
 function switchView(view) {
   currentView = view;
+  selectedTraceIndex = -1;
   document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
   document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('tab-active'); b.classList.add('tab-inactive'); });
 
   const panel = document.getElementById(`view-${view}`);
   if (panel) {
     panel.classList.remove('hidden');
-    // Re-trigger fade-in
-    panel.classList.remove('fade-in');
+    // Trigger smooth enter animation
+    panel.classList.remove('view-enter');
     void panel.offsetWidth;
-    panel.classList.add('fade-in');
+    panel.classList.add('view-enter');
   }
 
   const tabBtn = document.querySelector(`[data-tab="${view}"]`);
@@ -313,6 +718,10 @@ function showDetailTab(tab) {
   const btn = document.querySelector(`[data-dtab="${tab}"]`);
   if (btn) { btn.classList.remove('tab-inactive'); btn.classList.add('tab-active'); }
 
+  // Show/hide DAG PNG export button
+  const dagPngBtn = document.getElementById('btn-export-dag-png');
+  if (dagPngBtn) dagPngBtn.classList.toggle('hidden', tab !== 'dag');
+
   if (tab === 'dag' && currentTraceId) loadDAG(currentTraceId);
 }
 
@@ -326,7 +735,9 @@ function backToTraces() {
   }
 }
 
-// ========== Stats ==========
+// =========================================================================
+// Stats
+// =========================================================================
 async function loadStats() {
   try {
     const stats = await apiFetch('/v1/stats');
@@ -347,11 +758,13 @@ async function loadStats() {
 
     updateRefreshTime();
   } catch (err) {
-    showConnectionError();
+    updateWsStatus('error');
   }
 }
 
-// ========== Traces ==========
+// =========================================================================
+// Trace Row Rendering
+// =========================================================================
 function renderTraceRow(trace, compact = false) {
   const hasErrors = trace.has_errors === true || trace.has_errors === 1;
   const statusDot = hasErrors
@@ -367,17 +780,17 @@ function renderTraceRow(trace, compact = false) {
   const traceIdShort = (trace.trace_id || '').substring(0, 12);
 
   return `
-    <div class="flex items-center gap-4 px-5 py-3.5 hover:bg-white/[0.02] cursor-pointer transition group" onclick="openTrace('${trace.trace_id}')">
+    <div class="trace-row flex items-center gap-4 px-5 py-3.5 hover:bg-white/[0.02] cursor-pointer transition group" data-trace-id="${escHtml(trace.trace_id)}" onclick="openTrace('${escHtml(trace.trace_id)}')">
       ${statusDot}
       <div class="flex-1 min-w-0">
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 flex-wrap">
           <span class="text-sm font-medium text-slate-200 group-hover:text-white transition">${traceIdShort}...</span>
           ${trace.service_name ? `<span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">${escHtml(trace.service_name)}</span>` : ''}
           ${hasErrors ? `<span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-red-500/10 text-red-300 border border-red-500/20">${trace.error_count || 1} error${(trace.error_count || 1) > 1 ? 's' : ''}</span>` : ''}
         </div>
         ${!compact ? `<div class="text-xs text-slate-500 mt-0.5">${timeStr}</div>` : ''}
       </div>
-      <div class="flex items-center gap-6 text-xs text-slate-500">
+      <div class="flex items-center gap-6 text-xs text-slate-500 trace-row-details">
         <div class="text-right">
           <div class="text-slate-400">${duration}ms</div>
           ${!compact ? `<div>${trace.span_count || 0} spans</div>` : ''}
@@ -392,12 +805,30 @@ function renderTraceRow(trace, compact = false) {
   `;
 }
 
+// =========================================================================
+// Empty State
+// =========================================================================
+function renderEmptyState(message, subMessage) {
+  return `
+    <div class="flex flex-col items-center justify-center py-16 px-8">
+      <svg class="w-20 h-20 text-slate-700 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+      </svg>
+      <p class="text-sm text-slate-500 mb-1">${escHtml(message)}</p>
+      <p class="text-xs text-slate-600">${escHtml(subMessage || '')}</p>
+    </div>
+  `;
+}
+
+// =========================================================================
+// Traces — List + Filtering
+// =========================================================================
 async function loadRecentTraces() {
   try {
     const data = await apiFetch('/v1/traces?limit=8');
     const container = document.getElementById('recent-traces-list');
     if (!data.traces || data.traces.length === 0) {
-      container.innerHTML = '<div class="p-8 text-center text-slate-600 text-sm">No traces recorded yet. Send traces via the SDK to get started.</div>';
+      container.innerHTML = renderEmptyState('No traces recorded yet', 'Send traces via the SDK to get started.');
       return;
     }
     container.innerHTML = data.traces.map(t => renderTraceRow(t, true)).join('');
@@ -416,23 +847,94 @@ async function loadTraces() {
 
   try {
     const data = await apiFetch(url);
+    let traces = data.traces || [];
+
+    // Client-side filtering for filters not supported by API
+    traces = applyClientFilters(traces);
+
     const container = document.getElementById('traces-list');
-    if (!data.traces || data.traces.length === 0) {
-      container.innerHTML = '<div class="p-8 text-center text-slate-600 text-sm">No traces found.</div>';
+    if (traces.length === 0) {
+      container.innerHTML = renderEmptyState('No traces found', 'Try adjusting your filters.');
       document.getElementById('btn-prev').disabled = true;
       document.getElementById('btn-next').disabled = true;
       document.getElementById('page-info').textContent = 'No results';
       return;
     }
-    container.innerHTML = data.traces.map(t => renderTraceRow(t)).join('');
+    container.innerHTML = traces.map(t => renderTraceRow(t)).join('');
 
     document.getElementById('btn-prev').disabled = traceOffset === 0;
     document.getElementById('btn-next').disabled = data.traces.length < TRACE_LIMIT;
-    document.getElementById('page-info').textContent = `Showing ${traceOffset + 1}-${traceOffset + data.traces.length}`;
+    document.getElementById('page-info').textContent = `Showing ${traceOffset + 1}-${traceOffset + traces.length}`;
+    selectedTraceIndex = -1;
     updateRefreshTime();
   } catch (err) {
     document.getElementById('traces-list').innerHTML = '<div class="p-8 text-center text-red-400/60 text-sm">Failed to load traces.</div>';
   }
+}
+
+/** Apply client-side filters (date range, token count, cost, span kind) */
+function applyClientFilters(traces) {
+  const dateFrom = document.getElementById('filter-date-from').value;
+  const dateTo = document.getElementById('filter-date-to').value;
+  const tokensMin = document.getElementById('filter-tokens-min').value;
+  const tokensMax = document.getElementById('filter-tokens-max').value;
+  const costMin = document.getElementById('filter-cost-min').value;
+  const costMax = document.getElementById('filter-cost-max').value;
+
+  // Span kind filters
+  const kindCheckboxes = document.querySelectorAll('.filter-kind:checked');
+  const selectedKinds = Array.from(kindCheckboxes).map(cb => cb.value);
+
+  return traces.filter(t => {
+    // Date range filter
+    if (dateFrom && t.start_time > 0) {
+      const traceDate = new Date(t.start_time * 1000);
+      const fromDate = new Date(dateFrom);
+      if (traceDate < fromDate) return false;
+    }
+    if (dateTo && t.start_time > 0) {
+      const traceDate = new Date(t.start_time * 1000);
+      const toDate = new Date(dateTo);
+      toDate.setHours(23, 59, 59, 999);
+      if (traceDate > toDate) return false;
+    }
+
+    // Token count filter
+    const tokens = t.total_tokens || 0;
+    if (tokensMin && tokens < parseInt(tokensMin)) return false;
+    if (tokensMax && tokens > parseInt(tokensMax)) return false;
+
+    // Cost filter
+    const cost = t.total_cost_usd || 0;
+    if (costMin && cost < parseFloat(costMin)) return false;
+    if (costMax && cost > parseFloat(costMax)) return false;
+
+    // Span kind filter — we check if any span in the trace matches selected kinds
+    // Note: trace list items may not include spans, so this filter only applies
+    // when we have span data. For list view without spans, we skip this filter.
+    // The filter will work when spans data is present.
+    if (selectedKinds.length > 0 && t.spans && t.spans.length > 0) {
+      const traceKinds = t.spans.map(s => (s.kind || '').toLowerCase());
+      const hasMatch = selectedKinds.some(k => traceKinds.includes(k));
+      if (!hasMatch) return false;
+    }
+
+    return true;
+  });
+}
+
+function clearFilters() {
+  document.getElementById('filter-service').value = '';
+  document.getElementById('filter-errors').checked = false;
+  document.getElementById('filter-date-from').value = '';
+  document.getElementById('filter-date-to').value = '';
+  document.getElementById('filter-tokens-min').value = '';
+  document.getElementById('filter-tokens-max').value = '';
+  document.getElementById('filter-cost-min').value = '';
+  document.getElementById('filter-cost-max').value = '';
+  document.querySelectorAll('.filter-kind').forEach(cb => cb.checked = false);
+  traceOffset = 0;
+  loadTraces();
 }
 
 function paginateTraces(dir) {
@@ -440,16 +942,18 @@ function paginateTraces(dir) {
   loadTraces();
 }
 
-// ========== Trace Detail ==========
+// =========================================================================
+// Trace Detail
+// =========================================================================
 async function openTrace(traceId) {
   currentTraceId = traceId;
   // Hide current view, show detail
   document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
   const detailPanel = document.getElementById('view-trace-detail');
   detailPanel.classList.remove('hidden');
-  detailPanel.classList.remove('fade-in');
+  detailPanel.classList.remove('view-enter');
   void detailPanel.offsetWidth;
-  detailPanel.classList.add('fade-in');
+  detailPanel.classList.add('view-enter');
 
   // Reset to timeline tab
   showDetailTab('timeline');
@@ -470,7 +974,7 @@ function renderTraceDetail(data) {
   const timeStr = data.start_time > 0 ? new Date(data.start_time * 1000).toLocaleString() : '--';
   const meta = [
     `<span>Service: <strong class="text-slate-200">${escHtml(data.service_name || 'unknown')}</strong></span>`,
-    `<span>Duration: <strong class="text-slate-200">${(data.duration_ms || 0).toFixed(0)}ms</strong></span>`,
+    `<span>Duration: <strong class="text-slate-200">${formatDuration(data.duration_ms || 0)}</strong></span>`,
     `<span>Spans: <strong class="text-slate-200">${data.span_count || (data.spans || []).length}</strong></span>`,
     `<span>Tokens: <strong class="text-slate-200">${(data.total_tokens || 0).toLocaleString()}</strong></span>`,
     `<span>Cost: <strong class="text-slate-200">$${(data.total_cost_usd || 0).toFixed(4)}</strong></span>`,
@@ -479,23 +983,25 @@ function renderTraceDetail(data) {
   ];
   document.getElementById('detail-trace-meta').innerHTML = meta.join('');
 
-  renderTimeline(data.spans || []);
+  renderWaterfallTimeline(data.spans || []);
 }
 
-// ========== Timeline ==========
+// =========================================================================
+// Timeline — Waterfall Chart
+// =========================================================================
 const SPAN_KIND_COLORS = {
-  llm: { bg: 'bg-purple-500/20', bar: '#8b5cf6', text: 'text-purple-300', label: 'LLM' },
-  tool: { bg: 'bg-blue-500/20', bar: '#3b82f6', text: 'text-blue-300', label: 'Tool' },
-  agent: { bg: 'bg-emerald-500/20', bar: '#10b981', text: 'text-emerald-300', label: 'Agent' },
-  chain: { bg: 'bg-amber-500/20', bar: '#f59e0b', text: 'text-amber-300', label: 'Chain' },
-  retrieval: { bg: 'bg-cyan-500/20', bar: '#06b6d4', text: 'text-cyan-300', label: 'Retrieval' },
-  custom: { bg: 'bg-slate-500/20', bar: '#64748b', text: 'text-slate-300', label: 'Custom' },
+  llm:       { bg: 'bg-purple-500/20', bar: '#8b5cf6', text: 'text-purple-300', label: 'LLM' },
+  tool:      { bg: 'bg-blue-500/20',   bar: '#3b82f6', text: 'text-blue-300',   label: 'Tool' },
+  agent:     { bg: 'bg-emerald-500/20', bar: '#10b981', text: 'text-emerald-300', label: 'Agent' },
+  chain:     { bg: 'bg-amber-500/20',   bar: '#f59e0b', text: 'text-amber-300',  label: 'Chain' },
+  retrieval: { bg: 'bg-cyan-500/20',    bar: '#06b6d4', text: 'text-cyan-300',   label: 'Retrieval' },
+  custom:    { bg: 'bg-slate-500/20',   bar: '#64748b', text: 'text-slate-300',  label: 'Custom' },
 };
 
-function renderTimeline(spans) {
+function renderWaterfallTimeline(spans) {
   const container = document.getElementById('timeline-container');
   if (!spans || spans.length === 0) {
-    container.innerHTML = '<div class="text-center text-slate-600 text-sm py-8">No spans in this trace.</div>';
+    container.innerHTML = renderEmptyState('No spans in this trace', 'Spans appear when the trace includes instrumented operations.');
     return;
   }
 
@@ -505,8 +1011,9 @@ function renderTimeline(spans) {
   const minTime = Math.min(...spans.map(s => s.start_time || 0));
   const maxTime = Math.max(...spans.map(s => s.end_time || s.start_time || 0));
   const totalDuration = maxTime - minTime || 1;
+  const totalDurationMs = totalDuration * 1000;
 
-  // Build hierarchy
+  // Build hierarchy via DFS
   const childMap = {};
   spans.forEach(s => {
     if (s.parent_span_id) {
@@ -515,7 +1022,6 @@ function renderTimeline(spans) {
     }
   });
 
-  // Flatten with indentation via DFS
   const rootSpans = spans.filter(s => !s.parent_span_id || !spans.find(p => p.span_id === s.parent_span_id));
   const flatList = [];
   function dfs(span, depth) {
@@ -524,16 +1030,32 @@ function renderTimeline(spans) {
   }
   rootSpans.forEach(s => dfs(s, 0));
 
-  let html = '<div class="space-y-1">';
+  // Time axis markers
+  const timeMarkers = 5;
+  let timeAxisHtml = '<div class="flex justify-between text-[10px] text-slate-600 mb-1 ml-[220px] mr-[70px]">';
+  for (let i = 0; i <= timeMarkers; i++) {
+    const ms = (totalDurationMs * i / timeMarkers);
+    timeAxisHtml += `<span>${formatDuration(ms)}</span>`;
+  }
+  timeAxisHtml += '</div>';
 
   // Legend
-  html += '<div class="flex flex-wrap gap-3 mb-3 pb-3 border-b border-white/5">';
+  let legendHtml = '<div class="flex flex-wrap gap-3 mb-3 pb-3 border-b border-white/5">';
   for (const [kind, cfg] of Object.entries(SPAN_KIND_COLORS)) {
-    html += `<div class="flex items-center gap-1.5 text-xs ${cfg.text}"><span class="w-3 h-1.5 rounded-full" style="background:${cfg.bar}"></span>${cfg.label}</div>`;
+    legendHtml += `<div class="flex items-center gap-1.5 text-xs ${cfg.text}"><span class="w-3 h-1.5 rounded-full" style="background:${cfg.bar}"></span>${cfg.label}</div>`;
   }
-  html += '</div>';
+  legendHtml += '</div>';
 
-  flatList.forEach(({ span, depth }) => {
+  // Vertical gridlines behind bars
+  let gridHtml = '<div class="absolute inset-0 ml-[220px] mr-[70px] pointer-events-none" style="top:0;bottom:0">';
+  for (let i = 1; i < timeMarkers; i++) {
+    const pct = (i / timeMarkers) * 100;
+    gridHtml += `<div class="absolute top-0 bottom-0 border-l border-white/[0.03]" style="left:${pct}%"></div>`;
+  }
+  gridHtml += '</div>';
+
+  let rowsHtml = '';
+  flatList.forEach(({ span, depth }, idx) => {
     const kind = (span.kind || 'custom').toLowerCase();
     const cfg = SPAN_KIND_COLORS[kind] || SPAN_KIND_COLORS.custom;
     const isError = span.status === 'error';
@@ -542,32 +1064,110 @@ function renderTimeline(spans) {
     const spanDuration = ((span.end_time || span.start_time || 0) - (span.start_time || 0));
     const leftPct = (spanStart / totalDuration) * 100;
     const widthPct = Math.max((spanDuration / totalDuration) * 100, 0.5);
-    const durationMs = (span.duration_ms || spanDuration * 1000 || 0).toFixed(0);
+    const durationMs = span.duration_ms || spanDuration * 1000 || 0;
+    const durationStr = formatDuration(durationMs);
 
-    const indent = depth * 20;
+    const indent = depth * 16;
+    const barColor = isError ? '#ef4444' : cfg.bar;
+    const barOpacity = isError ? 0.85 : 0.7;
 
-    html += `
-      <div class="flex items-center gap-3 py-1.5 px-2 rounded-lg hover:bg-white/[0.02] cursor-pointer transition group" onclick="openSpanDetail('${span.span_id}')">
-        <div class="flex items-center gap-2 w-56 flex-shrink-0" style="padding-left:${indent}px">
-          ${depth > 0 ? '<span class="text-slate-700 text-xs">|_</span>' : ''}
-          <span class="px-1.5 py-0.5 text-[10px] font-medium rounded ${cfg.bg} ${cfg.text}">${cfg.label}</span>
+    // Build tooltip data attributes
+    const tokens = span.token_usage ? (span.token_usage.total_tokens || span.token_usage.input_tokens + span.token_usage.output_tokens || 0) : 0;
+    const cost = span.token_usage ? (span.token_usage.total_cost_usd || 0) : 0;
+
+    rowsHtml += `
+      <div class="flex items-center gap-0 py-1 px-2 rounded-lg hover:bg-white/[0.03] cursor-pointer transition group waterfall-row"
+           onclick="openSpanDetail('${span.span_id}')"
+           data-span-name="${escHtml(span.name)}"
+           data-span-kind="${cfg.label}"
+           data-span-duration="${durationStr}"
+           data-span-status="${isError ? 'error' : 'ok'}"
+           data-span-tokens="${tokens}"
+           data-span-cost="${cost.toFixed(6)}"
+           onmouseenter="showWaterfallTooltip(event, this)"
+           onmouseleave="hideWaterfallTooltip()">
+        <!-- Label column -->
+        <div class="span-label-col flex items-center gap-1.5 w-[220px] min-w-[220px] flex-shrink-0" style="padding-left:${indent}px">
+          ${depth > 0 ? `<svg class="w-3 h-3 text-slate-700 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>` : ''}
+          <span class="px-1.5 py-0.5 text-[10px] font-medium rounded flex-shrink-0 ${cfg.bg} ${cfg.text}">${cfg.label}</span>
           <span class="text-xs text-slate-300 truncate group-hover:text-white transition">${escHtml(span.name)}</span>
           ${isError ? '<span class="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0"></span>' : ''}
         </div>
-        <div class="flex-1 relative h-5">
-          <div class="span-bar absolute top-1 h-3 rounded-sm cursor-pointer"
-               style="left:${leftPct}%;width:${widthPct}%;background:${isError ? '#ef4444' : cfg.bar};opacity:${isError ? 0.8 : 0.6}"></div>
+        <!-- Bar column -->
+        <div class="flex-1 relative h-7 min-w-0">
+          <div class="span-bar absolute top-1 h-5 rounded flex items-center overflow-hidden"
+               style="left:${leftPct}%;width:${widthPct}%;background:${barColor};opacity:${barOpacity}">
+            ${widthPct > 8 ? `<span class="px-1.5 text-[10px] font-medium text-white/90 whitespace-nowrap">${durationStr}</span>` : ''}
+          </div>
+          ${widthPct <= 8 ? `<span class="absolute top-1.5 text-[10px] text-slate-500 whitespace-nowrap" style="left:${leftPct + widthPct + 0.5}%">${durationStr}</span>` : ''}
         </div>
-        <div class="text-xs text-slate-500 w-16 text-right flex-shrink-0">${durationMs}ms</div>
+        <!-- Duration column -->
+        <div class="text-xs text-slate-500 w-[70px] text-right flex-shrink-0 tabular-nums">${durationStr}</div>
       </div>
     `;
   });
 
-  html += '</div>';
-  container.innerHTML = html;
+  container.innerHTML = `
+    ${legendHtml}
+    ${timeAxisHtml}
+    <div class="relative">
+      ${gridHtml}
+      <div class="space-y-0 relative z-10">${rowsHtml}</div>
+    </div>
+  `;
 }
 
-// ========== Span Detail Panel ==========
+// Waterfall tooltip
+let tooltipEl = null;
+function showWaterfallTooltip(event, row) {
+  if (!tooltipEl) {
+    tooltipEl = document.createElement('div');
+    tooltipEl.className = 'waterfall-tooltip';
+    document.body.appendChild(tooltipEl);
+  }
+
+  const name = row.dataset.spanName;
+  const kind = row.dataset.spanKind;
+  const duration = row.dataset.spanDuration;
+  const status = row.dataset.spanStatus;
+  const tokens = parseInt(row.dataset.spanTokens);
+  const cost = parseFloat(row.dataset.spanCost);
+
+  let html = `
+    <div class="font-semibold text-white mb-1">${escHtml(name)}</div>
+    <div class="space-y-0.5 text-slate-400">
+      <div>Kind: <span class="text-slate-200">${kind}</span></div>
+      <div>Duration: <span class="text-slate-200">${duration}</span></div>
+      <div>Status: <span class="${status === 'error' ? 'text-red-400' : 'text-emerald-400'}">${status}</span></div>
+      ${tokens > 0 ? `<div>Tokens: <span class="text-slate-200">${tokens.toLocaleString()}</span></div>` : ''}
+      ${cost > 0 ? `<div>Cost: <span class="text-emerald-300">$${cost}</span></div>` : ''}
+    </div>
+  `;
+  tooltipEl.innerHTML = html;
+  tooltipEl.style.display = 'block';
+
+  // Position near cursor
+  const rect = row.getBoundingClientRect();
+  tooltipEl.style.top = (rect.top - 10) + 'px';
+  tooltipEl.style.left = (event.clientX + 16) + 'px';
+
+  // Keep tooltip within viewport
+  const ttRect = tooltipEl.getBoundingClientRect();
+  if (ttRect.right > window.innerWidth) {
+    tooltipEl.style.left = (event.clientX - ttRect.width - 16) + 'px';
+  }
+  if (ttRect.top < 0) {
+    tooltipEl.style.top = (rect.bottom + 4) + 'px';
+  }
+}
+
+function hideWaterfallTooltip() {
+  if (tooltipEl) tooltipEl.style.display = 'none';
+}
+
+// =========================================================================
+// Span Detail Panel
+// =========================================================================
 function openSpanDetail(spanId) {
   if (!currentTraceData || !currentTraceData.spans) return;
   const span = currentTraceData.spans.find(s => s.span_id === spanId);
@@ -575,6 +1175,9 @@ function openSpanDetail(spanId) {
 
   const panel = document.getElementById('span-detail-panel');
   panel.classList.remove('hidden');
+  panel.classList.remove('fade-in');
+  void panel.offsetWidth;
+  panel.classList.add('fade-in');
 
   const kind = (span.kind || 'custom').toLowerCase();
   const cfg = SPAN_KIND_COLORS[kind] || SPAN_KIND_COLORS.custom;
@@ -594,12 +1197,12 @@ function openSpanDetail(spanId) {
 
   // Timing
   const startStr = span.start_time > 0 ? new Date(span.start_time * 1000).toLocaleTimeString() : '--';
-  const durationMs = (span.duration_ms || ((span.end_time - span.start_time) * 1000) || 0).toFixed(1);
+  const durationMs = span.duration_ms || ((span.end_time - span.start_time) * 1000) || 0;
   html += `<div class="mb-4">
     <h5 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Timing</h5>
     <div class="space-y-1 text-xs">
       <div class="flex justify-between"><span class="text-slate-500">Start</span><span class="text-slate-300">${startStr}</span></div>
-      <div class="flex justify-between"><span class="text-slate-500">Duration</span><span class="text-slate-300">${durationMs}ms</span></div>
+      <div class="flex justify-between"><span class="text-slate-500">Duration</span><span class="text-slate-300">${formatDuration(durationMs)}</span></div>
     </div>
   </div>`;
 
@@ -607,7 +1210,7 @@ function openSpanDetail(spanId) {
   if (span.parent_span_id) {
     html += `<div class="mb-4">
       <h5 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Parent</h5>
-      <div class="text-xs font-mono text-slate-400">${span.parent_span_id}</div>
+      <div class="text-xs font-mono text-slate-400 cursor-pointer hover:text-indigo-300 transition" onclick="openSpanDetail('${span.parent_span_id}')">${span.parent_span_id}</div>
     </div>`;
   }
 
@@ -671,7 +1274,9 @@ function closeSpanDetail() {
   document.getElementById('span-detail-panel').classList.add('hidden');
 }
 
-// ========== Causal DAG ==========
+// =========================================================================
+// Causal DAG — with dagre layout, animated edges, zoom controls, legend
+// =========================================================================
 async function loadDAG(traceId) {
   try {
     const data = await apiFetch(`/v1/traces/${traceId}/dag`);
@@ -685,11 +1290,12 @@ async function loadDAG(traceId) {
 function renderDAG(dagData) {
   if (cyInstance) { cyInstance.destroy(); cyInstance = null; }
 
+  const kindColors = {
+    llm: '#8b5cf6', tool: '#3b82f6', agent: '#10b981', chain: '#f59e0b',
+    retrieval: '#06b6d4', custom: '#64748b'
+  };
+
   const nodes = (dagData.nodes || []).map(n => {
-    const kindColors = {
-      llm: '#8b5cf6', tool: '#3b82f6', agent: '#10b981', chain: '#f59e0b',
-      retrieval: '#06b6d4', custom: '#64748b'
-    };
     let bgColor = kindColors[n.kind] || '#64748b';
     let borderColor = bgColor;
     let borderWidth = 2;
@@ -709,7 +1315,8 @@ function renderDAG(dagData) {
     return {
       data: {
         id: n.span_id,
-        label: n.name.length > 20 ? n.name.substring(0, 18) + '..' : n.name,
+        label: n.name.length > 22 ? n.name.substring(0, 20) + '..' : n.name,
+        fullName: n.name,
         kind: n.kind,
         status: n.status,
         errorRole: n.error_role,
@@ -717,6 +1324,7 @@ function renderDAG(dagData) {
         borderColor,
         borderWidth,
         duration: `${(n.duration_ms || 0).toFixed(0)}ms`,
+        durationMs: n.duration_ms || 0,
       }
     };
   });
@@ -728,10 +1336,11 @@ function renderDAG(dagData) {
       target: e.target,
       relation: e.relation,
       lineColor: e.relation === 'caused_by' ? '#ef4444' : '#f59e0b',
+      isError: e.relation === 'caused_by',
     }
   }));
 
-  // If no edges, build parent-child edges from spans
+  // Build parent-child edges from spans if none exist
   if (edges.length === 0 && currentTraceData && currentTraceData.spans) {
     const spanIds = new Set(nodes.map(n => n.data.id));
     currentTraceData.spans.forEach((s, i) => {
@@ -743,10 +1352,36 @@ function renderDAG(dagData) {
             target: s.span_id,
             relation: 'parent_child',
             lineColor: '#334155',
+            isError: false,
           }
         });
       }
     });
+  }
+
+  // Register dagre layout if available
+  if (typeof cytoscape !== 'undefined' && typeof cytoscapeDagre !== 'undefined') {
+    try { cytoscape.use(cytoscapeDagre); } catch (e) { /* already registered */ }
+  }
+
+  // Choose layout — use dagre if available, fallback to breadthfirst
+  let layoutConfig;
+  if (typeof dagre !== 'undefined') {
+    layoutConfig = {
+      name: 'dagre',
+      rankDir: 'TB',
+      nodeSep: 50,
+      rankSep: 70,
+      edgeSep: 20,
+      padding: 40,
+    };
+  } else {
+    layoutConfig = {
+      name: 'breadthfirst',
+      directed: true,
+      spacingFactor: 1.3,
+      padding: 30,
+    };
   }
 
   cyInstance = cytoscape({
@@ -764,11 +1399,20 @@ function renderDAG(dagData) {
           'font-size': '10px',
           'font-family': 'Inter, system-ui, sans-serif',
           'text-valign': 'bottom',
-          'text-margin-y': 6,
-          'width': 35,
-          'height': 35,
+          'text-margin-y': 8,
+          'width': 40,
+          'height': 40,
           'text-outline-color': '#0a0d1a',
           'text-outline-width': 2,
+          'transition-property': 'border-color, border-width, background-color',
+          'transition-duration': '0.2s',
+        }
+      },
+      {
+        selector: 'node:active',
+        style: {
+          'overlay-opacity': 0.1,
+          'overlay-color': '#6366f1',
         }
       },
       {
@@ -785,26 +1429,80 @@ function renderDAG(dagData) {
       },
       {
         selector: 'edge[relation = "caused_by"]',
-        style: { 'line-style': 'solid', 'width': 3, 'opacity': 0.9 }
+        style: {
+          'line-style': 'solid',
+          'width': 3,
+          'opacity': 0.9,
+          'line-dash-pattern': [8, 4],
+          'line-dash-offset': 0,
+        }
       },
       {
         selector: 'edge[relation = "preceded_by"]',
         style: { 'line-style': 'dashed' }
       },
     ],
-    layout: {
-      name: 'breadthfirst',
-      directed: true,
-      spacingFactor: 1.3,
-      padding: 30,
-    },
-    minZoom: 0.3,
-    maxZoom: 3,
+    layout: layoutConfig,
+    minZoom: 0.2,
+    maxZoom: 4,
   });
 
+  // Click node to show span details
   cyInstance.on('tap', 'node', function(evt) {
     openSpanDetail(evt.target.id());
   });
+
+  // Hover effect on nodes
+  cyInstance.on('mouseover', 'node', function(evt) {
+    evt.target.style({
+      'border-width': Math.max(evt.target.data('borderWidth') + 2, 4),
+      'width': 48,
+      'height': 48,
+    });
+    document.getElementById('cy-container').style.cursor = 'pointer';
+  });
+  cyInstance.on('mouseout', 'node', function(evt) {
+    evt.target.style({
+      'border-width': evt.target.data('borderWidth'),
+      'width': 40,
+      'height': 40,
+    });
+    document.getElementById('cy-container').style.cursor = 'default';
+  });
+
+  // Animate error edges (caused_by) with a pulsing dash effect
+  animateErrorEdges();
+}
+
+/** Animate error propagation edges with flowing dashes */
+function animateErrorEdges() {
+  if (!cyInstance) return;
+  const errorEdges = cyInstance.edges('[relation = "caused_by"]');
+  if (errorEdges.length === 0) return;
+
+  let offset = 0;
+  function animate() {
+    if (!cyInstance) return;
+    offset = (offset + 1) % 20;
+    errorEdges.forEach(edge => {
+      edge.style('line-dash-offset', -offset);
+    });
+    requestAnimationFrame(animate);
+  }
+  animate();
+}
+
+/** DAG zoom controls */
+function dagZoom(action) {
+  if (!cyInstance) return;
+  const currentZoom = cyInstance.zoom();
+  if (action === 'in') {
+    cyInstance.animate({ zoom: { level: currentZoom * 1.3, position: cyInstance.pan() }, duration: 200 });
+  } else if (action === 'out') {
+    cyInstance.animate({ zoom: { level: currentZoom / 1.3, position: cyInstance.pan() }, duration: 200 });
+  } else if (action === 'fit') {
+    cyInstance.animate({ fit: { padding: 40 }, duration: 300 });
+  }
 }
 
 function renderDAGPatterns(patterns) {
@@ -831,7 +1529,9 @@ function renderDAGPatterns(patterns) {
   container.innerHTML = html;
 }
 
-// ========== Cost Analysis ==========
+// =========================================================================
+// Cost Analysis
+// =========================================================================
 async function loadCostData() {
   try {
     const [byService, byKind, byName] = await Promise.all([
@@ -915,26 +1615,42 @@ function renderCostChart(canvasId, data, type) {
   chartInstances[canvasId] = new Chart(canvas.getContext('2d'), chartConfig);
 }
 
-// ========== Patterns ==========
+// =========================================================================
+// Patterns
+// =========================================================================
 async function loadAllPatterns() {
   const container = document.getElementById('patterns-list');
 
   try {
-    // Load recent traces and check each for patterns
     const tracesData = await apiFetch('/v1/traces?limit=20');
     if (!tracesData.traces || tracesData.traces.length === 0) {
-      container.innerHTML = '<div class="glass rounded-xl p-8 text-center text-slate-600 text-sm">No traces available. Patterns are detected per-trace via the DAG analysis.</div>';
+      container.innerHTML = renderEmptyState('No traces available', 'Patterns are detected per-trace via the DAG analysis.');
       return;
     }
 
-    // Only check traces with errors for patterns
     const errorTraces = tracesData.traces.filter(t => t.has_errors === true || t.has_errors === 1);
     if (errorTraces.length === 0) {
-      container.innerHTML = '<div class="glass rounded-xl p-8 text-center text-slate-500 text-sm">No error traces found. Anti-patterns are detected when traces contain errors.</div>';
+      container.innerHTML = `
+        <div class="glass rounded-xl p-8 text-center">
+          <svg class="w-16 h-16 text-emerald-500/20 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <p class="text-sm text-slate-400">No error traces found</p>
+          <p class="text-xs text-slate-600 mt-1">Anti-patterns are detected when traces contain errors.</p>
+        </div>
+      `;
       return;
     }
 
-    container.innerHTML = '<div class="glass rounded-xl p-8 text-center text-slate-500 text-sm">Analyzing traces for patterns...</div>';
+    // Show loading skeleton
+    container.innerHTML = `
+      <div class="glass rounded-xl p-6 space-y-3">
+        <div class="skeleton skeleton-text w-48"></div>
+        <div class="skeleton skeleton-bar"></div>
+        <div class="skeleton skeleton-bar"></div>
+        <div class="skeleton skeleton-bar"></div>
+      </div>
+    `;
 
     let allPatternsHtml = '';
     let patternCount = 0;
@@ -965,7 +1681,7 @@ async function loadAllPatterns() {
     }
 
     if (patternCount === 0) {
-      container.innerHTML = '<div class="glass rounded-xl p-8 text-center text-slate-500 text-sm">No anti-patterns detected in recent error traces.</div>';
+      container.innerHTML = renderEmptyState('No anti-patterns detected', 'Checked recent error traces — all clear.');
     } else {
       container.innerHTML = `
         <div class="flex items-center justify-between mb-4">
@@ -980,37 +1696,153 @@ async function loadAllPatterns() {
   }
 }
 
-// ========== Connection Status ==========
-function showConnectionError() {
-  const el = document.getElementById('connection-status');
-  el.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-red-500"></span><span class="text-red-400">Disconnected</span>';
+// =========================================================================
+// Export Features
+// =========================================================================
+
+/** Export current trace data as JSON file */
+function exportTraceJSON() {
+  if (!currentTraceData) {
+    showToast('No trace data to export', 'warning');
+    return;
+  }
+  const json = JSON.stringify(currentTraceData, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `trace-${currentTraceId || 'unknown'}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Trace exported as JSON', 'success');
 }
 
-function showConnectionOk() {
-  const el = document.getElementById('connection-status');
-  el.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 pulse-dot"></span><span>Connected</span>';
+/** Export DAG as PNG using Cytoscape's png() method */
+function exportDAGPng() {
+  if (!cyInstance) {
+    showToast('No DAG to export', 'warning');
+    return;
+  }
+  try {
+    const pngData = cyInstance.png({ output: 'blob', bg: '#0a0d1a', scale: 2, full: true });
+    const url = URL.createObjectURL(pngData);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `dag-${currentTraceId || 'unknown'}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('DAG exported as PNG', 'success');
+  } catch (err) {
+    console.error('DAG PNG export error:', err);
+    showToast('Failed to export DAG', 'error');
+  }
 }
 
+/** Copy current trace ID to clipboard */
+function copyTraceId() {
+  if (!currentTraceId) return;
+  navigator.clipboard.writeText(currentTraceId).then(() => {
+    showToast('Trace ID copied to clipboard', 'success', 2000);
+  }).catch(() => {
+    // Fallback for older browsers
+    const textarea = document.createElement('textarea');
+    textarea.value = currentTraceId;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    showToast('Trace ID copied to clipboard', 'success', 2000);
+  });
+}
+
+// =========================================================================
+// Connection Status
+// =========================================================================
 async function healthCheck() {
   try {
     await apiFetch('/health');
-    showConnectionOk();
     return true;
   } catch {
-    showConnectionError();
+    updateWsStatus('error');
     return false;
   }
 }
 
-// ========== Utilities ==========
-function escHtml(str) {
-  if (!str) return '';
-  const div = document.createElement('div');
-  div.textContent = String(str);
-  return div.innerHTML;
+// =========================================================================
+// Keyboard Navigation
+// =========================================================================
+function setupKeyboardNavigation() {
+  document.addEventListener('keydown', (e) => {
+    // "/" to focus search — only when not already in an input
+    if (e.key === '/' && !isInputFocused()) {
+      e.preventDefault();
+      const searchInput = document.getElementById('filter-service');
+      if (searchInput) {
+        switchView('traces');
+        setTimeout(() => searchInput.focus(), 100);
+      }
+      return;
+    }
+
+    // Escape to go back or close panels
+    if (e.key === 'Escape') {
+      const spanPanel = document.getElementById('span-detail-panel');
+      if (!spanPanel.classList.contains('hidden')) {
+        closeSpanDetail();
+        return;
+      }
+      const detailPanel = document.getElementById('view-trace-detail');
+      if (!detailPanel.classList.contains('hidden')) {
+        backToTraces();
+        return;
+      }
+    }
+
+    // Arrow keys for trace list navigation
+    if (currentView === 'traces' || currentView === 'overview') {
+      const listId = currentView === 'traces' ? 'traces-list' : 'recent-traces-list';
+      const rows = document.querySelectorAll(`#${listId} .trace-row`);
+      if (rows.length === 0) return;
+
+      if (e.key === 'ArrowDown' && !isInputFocused()) {
+        e.preventDefault();
+        selectedTraceIndex = Math.min(selectedTraceIndex + 1, rows.length - 1);
+        highlightTraceRow(rows);
+      } else if (e.key === 'ArrowUp' && !isInputFocused()) {
+        e.preventDefault();
+        selectedTraceIndex = Math.max(selectedTraceIndex - 1, 0);
+        highlightTraceRow(rows);
+      } else if (e.key === 'Enter' && selectedTraceIndex >= 0 && !isInputFocused()) {
+        e.preventDefault();
+        const traceId = rows[selectedTraceIndex]?.dataset?.traceId;
+        if (traceId) openTrace(traceId);
+      }
+    }
+  });
 }
 
-// ========== Auto-refresh ==========
+function isInputFocused() {
+  const el = document.activeElement;
+  return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT');
+}
+
+function highlightTraceRow(rows) {
+  rows.forEach((r, i) => {
+    r.classList.toggle('trace-row-selected', i === selectedTraceIndex);
+  });
+  // Scroll selected row into view
+  if (rows[selectedTraceIndex]) {
+    rows[selectedTraceIndex].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+}
+
+// =========================================================================
+// Auto-refresh
+// =========================================================================
 function startAutoRefresh() {
   if (autoRefreshTimer) clearInterval(autoRefreshTimer);
   autoRefreshTimer = setInterval(async () => {
@@ -1018,21 +1850,35 @@ function startAutoRefresh() {
     if (!ok) return;
     if (currentView === 'overview') { loadStats(); loadRecentTraces(); }
     else if (currentView === 'traces') { loadTraces(); }
-  }, 10000);
+  }, 15000);
 }
 
-// ========== Init ==========
+// =========================================================================
+// Init
+// =========================================================================
 document.addEventListener('DOMContentLoaded', async () => {
+  // Setup keyboard navigation
+  setupKeyboardNavigation();
+
+  // Health check + initial data load
   await healthCheck();
   loadStats();
   loadRecentTraces();
   startAutoRefresh();
+
+  // Connect WebSocket for real-time updates
+  connectWebSocket();
 
   // Bind filter events
   document.getElementById('filter-service').addEventListener('keyup', (e) => {
     if (e.key === 'Enter') { traceOffset = 0; loadTraces(); }
   });
   document.getElementById('filter-errors').addEventListener('change', () => { traceOffset = 0; loadTraces(); });
+
+  // Register dagre layout for Cytoscape if both libs loaded
+  if (typeof cytoscape !== 'undefined' && typeof cytoscapeDagre !== 'undefined') {
+    try { cytoscape.use(cytoscapeDagre); } catch (e) { /* already registered */ }
+  }
 });
 </script>
 </body>

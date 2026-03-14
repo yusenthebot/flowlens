@@ -3,7 +3,7 @@ import json
 import time
 import pytest
 from flowlens.server.storage import TraceStore
-from flowlens.server.app import create_app
+from flowlens.server.app import create_app, _ALLOWED_IMPORT_DIRS
 
 
 # ===========================================================================
@@ -290,7 +290,7 @@ class TestTraceStore:
     def test_schema_version_is_set(self, store):
         row = store._conn.execute("SELECT version FROM schema_version").fetchone()
         assert row is not None
-        assert row[0] == 2  # current SCHEMA_VERSION
+        assert row[0] == 3  # current SCHEMA_VERSION
 
 
 # ===========================================================================
@@ -431,20 +431,30 @@ class TestAPI:
         assert "service-a" in dimensions
         assert "service-b" in dimensions
 
-    def test_import_jsonl_file(self, client, tmp_path):
-        jsonl_file = tmp_path / "traces.jsonl"
-        with open(jsonl_file, "w") as f:
-            f.write(json.dumps(_make_trace_data("jsonl-1", service_name="import-test")) + "\n")
-            f.write(json.dumps(_make_trace_data("jsonl-2", service_name="import-test", start_time=1001.0)) + "\n")
+    def test_import_jsonl_file(self, tmp_path):
+        # The import endpoint requires the target directory to be in _ALLOWED_IMPORT_DIRS.
+        allowed = tmp_path.resolve()
+        _ALLOWED_IMPORT_DIRS.append(allowed)
+        try:
+            app = create_app(db_path=str(tmp_path / "import_api_test.db"))
+            from fastapi.testclient import TestClient
+            c = TestClient(app)
 
-        r = client.post(f"/v1/traces/import?file_path={jsonl_file}")
-        assert r.status_code == 201
-        data = r.json()
-        assert data["imported"] == 2
-        assert data["errors"] == 0
+            jsonl_file = tmp_path / "traces.jsonl"
+            with open(jsonl_file, "w") as f:
+                f.write(json.dumps(_make_trace_data("jsonl-1", service_name="import-test")) + "\n")
+                f.write(json.dumps(_make_trace_data("jsonl-2", service_name="import-test", start_time=1001.0)) + "\n")
 
-        assert client.get("/v1/traces/jsonl-1").status_code == 200
-        assert client.get("/v1/traces/jsonl-2").status_code == 200
+            r = c.post(f"/v1/traces/import?file_path={jsonl_file}")
+            assert r.status_code == 201
+            data = r.json()
+            assert data["imported"] == 2
+            assert data["errors"] == 0
+
+            assert c.get("/v1/traces/jsonl-1").status_code == 200
+            assert c.get("/v1/traces/jsonl-2").status_code == 200
+        finally:
+            _ALLOWED_IMPORT_DIRS.remove(allowed)
 
     # ------------------------------------------------------------------
     # New: DELETE /v1/traces/{trace_id}

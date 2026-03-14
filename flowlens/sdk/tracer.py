@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import logging
 import random
+import re
+import threading
 from typing import Optional, Any, Callable
 
 from .models import Span, SpanKind, SpanStatus, Trace
@@ -21,6 +23,50 @@ from .context import (
 from .exporters import TraceExporter, create_exporter
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Span validation constants
+# ---------------------------------------------------------------------------
+
+# Maximum allowed span name length (characters)
+_MAX_SPAN_NAME_LEN = 256
+
+# Allowed span name pattern: printable non-control characters; reject null bytes
+_SPAN_NAME_RE = re.compile(r"^[^\x00-\x1f\x7f]+$")
+
+# Maximum number of spans allowed per trace to prevent memory exhaustion
+_MAX_SPANS_PER_TRACE = 5_000
+
+# Shutdown timeout in seconds
+_SHUTDOWN_TIMEOUT = 10.0
+
+
+def _validate_span_name(name: str) -> str:
+    """
+    Validate and normalise a span name.
+
+    - Enforces a maximum length (truncates with a warning rather than raising).
+    - Rejects names containing control characters (including null bytes).
+    - Returns the (possibly truncated) validated name.
+    """
+    if not name:
+        name = "unnamed"
+    if len(name) > _MAX_SPAN_NAME_LEN:
+        logger.warning(
+            "[FlowLens] Span name truncated from %d to %d characters",
+            len(name), _MAX_SPAN_NAME_LEN,
+        )
+        name = name[:_MAX_SPAN_NAME_LEN]
+    if not _SPAN_NAME_RE.match(name):
+        # Strip control characters rather than rejecting outright so that
+        # instrumentation never silently drops telemetry data
+        cleaned = re.sub(r"[\x00-\x1f\x7f]", "", name) or "unnamed"
+        logger.warning(
+            "[FlowLens] Span name contained control characters; cleaned to %r",
+            cleaned,
+        )
+        name = cleaned
+    return name
 
 
 class FlowLens:
@@ -39,8 +85,15 @@ class FlowLens:
         span = lens.start_span("do_something", kind=SpanKind.TOOL)
         span.finish()
         lens.end_trace(trace)
+
+    Thread safety:
+        The singleton reference and ``_active_traces`` dict are protected by
+        ``_instance_lock`` and ``_traces_lock`` respectively, making all public
+        methods safe to call from multiple threads concurrently.
     """
 
+    # Protects reads and writes to _instance
+    _instance_lock: threading.Lock = threading.Lock()
     _instance: Optional[FlowLens] = None
 
     def __init__(
@@ -80,14 +133,18 @@ class FlowLens:
             verbose=verbose,
         )
         self._active_traces: dict[str, Trace] = {}
+        # Per-instance lock protecting _active_traces
+        self._traces_lock: threading.Lock = threading.Lock()
 
-        # 设为全局单例
-        FlowLens._instance = self
+        # 设为全局单例 (thread-safe)
+        with FlowLens._instance_lock:
+            FlowLens._instance = self
 
     @classmethod
     def get_instance(cls) -> Optional[FlowLens]:
-        """获取全局 FlowLens 实例"""
-        return cls._instance
+        """获取全局 FlowLens 实例 (thread-safe)"""
+        with cls._instance_lock:
+            return cls._instance
 
     @classmethod
     def configure(
@@ -130,21 +187,23 @@ class FlowLens:
     # ===== Trace 生命周期 =====
 
     def start_trace(self, metadata: Optional[dict] = None) -> Trace:
-        """创建并启动一个新的 trace"""
+        """创建并启动一个新的 trace (thread-safe)"""
         trace = Trace(
             service_name=self.service_name,
             metadata={**self.metadata, **(metadata or {})},
         )
-        self._active_traces[trace.trace_id] = trace
+        with self._traces_lock:
+            self._active_traces[trace.trace_id] = trace
         return trace
 
     def end_trace(self, trace: Trace) -> None:
-        """结束 trace 并导出（如果采样命中）"""
+        """结束 trace 并导出（如果采样命中）(thread-safe)"""
         trace.finish()
 
         # 采样决定
         if random.random() > self.sample_rate:
-            self._active_traces.pop(trace.trace_id, None)
+            with self._traces_lock:
+                self._active_traces.pop(trace.trace_id, None)
             return
 
         # 执行回调
@@ -156,7 +215,8 @@ class FlowLens:
 
         # 导出
         self._exporter.export(trace)
-        self._active_traces.pop(trace.trace_id, None)
+        with self._traces_lock:
+            self._active_traces.pop(trace.trace_id, None)
 
     # ===== Span 生命周期 =====
 
@@ -166,7 +226,14 @@ class FlowLens:
         kind: SpanKind = SpanKind.CUSTOM,
         attributes: Optional[dict] = None,
     ) -> Span:
-        """创建并启动一个 span（自动关联到当前 trace 和父 span）"""
+        """
+        创建并启动一个 span（自动关联到当前 trace 和父 span）
+
+        Enforces span-name validation and per-trace span limits to prevent
+        memory exhaustion from runaway instrumentation loops.
+        """
+        name = _validate_span_name(name)
+
         span = Span(
             name=name,
             kind=kind,
@@ -176,6 +243,16 @@ class FlowLens:
         # 关联到当前 trace
         trace = get_current_trace()
         if trace:
+            # Enforce per-trace span limit
+            if len(trace.spans) >= _MAX_SPANS_PER_TRACE:
+                logger.warning(
+                    "[FlowLens] Trace %s has reached the maximum of %d spans; "
+                    "new span %r will not be recorded",
+                    trace.trace_id[:12], _MAX_SPANS_PER_TRACE, name,
+                )
+                # Return the span un-attached so the decorated function still runs
+                return span
+
             span.trace_id = trace.trace_id
             trace.spans.append(span)
             if not trace.root_span_id:
@@ -196,12 +273,42 @@ class FlowLens:
         if span:
             span.add_event(f"checkpoint:{name}", **attrs)
 
-    def shutdown(self) -> None:
-        """关闭 FlowLens，刷新所有未导出的数据"""
-        # 导出所有未结束的 trace
-        for trace in list(self._active_traces.values()):
-            self.end_trace(trace)
-        self._exporter.shutdown()
+    def shutdown(self, timeout: float = _SHUTDOWN_TIMEOUT) -> None:
+        """
+        关闭 FlowLens，刷新所有未导出的数据。
+
+        Args:
+            timeout: Maximum seconds to wait for in-flight exports to complete.
+                     The shutdown operation is best-effort; if the exporter
+                     does not finish within *timeout* seconds a warning is logged
+                     and shutdown proceeds regardless.
+        """
+        # Snapshot active traces under the lock to avoid mutating while iterating
+        with self._traces_lock:
+            pending = list(self._active_traces.values())
+
+        # Export pending traces in a background thread so we can honour the timeout
+        def _flush() -> None:
+            for trace in pending:
+                try:
+                    self.end_trace(trace)
+                except Exception as e:
+                    logger.warning("[FlowLens] Error flushing trace during shutdown: %s", e)
+            try:
+                self._exporter.shutdown()
+            except Exception as e:
+                logger.warning("[FlowLens] Exporter shutdown error: %s", e)
+
+        flush_thread = threading.Thread(target=_flush, daemon=True, name="flowlens-shutdown")
+        flush_thread.start()
+        flush_thread.join(timeout=timeout)
+        if flush_thread.is_alive():
+            logger.warning(
+                "[FlowLens] Shutdown did not complete within %.1f s; "
+                "some traces may not have been exported",
+                timeout,
+            )
+
         logger.info("FlowLens shut down")
 
 
