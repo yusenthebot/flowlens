@@ -1,6 +1,29 @@
 # Agent Status — 2026-03-14
 
-## Project Status: COMPLETE
+## Project Status: ACTIVE — Post-Cycle Enhancement
+
+## Latest Work (2026-03-14)
+
+| Agent | Model     | Status    | Last Task                                                         | Branch | Last Commit |
+|-------|-----------|-----------|-------------------------------------------------------------------|--------|-------------|
+| Alpha | sonnet 4.6| complete  | Agent avatar system + overview team status bar redesign           | main   | df64acd     |
+| Gamma | sonnet 4.6| complete  | Activity timeline, agent cost chart, enhanced agent cards         | main   | dc60023     |
+
+### Alpha — Agent Avatar System
+- **Commit**: `df64acd`
+- **Feature**: Global `AGENT_PROFILES` with SVG icons and role metadata for all known agents. `renderAgentAvatar()` helper renders gradient avatar tiles. Overview replaced Agent Activity grid with horizontal Agent Team Status bar. Agents tab cards include large avatars. Trace row badges use profile names.
+- **Files**: `flowlens/server/dashboard.html`
+- **Tests**: All 81 server tests pass
+
+### Gamma — Activity Timeline + Enhanced Charts
+- **Commit**: `dc60023`
+- **Feature**: Activity Timeline panel on Overview (side-by-side with Recent Traces) rendering /v1/activity/stream events with per-agent color-coded bars, status icons, and time-ago. Cost by Agent horizontal bar chart in Cost Analysis using agent profile colors. Agent cards in Agents tab now show colored initial-letter avatar instead of SVG icon.
+- **Files**: `flowlens/server/dashboard.html`
+- **Tests**: All 81 server tests pass
+
+---
+
+## Previous Cycle: COMPLETE
 
 All planned improvements delivered. System production-ready. Final cycle (Cycle 3) complete.
 
@@ -10,7 +33,7 @@ All planned improvements delivered. System production-ready. Final cycle (Cycle 
 
 | Agent | Model     | Status    | Last Task                                                         | Branch | Last Commit |
 |-------|-----------|-----------|-------------------------------------------------------------------|--------|-------------|
-| Alpha | sonnet 4.6| complete  | Human-readable trace rows: agent badges, time-ago, Active Agents card | main   | pending     |
+| Alpha | sonnet 4.6| complete  | Human-readable trace rows: agent badges, time-ago, Active Agents card | main   | fee010b     |
 | Beta  | sonnet 4.6| complete  | FTS5 full-text search (schema v6)                                 | main   | 7706c8f     |
 | (Fix) | sonnet 4.6| complete  | FTS fallback to LIKE for robustness                               | main   | a63dfb1     |
 
