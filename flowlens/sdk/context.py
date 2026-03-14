@@ -24,6 +24,11 @@ _current_span: contextvars.ContextVar[Optional[Span]] = contextvars.ContextVar(
     "flowlens_current_span", default=None
 )
 
+# Baggage — 在整个 trace 中传播的键值对（类似 OpenTelemetry baggage）
+_baggage: contextvars.ContextVar[dict[str, str]] = contextvars.ContextVar(
+    "flowlens_baggage", default={}
+)
+
 
 def get_current_trace() -> Optional[Trace]:
     """获取当前 trace"""
@@ -43,6 +48,28 @@ def get_current_span() -> Optional[Span]:
 def set_current_span(span: Optional[Span]) -> contextvars.Token:
     """设置当前 span"""
     return _current_span.set(span)
+
+
+def get_baggage() -> dict[str, str]:
+    """获取当前 baggage（跨 trace 传播的上下文）"""
+    return _baggage.get().copy()
+
+
+def set_baggage(baggage: dict[str, str]) -> contextvars.Token:
+    """设置当前 baggage"""
+    return _baggage.set(baggage.copy())
+
+
+def get_baggage_item(key: str) -> Optional[str]:
+    """获取 baggage 中的单个项目"""
+    return _baggage.get().get(key)
+
+
+def set_baggage_item(key: str, value: str) -> None:
+    """设置 baggage 中的单个项目"""
+    baggage = _baggage.get().copy()
+    baggage[key] = value
+    _baggage.set(baggage)
 
 
 class SpanContext:

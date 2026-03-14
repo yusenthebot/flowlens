@@ -22,12 +22,32 @@ Usage:
 
 __version__ = "0.1.0"
 
-from flowlens.sdk.tracer import FlowLens
-from flowlens.sdk.decorators import trace_agent, trace_tool, trace_llm
+from flowlens.sdk.tracer import FlowLens, get_current_trace, get_current_span
+from flowlens.sdk.decorators import (
+    trace_agent,
+    trace_tool,
+    trace_llm,
+    trace_chain,
+    trace_retrieval,
+)
+from flowlens.sdk.context import (
+    get_baggage,
+    set_baggage,
+    get_baggage_item,
+    set_baggage_item,
+)
 
 __all__ = [
     "FlowLens",
     "trace_agent",
     "trace_tool",
     "trace_llm",
+    "trace_chain",
+    "trace_retrieval",
+    "get_current_trace",
+    "get_current_span",
+    "get_baggage",
+    "set_baggage",
+    "get_baggage_item",
+    "set_baggage_item",
 ]

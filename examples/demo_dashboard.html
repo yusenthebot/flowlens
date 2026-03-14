@@ -1,310 +1,1677 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FlowLens — Agent Trace Dashboard</title>
-<style>
-  :root {
-    --bg: #0d1117; --surface: #161b22; --surface2: #21262d;
-    --border: #30363d; --text: #c9d1d9; --text-muted: #8b949e;
-    --accent: #58a6ff; --green: #3fb950; --red: #f85149;
-    --yellow: #d29922; --purple: #bc8cff;
-  }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: var(--bg); color: var(--text); font-family: -apple-system, 'Segoe UI', sans-serif; }
-  .header { padding: 20px 32px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; }
-  .header h1 { font-size: 20px; font-weight: 600; }
-  .header .logo { width: 28px; height: 28px; background: var(--accent); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
-  .header .badge { background: var(--surface2); padding: 3px 10px; border-radius: 12px; font-size: 12px; color: var(--text-muted); }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 24px 32px; }
-  .grid-full { grid-column: 1 / -1; }
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
-  .card-title { font-size: 13px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px; }
-  .stat-row { display: flex; gap: 24px; flex-wrap: wrap; }
-  .stat { text-align: center; flex: 1; min-width: 100px; }
-  .stat .value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
-  .stat .label { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
-  .stat .green { color: var(--green); }
-  .stat .red { color: var(--red); }
-  .stat .accent { color: var(--accent); }
-  .stat .yellow { color: var(--yellow); }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FlowLens — Agent Trace Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #0a0e27;
+      --bg-secondary: #141829;
+      --bg-tertiary: #1a1f3a;
+      --border-color: #2a2f4f;
+      --text-primary: #e4e4e7;
+      --text-secondary: #a1a1a6;
+      --text-muted: #71717a;
+      --accent-blue: #3b82f6;
+      --accent-green: #10b981;
+      --accent-red: #ef4444;
+      --accent-orange: #f59e0b;
+      --accent-purple: #8b5cf6;
+      --success: #10b981;
+      --error: #ef4444;
+      --warning: #f59e0b;
+      --info: #3b82f6;
+    }
 
-  /* Timeline */
-  .timeline { position: relative; }
-  .tl-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
-  .tl-row:last-child { border-bottom: none; }
-  .tl-icon { width: 24px; height: 24px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
-  .tl-icon.agent { background: #1f3a5f; }
-  .tl-icon.llm { background: #2d1f5e; }
-  .tl-icon.tool { background: #1f4a3a; }
-  .tl-icon.err { background: #5f1f1f; }
-  .tl-name { width: 120px; font-weight: 500; flex-shrink: 0; }
-  .tl-bar-wrap { flex: 1; height: 20px; position: relative; }
-  .tl-bar { height: 100%; border-radius: 3px; position: absolute; top: 0; display: flex; align-items: center; padding-left: 6px; font-size: 10px; color: rgba(255,255,255,0.8); white-space: nowrap; min-width: 2px; }
-  .tl-bar.ok { background: var(--accent); opacity: 0.7; }
-  .tl-bar.error { background: var(--red); opacity: 0.8; }
-  .tl-dur { width: 60px; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-muted); font-size: 12px; }
-  .tl-status { width: 18px; text-align: center; }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
 
-  /* DAG */
-  .dag-container { position: relative; height: 320px; }
-  .dag-node { position: absolute; padding: 8px 14px; border-radius: 6px; font-size: 12px; font-weight: 500; border: 2px solid; white-space: nowrap; }
-  .dag-node.ok { background: #0d2137; border-color: var(--accent); color: var(--accent); }
-  .dag-node.error { background: #3b1219; border-color: var(--red); color: var(--red); }
-  .dag-node.root-cause { background: #5f1f1f; border-color: var(--red); color: #ff6b6b; box-shadow: 0 0 12px rgba(248,81,73,0.3); }
-  .dag-node.cascaded { background: #3b2a10; border-color: var(--yellow); color: var(--yellow); }
-  .dag-label { position: absolute; font-size: 10px; color: var(--text-muted); font-style: italic; }
-  svg.dag-edges { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-  svg.dag-edges line { stroke-width: 2; }
-  svg.dag-edges .causal { stroke: var(--red); stroke-dasharray: 6 3; }
-  svg.dag-edges .preceded { stroke: var(--yellow); stroke-dasharray: 4 4; }
-  .arrow-head { fill: var(--red); }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow-x: hidden;
+    }
 
-  /* Patterns */
-  .pattern { padding: 10px 14px; border-radius: 6px; margin-bottom: 8px; font-size: 13px; display: flex; gap: 10px; align-items: flex-start; }
-  .pattern.critical { background: rgba(248,81,73,0.1); border-left: 3px solid var(--red); }
-  .pattern.warning { background: rgba(210,153,34,0.1); border-left: 3px solid var(--yellow); }
-  .pattern .icon { flex-shrink: 0; }
-  .pattern .desc { line-height: 1.4; }
-  .pattern .tag { display: inline-block; background: var(--surface2); padding: 1px 8px; border-radius: 10px; font-size: 11px; color: var(--text-muted); margin-right: 6px; }
+    body {
+      background: linear-gradient(135deg, var(--bg-primary) 0%, #0f1433 100%);
+      color: var(--text-primary);
+      font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      font-feature-settings: "cv11" 1;
+    }
 
-  /* Cost */
-  .cost-bars { display: flex; flex-direction: column; gap: 10px; }
-  .cost-item { display: flex; align-items: center; gap: 12px; font-size: 13px; }
-  .cost-label { width: 100px; color: var(--text-muted); }
-  .cost-bar-bg { flex: 1; height: 22px; background: var(--surface2); border-radius: 4px; overflow: hidden; position: relative; }
-  .cost-bar-fill { height: 100%; border-radius: 4px; display: flex; align-items: center; padding-left: 8px; font-size: 11px; color: white; }
-  .cost-bar-fill.llm { background: linear-gradient(90deg, #6e40c9, #bc8cff); }
-  .cost-bar-fill.tool { background: linear-gradient(90deg, #1f6feb, #58a6ff); }
-  .cost-val { width: 80px; text-align: right; font-variant-numeric: tabular-nums; }
+    /* ============== HEADER ============== */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 32px;
+      border-bottom: 1px solid var(--border-color);
+      background: rgba(10, 14, 39, 0.4);
+      backdrop-filter: blur(10px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
 
-  /* Footer */
-  .footer { padding: 16px 32px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); }
-  .footer a { color: var(--accent); text-decoration: none; }
-</style>
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .logo {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 700;
+      color: white;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+    }
+
+    .header-title {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .header-title h1 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+
+    .header-title .subtitle {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .header-center {
+      flex: 1;
+      text-align: center;
+      margin: 0 32px;
+    }
+
+    .trace-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .trace-id {
+      font-family: 'Monaco', 'Courier New', monospace;
+      color: var(--accent-blue);
+      font-weight: 600;
+      background: rgba(59, 130, 246, 0.1);
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--success);
+    }
+
+    .status-badge::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      background: var(--success);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .btn-replay {
+      padding: 8px 14px;
+      background: linear-gradient(135deg, var(--accent-blue) 0%, #2563eb 100%);
+      border: none;
+      border-radius: 6px;
+      color: white;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+    }
+
+    .btn-replay:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    }
+
+    .btn-replay:active {
+      transform: translateY(0);
+    }
+
+    .btn-replay.replaying {
+      background: linear-gradient(135deg, var(--accent-green) 0%, #059669 100%);
+      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.2);
+    }
+
+    /* ============== MAIN LAYOUT ============== */
+    .container {
+      display: grid;
+      grid-template-columns: 1fr 400px;
+      gap: 24px;
+      padding: 24px 32px;
+      height: calc(100vh - 80px);
+      overflow: hidden;
+    }
+
+    .main-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      overflow-y: auto;
+      padding-right: 8px;
+    }
+
+    .main-panel::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .main-panel::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .main-panel::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 3px;
+    }
+
+    .main-panel::-webkit-scrollbar-thumb:hover {
+      background: var(--text-muted);
+    }
+
+    /* ============== CARDS ============== */
+    .card {
+      background: linear-gradient(135deg, rgba(20, 24, 41, 0.5) 0%, rgba(26, 31, 58, 0.3) 100%);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 24px;
+      backdrop-filter: blur(10px);
+      transition: all 0.3s ease;
+      animation: fadeInUp 0.5s ease-out;
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(12px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .card:hover {
+      border-color: rgba(59, 130, 246, 0.3);
+      background: linear-gradient(135deg, rgba(20, 24, 41, 0.6) 0%, rgba(26, 31, 58, 0.4) 100%);
+    }
+
+    .card-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* ============== STATS ROW ============== */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 16px;
+      animation: fadeInUp 0.6s ease-out 0.1s both;
+    }
+
+    .stat-card {
+      background: rgba(26, 31, 58, 0.6);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent-blue), transparent);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .stat-card:hover::before {
+      opacity: 1;
+    }
+
+    .stat-card:hover {
+      border-color: var(--accent-blue);
+      background: rgba(59, 130, 246, 0.05);
+    }
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      margin-bottom: 8px;
+      letter-spacing: -0.5px;
+    }
+
+    .stat-value.success { color: var(--success); }
+    .stat-value.error { color: var(--error); }
+    .stat-value.warning { color: var(--warning); }
+    .stat-value.info { color: var(--accent-blue); }
+    .stat-value.purple { color: var(--accent-purple); }
+
+    .stat-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .stat-card.animated .stat-value {
+      animation: countUp 0.8s ease-out;
+    }
+
+    @keyframes countUp {
+      from {
+        opacity: 0;
+        transform: scale(0.9);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    /* ============== TIMELINE / GANTT ============== */
+    .timeline-section {
+      animation: fadeInUp 0.6s ease-out 0.2s both;
+    }
+
+    .timeline-controls {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+      margin-top: -8px;
+    }
+
+    .timeline-btn {
+      padding: 6px 12px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 5px;
+      color: var(--text-secondary);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .timeline-btn:hover {
+      border-color: var(--accent-blue);
+      color: var(--accent-blue);
+    }
+
+    .timeline-btn.active {
+      background: var(--accent-blue);
+      border-color: var(--accent-blue);
+      color: white;
+    }
+
+    .timeline-container {
+      position: relative;
+      min-height: 320px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      background: rgba(10, 14, 39, 0.3);
+      border-radius: 8px;
+      padding: 16px;
+      border: 1px solid var(--border-color);
+    }
+
+    .timeline-container::-webkit-scrollbar {
+      height: 6px;
+    }
+
+    .timeline-container::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .timeline-container::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 3px;
+    }
+
+    svg.gantt {
+      display: block;
+      min-width: 100%;
+    }
+
+    .gantt-span {
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .gantt-span:hover rect {
+      filter: brightness(1.3);
+    }
+
+    .gantt-span text {
+      font-size: 11px;
+      font-weight: 500;
+      pointer-events: none;
+    }
+
+    .gantt-tooltip {
+      position: fixed;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 12px;
+      font-size: 11px;
+      pointer-events: none;
+      z-index: 1000;
+      display: none;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      max-width: 280px;
+    }
+
+    .gantt-tooltip.visible {
+      display: block;
+    }
+
+    .gantt-tooltip-title {
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+    }
+
+    .gantt-tooltip-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--text-secondary);
+      margin: 3px 0;
+    }
+
+    /* ============== ERROR DAG ============== */
+    .dag-section {
+      animation: fadeInUp 0.6s ease-out 0.3s both;
+    }
+
+    .dag-container {
+      position: relative;
+      min-height: 400px;
+      background: rgba(10, 14, 39, 0.3);
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      padding: 16px;
+      overflow: auto;
+    }
+
+    svg.dag-svg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+    }
+
+    .dag-nodes {
+      position: relative;
+      z-index: 10;
+    }
+
+    .dag-node {
+      position: absolute;
+      padding: 12px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 2px solid;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-align: center;
+      white-space: nowrap;
+      min-width: 120px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .dag-node.ok {
+      background: rgba(16, 185, 129, 0.1);
+      border-color: var(--success);
+      color: var(--success);
+    }
+
+    .dag-node.cascaded {
+      background: rgba(245, 158, 11, 0.1);
+      border-color: var(--warning);
+      color: var(--warning);
+    }
+
+    .dag-node.root-cause {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: var(--error);
+      color: var(--error);
+      box-shadow: 0 2px 12px rgba(239, 68, 68, 0.3), inset 0 0 0 1px rgba(239, 68, 68, 0.2);
+      animation: pulse-error 2s infinite;
+    }
+
+    @keyframes pulse-error {
+      0%, 100% {
+        box-shadow: 0 2px 12px rgba(239, 68, 68, 0.3), inset 0 0 0 1px rgba(239, 68, 68, 0.2);
+      }
+      50% {
+        box-shadow: 0 2px 16px rgba(239, 68, 68, 0.4), inset 0 0 0 1px rgba(239, 68, 68, 0.3);
+      }
+    }
+
+    .dag-node:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+      border-width: 2px;
+    }
+
+    .dag-node-label {
+      font-size: 11px;
+      margin-top: 4px;
+      opacity: 0.8;
+    }
+
+    /* ============== PATTERNS PANEL ============== */
+    .patterns-section {
+      animation: fadeInUp 0.6s ease-out 0.4s both;
+    }
+
+    .patterns-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .pattern-card {
+      background: rgba(26, 31, 58, 0.4);
+      border-left: 3px solid;
+      border-radius: 8px;
+      padding: 14px;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+
+    .pattern-card.critical {
+      border-left-color: var(--error);
+      background: rgba(239, 68, 68, 0.08);
+    }
+
+    .pattern-card.warning {
+      border-left-color: var(--warning);
+      background: rgba(245, 158, 11, 0.08);
+    }
+
+    .pattern-card.info {
+      border-left-color: var(--info);
+      background: rgba(59, 130, 246, 0.08);
+    }
+
+    .pattern-card:hover {
+      transform: translateX(4px);
+      background: rgba(26, 31, 58, 0.6);
+    }
+
+    .pattern-icon {
+      font-size: 14px;
+      display: inline-block;
+      margin-right: 8px;
+    }
+
+    .pattern-title {
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+    }
+
+    .pattern-desc {
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      margin-bottom: 8px;
+    }
+
+    .pattern-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .pattern-tag {
+      display: inline-block;
+      background: var(--bg-tertiary);
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* ============== COST CHART ============== */
+    .cost-section {
+      animation: fadeInUp 0.6s ease-out 0.5s both;
+    }
+
+    .cost-list {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+
+    .cost-item {
+      display: grid;
+      grid-template-columns: 140px 1fr 80px;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .cost-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+
+    .cost-bar-bg {
+      height: 28px;
+      background: var(--bg-tertiary);
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+      position: relative;
+    }
+
+    .cost-bar-fill {
+      height: 100%;
+      display: flex;
+      align-items: center;
+      padding: 0 8px;
+      font-size: 11px;
+      font-weight: 600;
+      color: white;
+      border-radius: 6px;
+      transition: all 0.3s ease;
+      min-width: 40px;
+    }
+
+    .cost-bar-fill.llm {
+      background: linear-gradient(90deg, #8b5cf6 0%, #a78bfa 100%);
+    }
+
+    .cost-bar-fill.tool {
+      background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%);
+    }
+
+    .cost-bar-fill:hover {
+      filter: brightness(1.1);
+    }
+
+    .cost-value {
+      text-align: right;
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      color: var(--text-secondary);
+      font-weight: 600;
+    }
+
+    .cost-summary {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 14px;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      font-size: 12px;
+    }
+
+    .cost-summary-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .cost-summary-label {
+      color: var(--text-secondary);
+    }
+
+    .cost-summary-value {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    /* ============== SIDEBAR ============== */
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(20, 24, 41, 0.5) 0%, rgba(26, 31, 58, 0.3) 100%);
+      animation: slideInRight 0.4s ease-out;
+    }
+
+    @keyframes slideInRight {
+      from {
+        opacity: 0;
+        transform: translateX(100px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    .sidebar-header {
+      padding: 20px;
+      border-bottom: 1px solid var(--border-color);
+      background: rgba(26, 31, 58, 0.6);
+    }
+
+    .sidebar-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+
+    .sidebar-span-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-primary);
+      word-break: break-word;
+    }
+
+    .sidebar-close {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      width: 28px;
+      height: 28px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      transition: all 0.2s ease;
+    }
+
+    .sidebar-close:hover {
+      background: var(--accent-blue);
+      border-color: var(--accent-blue);
+      color: white;
+    }
+
+    .sidebar-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+    }
+
+    .sidebar-content::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .sidebar-content::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .sidebar-content::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 3px;
+    }
+
+    .sidebar-section {
+      margin-bottom: 20px;
+    }
+
+    .sidebar-section-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+      display: block;
+    }
+
+    .sidebar-field {
+      margin-bottom: 12px;
+      font-size: 12px;
+    }
+
+    .sidebar-label {
+      color: var(--text-muted);
+      margin-bottom: 3px;
+      display: block;
+    }
+
+    .sidebar-value {
+      color: var(--text-primary);
+      font-weight: 500;
+      font-family: 'Monaco', 'Courier New', monospace;
+      background: rgba(26, 31, 58, 0.5);
+      padding: 6px 8px;
+      border-radius: 4px;
+      word-break: break-all;
+    }
+
+    .sidebar-empty {
+      text-align: center;
+      color: var(--text-muted);
+      padding: 40px 20px;
+      font-size: 12px;
+    }
+
+    .sidebar-empty-icon {
+      font-size: 32px;
+      margin-bottom: 12px;
+      opacity: 0.5;
+    }
+
+    /* ============== FOOTER ============== */
+    .footer {
+      padding: 16px 32px;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: var(--text-muted);
+      background: rgba(10, 14, 39, 0.4);
+    }
+
+    .footer a {
+      color: var(--accent-blue);
+      text-decoration: none;
+      transition: color 0.2s ease;
+    }
+
+    .footer a:hover {
+      color: var(--accent-purple);
+    }
+
+    /* ============== RESPONSIVE ============== */
+    @media (max-width: 1400px) {
+      .container {
+        grid-template-columns: 1fr 350px;
+      }
+    }
+
+    @media (max-width: 1200px) {
+      .container {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        position: fixed;
+        right: 0;
+        top: 80px;
+        bottom: 50px;
+        width: 380px;
+        z-index: 200;
+        border-left: 1px solid var(--border-color);
+        border-radius: 0;
+        transform: translateX(400px);
+        transition: transform 0.3s ease;
+      }
+
+      .sidebar.visible {
+        transform: translateX(0);
+      }
+
+      .main-panel {
+        padding-right: 0;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .header {
+        padding: 16px 20px;
+      }
+
+      .header-center {
+        display: none;
+      }
+
+      .container {
+        padding: 16px 20px;
+        gap: 16px;
+      }
+
+      .stats-row {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .sidebar {
+        width: 100%;
+        height: 50vh;
+        bottom: 0;
+        right: 0;
+        border-radius: 12px 12px 0 0;
+      }
+
+      .cost-summary {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
 </head>
 <body>
 
+<!-- HEADER -->
 <div class="header">
-  <div class="logo">🔬</div>
-  <h1>FlowLens</h1>
-  <div class="badge">v0.1.0</div>
-  <div style="flex:1"></div>
-  <div style="font-size:13px;color:var(--text-muted)">Trace: <span style="color:var(--accent);font-family:monospace">4ebd4d69d75b</span></div>
+  <div class="header-left">
+    <div class="logo">F</div>
+    <div class="header-title">
+      <h1>FlowLens</h1>
+      <div class="subtitle">Agent Observability Platform</div>
+    </div>
+  </div>
+  <div class="header-center">
+    <div class="trace-info">
+      Trace: <span class="trace-id">4ebd4d69d75b</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="status-badge">Completed</div>
+    <button class="btn-replay" onclick="replayTimeline()">▶ Replay</button>
+  </div>
 </div>
 
-<div class="grid">
-  <!-- Stats -->
-  <div class="card grid-full">
-    <div class="card-title">Trace Overview — research_bot</div>
-    <div class="stat-row">
-      <div class="stat"><div class="value accent">8</div><div class="label">Total Spans</div></div>
-      <div class="stat"><div class="value green">253ms</div><div class="label">Duration</div></div>
-      <div class="stat"><div class="value" style="color:var(--purple)">2,967</div><div class="label">Total Tokens</div></div>
-      <div class="stat"><div class="value yellow">$0.019</div><div class="label">Total Cost</div></div>
-      <div class="stat"><div class="value red">2</div><div class="label">Errors</div></div>
-      <div class="stat"><div class="value red">1</div><div class="label">Root Causes</div></div>
-      <div class="stat"><div class="value yellow">1</div><div class="label">Cascade Depth</div></div>
-    </div>
-  </div>
+<!-- MAIN CONTAINER -->
+<div class="container">
+  <div class="main-panel">
 
-  <!-- Timeline -->
-  <div class="card grid-full">
-    <div class="card-title">Execution Timeline</div>
-    <div class="timeline">
-      <div class="tl-row">
-        <div class="tl-icon agent">🤖</div>
-        <div class="tl-name">research_bot</div>
-        <div class="tl-bar-wrap"><div class="tl-bar ok" style="left:0;width:100%">agent loop</div></div>
-        <div class="tl-dur">253ms</div>
-        <div class="tl-status">✅</div>
-      </div>
-      <div class="tl-row">
-        <div class="tl-icon llm">🧠</div>
-        <div class="tl-name" style="padding-left:16px">planner</div>
-        <div class="tl-bar-wrap"><div class="tl-bar ok" style="left:0;width:22%">1,771 tok</div></div>
-        <div class="tl-dur">55ms</div>
-        <div class="tl-status">✅</div>
-      </div>
-      <div class="tl-row">
-        <div class="tl-icon err">🔧</div>
-        <div class="tl-name" style="padding-left:16px">web_search</div>
-        <div class="tl-bar-wrap"><div class="tl-bar error" style="left:22%;width:15%">TIMEOUT</div></div>
-        <div class="tl-dur">37ms</div>
-        <div class="tl-status">❌</div>
-      </div>
-      <div class="tl-row">
-        <div class="tl-icon err">🔧</div>
-        <div class="tl-name" style="padding-left:16px">fetch_page</div>
-        <div class="tl-bar-wrap"><div class="tl-bar error" style="left:37%;width:10%">CASCADED</div></div>
-        <div class="tl-dur">25ms</div>
-        <div class="tl-status">❌</div>
-      </div>
-      <div class="tl-row">
-        <div class="tl-icon tool">🔧</div>
-        <div class="tl-name" style="padding-left:16px">web_search</div>
-        <div class="tl-bar-wrap"><div class="tl-bar ok" style="left:47%;width:12%">retry</div></div>
-        <div class="tl-dur">31ms</div>
-        <div class="tl-status">✅</div>
-      </div>
-      <div class="tl-row">
-        <div class="tl-icon tool">🔧</div>
-        <div class="tl-name" style="padding-left:16px">fetch_page</div>
-        <div class="tl-bar-wrap"><div class="tl-bar ok" style="left:59%;width:10%">ok</div></div>
-        <div class="tl-dur">25ms</div>
-        <div class="tl-status">✅</div>
-      </div>
-      <div class="tl-row">
-        <div class="tl-icon tool">🔧</div>
-        <div class="tl-name" style="padding-left:16px">summarize</div>
-        <div class="tl-bar-wrap"><div class="tl-bar ok" style="left:69%;width:10%">ok</div></div>
-        <div class="tl-dur">24ms</div>
-        <div class="tl-status">✅</div>
-      </div>
-      <div class="tl-row">
-        <div class="tl-icon llm">🧠</div>
-        <div class="tl-name" style="padding-left:16px">planner</div>
-        <div class="tl-bar-wrap"><div class="tl-bar ok" style="left:79%;width:21%">1,196 tok</div></div>
-        <div class="tl-dur">55ms</div>
-        <div class="tl-status">✅</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Causal DAG -->
-  <div class="card">
-    <div class="card-title">Causal Error DAG</div>
-    <div class="dag-container">
-      <svg class="dag-edges" viewBox="0 0 440 300">
-        <!-- web_search → fetch_page (preceded_by) -->
-        <defs>
-          <marker id="arrowRed" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-            <polygon points="0 0, 8 3, 0 6" fill="#f85149" />
-          </marker>
-          <marker id="arrowYellow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-            <polygon points="0 0, 8 3, 0 6" fill="#d29922" />
-          </marker>
-        </defs>
-        <line x1="155" y1="80" x2="155" y2="170" class="causal" marker-end="url(#arrowRed)" />
-        <line x1="195" y1="190" x2="280" y2="190" class="preceded" marker-end="url(#arrowYellow)" />
-      </svg>
-
-      <div class="dag-node ok" style="left:100px;top:15px">🤖 research_bot</div>
-
-      <div class="dag-node root-cause" style="left:60px;top:80px">
-        🔧 web_search<br>
-        <span style="font-size:10px;opacity:0.8">⚡ ROOT CAUSE: timeout</span>
-      </div>
-
-      <div class="dag-node cascaded" style="left:260px;top:80px">
-        🧠 planner #1<br>
-        <span style="font-size:10px;opacity:0.7">1,771 tokens</span>
-      </div>
-
-      <div class="dag-node cascaded" style="left:60px;top:175px">
-        🔧 fetch_page<br>
-        <span style="font-size:10px;opacity:0.8">⚠ CASCADED: invalid input</span>
-      </div>
-
-      <div class="dag-node ok" style="left:260px;top:175px">
-        🔧 web_search (retry)<br>
-        <span style="font-size:10px;opacity:0.7">✓ recovered</span>
-      </div>
-
-      <div class="dag-node ok" style="left:60px;top:260px">🔧 fetch_page (retry) ✓</div>
-      <div class="dag-node ok" style="left:220px;top:260px">🔧 summarize ✓</div>
-      <div class="dag-node ok" style="left:360px;top:260px">🧠 planner #2</div>
-
-      <div class="dag-label" style="left:130px;top:130px;color:var(--red)">caused_by ↓</div>
-      <div class="dag-label" style="left:210px;top:178px;color:var(--yellow)">preceded_by →</div>
-    </div>
-  </div>
-
-  <!-- Patterns -->
-  <div class="card">
-    <div class="card-title">Detected Patterns</div>
-
-    <div class="pattern critical">
-      <div class="icon">🔴</div>
-      <div>
-        <div class="desc">
-          <span class="tag">timeout_cascade</span>
-          <strong>web_search</strong> timed out, causing <strong>fetch_page</strong> to receive invalid input and fail.
+    <!-- STATS SECTION -->
+    <div class="card">
+      <div class="card-title">📊 Trace Overview — research_bot</div>
+      <div class="stats-row">
+        <div class="stat-card animated">
+          <div class="stat-value info">8</div>
+          <div class="stat-label">Total Spans</div>
         </div>
-        <div style="margin-top:6px;font-size:11px;color:var(--text-muted)">
-          Cascade depth: 1 &nbsp;|&nbsp; Affected spans: 2
+        <div class="stat-card animated">
+          <div class="stat-value success">253ms</div>
+          <div class="stat-label">Duration</div>
+        </div>
+        <div class="stat-card animated">
+          <div class="stat-value purple">2,967</div>
+          <div class="stat-label">Total Tokens</div>
+        </div>
+        <div class="stat-card animated">
+          <div class="stat-value warning">$0.019</div>
+          <div class="stat-label">Total Cost</div>
+        </div>
+        <div class="stat-card animated">
+          <div class="stat-value error">2</div>
+          <div class="stat-label">Errors</div>
+        </div>
+        <div class="stat-card animated">
+          <div class="stat-value error">1</div>
+          <div class="stat-label">Root Causes</div>
         </div>
       </div>
     </div>
 
-    <div class="pattern warning">
-      <div class="icon">🟡</div>
-      <div>
-        <div class="desc">
-          <span class="tag">retry_detected</span>
-          <strong>web_search</strong> and <strong>fetch_page</strong> were each called 2× — successful after retry.
-        </div>
-        <div style="margin-top:6px;font-size:11px;color:var(--text-muted)">
-          Retry cost overhead: ~30% of total tokens
-        </div>
+    <!-- TIMELINE SECTION -->
+    <div class="card timeline-section">
+      <div class="card-title">⏱️ Execution Timeline</div>
+      <div class="timeline-controls">
+        <button class="timeline-btn active" onclick="setTimelineView('relative')">Relative</button>
+        <button class="timeline-btn" onclick="setTimelineView('absolute')">Absolute</button>
+      </div>
+      <div class="timeline-container">
+        <svg class="gantt" id="ganttChart"></svg>
+      </div>
+      <div class="gantt-tooltip" id="ganttTooltip"></div>
+    </div>
+
+    <!-- ERROR DAG SECTION -->
+    <div class="card dag-section">
+      <div class="card-title">🔗 Causal Error DAG</div>
+      <div class="dag-container" id="dagContainer">
+        <svg class="dag-svg" id="dagEdges"></svg>
+        <div class="dag-nodes" id="dagNodes"></div>
       </div>
     </div>
 
-    <div style="margin-top:20px;">
-      <div class="card-title">Root Cause Summary</div>
-      <div style="padding:14px;background:rgba(248,81,73,0.08);border-radius:6px;border:1px solid rgba(248,81,73,0.2);font-size:13px;line-height:1.6;">
-        <strong style="color:var(--red)">1 root cause identified:</strong><br>
-        <code style="background:var(--surface2);padding:2px 6px;border-radius:3px;">web_search</code> → TimeoutError after 30s<br><br>
-        <strong style="color:var(--yellow)">1 cascaded failure:</strong><br>
-        <code style="background:var(--surface2);padding:2px 6px;border-radius:3px;">fetch_page</code> received empty URL from failed search → ValueError
+    <!-- PATTERNS & COST SECTION (Grid) -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+      <!-- PATTERNS -->
+      <div class="card patterns-section">
+        <div class="card-title">🎯 Detected Patterns</div>
+        <div class="patterns-list" id="patternsList"></div>
+      </div>
+
+      <!-- COST -->
+      <div class="card cost-section">
+        <div class="card-title">💰 Cost Attribution</div>
+        <div class="cost-list" id="costList"></div>
+        <div class="cost-summary" id="costSummary"></div>
       </div>
     </div>
+
   </div>
 
-  <!-- Cost -->
-  <div class="card grid-full">
-    <div class="card-title">Cost Attribution</div>
-    <div class="cost-bars">
-      <div class="cost-item">
-        <div class="cost-label">🧠 planner #1</div>
-        <div class="cost-bar-bg"><div class="cost-bar-fill llm" style="width:62%">1,771 tokens</div></div>
-        <div class="cost-val">$0.0120</div>
-      </div>
-      <div class="cost-item">
-        <div class="cost-label">🧠 planner #2</div>
-        <div class="cost-bar-bg"><div class="cost-bar-fill llm" style="width:38%">1,196 tokens</div></div>
-        <div class="cost-val">$0.0070</div>
-      </div>
-      <div class="cost-item">
-        <div class="cost-label">🔧 web_search ×2</div>
-        <div class="cost-bar-bg"><div class="cost-bar-fill tool" style="width:3%"></div></div>
-        <div class="cost-val">$0.0000</div>
-      </div>
-      <div class="cost-item">
-        <div class="cost-label">🔧 fetch_page ×2</div>
-        <div class="cost-bar-bg"><div class="cost-bar-fill tool" style="width:2%"></div></div>
-        <div class="cost-val">$0.0000</div>
-      </div>
-      <div class="cost-item">
-        <div class="cost-label">🔧 summarize</div>
-        <div class="cost-bar-bg"><div class="cost-bar-fill tool" style="width:1%"></div></div>
-        <div class="cost-val">$0.0000</div>
-      </div>
+  <!-- SIDEBAR -->
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header" style="position: relative;">
+      <div class="sidebar-close" onclick="closeSidebar()">✕</div>
+      <div class="sidebar-title">Span Details</div>
+      <div class="sidebar-span-name" id="sidebarSpanName">Select a span</div>
     </div>
-    <div style="margin-top:16px;padding:10px 14px;background:var(--surface2);border-radius:6px;font-size:12px;color:var(--text-muted);display:flex;gap:24px;">
-      <span>LLM calls: <strong style="color:var(--purple)">$0.019</strong> (100% of cost)</span>
-      <span>Tool calls: <strong style="color:var(--accent)">$0.000</strong></span>
-      <span>Retry overhead: <strong style="color:var(--yellow)">~$0.007</strong> (37%)</span>
-      <span>Model: <strong style="color:var(--text)">claude-sonnet-4</strong></span>
+    <div class="sidebar-content" id="sidebarContent">
+      <div class="sidebar-empty">
+        <div class="sidebar-empty-icon">👈</div>
+        <div>Click on a span in the timeline or DAG to view details</div>
+      </div>
     </div>
   </div>
 </div>
 
+<!-- FOOTER -->
 <div class="footer">
-  <span>FlowLens v0.1.0 — Agent Observability Platform</span>
-  <span>46 tests passing &nbsp;|&nbsp; MIT License &nbsp;|&nbsp; <a href="https://github.com/niceyusen/flowlens">github.com/niceyusen/flowlens</a></span>
+  <span>FlowLens v0.2.0 — Advanced Agent Observability</span>
+  <span>MIT License &nbsp;|&nbsp; <a href="https://github.com/niceyusen/flowlens">github.com/niceyusen/flowlens</a></span>
 </div>
+
+<script>
+// ============== DATA STRUCTURE ==============
+const traceData = {
+  traceId: '4ebd4d69d75b',
+  agent: 'research_bot',
+  startTime: 0,
+  endTime: 253,
+  totalSpans: 8,
+  spans: [
+    {
+      id: 'span_0',
+      name: 'research_bot',
+      type: 'agent',
+      status: 'ok',
+      startMs: 0,
+      durationMs: 253,
+      tokens: 0,
+      cost: 0,
+      errorType: null,
+      errorMsg: null,
+      parent: null,
+      children: ['span_1', 'span_2', 'span_3', 'span_4', 'span_5', 'span_6', 'span_7'],
+    },
+    {
+      id: 'span_1',
+      name: 'planner',
+      type: 'llm',
+      status: 'ok',
+      startMs: 0,
+      durationMs: 55,
+      tokens: 1771,
+      cost: 0.012,
+      errorType: null,
+      errorMsg: null,
+      parent: 'span_0',
+      children: [],
+    },
+    {
+      id: 'span_2',
+      name: 'web_search',
+      type: 'tool',
+      status: 'error',
+      role: 'root_cause',
+      startMs: 55,
+      durationMs: 37,
+      tokens: 0,
+      cost: 0,
+      errorType: 'TimeoutError',
+      errorMsg: 'web_search timed out after 30s',
+      parent: 'span_0',
+      children: [],
+    },
+    {
+      id: 'span_3',
+      name: 'fetch_page',
+      type: 'tool',
+      status: 'error',
+      role: 'cascaded',
+      startMs: 92,
+      durationMs: 25,
+      tokens: 0,
+      cost: 0,
+      errorType: 'ValueError',
+      errorMsg: 'received empty URL from failed search',
+      parent: 'span_0',
+      children: [],
+      causedBy: 'span_2',
+    },
+    {
+      id: 'span_4',
+      name: 'web_search',
+      type: 'tool',
+      status: 'ok',
+      role: 'ok',
+      startMs: 117,
+      durationMs: 31,
+      tokens: 0,
+      cost: 0,
+      errorType: null,
+      errorMsg: null,
+      parent: 'span_0',
+      children: [],
+      retryOf: 'span_2',
+    },
+    {
+      id: 'span_5',
+      name: 'fetch_page',
+      type: 'tool',
+      status: 'ok',
+      role: 'ok',
+      startMs: 148,
+      durationMs: 25,
+      tokens: 0,
+      cost: 0,
+      errorType: null,
+      errorMsg: null,
+      parent: 'span_0',
+      children: [],
+      retryOf: 'span_3',
+    },
+    {
+      id: 'span_6',
+      name: 'summarize',
+      type: 'tool',
+      status: 'ok',
+      role: 'ok',
+      startMs: 173,
+      durationMs: 24,
+      tokens: 0,
+      cost: 0,
+      errorType: null,
+      errorMsg: null,
+      parent: 'span_0',
+      children: [],
+    },
+    {
+      id: 'span_7',
+      name: 'planner',
+      type: 'llm',
+      status: 'ok',
+      role: 'ok',
+      startMs: 197,
+      durationMs: 56,
+      tokens: 1196,
+      cost: 0.007,
+      errorType: null,
+      errorMsg: null,
+      parent: 'span_0',
+      children: [],
+    },
+  ],
+  patterns: [
+    {
+      id: 'pat_0',
+      type: 'timeout_cascade',
+      severity: 'critical',
+      title: 'Timeout Cascade',
+      description: 'web_search timed out, causing fetch_page to receive invalid input and fail.',
+      affectedSpans: ['span_2', 'span_3'],
+      cascadeDepth: 1,
+    },
+    {
+      id: 'pat_1',
+      type: 'retry_detected',
+      severity: 'warning',
+      title: 'Retry Pattern',
+      description: 'web_search and fetch_page were each called 2× — successful after retry.',
+      affectedSpans: ['span_2', 'span_4', 'span_3', 'span_5'],
+      retryOverhead: 0.007,
+    },
+  ],
+};
+
+// ============== TIMELINE/GANTT ==============
+let timelineView = 'relative';
+
+function setTimelineView(view) {
+  timelineView = view;
+  renderGanttChart();
+  document.querySelectorAll('.timeline-btn').forEach((btn, idx) => {
+    btn.classList.toggle('active', (idx === 0 && view === 'relative') || (idx === 1 && view === 'absolute'));
+  });
+}
+
+function renderGanttChart() {
+  const chart = document.getElementById('ganttChart');
+  const lineHeight = 32;
+  const topPadding = 16;
+  const leftPadding = 160;
+  const chartWidth = 800;
+  const maxDuration = traceData.endTime;
+
+  const sortedSpans = traceData.spans.filter(s => s.id !== 'span_0').sort((a, b) => a.startMs - b.startMs);
+  const height = topPadding + (sortedSpans.length + 1) * lineHeight + 20;
+
+  chart.setAttribute('viewBox', `0 0 ${leftPadding + chartWidth + 100} ${height}`);
+  chart.setAttribute('width', '100%');
+  chart.setAttribute('height', height);
+
+  // Clear
+  chart.innerHTML = '';
+
+  // Grid lines
+  const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+  const pattern = document.createElementNS('http://www.w3.org/2000/svg', 'pattern');
+  pattern.setAttribute('id', 'grid');
+  pattern.setAttribute('width', '40');
+  pattern.setAttribute('height', '100%');
+  pattern.setAttribute('patternUnits', 'userSpaceOnUse');
+  const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  line.setAttribute('x1', '40');
+  line.setAttribute('y1', '0');
+  line.setAttribute('x2', '40');
+  line.setAttribute('y2', '100%');
+  line.setAttribute('stroke', 'rgba(42, 47, 79, 0.3)');
+  pattern.appendChild(line);
+  defs.appendChild(pattern);
+  chart.appendChild(defs);
+
+  // Background
+  const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  bg.setAttribute('width', leftPadding + chartWidth);
+  bg.setAttribute('height', height);
+  bg.setAttribute('fill', 'url(#grid)');
+  chart.appendChild(bg);
+
+  // Time labels
+  const timeStep = 50;
+  for (let t = 0; t <= maxDuration; t += timeStep) {
+    const x = leftPadding + (t / maxDuration) * chartWidth;
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', x);
+    text.setAttribute('y', topPadding - 4);
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('font-size', '11');
+    text.setAttribute('fill', 'rgba(161, 161, 166, 0.6)');
+    text.textContent = t + 'ms';
+    chart.appendChild(text);
+  }
+
+  // Spans
+  sortedSpans.forEach((span, idx) => {
+    const y = topPadding + idx * lineHeight;
+
+    // Name
+    const nameText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    nameText.setAttribute('x', 12);
+    nameText.setAttribute('y', y + 20);
+    nameText.setAttribute('font-size', '12');
+    nameText.setAttribute('font-weight', '500');
+    nameText.setAttribute('fill', 'var(--text-primary)');
+    nameText.textContent = span.name.substring(0, 20);
+    chart.appendChild(nameText);
+
+    // Bar
+    const x = leftPadding + (span.startMs / maxDuration) * chartWidth;
+    const width = Math.max(2, (span.durationMs / maxDuration) * chartWidth);
+
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.classList.add('gantt-span');
+    g.setAttribute('data-span-id', span.id);
+
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('x', x);
+    rect.setAttribute('y', y + 6);
+    rect.setAttribute('width', width);
+    rect.setAttribute('height', 20);
+    rect.setAttribute('rx', '3');
+
+    const statusColor = {
+      ok: '#10b981',
+      error: '#ef4444',
+    }[span.status] || '#3b82f6';
+
+    rect.setAttribute('fill', statusColor);
+    rect.setAttribute('opacity', span.status === 'error' ? '0.9' : '0.7');
+    g.appendChild(rect);
+
+    // Label
+    if (width > 50) {
+      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      label.setAttribute('x', x + width / 2);
+      label.setAttribute('y', y + 20);
+      label.setAttribute('text-anchor', 'middle');
+      label.setAttribute('font-size', '10');
+      label.setAttribute('fill', 'white');
+      label.setAttribute('pointer-events', 'none');
+      label.textContent = span.durationMs + 'ms';
+      g.appendChild(label);
+    }
+
+    g.addEventListener('mouseenter', (e) => {
+      const tooltip = document.getElementById('ganttTooltip');
+      const html = `
+        <div class="gantt-tooltip-title">${span.name}</div>
+        <div class="gantt-tooltip-row">
+          <span>Duration:</span>
+          <span>${span.durationMs}ms</span>
+        </div>
+        <div class="gantt-tooltip-row">
+          <span>Start:</span>
+          <span>${span.startMs}ms</span>
+        </div>
+        ${span.tokens > 0 ? `<div class="gantt-tooltip-row"><span>Tokens:</span><span>${span.tokens}</span></div>` : ''}
+        ${span.errorMsg ? `<div class="gantt-tooltip-row" style="color: var(--error); margin-top: 6px;"><span>Error:</span></div><div style="font-size: 10px; color: var(--error); margin-top: 3px;">${span.errorMsg}</div>` : ''}
+      `;
+      tooltip.innerHTML = html;
+      tooltip.classList.add('visible');
+      const rect = e.target.getBoundingClientRect();
+      tooltip.style.left = (rect.left + rect.width / 2 - 140) + 'px';
+      tooltip.style.top = (rect.top - 100) + 'px';
+    });
+
+    g.addEventListener('mouseleave', () => {
+      document.getElementById('ganttTooltip').classList.remove('visible');
+    });
+
+    g.addEventListener('click', () => openSpanDetails(span));
+
+    chart.appendChild(g);
+  });
+}
+
+// ============== SIDEBAR ==============
+function openSpanDetails(span) {
+  const sidebar = document.getElementById('sidebar');
+  sidebar.classList.add('visible');
+
+  document.getElementById('sidebarSpanName').textContent = span.name;
+
+  const content = document.getElementById('sidebarContent');
+  let html = '';
+
+  // Basic info
+  html += `
+    <div class="sidebar-section">
+      <span class="sidebar-section-title">Basic Info</span>
+      <div class="sidebar-field">
+        <label class="sidebar-label">Span ID</label>
+        <div class="sidebar-value">${span.id}</div>
+      </div>
+      <div class="sidebar-field">
+        <label class="sidebar-label">Type</label>
+        <div class="sidebar-value">${span.type}</div>
+      </div>
+      <div class="sidebar-field">
+        <label class="sidebar-label">Status</label>
+        <div class="sidebar-value" style="color: ${span.status === 'ok' ? 'var(--success)' : 'var(--error)'}">${span.status.toUpperCase()}</div>
+      </div>
+    </div>
+  `;
+
+  // Timing
+  html += `
+    <div class="sidebar-section">
+      <span class="sidebar-section-title">Timing</span>
+      <div class="sidebar-field">
+        <label class="sidebar-label">Start Time</label>
+        <div class="sidebar-value">${span.startMs}ms</div>
+      </div>
+      <div class="sidebar-field">
+        <label class="sidebar-label">Duration</label>
+        <div class="sidebar-value">${span.durationMs}ms</div>
+      </div>
+      <div class="sidebar-field">
+        <label class="sidebar-label">End Time</label>
+        <div class="sidebar-value">${span.startMs + span.durationMs}ms</div>
+      </div>
+    </div>
+  `;
+
+  // Resources
+  if (span.tokens > 0 || span.cost > 0) {
+    html += `
+      <div class="sidebar-section">
+        <span class="sidebar-section-title">Resources</span>
+        ${span.tokens > 0 ? `<div class="sidebar-field">
+          <label class="sidebar-label">Tokens</label>
+          <div class="sidebar-value">${span.tokens.toLocaleString()}</div>
+        </div>` : ''}
+        ${span.cost > 0 ? `<div class="sidebar-field">
+          <label class="sidebar-label">Cost</label>
+          <div class="sidebar-value">$${span.cost.toFixed(4)}</div>
+        </div>` : ''}
+      </div>
+    `;
+  }
+
+  // Error info
+  if (span.errorMsg) {
+    html += `
+      <div class="sidebar-section">
+        <span class="sidebar-section-title">Error Details</span>
+        <div class="sidebar-field">
+          <label class="sidebar-label">Error Type</label>
+          <div class="sidebar-value" style="color: var(--error)">${span.errorType}</div>
+        </div>
+        <div class="sidebar-field">
+          <label class="sidebar-label">Message</label>
+          <div class="sidebar-value" style="color: var(--error); font-size: 11px;">${span.errorMsg}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Relationships
+  html += `
+    <div class="sidebar-section">
+      <span class="sidebar-section-title">Relationships</span>
+      ${span.parent && span.parent !== 'span_0' ? `<div class="sidebar-field">
+        <label class="sidebar-label">Parent</label>
+        <div class="sidebar-value">${span.parent}</div>
+      </div>` : ''}
+      ${span.children && span.children.length > 0 ? `<div class="sidebar-field">
+        <label class="sidebar-label">Children (${span.children.length})</label>
+        <div class="sidebar-value">${span.children.join(', ')}</div>
+      </div>` : ''}
+      ${span.retryOf ? `<div class="sidebar-field">
+        <label class="sidebar-label">Retry Of</label>
+        <div class="sidebar-value">${span.retryOf}</div>
+      </div>` : ''}
+      ${span.causedBy ? `<div class="sidebar-field">
+        <label class="sidebar-label">Caused By</label>
+        <div class="sidebar-value" style="color: var(--error)">${span.causedBy}</div>
+      </div>` : ''}
+    </div>
+  `;
+
+  content.innerHTML = html;
+}
+
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('visible');
+}
+
+// ============== DAG GRAPH ==============
+function renderDAG() {
+  const container = document.getElementById('dagContainer');
+  const nodesDiv = document.getElementById('dagNodes');
+  const svgEdges = document.getElementById('dagEdges');
+
+  nodesDiv.innerHTML = '';
+  svgEdges.innerHTML = '';
+
+  // Simple hierarchical layout
+  const positions = {
+    span_0: { x: 100, y: 30 },
+    span_1: { x: 280, y: 100 },
+    span_2: { x: 60, y: 100 },
+    span_3: { x: 60, y: 190 },
+    span_4: { x: 280, y: 190 },
+    span_5: { x: 60, y: 280 },
+    span_6: { x: 220, y: 280 },
+    span_7: { x: 360, y: 280 },
+  };
+
+  // Draw edges
+  const edges = [
+    { from: 'span_2', to: 'span_3', type: 'caused_by' },
+    { from: 'span_2', to: 'span_4', type: 'retry' },
+    { from: 'span_3', to: 'span_5', type: 'retry' },
+  ];
+
+  edges.forEach(edge => {
+    const from = positions[edge.from];
+    const to = positions[edge.to];
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', from.x + 60);
+    line.setAttribute('y1', from.y + 25);
+    line.setAttribute('x2', to.x + 60);
+    line.setAttribute('y2', to.y - 5);
+    line.setAttribute('stroke', edge.type === 'caused_by' ? 'var(--error)' : 'var(--warning)');
+    line.setAttribute('stroke-width', '2');
+    line.setAttribute('stroke-dasharray', edge.type === 'caused_by' ? '6 3' : '4 4');
+    line.setAttribute('opacity', '0.5');
+    svgEdges.appendChild(line);
+
+    // Arrow
+    const arrowColor = edge.type === 'caused_by' ? '#ef4444' : '#f59e0b';
+    if (!svgEdges.querySelector(`#arrow-${edge.type}`)) {
+      const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+      const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+      marker.setAttribute('id', `arrow-${edge.type}`);
+      marker.setAttribute('markerWidth', '8');
+      marker.setAttribute('markerHeight', '8');
+      marker.setAttribute('refX', '6');
+      marker.setAttribute('refY', '4');
+      marker.setAttribute('orient', 'auto');
+      const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+      polygon.setAttribute('points', '0 0, 8 4, 0 8');
+      polygon.setAttribute('fill', arrowColor);
+      marker.appendChild(polygon);
+      defs.appendChild(marker);
+      svgEdges.appendChild(defs);
+    }
+  });
+
+  // Draw nodes
+  Object.entries(positions).forEach(([spanId, pos]) => {
+    const span = traceData.spans.find(s => s.id === spanId);
+    if (!span) return;
+
+    const node = document.createElement('div');
+    node.className = 'dag-node ' + (span.role || span.status);
+    node.style.left = pos.x + 'px';
+    node.style.top = pos.y + 'px';
+    node.setAttribute('data-span-id', spanId);
+
+    let content = `<div style="font-weight: 700">${span.name}</div>`;
+    if (span.role === 'root_cause') {
+      content += `<div class="dag-node-label">⚡ ROOT CAUSE</div>`;
+    } else if (span.role === 'cascaded') {
+      content += `<div class="dag-node-label">⚠️ CASCADED</div>`;
+    } else if (span.tokens > 0) {
+      content += `<div class="dag-node-label">${span.tokens} tokens</div>`;
+    }
+
+    node.innerHTML = content;
+    node.addEventListener('click', () => openSpanDetails(span));
+    nodesDiv.appendChild(node);
+  });
+
+  // Size SVG
+  svgEdges.setAttribute('viewBox', '0 0 500 350');
+  svgEdges.setAttribute('width', '100%');
+  svgEdges.setAttribute('height', '100%');
+}
+
+// ============== PATTERNS ==============
+function renderPatterns() {
+  const list = document.getElementById('patternsList');
+  list.innerHTML = '';
+
+  traceData.patterns.forEach(pattern => {
+    const card = document.createElement('div');
+    card.className = `pattern-card ${pattern.severity}`;
+
+    let icon = '🔴';
+    if (pattern.severity === 'warning') icon = '🟡';
+    else if (pattern.severity === 'info') icon = '🔵';
+
+    card.innerHTML = `
+      <div class="pattern-title">${icon} ${pattern.title}</div>
+      <div class="pattern-desc">${pattern.description}</div>
+      <div class="pattern-tags">
+        ${pattern.affectedSpans.map(s => `<span class="pattern-tag">${s}</span>`).join('')}
+        ${pattern.severity === 'critical' ? `<span class="pattern-tag" style="color: var(--error); border: 1px solid var(--error);">Critical</span>` : ''}
+      </div>
+    `;
+
+    list.appendChild(card);
+  });
+}
+
+// ============== COST ==============
+function renderCost() {
+  const list = document.getElementById('costList');
+  const summary = document.getElementById('costSummary');
+
+  // Calculate costs
+  const costItems = [
+    { name: '🧠 planner #1', tokens: 1771, cost: 0.012, type: 'llm' },
+    { name: '🧠 planner #2', tokens: 1196, cost: 0.007, type: 'llm' },
+    { name: '🔧 web_search ×2', tokens: 0, cost: 0, type: 'tool' },
+    { name: '🔧 fetch_page ×2', tokens: 0, cost: 0, type: 'tool' },
+    { name: '🔧 summarize', tokens: 0, cost: 0, type: 'tool' },
+  ];
+
+  const totalCost = costItems.reduce((sum, item) => sum + item.cost, 0);
+  const maxCost = Math.max(...costItems.map(c => c.cost));
+
+  list.innerHTML = costItems.map(item => {
+    const percentage = maxCost > 0 ? (item.cost / maxCost) * 100 : 0;
+    return `
+      <div class="cost-item">
+        <div class="cost-label">${item.name}</div>
+        <div class="cost-bar-bg">
+          <div class="cost-bar-fill ${item.type}" style="width: ${percentage}%">
+            ${item.tokens > 0 ? item.tokens.toLocaleString() + ' tok' : ''}
+          </div>
+        </div>
+        <div class="cost-value">$${item.cost.toFixed(4)}</div>
+      </div>
+    `;
+  }).join('');
+
+  summary.innerHTML = `
+    <div class="cost-summary-item">
+      <span class="cost-summary-label">Total Cost</span>
+      <span class="cost-summary-value">$${totalCost.toFixed(4)}</span>
+    </div>
+    <div class="cost-summary-item">
+      <span class="cost-summary-label">LLM Calls</span>
+      <span class="cost-summary-value">$0.019 (100%)</span>
+    </div>
+    <div class="cost-summary-item">
+      <span class="cost-summary-label">Tool Calls</span>
+      <span class="cost-summary-value">$0.000</span>
+    </div>
+    <div class="cost-summary-item">
+      <span class="cost-summary-label">Retry Overhead</span>
+      <span class="cost-summary-value">~$0.007 (37%)</span>
+    </div>
+  `;
+}
+
+// ============== REPLAY ANIMATION ==============
+function replayTimeline() {
+  const btn = document.querySelector('.btn-replay');
+  btn.classList.add('replaying');
+  btn.disabled = true;
+
+  const sortedSpans = traceData.spans.filter(s => s.id !== 'span_0').sort((a, b) => a.startMs - b.startMs);
+  const ganttSpans = document.querySelectorAll('.gantt-span');
+
+  // Reset all spans
+  ganttSpans.forEach(span => {
+    span.style.opacity = '0.2';
+    span.querySelector('rect').style.filter = 'grayscale(100%)';
+  });
+
+  let delay = 0;
+  sortedSpans.forEach((span, idx) => {
+    setTimeout(() => {
+      const spanEl = document.querySelector(`[data-span-id="${span.id}"]`);
+      if (spanEl) {
+        spanEl.style.animation = 'none';
+        spanEl.offsetHeight;
+        spanEl.style.animation = 'fadeInUp 0.3s ease-out forwards';
+        spanEl.style.opacity = '1';
+        spanEl.querySelector('rect').style.filter = 'grayscale(0%)';
+      }
+    }, delay);
+
+    delay += 150;
+  });
+
+  setTimeout(() => {
+    ganttSpans.forEach(span => {
+      span.style.opacity = '1';
+      span.querySelector('rect').style.filter = 'grayscale(0%)';
+    });
+    btn.classList.remove('replaying');
+    btn.disabled = false;
+  }, delay + 300);
+}
+
+// ============== INIT ==============
+document.addEventListener('DOMContentLoaded', () => {
+  renderGanttChart();
+  renderDAG();
+  renderPatterns();
+  renderCost();
+});
+</script>
 
 </body>
 </html>

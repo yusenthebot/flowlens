@@ -200,6 +200,13 @@ class Trace:
     def error_count(self) -> int:
         return sum(1 for s in self.spans if s.status == SpanStatus.ERROR)
 
+    @property
+    def error_rate(self) -> float:
+        """返回错误 span 的比例 (0.0 to 1.0)"""
+        if not self.spans:
+            return 0.0
+        return self.error_count / len(self.spans)
+
     def finish(self) -> None:
         self.end_time = time.time()
 
@@ -229,6 +236,7 @@ _MODEL_PRICING: dict[str, tuple[float, float]] = {
     "claude-opus-4-20250514": (15.0, 75.0),
     "claude-sonnet-4-20250514": (3.0, 15.0),
     "claude-haiku-4-20250514": (0.25, 1.25),
+    "claude-3.5-haiku": (0.8, 4.0),
     "gpt-4o": (2.5, 10.0),
     "gpt-4o-mini": (0.15, 0.6),
     "gpt-4.1": (2.0, 8.0),
@@ -237,6 +245,30 @@ _MODEL_PRICING: dict[str, tuple[float, float]] = {
     "gemini-2.5-flash": (0.15, 0.6),
     "deepseek-v3": (0.27, 1.1),
     "deepseek-r1": (0.55, 2.19),
+    "llama-3.1-70b": (0.99, 0.99),
+    "llama-3.1-405b": (5.35, 16.05),
+    "mistral-large": (2.0, 6.0),
+    "command-r-plus": (3.0, 15.0),
+}
+
+# 模型最大上下文窗口 (tokens) — 用于 pattern detection
+_MODEL_CONTEXT_WINDOWS: dict[str, int] = {
+    "claude-opus-4-20250514": 200_000,
+    "claude-sonnet-4-20250514": 200_000,
+    "claude-haiku-4-20250514": 200_000,
+    "claude-3.5-haiku": 200_000,
+    "gpt-4o": 128_000,
+    "gpt-4o-mini": 128_000,
+    "gpt-4.1": 8_192,
+    "gpt-4.1-mini": 8_192,
+    "gemini-2.5-pro": 1_000_000,
+    "gemini-2.5-flash": 1_000_000,
+    "deepseek-v3": 64_000,
+    "deepseek-r1": 64_000,
+    "llama-3.1-70b": 131_072,
+    "llama-3.1-405b": 131_072,
+    "mistral-large": 32_000,
+    "command-r-plus": 128_000,
 }
 
 # 默认定价 (中等模型)

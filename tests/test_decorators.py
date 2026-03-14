@@ -175,3 +175,204 @@ class TestNoLensGraceful:
 
         result = await my_agent()
         assert result == 42
+
+
+class TestSyncFunctions:
+    def test_trace_agent_sync_function(self, captured_traces):
+        """@trace_agent works with sync functions"""
+        @trace_agent(name="sync_bot")
+        def sync_agent():
+            return "sync_result"
+
+        result = sync_agent()
+        assert result == "sync_result"
+        assert len(captured_traces) == 1
+        assert captured_traces[0].spans[0].name == "sync_bot"
+        assert captured_traces[0].spans[0].kind == SpanKind.AGENT
+
+    def test_trace_llm_sync_function(self, captured_traces):
+        """@trace_llm works with sync functions"""
+        class FakeResponse:
+            class usage:
+                input_tokens = 100
+                output_tokens = 50
+
+        @trace_agent(name="agent")
+        def agent():
+            @trace_llm(model="claude-sonnet-4-20250514", name="sync_llm")
+            def call_llm():
+                return FakeResponse()
+
+            return call_llm()
+
+        agent()
+
+        trace = captured_traces[0]
+        llm_spans = [s for s in trace.spans if s.kind == SpanKind.LLM]
+        assert len(llm_spans) == 1
+        assert llm_spans[0].token_usage is not None
+
+    def test_trace_tool_sync_function(self, captured_traces):
+        """@trace_tool works with sync functions"""
+        @trace_agent(name="agent")
+        def agent():
+            @trace_tool(name="sync_tool")
+            def sync_tool(x: int):
+                return x * 2
+
+            return sync_tool(5)
+
+        result = agent()
+        assert result == 10
+
+        trace = captured_traces[0]
+        tool_spans = [s for s in trace.spans if s.kind == SpanKind.TOOL]
+        assert len(tool_spans) == 1
+        assert "tool.input.x" in tool_spans[0].attributes
+
+
+class TestDecoratorWithoutFlowLens:
+    @pytest.mark.asyncio
+    async def test_decorator_without_instance_no_errors(self):
+        """Decorators work even if FlowLens._instance is None"""
+        FlowLens._instance = None
+
+        @trace_llm(model="test", name="orphan_llm")
+        async def orphan_llm():
+            return "orphan"
+
+        result = await orphan_llm()
+        assert result == "orphan"
+
+    def test_sync_decorator_without_instance(self):
+        """Sync decorators work without instance"""
+        FlowLens._instance = None
+
+        @trace_tool(name="orphan_tool")
+        def orphan_tool():
+            return 42
+
+        result = orphan_tool()
+        assert result == 42
+
+
+class TestDecoratorExceptions:
+    @pytest.mark.asyncio
+    async def test_async_decorator_exception_propagation(self, captured_traces):
+        """Exceptions in decorated async functions are re-raised"""
+        @trace_agent(name="failing_agent")
+        async def failing():
+            raise ValueError("test error")
+
+        with pytest.raises(ValueError, match="test error"):
+            await failing()
+
+        # Trace should still be recorded with ERROR status
+        assert len(captured_traces) == 1
+        assert captured_traces[0].spans[0].status == SpanStatus.ERROR
+        assert "test error" in captured_traces[0].spans[0].error_message
+
+    def test_sync_decorator_exception_propagation(self, captured_traces):
+        """Exceptions in decorated sync functions are re-raised"""
+        @trace_agent(name="sync_fail")
+        def failing_sync():
+            raise RuntimeError("sync error")
+
+        with pytest.raises(RuntimeError, match="sync error"):
+            failing_sync()
+
+        assert len(captured_traces) == 1
+        assert captured_traces[0].spans[0].status == SpanStatus.ERROR
+
+    @pytest.mark.asyncio
+    async def test_llm_decorator_exception_caught(self, captured_traces):
+        """LLM decorator records exception and re-raises"""
+        @trace_agent(name="agent")
+        async def agent():
+            @trace_llm(model="test")
+            async def bad_llm():
+                raise ConnectionError("network issue")
+
+            try:
+                await bad_llm()
+            except ConnectionError:
+                pass
+
+        await agent()
+
+        trace = captured_traces[0]
+        llm_span = [s for s in trace.spans if s.kind == SpanKind.LLM][0]
+        assert llm_span.status == SpanStatus.ERROR
+        assert llm_span.error_type == "ConnectionError"
+
+    @pytest.mark.asyncio
+    async def test_tool_decorator_exception_caught(self, captured_traces):
+        """Tool decorator records exception and re-raises"""
+        @trace_agent(name="agent")
+        async def agent():
+            @trace_tool(name="bad_tool")
+            async def bad():
+                raise TimeoutError("took too long")
+
+            try:
+                await bad()
+            except TimeoutError:
+                pass
+
+        await agent()
+
+        trace = captured_traces[0]
+        tool_span = [s for s in trace.spans if s.kind == SpanKind.TOOL][0]
+        assert tool_span.status == SpanStatus.ERROR
+        assert tool_span.error_type == "TimeoutError"
+
+
+class TestDecoratorMetadata:
+    @pytest.mark.asyncio
+    async def test_agent_with_metadata(self, captured_traces):
+        """@trace_agent accepts metadata parameter"""
+        @trace_agent(name="bot", metadata={"env": "test", "version": "1.0"})
+        async def bot():
+            return "done"
+
+        await bot()
+
+        trace = captured_traces[0]
+        assert trace.metadata["env"] == "test"
+        assert trace.metadata["version"] == "1.0"
+
+    @pytest.mark.asyncio
+    async def test_agent_with_attributes(self, captured_traces):
+        """@trace_agent passes **attrs as span attributes"""
+        @trace_agent(name="bot", custom_attr="value", flag=True)
+        async def bot():
+            return "done"
+
+        await bot()
+
+        trace = captured_traces[0]
+        agent_span = trace.spans[0]
+        assert agent_span.attributes.get("custom_attr") == "value"
+        assert agent_span.attributes.get("flag") is True
+
+    @pytest.mark.asyncio
+    async def test_llm_with_attributes(self, captured_traces):
+        """@trace_llm passes **attrs as span attributes"""
+        class FakeResponse:
+            class usage:
+                input_tokens = 100
+                output_tokens = 50
+
+        @trace_agent(name="agent")
+        async def agent():
+            @trace_llm(model="claude-sonnet-4-20250514", custom="attr")
+            async def llm():
+                return FakeResponse()
+
+            return await llm()
+
+        await agent()
+
+        trace = captured_traces[0]
+        llm_span = [s for s in trace.spans if s.kind == SpanKind.LLM][0]
+        assert llm_span.attributes.get("custom") == "attr"

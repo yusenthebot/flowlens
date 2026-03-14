@@ -233,3 +233,166 @@ class TestAPI:
         assert dag["has_errors"]
         assert len(dag["root_causes"]) == 1
         assert dag["root_causes"][0] == "d2"
+
+    def test_list_traces_pagination(self, client):
+        """Test pagination with offset and limit"""
+        # Ingest multiple traces
+        for i in range(10):
+            trace_data = {
+                "trace_id": f"pag-{i}",
+                "service_name": "pagination-test",
+                "start_time": 1000 + i,
+                "end_time": 1001 + i,
+                "duration_ms": 1000,
+                "span_count": 1,
+                "total_tokens": 0,
+                "total_cost_usd": 0,
+                "has_errors": False,
+                "error_count": 0,
+                "metadata": {},
+                "spans": [
+                    {
+                        "span_id": f"s{i}",
+                        "trace_id": f"pag-{i}",
+                        "name": "root",
+                        "kind": "agent",
+                        "status": "ok",
+                        "start_time": 1000 + i,
+                        "end_time": 1001 + i,
+                        "attributes": {},
+                        "events": [],
+                    }
+                ],
+            }
+            client.post("/v1/traces/ingest", json=trace_data)
+
+        # Get first page (limit=3, offset=0)
+        r = client.get("/v1/traces?limit=3&offset=0")
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["traces"]) == 3
+        assert data["limit"] == 3
+        assert data["offset"] == 0
+
+        # Get second page (limit=3, offset=3)
+        r = client.get("/v1/traces?limit=3&offset=3")
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["traces"]) == 3
+        assert data["offset"] == 3
+
+    def test_cost_breakdown_grouping(self, client):
+        """Test cost breakdown with different grouping dimensions"""
+        # Ingest traces with different services
+        for service in ["service-a", "service-b", "service-a"]:
+            trace_data = {
+                "trace_id": f"cost-{service}-1",
+                "service_name": service,
+                "start_time": 1000,
+                "end_time": 1001,
+                "duration_ms": 1000,
+                "span_count": 1,
+                "total_tokens": 1000,
+                "total_cost_usd": 0.01,
+                "has_errors": False,
+                "error_count": 0,
+                "metadata": {},
+                "spans": [
+                    {
+                        "span_id": "s1",
+                        "trace_id": f"cost-{service}-1",
+                        "name": "root",
+                        "kind": "agent",
+                        "status": "ok",
+                        "start_time": 1000,
+                        "end_time": 1001,
+                        "attributes": {},
+                        "events": [],
+                    }
+                ],
+            }
+            client.post("/v1/traces/ingest", json=trace_data)
+
+        # Group by service_name
+        r = client.get("/v1/cost/breakdown?group_by=service_name")
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data) >= 2
+        dimensions = [item["dimension"] for item in data]
+        assert "service-a" in dimensions
+        assert "service-b" in dimensions
+
+    def test_import_jsonl_file(self, client, tmp_path):
+        """Test importing traces from JSONL file"""
+        # Create a JSONL file
+        jsonl_file = tmp_path / "traces.jsonl"
+        trace1 = {
+            "trace_id": "jsonl-1",
+            "service_name": "import-test",
+            "start_time": 1000,
+            "end_time": 1001,
+            "duration_ms": 1000,
+            "span_count": 1,
+            "total_tokens": 100,
+            "total_cost_usd": 0.001,
+            "has_errors": False,
+            "error_count": 0,
+            "metadata": {},
+            "spans": [
+                {
+                    "span_id": "s1",
+                    "trace_id": "jsonl-1",
+                    "name": "root",
+                    "kind": "agent",
+                    "status": "ok",
+                    "start_time": 1000,
+                    "end_time": 1001,
+                    "attributes": {},
+                    "events": [],
+                }
+            ],
+        }
+        trace2 = {
+            "trace_id": "jsonl-2",
+            "service_name": "import-test",
+            "start_time": 1001,
+            "end_time": 1002,
+            "duration_ms": 1000,
+            "span_count": 1,
+            "total_tokens": 200,
+            "total_cost_usd": 0.002,
+            "has_errors": False,
+            "error_count": 0,
+            "metadata": {},
+            "spans": [
+                {
+                    "span_id": "s2",
+                    "trace_id": "jsonl-2",
+                    "name": "root",
+                    "kind": "agent",
+                    "status": "ok",
+                    "start_time": 1001,
+                    "end_time": 1002,
+                    "attributes": {},
+                    "events": [],
+                }
+            ],
+        }
+
+        with open(jsonl_file, "w") as f:
+            import json
+            f.write(json.dumps(trace1) + "\n")
+            f.write(json.dumps(trace2) + "\n")
+
+        # Import the file
+        r = client.post(f"/v1/traces/import?file_path={jsonl_file}")
+        assert r.status_code == 201
+        data = r.json()
+        assert data["imported"] == 2
+        assert data["errors"] == 0
+
+        # Verify traces were imported
+        r = client.get("/v1/traces/jsonl-1")
+        assert r.status_code == 200
+        r = client.get("/v1/traces/jsonl-2")
+        assert r.status_code == 200

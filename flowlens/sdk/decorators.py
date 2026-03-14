@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 def trace_agent(
     name: str = "agent",
     metadata: Optional[dict] = None,
+    **attrs: Any,
 ) -> Callable:
     """
     装饰 Agent 主循环
@@ -49,7 +50,7 @@ def trace_agent(
             trace = lens.start_trace(metadata=metadata)
 
             with TraceContext(trace):
-                span = lens.start_span(name, kind=SpanKind.AGENT)
+                span = lens.start_span(name, kind=SpanKind.AGENT, attributes=attrs or {})
 
                 with SpanContext(span):
                     try:
@@ -75,7 +76,7 @@ def trace_agent(
             trace = lens.start_trace(metadata=metadata)
 
             with TraceContext(trace):
-                span = lens.start_span(name, kind=SpanKind.AGENT)
+                span = lens.start_span(name, kind=SpanKind.AGENT, attributes=attrs or {})
 
                 with SpanContext(span):
                     try:
@@ -102,6 +103,7 @@ def trace_agent(
 def trace_llm(
     model: str = "",
     name: Optional[str] = None,
+    **attrs: Any,
 ) -> Callable:
     """
     装饰 LLM 调用
@@ -120,13 +122,15 @@ def trace_llm(
             if not lens:
                 return await func(*args, **kwargs)
 
+            span_attrs = {
+                "gen_ai.system": "anthropic" if "claude" in model.lower() else "openai",
+                "gen_ai.request.model": model,
+            }
+            span_attrs.update(attrs or {})
             span = lens.start_span(
                 span_name,
                 kind=SpanKind.LLM,
-                attributes={
-                    "gen_ai.system": "anthropic" if "claude" in model.lower() else "openai",
-                    "gen_ai.request.model": model,
-                },
+                attributes=span_attrs,
             )
 
             with SpanContext(span):
@@ -146,13 +150,15 @@ def trace_llm(
             if not lens:
                 return func(*args, **kwargs)
 
+            span_attrs = {
+                "gen_ai.system": "anthropic" if "claude" in model.lower() else "openai",
+                "gen_ai.request.model": model,
+            }
+            span_attrs.update(attrs or {})
             span = lens.start_span(
                 span_name,
                 kind=SpanKind.LLM,
-                attributes={
-                    "gen_ai.system": "anthropic" if "claude" in model.lower() else "openai",
-                    "gen_ai.request.model": model,
-                },
+                attributes=span_attrs,
             )
 
             with SpanContext(span):
@@ -175,6 +181,7 @@ def trace_llm(
 
 def trace_tool(
     name: Optional[str] = None,
+    **attrs: Any,
 ) -> Callable:
     """
     装饰 Tool / Skill 执行
@@ -193,11 +200,12 @@ def trace_tool(
                 return await func(*args, **kwargs)
 
             # 记录输入参数
-            attrs = _capture_params(func, args, kwargs)
+            span_attrs = _capture_params(func, args, kwargs)
+            span_attrs.update(attrs or {})
             span = lens.start_span(
                 span_name,
                 kind=SpanKind.TOOL,
-                attributes=attrs,
+                attributes=span_attrs,
             )
 
             with SpanContext(span):
@@ -217,11 +225,12 @@ def trace_tool(
             if not lens:
                 return func(*args, **kwargs)
 
-            attrs = _capture_params(func, args, kwargs)
+            span_attrs = _capture_params(func, args, kwargs)
+            span_attrs.update(attrs or {})
             span = lens.start_span(
                 span_name,
                 kind=SpanKind.TOOL,
-                attributes=attrs,
+                attributes=span_attrs,
             )
 
             with SpanContext(span):
@@ -242,11 +251,162 @@ def trace_tool(
     return decorator
 
 
+def trace_chain(
+    name: str = "chain",
+    **attrs: Any,
+) -> Callable:
+    """
+    装饰链/管道步骤 — 多个 LLM 调用或 tool 执行的组合
+
+    - 创建 span (kind=CHAIN)
+    - 记录链的整体执行时间和结果
+    """
+
+    def decorator(func: Callable) -> Callable:
+        @functools.wraps(func)
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+            lens = FlowLens.get_instance()
+            if not lens:
+                return await func(*args, **kwargs)
+
+            span_attrs = attrs or {}
+            span = lens.start_span(
+                name,
+                kind=SpanKind.CHAIN,
+                attributes=span_attrs,
+            )
+
+            with SpanContext(span):
+                try:
+                    result = await func(*args, **kwargs)
+                    span.attributes["chain.output_summary"] = _summarize(result)
+                    span.finish(status=SpanStatus.OK)
+                    return result
+                except Exception as e:
+                    span.finish(status=SpanStatus.ERROR, error=str(e))
+                    span.error_type = type(e).__name__
+                    raise
+
+        @functools.wraps(func)
+        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
+            lens = FlowLens.get_instance()
+            if not lens:
+                return func(*args, **kwargs)
+
+            span_attrs = attrs or {}
+            span = lens.start_span(
+                name,
+                kind=SpanKind.CHAIN,
+                attributes=span_attrs,
+            )
+
+            with SpanContext(span):
+                try:
+                    result = func(*args, **kwargs)
+                    span.attributes["chain.output_summary"] = _summarize(result)
+                    span.finish(status=SpanStatus.OK)
+                    return result
+                except Exception as e:
+                    span.finish(status=SpanStatus.ERROR, error=str(e))
+                    span.error_type = type(e).__name__
+                    raise
+
+        if asyncio.iscoroutinefunction(func):
+            return async_wrapper
+        return sync_wrapper
+
+    return decorator
+
+
+def trace_retrieval(
+    name: str = "retrieval",
+    **attrs: Any,
+) -> Callable:
+    """
+    装饰 RAG 检索步骤
+
+    - 创建 span (kind=RETRIEVAL)
+    - 记录检索的文档数、相关性分数等
+    """
+
+    def decorator(func: Callable) -> Callable:
+        @functools.wraps(func)
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+            lens = FlowLens.get_instance()
+            if not lens:
+                return await func(*args, **kwargs)
+
+            span_attrs = attrs or {}
+            span = lens.start_span(
+                name,
+                kind=SpanKind.RETRIEVAL,
+                attributes=span_attrs,
+            )
+
+            with SpanContext(span):
+                try:
+                    result = await func(*args, **kwargs)
+                    # 尝试记录检索结果的数量
+                    if isinstance(result, (list, tuple)):
+                        span.attributes["retrieval.result_count"] = len(result)
+                    elif isinstance(result, dict) and "results" in result:
+                        span.attributes["retrieval.result_count"] = len(result.get("results", []))
+                    span.attributes["retrieval.output_summary"] = _summarize(result)
+                    span.finish(status=SpanStatus.OK)
+                    return result
+                except Exception as e:
+                    span.finish(status=SpanStatus.ERROR, error=str(e))
+                    span.error_type = type(e).__name__
+                    raise
+
+        @functools.wraps(func)
+        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
+            lens = FlowLens.get_instance()
+            if not lens:
+                return func(*args, **kwargs)
+
+            span_attrs = attrs or {}
+            span = lens.start_span(
+                name,
+                kind=SpanKind.RETRIEVAL,
+                attributes=span_attrs,
+            )
+
+            with SpanContext(span):
+                try:
+                    result = func(*args, **kwargs)
+                    # 尝试记录检索结果的数量
+                    if isinstance(result, (list, tuple)):
+                        span.attributes["retrieval.result_count"] = len(result)
+                    elif isinstance(result, dict) and "results" in result:
+                        span.attributes["retrieval.result_count"] = len(result.get("results", []))
+                    span.attributes["retrieval.output_summary"] = _summarize(result)
+                    span.finish(status=SpanStatus.OK)
+                    return result
+                except Exception as e:
+                    span.finish(status=SpanStatus.ERROR, error=str(e))
+                    span.error_type = type(e).__name__
+                    raise
+
+        if asyncio.iscoroutinefunction(func):
+            return async_wrapper
+        return sync_wrapper
+
+    return decorator
+
+
 # ===== Helper functions =====
 
 
 def _extract_llm_usage(span: Span, result: Any, model: str) -> None:
-    """从 LLM 响应中提取 token 用量"""
+    """从 LLM 响应中提取 token 用量
+
+    支持以下格式：
+    - Anthropic SDK: result.usage.input_tokens / output_tokens
+    - OpenAI SDK (dict): result["usage"]["prompt_tokens"] / completion_tokens
+    - Google Generative AI: result.candidates[0].token_count, result.usage_metadata
+    - LiteLLM: result.usage.prompt_tokens / completion_tokens
+    """
     input_tokens = 0
     output_tokens = 0
 
@@ -255,11 +415,29 @@ def _extract_llm_usage(span: Span, result: Any, model: str) -> None:
         usage = result.usage
         input_tokens = getattr(usage, "input_tokens", 0)
         output_tokens = getattr(usage, "output_tokens", 0)
-    # OpenAI SDK 格式
+    # OpenAI SDK 格式 (dict)
     elif isinstance(result, dict) and "usage" in result:
         usage = result["usage"]
         input_tokens = usage.get("prompt_tokens", 0)
         output_tokens = usage.get("completion_tokens", 0)
+    # Google Generative AI 格式
+    elif hasattr(result, "usage_metadata"):
+        usage = result.usage_metadata
+        input_tokens = getattr(usage, "prompt_token_count", 0)
+        output_tokens = getattr(usage, "candidates_token_count", 0)
+    # Google Generative AI 备选格式 (candidates)
+    elif hasattr(result, "candidates") and result.candidates:
+        if hasattr(result.candidates[0], "token_count"):
+            output_tokens = result.candidates[0].token_count
+        if hasattr(result, "usage_metadata"):
+            usage = result.usage_metadata
+            input_tokens = getattr(usage, "prompt_token_count", 0)
+    # LiteLLM 格式
+    elif isinstance(result, dict) and "usage" in result:
+        usage = result["usage"]
+        if isinstance(usage, dict):
+            input_tokens = usage.get("prompt_tokens", 0)
+            output_tokens = usage.get("completion_tokens", 0)
 
     if input_tokens or output_tokens:
         span.set_token_usage(

@@ -142,3 +142,106 @@ def _has_error_predecessor(
             if siblings[i] in error_set:
                 return True
     return False
+
+
+def calculate_critical_path(dag: CausalDAG) -> list[str]:
+    """
+    找到 DAG 中的关键路径（最长路径）
+    用于瓶颈分析：返回从根因开始，经历最多节点的错误传播链
+
+    Args:
+        dag: 因果 DAG
+
+    Returns:
+        关键路径上的 span_id 列表（按时间顺序）
+    """
+    if not dag.has_errors:
+        return []
+
+    # 构建邻接表
+    children: dict[str, list[str]] = {}
+    for e in dag.edges:
+        children.setdefault(e.source_id, []).append(e.target_id)
+
+    # DFS 找最长路径
+    max_path = []
+
+    def dfs(node_id: str, current_path: list[str]) -> None:
+        nonlocal max_path
+        current_path.append(node_id)
+        if len(current_path) > len(max_path):
+            max_path = current_path[:]
+        for child_id in children.get(node_id, []):
+            dfs(child_id, current_path)
+        current_path.pop()
+
+    # 从每个根因开始
+    for rc in dag.root_causes:
+        dfs(rc, [])
+
+    return max_path
+
+
+def get_error_propagation_chain(dag: CausalDAG, span_id: str) -> list[str]:
+    """
+    返回从某个 error span 开始的完整错误传播链
+    包括该 span 及其所有下游 error spans
+
+    Args:
+        dag: 因果 DAG
+        span_id: 起始 span id
+
+    Returns:
+        完整的传播链 (span_ids)
+    """
+    # 构建邻接表
+    children: dict[str, list[str]] = {}
+    for e in dag.edges:
+        children.setdefault(e.source_id, []).append(e.target_id)
+
+    result = [span_id]
+    queue = [span_id]
+    visited = {span_id}
+
+    while queue:
+        current = queue.pop(0)
+        for child in children.get(current, []):
+            if child not in visited:
+                visited.add(child)
+                result.append(child)
+                queue.append(child)
+
+    return result
+
+
+def _has_error_ancestor_improved(
+    span_id: str,
+    parent_of: dict[str, str],
+    error_set: set[str],
+) -> bool:
+    """检查是否有 error 祖先（改进版）"""
+    current = parent_of.get(span_id)
+    while current:
+        if current in error_set:
+            return True
+        current = parent_of.get(current)
+    return False
+
+
+def _has_successful_predecessor(
+    span_id: str,
+    sibling_groups: dict[str, list[str]],
+    error_set: set[str],
+    parent_of: dict[str, str],
+) -> bool:
+    """检查是否有成功的前驱节点（改进的根因检测）"""
+    group_key = parent_of.get(span_id, "__root__")
+    siblings = sibling_groups.get(group_key, [])
+    idx = siblings.index(span_id) if span_id in siblings else -1
+    if idx > 0:
+        prev_id = siblings[idx - 1]
+        # 如果前一个兄弟节点成功了，但当前节点失败了，
+        # 说明当前节点可能是独立的根因，而不是级联错误
+        if prev_id not in error_set:
+            return True
+    return False

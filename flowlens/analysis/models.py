@@ -26,6 +26,9 @@ class PatternType(Enum):
     HALLUCINATION_CASCADE = "hallucination_cascade"  # 幻觉输出被下游消费
     TIMEOUT_CASCADE = "timeout_cascade"        # 超时导致下游连锁失败
     EMPTY_RESPONSE = "empty_response"          # LLM 返回空内容
+    COST_SPIKE = "cost_spike"                  # 单次 LLM 调用消耗超过总 token 的 50%
+    SLOW_TOOL = "slow_tool"                    # Tool 耗时超过平均值的 3 倍
+    REDUNDANT_CALLS = "redundant_calls"        # 相同 tool 用相同参数调用多次
 
 
 @dataclass
@@ -146,3 +149,8 @@ class CausalDAG:
             "cascade_depth": self.cascade_depth,
             "has_errors": self.has_errors,
         }
+
+    # Alias for JSON serialization
+    def dag_to_dict(self) -> dict[str, Any]:
+        """Serialize the DAG to a JSON-compatible dictionary."""
+        return self.to_dict()

@@ -168,11 +168,15 @@ class TestPatternDetection:
     def test_no_patterns_on_clean_trace(self):
         s1 = Span(span_id="s1", name="tool", kind=SpanKind.TOOL)
         s1.finish()
-        s2 = Span(span_id="s2", name="llm", kind=SpanKind.LLM)
-        s2.set_token_usage(100, 50, "")
-        s2.finish()
+        # Use multiple tokens to avoid cost spike (single LLM using > 50% of total)
+        s2a = Span(span_id="s2a", name="llm", kind=SpanKind.LLM)
+        s2a.set_token_usage(100, 50, "")
+        s2a.finish()
+        s2b = Span(span_id="s2b", name="llm", kind=SpanKind.LLM)
+        s2b.set_token_usage(100, 50, "")
+        s2b.finish()
 
-        trace = _make_trace(s1, s2)
+        trace = _make_trace(s1, s2a, s2b)
         dag = build_causal_dag(trace)
         patterns = detect_patterns(trace, dag)
         assert len(patterns) == 0
