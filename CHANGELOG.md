@@ -18,6 +18,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.1] — 2026-03-14
+
+Configuration flexibility, offline capabilities, and agent observability. 966 → 1025 tests across 1 development cycle of features and enhancements.
+
+### Added
+
+#### Cycle 2 Features (2026-03-14)
+- **Configurable pattern detection thresholds**: 6 new env var config fields in `config.py` (FLOWLENS_PATTERN_*_THRESHOLD) for context window, retry storm, cold start, timeout cascade, empty response, and infinite loop detection. All `detect_*()` functions in `patterns.py` updated to use config values at runtime (commit a8047ce)
+- **LocalCollector + LocalExporter**: New `flowlens/local.py` module with thread-safe direct SQLite access, bypassing HTTP server entirely. Query, ingest, search, pagination, and stats methods. Designed for embedded use cases (sync frameworks, CLI tools). LocalExporter added to SDK `create_exporter()` factory under `export_to="local"` (commit d3ebcff)
+- **Agent observability dashboard tab**: New 6th "Agents" tab with responsive card grid, color-coded error rates (green <1%, yellow 1-10%, red >10%), click-to-filter traces by agent. Keyboard shortcut '6' switches to Agents view (commit 5181d89)
+- **Agent summary API**: New `/v1/agents/summary` endpoint groups trace stats by `tags.agent`, returning trace count, error rate, avg latency, total cost, span count per agent sorted by trace count descending (commit 5181d89)
+- **LocalCollector stress tests**: 35 test cases in `test_local_collector.py` covering ingest/query roundtrip, pagination, search, stats, 10-thread concurrent ingest, concurrent read+write (commit d3ebcff)
+- **Pattern config tests**: 84 lines in `test_config.py` validating config field types and defaults; 119 lines in `test_analysis.py` testing pattern detection with various config thresholds (commit a8047ce)
+- **Agent summary tests**: 5 new test cases in `test_server.py` covering basic grouping, sort order, empty DB, unknown-agent fallback, error-rate calculation (commit 5181d89)
+
+### Changed
+- Version bumped to 0.5.1
+- Pattern detection behavior: thresholds now configurable via environment variables instead of hardcoded constants
+
+### Technical Decisions
+- **Thread-safe SQLite access**: LocalCollector uses single `threading.Lock` to serialize all DB cursor operations on shared primary connection
+- **Agent grouping**: Fallback to "unknown-agent" for traces without `tags.agent` tag value
+- **Error rate visualization**: Color-coded UI indicators for quick agent health assessment
+- **No HTTP overhead**: LocalCollector designed for scenarios where HTTPExporter would introduce unnecessary latency
+
+---
+
 ## [0.5.0] — 2026-03-14
 
 Major release: plugin system, batch exporters, full CLI toolset, production hardening, UI redesign, and polished demos. 88 → 966 tests across 1 development cycle of bug fixes.
@@ -143,6 +170,7 @@ Initial public release of FlowLens — Agent Observability Platform.
 
 ---
 
-[Unreleased]: https://github.com/yusenthebot/flowlens/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/yusenthebot/flowlens/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/yusenthebot/flowlens/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/yusenthebot/flowlens/compare/v0.1.0...v0.5.0
 [0.1.0]: https://github.com/yusenthebot/flowlens/releases/tag/v0.1.0
