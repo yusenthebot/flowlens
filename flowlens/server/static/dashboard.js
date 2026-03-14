@@ -1,0 +1,2861 @@
+/* FlowLens Dashboard — Main application logic */
+'use strict';
+
+// =========================================================================
+// State
+// =========================================================================
+const API_BASE = window.location.origin;
+
+// =========================================================================
+// Agent Profile System
+// =========================================================================
+const AGENT_PROFILES = {
+  'vr-alpha': {
+    name: 'Alpha', role: 'Core Developer', color: '#3b82f6', bgClass: 'from-blue-500/20 to-blue-600/10',
+    badgeClass: 'bg-blue-500/15 text-blue-400 border-blue-500/25',
+    icon: `<svg viewBox="0 0 32 32" fill="none"><rect x="4" y="6" width="24" height="20" rx="3" stroke="currentColor" stroke-width="2"/><path d="M16 12v8m-4-4h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`
+  },
+  'vr-beta': {
+    name: 'Beta', role: 'Worker Engineer', color: '#10b981', bgClass: 'from-emerald-500/20 to-emerald-600/10',
+    badgeClass: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25',
+    icon: `<svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="10" stroke="currentColor" stroke-width="2"/><path d="M16 11v5l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`
+  },
+  'vr-gamma': {
+    name: 'Gamma', role: 'Test & Monitor', color: '#8b5cf6', bgClass: 'from-purple-500/20 to-purple-600/10',
+    badgeClass: 'bg-purple-500/15 text-purple-400 border-purple-500/25',
+    icon: `<svg viewBox="0 0 32 32" fill="none"><path d="M16 4l3 8h8l-6.5 5 2.5 8L16 20l-7 5 2.5-8L5 12h8z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>`
+  },
+  'vr-lead': {
+    name: 'Lead', role: 'Architect', color: '#f59e0b', bgClass: 'from-amber-500/20 to-amber-600/10',
+    badgeClass: 'bg-amber-500/15 text-amber-400 border-amber-500/25',
+    icon: `<svg viewBox="0 0 32 32" fill="none"><path d="M6 20l4-8 6 4 6-4 4 8H6z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><rect x="8" y="20" width="16" height="4" rx="1" stroke="currentColor" stroke-width="2"/></svg>`
+  },
+  'vr-scribe': {
+    name: 'Scribe', role: 'Documentation', color: '#6b7280', bgClass: 'from-slate-500/20 to-slate-600/10',
+    badgeClass: 'bg-slate-500/15 text-slate-400 border-slate-500/25',
+    icon: `<svg viewBox="0 0 32 32" fill="none"><rect x="7" y="4" width="18" height="24" rx="2" stroke="currentColor" stroke-width="2"/><path d="M11 10h10M11 14h10M11 18h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`
+  },
+  'main': {
+    name: 'Main', role: 'Session', color: '#6366f1', bgClass: 'from-indigo-500/20 to-indigo-600/10',
+    badgeClass: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/25',
+    icon: `<svg viewBox="0 0 32 32" fill="none"><rect x="4" y="6" width="24" height="20" rx="3" stroke="currentColor" stroke-width="2"/><path d="M10 16l3 3 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+  },
+  'Explore': {
+    name: 'Explore', role: 'Explorer', color: '#06b6d4', bgClass: 'from-cyan-500/20 to-cyan-600/10',
+    badgeClass: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/25',
+    icon: `<svg viewBox="0 0 32 32" fill="none"><circle cx="14" cy="14" r="8" stroke="currentColor" stroke-width="2"/><path d="M20 20l6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`
+  },
+};
+const DEFAULT_PROFILE = {
+  name: '?', role: 'Agent', color: '#9ca3af', bgClass: 'from-slate-500/20 to-slate-600/10',
+  badgeClass: 'bg-slate-500/15 text-slate-400 border-slate-500/25',
+  icon: `<svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="12" r="5" stroke="currentColor" stroke-width="2"/><path d="M8 26c0-4.4 3.6-8 8-8s8 3.6 8 8" stroke="currentColor" stroke-width="2"/></svg>`
+};
+
+function getAgentProfile(name) {
+  return AGENT_PROFILES[name] || { ...DEFAULT_PROFILE, name: name || '?' };
+}
+
+function renderAgentAvatar(name, size = 'md') {
+  const p = getAgentProfile(name);
+  const sizes = { sm: 'w-6 h-6', md: 'w-8 h-8', lg: 'w-10 h-10' };
+  return `<div class="${sizes[size] || sizes.md} rounded-lg bg-gradient-to-br ${p.bgClass} flex items-center justify-center flex-shrink-0" style="color:${p.color}">${p.icon}</div>`;
+}
+
+let currentView = 'overview';
+let traceOffset = 0;
+const TRACE_LIMIT = 30;
+let currentTraceId = null;
+let currentTraceData = null;
+let cyInstance = null;
+let autoRefreshTimer = null;
+let chartInstances = {};
+let allPatterns = [];
+let selectedTraceIndex = -1; // For keyboard navigation
+let wsConnection = null;
+let wsReconnectTimer = null;
+let wsReconnectAttempts = 0;
+let compareSelection = []; // For trace comparison (max 2)
+let isDarkTheme = document.documentElement.classList.contains('dark');
+let dagLoaded = false; // Lazy load flag for DAG
+let knownAgents = new Set(); // For new-agent detection in notifications
+let virtualScrollState = { traces: [], renderedStart: 0, renderedEnd: 0, rowHeight: 56, containerHeight: 600 };
+
+// =========================================================================
+// Notification System
+// =========================================================================
+let notifications = [];
+
+function toggleNotificationPanel() {
+  const panel = document.getElementById('notification-panel');
+  panel.classList.toggle('hidden');
+  if (!panel.classList.contains('hidden')) {
+    renderNotifications();
+  }
+}
+
+function addNotification(type, title, message, traceId = null) {
+  notifications.unshift({
+    id: Date.now(),
+    type,  // 'error', 'warning', 'info', 'success'
+    title,
+    message,
+    traceId,
+    timestamp: Date.now() / 1000,
+    read: false,
+  });
+  // Keep max 50
+  if (notifications.length > 50) notifications = notifications.slice(0, 50);
+  updateNotificationBadge();
+}
+
+function updateNotificationBadge() {
+  const unread = notifications.filter(n => !n.read).length;
+  const badge = document.getElementById('notification-badge');
+  if (unread > 0) {
+    badge.textContent = unread > 9 ? '9+' : unread;
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+}
+
+function clearNotifications() {
+  notifications = [];
+  updateNotificationBadge();
+  renderNotifications();
+}
+
+function renderNotifications() {
+  const list = document.getElementById('notification-list');
+  if (!list) return;
+  // Mark all as read when panel is opened
+  notifications.forEach(n => { n.read = true; });
+  updateNotificationBadge();
+  if (notifications.length === 0) {
+    list.innerHTML = '<div class="p-6 text-center text-xs text-slate-500">No notifications</div>';
+    return;
+  }
+  const typeConfig = {
+    error:   { dot: 'bg-red-500',    icon: '!', label: 'Error' },
+    warning: { dot: 'bg-amber-400',  icon: '!', label: 'Warning' },
+    info:    { dot: 'bg-indigo-400', icon: 'i', label: 'Info' },
+    success: { dot: 'bg-emerald-500',icon: '✓', label: 'Success' },
+  };
+  list.innerHTML = notifications.map(n => {
+    const cfg = typeConfig[n.type] || typeConfig.info;
+    const timeAgo = formatTimeAgo(n.timestamp);
+    const clickAttr = n.traceId ? `onclick="openTrace('${escHtml(n.traceId)}');toggleNotificationPanel();" style="cursor:pointer"` : '';
+    return `
+      <div class="flex gap-3 p-3 hover:bg-white/5 transition" ${clickAttr}>
+        <div class="flex-shrink-0 w-2 h-2 rounded-full ${cfg.dot} mt-1.5"></div>
+        <div class="min-w-0 flex-1">
+          <div class="text-xs font-semibold text-white">${escHtml(n.title)}</div>
+          <div class="text-[11px] text-slate-400 mt-0.5 break-words">${escHtml(n.message)}</div>
+          <div class="text-[10px] text-slate-600 mt-1">${timeAgo}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// =========================================================================
+// API Helpers
+// =========================================================================
+async function apiFetch(path, opts = {}) {
+  try {
+    const res = await fetch(`${API_BASE}${path}`, opts);
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`HTTP ${res.status}: ${text}`);
+    }
+    return await res.json();
+  } catch (err) {
+    console.error(`API error [${path}]:`, err);
+    throw err;
+  }
+}
+
+function updateRefreshTime() {
+  const el = document.getElementById('last-refresh');
+  el.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+}
+
+// =========================================================================
+// Utilities
+// =========================================================================
+function escHtml(str) {
+  if (!str) return '';
+  const div = document.createElement('div');
+  div.textContent = String(str);
+  return div.innerHTML;
+}
+
+function formatDuration(ms) {
+  if (ms < 1) return '<1ms';
+  if (ms < 1000) return ms.toFixed(0) + 'ms';
+  return (ms / 1000).toFixed(2) + 's';
+}
+
+// =========================================================================
+// Toast Notifications
+// =========================================================================
+function showToast(message, type = 'info', duration = 4000) {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  const colors = {
+    info: 'border-indigo-500/40 bg-indigo-500/10 text-indigo-200',
+    error: 'border-red-500/40 bg-red-500/10 text-red-200',
+    success: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200',
+    warning: 'border-amber-500/40 bg-amber-500/10 text-amber-200',
+  };
+  const icons = {
+    info: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>',
+    error: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>',
+    success: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>',
+    warning: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>',
+  };
+
+  toast.className = `toast-enter pointer-events-auto flex items-center gap-2 px-4 py-3 rounded-xl border backdrop-blur-lg text-sm ${colors[type] || colors.info} shadow-lg max-w-sm`;
+  toast.innerHTML = `
+    <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">${icons[type] || icons.info}</svg>
+    <span class="flex-1">${escHtml(message)}</span>
+  `;
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.classList.remove('toast-enter');
+    toast.classList.add('toast-exit');
+    setTimeout(() => toast.remove(), 300);
+  }, duration);
+}
+// =========================================================================
+// View Switching (with smooth transitions)
+// =========================================================================
+function switchView(view) {
+  currentView = view;
+  selectedTraceIndex = -1;
+  document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('tab-active'); b.classList.add('tab-inactive'); });
+
+  const panel = document.getElementById(`view-${view}`);
+  if (panel) {
+    panel.classList.remove('hidden');
+    // Trigger smooth enter animation
+    panel.classList.remove('view-enter');
+    void panel.offsetWidth;
+    panel.classList.add('view-enter');
+  }
+
+  const tabBtn = document.querySelector(`[data-tab="${view}"]`);
+  if (tabBtn) { tabBtn.classList.remove('tab-inactive'); tabBtn.classList.add('tab-active'); }
+
+  // Load data for the view
+  if (view === 'overview') { loadStats(); loadRecentTraces(); setTimeout(() => { loadAgentActivity(); loadOverviewAgents(); }, 300); }
+  else if (view === 'traces') { loadTraces(); }
+  else if (view === 'cost') { loadCostData(); }
+  else if (view === 'patterns') { loadAllPatterns(); }
+  else if (view === 'compare') { renderCompareView(); }
+  else if (view === 'agents') { loadAgentData(); }
+}
+
+// =========================================================================
+// Agent Activity (Overview panel — real-time compact cards)
+// =========================================================================
+async function loadAgentActivity() {
+  try {
+    const data = await apiFetch('/v1/agents/activity');
+    const bar = document.getElementById('agent-team-bar');
+    const label = document.getElementById('team-status-label');
+    if (!data.agents || data.agents.length === 0) {
+      bar.innerHTML = '<p class="text-xs text-slate-500">No agents detected yet</p>';
+      label.textContent = '';
+      return;
+    }
+    const activeCount = data.agents.filter(a => a.status === 'active').length;
+    label.textContent = `${activeCount} active / ${data.agents.length} total`;
+
+    // Update summary metrics row
+    const metricActiveEl = document.getElementById('metric-active-now');
+    const metricOpsEl = document.getElementById('metric-ops-1h');
+    if (metricActiveEl) metricActiveEl.textContent = activeCount;
+    if (metricOpsEl) {
+      const totalOps1h = data.agents.reduce((sum, a) => sum + (a.trace_count_1h || 0), 0);
+      metricOpsEl.textContent = totalOps1h;
+    }
+
+    bar.innerHTML = data.agents.map((a, idx) => {
+      const p = getAgentProfile(a.agent);
+      const isActive = a.status === 'active';
+      const borderClass = isActive ? 'border-emerald-500/40 shadow-emerald-500/10 shadow-lg' : 'border-white/5';
+      const timeAgo = formatTimeAgo(a.last_seen);
+      const delay = idx * 80;
+      return `
+        <div class="glass rounded-xl p-2 min-w-[130px] border ${borderClass} cursor-pointer hover:border-indigo-500/30 transition flex-shrink-0 card-3d-hover agent-team-card" style="animation-delay:${delay}ms" onclick="filterTracesByAgent('${escHtml(a.agent)}')">
+          <div class="flex items-center gap-2 mb-1">
+            ${renderAgentAvatar(a.agent, 'md')}
+            <div class="min-w-0">
+              <div class="text-[10px] font-semibold text-white truncate">${escHtml(p.name)}</div>
+              <div class="text-[9px] text-slate-500">${escHtml(p.role)}</div>
+            </div>
+            ${isActive ? '<span class="w-2 h-2 rounded-full bg-emerald-500 pulse-dot ml-auto flex-shrink-0"></span>' : '<span class="w-2 h-2 rounded-full bg-slate-600 ml-auto flex-shrink-0"></span>'}
+          </div>
+          <div class="text-[10px] text-slate-500">${timeAgo} · ${a.trace_count_1h || 0} ops</div>
+        </div>`;
+    }).join('');
+    renderLiveMonitor(data.agents);
+  } catch (e) { /* silently fail */ }
+}
+
+// =========================================================================
+// Live Agent Monitor
+// =========================================================================
+function renderLiveMonitor(agents) {
+  const container = document.getElementById('live-monitor');
+  const timeEl = document.getElementById('monitor-update-time');
+  if (!container) return;
+
+  if (timeEl) timeEl.textContent = new Date().toLocaleTimeString();
+
+  if (!agents || agents.length === 0) {
+    container.innerHTML = '<p class="text-xs text-slate-500 col-span-full">Waiting for agents...</p>';
+    return;
+  }
+
+  container.innerHTML = agents.map(a => {
+    const p = getAgentProfile(a.agent);
+    const isActive = a.status === 'active';
+
+    return `
+      <div class="rounded-lg p-2 ${isActive ? 'bg-emerald-500/5 border border-emerald-500/20' : 'bg-slate-800/30 border border-white/5'} transition-all duration-300 flex flex-col items-center gap-1" data-agent="${escHtml(a.agent)}">
+        <div class="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white relative" style="background:${p.color}">
+          ${(p.name||'?')[0]}
+          <span class="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ${isActive ? 'bg-emerald-400 pulse-dot' : 'bg-slate-600'} border border-slate-900"></span>
+        </div>
+        <span class="text-[10px] font-medium text-white truncate w-full text-center">${escHtml(p.name)}</span>
+      </div>`;
+  }).join('');
+}
+
+// =========================================================================
+// Agent Overview
+// =========================================================================
+async function loadAgentData() {
+  const grid = document.getElementById('agents-grid');
+  if (!grid) return;
+  grid.innerHTML = '<p class="text-xs text-slate-500 col-span-full">Loading...</p>';
+  try {
+    // Fetch both summary stats and live activity in parallel
+    const [summaryResp, activityData] = await Promise.all([
+      fetch('/v1/agents/summary'),
+      apiFetch('/v1/agents/activity').catch(() => ({ agents: [] })),
+    ]);
+    if (!summaryResp.ok) throw new Error(`HTTP ${summaryResp.status}`);
+    const data = await summaryResp.json();
+    const agents = data.agents || [];
+    if (agents.length === 0) {
+      grid.innerHTML = '<p class="text-xs text-slate-500 col-span-full">No agent data found. Ingest traces with a <code>tags.agent</code> field to populate this view.</p>';
+      return;
+    }
+
+    // Build activity lookup by agent name
+    const activityByAgent = {};
+    (activityData.agents || []).forEach(a => { activityByAgent[a.agent] = a; });
+
+    // Populate stats summary bar
+    const totalAgents = agents.length;
+    const activeAgents = agents.filter(a => { const act = activityByAgent[a.agent]; return act && act.status === 'active'; }).length;
+    const totalCost = agents.reduce((s, a) => s + (a.total_cost_usd || 0), 0);
+    const totalTraces = agents.reduce((s, a) => s + (a.trace_count || 0), 0);
+    const elTotal = document.getElementById('agent-stat-total');
+    const elActive = document.getElementById('agent-stat-active');
+    const elCost = document.getElementById('agent-stat-cost');
+    const elTraces = document.getElementById('agent-stat-traces');
+    if (elTotal) elTotal.textContent = totalAgents;
+    if (elActive) elActive.textContent = activeAgents;
+    if (elCost) elCost.textContent = totalCost < 1 ? '$' + totalCost.toFixed(4) : '$' + totalCost.toFixed(2);
+    if (elTraces) elTraces.textContent = totalTraces.toLocaleString();
+
+    grid.innerHTML = agents.map(a => {
+      const errPct = (a.error_rate * 100).toFixed(1);
+      const errColor = a.error_rate < 0.05 ? 'text-emerald-400' : a.error_rate < 0.20 ? 'text-yellow-400' : 'text-red-400';
+      const latency = a.avg_duration_ms >= 1000
+        ? (a.avg_duration_ms / 1000).toFixed(2) + 's'
+        : a.avg_duration_ms.toFixed(0) + 'ms';
+      const cost = a.total_cost_usd < 0.01
+        ? '$' + a.total_cost_usd.toFixed(6)
+        : '$' + a.total_cost_usd.toFixed(4);
+
+      const activity = activityByAgent[a.agent] || null;
+      const isActive = activity && activity.status === 'active';
+      const statusColor = isActive ? 'bg-emerald-500' : 'bg-slate-600';
+      const statusLabel = isActive ? 'active' : 'idle';
+      const statusBadgeBg = isActive ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' : 'bg-slate-700/40 text-slate-500 border-slate-600/30';
+      const recentTools = activity ? (activity.recent_tools || []).slice(0, 5) : [];
+      const toolsHtml = recentTools.length > 0
+        ? recentTools.map(t => `<span class="px-1.5 py-0.5 text-[10px] rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">${escHtml(t)}</span>`).join(' ')
+        : '<span class="text-[10px] text-slate-600">no recent tools</span>';
+      const opsLastHour = activity ? activity.trace_count_1h : 0;
+
+      // Mini activity bar: 24 dots representing last 24h (simulated from available data)
+      const activityDots = [];
+      for (let h = 0; h < 24; h++) {
+        // Use available hourly data if present, otherwise simulate from trace_count
+        const hasActivity = activity && activity.hourly_counts ? (activity.hourly_counts[h] || 0) > 0 : (Math.random() < Math.min(0.7, (a.trace_count || 1) / 100));
+        const dotColor = hasActivity ? (isActive ? '#34d399' : '#6366f1') : '#1e293b';
+        activityDots.push(`<span style="display:inline-block;width:6px;height:14px;border-radius:2px;background:${dotColor};margin-right:1px;" title="Hour ${h}"></span>`);
+      }
+
+      const p = getAgentProfile(a.agent);
+      // Large colored avatar with agent initial
+      const avatarInitial = (p.name || a.agent).charAt(0).toUpperCase();
+      const avatarBg = p.color || '#6366f1';
+      const largeAvatarHtml = `<div style="width:48px;height:48px;border-radius:14px;background:${avatarBg}22;border:2px solid ${avatarBg};display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative;">
+        <span style="font-size:20px;font-weight:700;color:${avatarBg}">${avatarInitial}</span>
+        ${isActive ? '<span style="position:absolute;bottom:-2px;right:-2px;width:12px;height:12px;border-radius:50%;background:#34d399;border:2px solid #0f172a;"></span>' : ''}
+      </div>`;
+
+      // Store agent data for modal access
+      const agentDataEncoded = escHtml(JSON.stringify({ agent: a.agent, trace_count: a.trace_count, error_rate: a.error_rate, avg_duration_ms: a.avg_duration_ms, total_cost_usd: a.total_cost_usd, total_spans: a.total_spans }));
+      return `<div class="glass rounded-xl p-5 cursor-pointer hover:border-indigo-500/40 border border-transparent transition card-3d-hover" onclick="openAgentDetailModal('${escHtml(a.agent)}', ${JSON.stringify(agentDataEncoded)})">
+        <div class="flex items-center gap-3 mb-4">
+          ${largeAvatarHtml}
+          <div class="min-w-0 flex-1">
+            <div class="text-base font-semibold text-white truncate" title="${escHtml(a.agent)}">${escHtml(p.name || a.agent)}</div>
+            <div class="text-[11px] text-slate-500">${escHtml(p.role || 'Agent')}</div>
+          </div>
+          <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full border ${statusBadgeBg}">${statusLabel}</span>
+        </div>
+        <div class="grid grid-cols-4 gap-2 text-xs mb-3">
+          <div>
+            <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Traces</div>
+            <div class="text-white font-semibold">${a.trace_count}</div>
+          </div>
+          <div>
+            <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Errors</div>
+            <div class="${errColor} font-semibold">${errPct}%</div>
+          </div>
+          <div>
+            <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Cost</div>
+            <div class="text-white font-semibold">${cost}</div>
+          </div>
+          <div>
+            <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Latency</div>
+            <div class="text-white font-semibold">${latency}</div>
+          </div>
+        </div>
+        <div class="mb-3">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Activity (24h)</div>
+          <div style="display:flex;align-items:flex-end;height:16px;">${activityDots.join('')}</div>
+        </div>
+        <div class="flex flex-wrap gap-1 mb-2">${toolsHtml}</div>
+        <div class="flex items-center justify-between text-[11px] text-slate-600">
+          <span>${a.total_spans} spans</span>
+          <span>${opsLastHour} ops/hr</span>
+        </div>
+      </div>`;
+    }).join('');
+
+    // Load agent relationship graph after rendering cards
+    loadAgentGraph();
+  } catch (err) {
+    grid.innerHTML = `<p class="text-xs text-red-400 col-span-full">Failed to load agent data: ${escHtml(String(err))}</p>`;
+  }
+}
+
+function filterTracesByAgent(agentName) {
+  switchView('traces');
+  // Populate the search box with the agent name so the user can refine
+  const searchInput = document.getElementById('search-input');
+  if (searchInput) {
+    searchInput.value = agentName;
+    loadTraces();
+  }
+}
+// =========================================================================
+// Agent Detail Modal
+// =========================================================================
+async function openAgentDetailModal(agentName, _encodedData) {
+  const modal = document.getElementById('agent-detail-modal');
+  const titleEl = document.getElementById('agent-modal-title');
+  const bodyEl = document.getElementById('agent-modal-body');
+  if (!modal || !bodyEl) return;
+
+  const p = getAgentProfile(agentName);
+  titleEl.textContent = p.name || agentName;
+
+  // Show loading state
+  bodyEl.innerHTML = '<p class="text-xs text-slate-500">Loading...</p>';
+  modal.classList.remove('hidden');
+
+  try {
+    // Fetch all-time stats, live activity, recent traces and activity stream in parallel
+    const [summaryData, activityData, tracesData, activityStream] = await Promise.all([
+      apiFetch('/v1/agents/summary').catch(() => ({ agents: [] })),
+      apiFetch('/v1/agents/activity').catch(() => ({ agents: [] })),
+      apiFetch(`/v1/traces?limit=10&agent=${encodeURIComponent(agentName)}`).catch(() => ({ traces: [] })),
+      apiFetch('/v1/activity/stream?limit=20').catch(() => ({ activities: [] })),
+    ]);
+
+    const agentStats = (summaryData.agents || []).find(a => a.agent === agentName) || null;
+    const agentActivity = (activityData.agents || []).find(a => a.agent === agentName) || null;
+    const recentTraces = tracesData.traces || [];
+
+    // Filter activity stream for this agent
+    const agentActivities = (activityStream.activities || []).filter(ev => ev.agent === agentName);
+
+    // Large SVG avatar using profile icon and gradient background
+    const avatarLg = `<div class="w-16 h-16 rounded-xl bg-gradient-to-br ${p.bgClass} flex items-center justify-center flex-shrink-0" style="color:${p.color}">${p.icon}</div>`;
+
+    const errPct = agentStats ? (agentStats.error_rate * 100).toFixed(1) + '%' : '--';
+    const errColor = agentStats && agentStats.error_rate < 0.05 ? 'text-emerald-400' : agentStats && agentStats.error_rate < 0.20 ? 'text-yellow-400' : 'text-red-400';
+    const latency = agentStats ? (agentStats.avg_duration_ms >= 1000 ? (agentStats.avg_duration_ms / 1000).toFixed(2) + 's' : agentStats.avg_duration_ms.toFixed(0) + 'ms') : '--';
+    const cost = agentStats ? (agentStats.total_cost_usd < 0.01 ? '$' + agentStats.total_cost_usd.toFixed(6) : '$' + agentStats.total_cost_usd.toFixed(4)) : '--';
+    const totalTraces = agentStats ? agentStats.trace_count : '--';
+    const totalSpans = agentStats ? agentStats.total_spans : '--';
+
+    // Activity mini-timeline from stream filtered by agent
+    const activityTimelineHtml = agentActivities.length === 0
+      ? '<p class="text-[10px] text-slate-500 py-2">No recent activity found.</p>'
+      : agentActivities.slice(0, 20).map(ev => {
+          const actionLabel = escHtml(ev.action || ev.tool || ev.type || 'Event');
+          const timeLabel = ev.timestamp ? formatTimeAgo(ev.timestamp) : '';
+          const dotColor = ev.error ? 'bg-red-500' : 'bg-emerald-500';
+          return `<div class="flex items-center gap-2 py-1.5 text-xs">
+            <span class="w-1 h-1 rounded-full ${dotColor} flex-shrink-0"></span>
+            <span class="text-slate-300 truncate flex-1">${actionLabel}</span>
+            <span class="text-slate-500 ml-auto flex-shrink-0">${timeLabel}</span>
+          </div>`;
+        }).join('');
+
+    // Error history from recent traces that have errors
+    const errorTraces = recentTraces.filter(t => t.has_error || t.error);
+    const errorHistoryHtml = errorTraces.length === 0 ? '' : `
+      <div class="mb-4">
+        <div class="text-xs font-semibold text-red-400 uppercase tracking-wider mb-2">Error History (${errorTraces.length})</div>
+        <div class="rounded-lg border border-red-500/20 bg-red-500/5 p-3 max-h-[150px] overflow-y-auto">
+          ${errorTraces.map(t => {
+            const traceTime = t.start_time ? new Date(t.start_time * 1000).toLocaleTimeString() : '';
+            return `<div class="flex items-center gap-2 py-1 text-xs cursor-pointer hover:bg-red-500/10 rounded px-1" onclick="closeAgentDetailModal();openTrace('${escHtml(t.trace_id)}')">
+              <span class="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0"></span>
+              <span class="text-red-300 truncate flex-1">${escHtml(t.service_name || t.trace_id.substring(0, 12))}</span>
+              <span class="text-red-500 flex-shrink-0">${traceTime}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+
+    const recentTracesHtml = recentTraces.length === 0
+      ? '<p class="text-[10px] text-slate-500 py-2">No recent traces found.</p>'
+      : recentTraces.map(t => {
+          const isError = t.has_error || t.error;
+          const statusDot = isError ? 'bg-red-500' : 'bg-emerald-500';
+          const traceTime = t.start_time ? new Date(t.start_time * 1000).toLocaleTimeString() : '';
+          return `<div class="flex items-center gap-2 py-1.5 border-b border-white/5 text-xs cursor-pointer hover:bg-white/[0.02] rounded px-1" onclick="closeAgentDetailModal();openTrace('${escHtml(t.trace_id)}')">
+            <span class="w-1.5 h-1.5 rounded-full ${statusDot} flex-shrink-0"></span>
+            <span class="text-white truncate flex-1">${escHtml(t.service_name || t.trace_id.substring(0, 12))}</span>
+            <span class="text-slate-600 flex-shrink-0">${traceTime}</span>
+          </div>`;
+        }).join('');
+
+    bodyEl.innerHTML = `
+      <div class="flex items-center gap-4 mb-5">
+        ${avatarLg}
+        <div>
+          <div class="text-lg font-semibold text-white">${escHtml(p.name || agentName)}</div>
+          <div class="text-xs text-slate-500">${escHtml(p.role || 'Agent')}</div>
+          <div class="text-[10px] text-slate-600 mt-0.5 font-mono">${escHtml(agentName)}</div>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3 mb-5">
+        <div class="glass rounded-lg p-3">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Total Traces</div>
+          <div class="text-white font-semibold text-lg">${totalTraces}</div>
+        </div>
+        <div class="glass rounded-lg p-3">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Error Rate</div>
+          <div class="${errColor} font-semibold text-lg">${errPct}</div>
+        </div>
+        <div class="glass rounded-lg p-3">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Avg Duration</div>
+          <div class="text-white font-semibold text-lg">${latency}</div>
+        </div>
+        <div class="glass rounded-lg p-3">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Total Cost</div>
+          <div class="text-white font-semibold text-lg">${cost}</div>
+        </div>
+        <div class="glass rounded-lg p-3 col-span-2">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Total Spans</div>
+          <div class="text-white font-semibold">${totalSpans}</div>
+        </div>
+      </div>
+      <div class="mb-4">
+        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Activity Timeline</div>
+        <div class="max-h-[200px] overflow-y-auto">${activityTimelineHtml}</div>
+      </div>
+      ${errorHistoryHtml}
+      <div class="mb-4">
+        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Recent Traces (last 10)</div>
+        <div class="max-h-[180px] overflow-y-auto">${recentTracesHtml}</div>
+      </div>
+      <button onclick="closeAgentDetailModal();filterTracesByAgent('${escHtml(agentName)}')" class="w-full px-3 py-2 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition">
+        View all traces for this agent
+      </button>
+    `;
+  } catch (err) {
+    bodyEl.innerHTML = `<p class="text-xs text-red-400">Failed to load agent details: ${escHtml(String(err))}</p>`;
+  }
+}
+
+function closeAgentDetailModal() {
+  const modal = document.getElementById('agent-detail-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
+function showDetailTab(tab) {
+  document.querySelectorAll('.detail-panel').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.dtab-btn').forEach(b => { b.classList.remove('tab-active'); b.classList.add('tab-inactive'); });
+
+  const panel = document.getElementById(`detail-${tab}`);
+  if (panel) panel.classList.remove('hidden');
+
+  const btn = document.querySelector(`[data-dtab="${tab}"]`);
+  if (btn) { btn.classList.remove('tab-inactive'); btn.classList.add('tab-active'); }
+
+  // Show/hide DAG PNG export button
+  const dagPngBtn = document.getElementById('btn-export-dag-png');
+  if (dagPngBtn) dagPngBtn.classList.toggle('hidden', tab !== 'dag');
+
+  if (tab === 'dag' && currentTraceId) loadDAG(currentTraceId);
+}
+
+function backToTraces() {
+  document.getElementById('view-trace-detail').classList.add('hidden');
+  closeSpanDetail();
+  if (currentView === 'overview') {
+    document.getElementById('view-overview').classList.remove('hidden');
+  } else {
+    document.getElementById('view-traces').classList.remove('hidden');
+  }
+}
+
+// =========================================================================
+// Counter Animation
+// =========================================================================
+function animateCounter(element, targetValue, duration = 800, prefix = '', suffix = '') {
+  const startValue = 0;
+  const startTime = performance.now();
+  const isFloat = String(targetValue).includes('.');
+
+  function update(currentTime) {
+    const elapsed = currentTime - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    // Ease out cubic
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const current = startValue + (targetValue - startValue) * eased;
+
+    if (isFloat) {
+      element.textContent = prefix + current.toFixed(targetValue < 1 ? 1 : 4) + suffix;
+    } else {
+      element.textContent = prefix + Math.round(current).toLocaleString() + suffix;
+    }
+
+    if (progress < 1) requestAnimationFrame(update);
+  }
+  requestAnimationFrame(update);
+}
+// =========================================================================
+// Stats
+// =========================================================================
+async function loadStats() {
+  try {
+    const stats = await apiFetch('/v1/stats');
+    const tracesEl = document.getElementById('stat-traces');
+    const spansEl = document.getElementById('stat-spans');
+    animateCounter(tracesEl, stats.total_traces || 0);
+    animateCounter(spansEl, stats.total_spans || 0, 800, '', ' spans');
+
+    const errorPct = stats.total_traces > 0
+      ? (stats.error_traces / stats.total_traces) * 100
+      : 0;
+    const errorRate = parseFloat(errorPct.toFixed(1));
+    animateCounter(document.getElementById('stat-error-rate'), errorRate, 800, '', '%');
+    document.getElementById('stat-error-count').textContent = `${stats.error_traces} error traces`;
+    const errorCard = document.getElementById('stat-card-error');
+    if (errorCard) {
+      errorCard.classList.toggle('bg-red-500/10', errorPct > 10);
+      errorCard.classList.toggle('border', errorPct > 10);
+      errorCard.classList.toggle('border-red-500/30', errorPct > 10);
+    }
+
+    const latencyMs = stats.avg_duration_ms || 0;
+    animateCounter(document.getElementById('stat-latency'), latencyMs > 0 ? parseFloat(latencyMs.toFixed(0)) : 0);
+    const latencyCard = document.getElementById('stat-card-latency');
+    if (latencyCard) {
+      latencyCard.classList.toggle('bg-yellow-500/10', latencyMs > 10000);
+      latencyCard.classList.toggle('border', latencyMs > 10000);
+      latencyCard.classList.toggle('border-yellow-500/30', latencyMs > 10000);
+    }
+
+    const totalCost = stats.total_cost || 0;
+    animateCounter(document.getElementById('stat-cost'), totalCost, 800, '$', '');
+    animateCounter(document.getElementById('stat-tokens'), stats.total_tokens || 0, 800, '', ' tokens');
+    const costCard = document.getElementById('stat-card-cost');
+    if (costCard) {
+      costCard.classList.toggle('bg-amber-500/10', totalCost > 1);
+      costCard.classList.toggle('border', totalCost > 1);
+      costCard.classList.toggle('border-amber-500/30', totalCost > 1);
+    }
+
+    // Update summary metrics — success rate
+    const metricSuccessEl = document.getElementById('metric-success-rate');
+    if (metricSuccessEl) {
+      const successPct = stats.total_traces > 0
+        ? ((1 - stats.error_traces / stats.total_traces) * 100).toFixed(1)
+        : '--';
+      metricSuccessEl.textContent = successPct !== '--' ? successPct + '%' : '--';
+    }
+
+    updateRefreshTime();
+
+    // Load sparklines in stat cards (non-blocking)
+    loadSparklines();
+  } catch (err) {
+    updateWsStatus('error');
+  }
+}
+
+// =========================================================================
+// Trace Row Rendering
+// =========================================================================
+function formatTimeAgo(timestamp) {
+  if (!timestamp) return '--';
+  const seconds = Math.floor(Date.now() / 1000 - timestamp);
+  if (seconds < 60) return 'just now';
+  if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
+  if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
+  return Math.floor(seconds / 86400) + 'd ago';
+}
+
+function renderTraceRow(trace, compact = false) {
+  const hasErrors = trace.has_errors === true || trace.has_errors === 1;
+  const statusDot = hasErrors
+    ? '<span class="w-2 h-2 rounded-full bg-red-500 flex-shrink-0"></span>'
+    : '<span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>';
+
+  const tags = trace.tags || {};
+  const meta = trace.metadata || {};
+
+  // Extract meaningful name
+  const agentName = tags.agent || null;
+  const projectName = tags.project || meta.project || (meta.cwd ? meta.cwd.split('/').pop() : null);
+
+  // Build display name and agent badge
+  let displayName = agentName || projectName || (trace.trace_id || '').substring(0, 12) + '...';
+  let agentBadge = '';
+  if (agentName) {
+    const profile = getAgentProfile(agentName);
+    agentBadge = `<span class="px-1.5 py-0.5 text-[10px] font-medium rounded border ${profile.badgeClass} inline-flex items-center gap-1">${escHtml(profile.name)}</span>`;
+    displayName = projectName || trace.service_name || 'session';
+  }
+
+  // Time ago and span count
+  const timeAgo = formatTimeAgo(trace.start_time);
+  const spanOps = `${trace.span_count || 0} ops`;
+
+  const duration = (trace.duration_ms || 0).toFixed(0);
+  const cost = (trace.total_cost_usd || 0).toFixed(4);
+
+  const isSelected = compareSelection.includes(trace.trace_id);
+  const _previewAttrs = !compact
+    ? `onmouseenter="showTracePreview('${escHtml(trace.trace_id)}', event)" onmouseleave="hideTracePreview()"`
+    : '';
+
+  // Agent border color
+  const agentProfile = agentName ? getAgentProfile(agentName) : null;
+  const borderStyle = agentProfile ? `border-left: 3px solid ${agentProfile.color}` : '';
+  const errorRowClass = hasErrors ? 'trace-row-error-bg' : '';
+
+  // Mini duration bar (proportion of max 10s)
+  const durationNum = trace.duration_ms || 0;
+  const durationPct = Math.min((durationNum / 10000) * 100, 100);
+  const durationBarColor = durationNum > 5000 ? '#ef4444' : durationNum > 2000 ? '#f59e0b' : '#7c7aef';
+
+  return `
+    <div class="trace-row flex items-center gap-4 px-5 py-3.5 hover:bg-white/[0.02] cursor-pointer transition group ${errorRowClass}" data-trace-id="${escHtml(trace.trace_id)}" data-agent="${escHtml(agentName || '')}" onclick="openTrace('${escHtml(trace.trace_id)}')" style="${borderStyle}" ${_previewAttrs}>
+      ${!compact ? `<input type="checkbox" class="compare-checkbox ${isSelected ? 'checked' : ''} w-3.5 h-3.5 rounded bg-surface-100 border-white/10 text-indigo-500 focus:ring-indigo-500/30 flex-shrink-0" title="Select for comparison" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleCompare('${escHtml(trace.trace_id)}', this)" />` : ''}
+      ${statusDot}
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-sm font-medium text-slate-200 group-hover:text-white transition">${escHtml(displayName)}</span>
+          ${agentBadge}
+          ${!agentName && trace.service_name ? `<span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">${escHtml(trace.service_name)}</span>` : ''}
+          ${hasErrors ? `<span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-red-500/10 text-red-300 border border-red-500/20">${trace.error_count || 1} error${(trace.error_count || 1) > 1 ? 's' : ''}</span>` : ''}
+        </div>
+        <div class="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
+          <span>${timeAgo}</span>
+          ${!compact ? `<span class="text-slate-600">·</span><span>${spanOps}</span>` : ''}
+        </div>
+      </div>
+      <div class="flex items-center gap-6 text-xs text-slate-500 trace-row-details">
+        ${!compact ? `<div class="trace-mini-duration" title="${duration}ms">
+          <div class="trace-mini-duration-fill" style="width:${durationPct}%;background:${durationBarColor}"></div>
+        </div>` : ''}
+        <div class="text-right">
+          <div class="text-slate-400">${duration}ms</div>
+          ${!compact ? `<div>$${cost}</div>` : ''}
+        </div>
+        ${compact ? `<div class="text-right"><div class="text-slate-400">$${cost}</div></div>` : ''}
+        <svg class="w-4 h-4 text-slate-600 group-hover:text-slate-400 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      </div>
+    </div>
+  `;
+}
+
+// =========================================================================
+// Empty State
+// =========================================================================
+function renderEmptyState(message, subMessage, showGettingStarted) {
+  const gettingStarted = showGettingStarted ? `
+    <div class="mt-6 w-full max-w-lg text-left glass rounded-xl p-5 border border-indigo-500/10">
+      <h3 class="text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-3">Getting Started</h3>
+      <div class="space-y-3">
+        <div class="flex gap-3">
+          <span class="flex-shrink-0 w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-[10px] font-bold">1</span>
+          <div>
+            <p class="text-xs font-medium text-slate-300">Install FlowLens</p>
+            <code class="text-[11px] text-indigo-300 bg-surface-100 px-2 py-1 rounded mt-1 block font-mono">pip install flowlens</code>
+          </div>
+        </div>
+        <div class="flex gap-3">
+          <span class="flex-shrink-0 w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-[10px] font-bold">2</span>
+          <div>
+            <p class="text-xs font-medium text-slate-300">Instrument your agent</p>
+            <code class="text-[11px] text-indigo-300 bg-surface-100 px-2 py-1 rounded mt-1 block font-mono">from flowlens import tracer</code>
+          </div>
+        </div>
+        <div class="flex gap-3">
+          <span class="flex-shrink-0 w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-[10px] font-bold">3</span>
+          <div>
+            <p class="text-xs font-medium text-slate-300">Run your agent — traces appear here automatically</p>
+            <p class="text-[11px] text-slate-500 mt-1">See the <a href="https://github.com/yusenthebot/flowlens#readme" target="_blank" class="text-indigo-400 hover:underline">docs</a> or <code class="font-mono text-indigo-300">examples/quickstart.py</code> to get started.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  ` : '';
+
+  return `
+    <div class="flex flex-col items-center justify-center py-16 px-8">
+      <svg class="w-20 h-20 text-slate-700 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+      </svg>
+      <p class="text-sm text-slate-500 mb-1">${escHtml(message)}</p>
+      <p class="text-xs text-slate-600">${escHtml(subMessage || '')}</p>
+      ${gettingStarted}
+    </div>
+  `;
+}
+
+// =========================================================================
+// Traces — List + Filtering
+// =========================================================================
+async function loadRecentTraces() {
+  try {
+    const data = await apiFetch('/v1/traces?limit=8');
+    const container = document.getElementById('recent-traces-list');
+    if (!data.traces || data.traces.length === 0) {
+      container.innerHTML = renderEmptyState('No traces yet', 'Send traces via the SDK to get started.', true);
+      return;
+    }
+    container.innerHTML = data.traces.map(t => renderTraceRow(t, true)).join('');
+
+    // Count unique agents from recent traces to populate Active Agents stat card
+    const agentSet = new Set();
+    for (const t of data.traces) {
+      const agentName = (t.tags || {}).agent;
+      if (agentName) agentSet.add(agentName);
+    }
+    const agentsEl = document.getElementById('stat-agents');
+    const agentsSubEl = document.getElementById('stat-agents-sub');
+    if (agentsEl) agentsEl.textContent = agentSet.size > 0 ? agentSet.size.toString() : '0';
+    if (agentsSubEl) {
+      agentsSubEl.textContent = agentSet.size > 0
+        ? Array.from(agentSet).slice(0, 3).join(', ') + (agentSet.size > 3 ? ` +${agentSet.size - 3} more` : '')
+        : 'no agent tags seen';
+    }
+  } catch (err) {
+    document.getElementById('recent-traces-list').innerHTML = '<div class="p-8 text-center text-red-400/60 text-sm">Failed to load traces. Is the server running?</div>';
+  }
+}
+
+let _tracesAgentFilter = null; // current agent filter for traces view
+
+async function loadTraces() {
+  const service = document.getElementById('filter-service').value.trim() || null;
+  const errorsOnly = document.getElementById('filter-errors').checked;
+
+  let url = `/v1/traces?limit=${TRACE_LIMIT}&offset=${traceOffset}`;
+  if (service) url += `&service=${encodeURIComponent(service)}`;
+  if (errorsOnly) url += `&errors_only=true`;
+
+  try {
+    const data = await apiFetch(url);
+    let traces = data.traces || [];
+
+    // Client-side filtering for filters not supported by API
+    traces = applyClientFilters(traces);
+
+    // Compute summary stats before agent filter
+    const totalCount = traces.length;
+    const errorCount = traces.filter(t => t.has_errors === true || t.has_errors === 1).length;
+
+    // Collect unique agents for filter pills
+    const agentSet = new Map();
+    traces.forEach(t => {
+      const agent = (t.tags || {}).agent;
+      if (agent) agentSet.set(agent, (agentSet.get(agent) || 0) + 1);
+    });
+    _renderTracesAgentPills(agentSet);
+
+    // Apply agent filter
+    if (_tracesAgentFilter) {
+      traces = traces.filter(t => (t.tags || {}).agent === _tracesAgentFilter);
+    }
+
+    // Update summary bar
+    const summaryBar = document.getElementById('traces-summary-bar');
+    summaryBar.classList.remove('hidden');
+    document.getElementById('traces-summary-total').textContent = traces.length;
+    document.getElementById('traces-summary-filtered').textContent = totalCount;
+    document.getElementById('traces-summary-errors').textContent = errorCount;
+
+    const container = document.getElementById('traces-list');
+    if (traces.length === 0) {
+      container.innerHTML = renderEmptyState('No traces found', 'Try adjusting your filters.');
+      document.getElementById('btn-prev').disabled = true;
+      document.getElementById('btn-next').disabled = true;
+      document.getElementById('page-info').textContent = 'No results';
+      return;
+    }
+    renderVirtualizedTraces(traces, 'traces-list');
+
+    document.getElementById('btn-prev').disabled = traceOffset === 0;
+    document.getElementById('btn-next').disabled = data.traces.length < TRACE_LIMIT;
+    document.getElementById('page-info').textContent = `Showing ${traceOffset + 1}-${traceOffset + traces.length}`;
+    selectedTraceIndex = -1;
+    updateRefreshTime();
+  } catch (err) {
+    document.getElementById('traces-list').innerHTML = '<div class="p-8 text-center text-red-400/60 text-sm">Failed to load traces.</div>';
+  }
+}
+
+function _renderTracesAgentPills(agentMap) {
+  const container = document.getElementById('traces-agent-pills');
+  if (!container) return;
+  if (agentMap.size === 0) { container.innerHTML = ''; return; }
+
+  let html = `<span class="agent-filter-pill ${!_tracesAgentFilter ? 'active' : ''}" onclick="_tracesAgentFilter = null; loadTraces();">All</span>`;
+  for (const [agent, count] of agentMap) {
+    const profile = getAgentProfile(agent);
+    const isActive = _tracesAgentFilter === agent;
+    html += `<span class="agent-filter-pill ${isActive ? 'active' : ''}" onclick="_tracesAgentFilter = '${escHtml(agent)}'; loadTraces();" style="${isActive ? 'border-color:' + profile.color + ';color:' + profile.color : ''}">
+      <span class="w-2 h-2 rounded-full flex-shrink-0" style="background:${profile.color}"></span>
+      ${escHtml(profile.name)} <span style="opacity:0.5">(${count})</span>
+    </span>`;
+  }
+  container.innerHTML = html;
+}
+
+/** Apply client-side filters (date range, token count, cost, span kind) */
+function applyClientFilters(traces) {
+  const dateFrom = document.getElementById('filter-date-from').value;
+  const dateTo = document.getElementById('filter-date-to').value;
+  const tokensMin = document.getElementById('filter-tokens-min').value;
+  const tokensMax = document.getElementById('filter-tokens-max').value;
+  const costMin = document.getElementById('filter-cost-min').value;
+  const costMax = document.getElementById('filter-cost-max').value;
+
+  // Span kind filters
+  const kindCheckboxes = document.querySelectorAll('.filter-kind:checked');
+  const selectedKinds = Array.from(kindCheckboxes).map(cb => cb.value);
+
+  return traces.filter(t => {
+    // Date range filter
+    if (dateFrom && t.start_time > 0) {
+      const traceDate = new Date(t.start_time * 1000);
+      const fromDate = new Date(dateFrom);
+      if (traceDate < fromDate) return false;
+    }
+    if (dateTo && t.start_time > 0) {
+      const traceDate = new Date(t.start_time * 1000);
+      const toDate = new Date(dateTo);
+      toDate.setHours(23, 59, 59, 999);
+      if (traceDate > toDate) return false;
+    }
+
+    // Token count filter
+    const tokens = t.total_tokens || 0;
+    if (tokensMin && tokens < parseInt(tokensMin)) return false;
+    if (tokensMax && tokens > parseInt(tokensMax)) return false;
+
+    // Cost filter
+    const cost = t.total_cost_usd || 0;
+    if (costMin && cost < parseFloat(costMin)) return false;
+    if (costMax && cost > parseFloat(costMax)) return false;
+
+    // Span kind filter — we check if any span in the trace matches selected kinds
+    // Note: trace list items may not include spans, so this filter only applies
+    // when we have span data. For list view without spans, we skip this filter.
+    // The filter will work when spans data is present.
+    if (selectedKinds.length > 0 && t.spans && t.spans.length > 0) {
+      const traceKinds = t.spans.map(s => (s.kind || '').toLowerCase());
+      const hasMatch = selectedKinds.some(k => traceKinds.includes(k));
+      if (!hasMatch) return false;
+    }
+
+    return true;
+  });
+}
+
+function clearFilters() {
+  document.getElementById('filter-service').value = '';
+  document.getElementById('filter-errors').checked = false;
+  document.getElementById('filter-date-from').value = '';
+  document.getElementById('filter-date-to').value = '';
+  document.getElementById('filter-tokens-min').value = '';
+  document.getElementById('filter-tokens-max').value = '';
+  document.getElementById('filter-cost-min').value = '';
+  document.getElementById('filter-cost-max').value = '';
+  document.querySelectorAll('.filter-kind').forEach(cb => cb.checked = false);
+  _tracesAgentFilter = null;
+  traceOffset = 0;
+  loadTraces();
+}
+
+function paginateTraces(dir) {
+  traceOffset = Math.max(0, traceOffset + dir * TRACE_LIMIT);
+  loadTraces();
+}
+
+// =========================================================================
+// Trace Detail
+// =========================================================================
+async function openTrace(traceId) {
+  currentTraceId = traceId;
+  // Hide current view, show detail
+  document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
+  const detailPanel = document.getElementById('view-trace-detail');
+  detailPanel.classList.remove('hidden');
+  detailPanel.classList.remove('view-enter');
+  void detailPanel.offsetWidth;
+  detailPanel.classList.add('view-enter');
+
+  // Reset to timeline tab
+  showDetailTab('timeline');
+
+  try {
+    const data = await apiFetch(`/v1/traces/${traceId}`);
+    currentTraceData = data;
+    renderTraceDetail(data);
+  } catch (err) {
+    document.getElementById('timeline-container').innerHTML = `<div class="text-center text-red-400/60 text-sm py-8">Failed to load trace: ${escHtml(err.message)}</div>`;
+  }
+}
+
+function renderTraceDetail(data) {
+  const hasErrors = data.has_errors === true || data.has_errors === 1;
+  const timeStr = data.start_time > 0 ? new Date(data.start_time * 1000).toLocaleString() : '--';
+
+  // Derive agent name and project name from tags/metadata
+  const tags = data.tags || {};
+  const meta = data.metadata || {};
+  const agentName = tags.agent || null;
+  const projectName = tags.project || meta.project || (meta.cwd ? meta.cwd.split('/').pop() : null);
+
+  // Update trace ID with agent avatar if available
+  const traceIdEl = document.getElementById('detail-trace-id');
+  if (agentName) {
+    const profile = getAgentProfile(agentName);
+    traceIdEl.innerHTML = `
+      <span class="flex items-center gap-2">
+        ${renderAgentAvatar(agentName, 'md')}
+        <span class="font-mono text-sm text-slate-400">${escHtml(data.trace_id)}</span>
+      </span>`;
+  } else {
+    traceIdEl.textContent = data.trace_id;
+  }
+
+  // Token usage breakdown per span kind
+  const tokenByKind = {};
+  (data.spans || []).forEach(s => {
+    const kind = (s.kind || 'custom').toLowerCase();
+    if (!tokenByKind[kind]) tokenByKind[kind] = { input: 0, output: 0, cost: 0 };
+    if (s.token_usage) {
+      tokenByKind[kind].input += s.token_usage.input_tokens || 0;
+      tokenByKind[kind].output += s.token_usage.output_tokens || 0;
+      tokenByKind[kind].cost += s.token_usage.total_cost_usd || 0;
+    }
+  });
+
+  let tokenBreakdownHtml = '';
+  const hasTokens = Object.values(tokenByKind).some(v => v.input > 0 || v.output > 0);
+  if (hasTokens) {
+    tokenBreakdownHtml = '<div class="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">';
+    for (const [kind, usage] of Object.entries(tokenByKind)) {
+      if (usage.input === 0 && usage.output === 0) continue;
+      const cfg = SPAN_KIND_COLORS[kind] || SPAN_KIND_COLORS.custom;
+      tokenBreakdownHtml += `
+        <div class="p-2 rounded-lg ${cfg.bg} text-xs">
+          <div class="font-medium ${cfg.text} mb-1">${cfg.label}</div>
+          <div class="text-slate-400">In: ${usage.input.toLocaleString()}</div>
+          <div class="text-slate-400">Out: ${usage.output.toLocaleString()}</div>
+          <div class="text-emerald-400">$${usage.cost.toFixed(4)}</div>
+        </div>`;
+    }
+    tokenBreakdownHtml += '</div>';
+  }
+
+  // Build header meta: agent info, project, large duration+cost, error badge
+  const durationMs = data.duration_ms || 0;
+  const costUsd = data.total_cost_usd || 0;
+  const errorCount = data.error_count || 0;
+
+  let agentHeaderHtml = '';
+  if (agentName) {
+    const profile = getAgentProfile(agentName);
+    agentHeaderHtml = `
+      <div class="flex items-center gap-2 mb-2">
+        ${renderAgentAvatar(agentName, 'lg')}
+        <div>
+          <div class="text-sm font-semibold" style="color:${profile.color}">${escHtml(profile.name)}</div>
+          <div class="text-[10px] text-slate-500">${escHtml(profile.role)}</div>
+        </div>
+        ${projectName ? `<span class="ml-2 px-2 py-0.5 text-[10px] font-medium rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">${escHtml(projectName)}</span>` : ''}
+      </div>`;
+  } else if (projectName) {
+    agentHeaderHtml = `<div class="mb-2"><span class="px-2 py-0.5 text-[10px] font-medium rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">${escHtml(projectName)}</span></div>`;
+  }
+
+  const metaItems = [
+    `<div class="flex flex-col items-center p-3 rounded-lg bg-surface-100/50 border border-white/5">
+      <span class="text-2xl font-bold text-white tabular-nums">${formatDuration(durationMs)}</span>
+      <span class="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wider">Duration</span>
+    </div>`,
+    `<div class="flex flex-col items-center p-3 rounded-lg bg-surface-100/50 border border-white/5">
+      <span class="text-2xl font-bold text-emerald-400 tabular-nums">$${costUsd.toFixed(4)}</span>
+      <span class="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wider">Cost</span>
+    </div>`,
+    `<div class="flex flex-col items-center p-3 rounded-lg bg-surface-100/50 border border-white/5">
+      <span class="text-2xl font-bold text-white tabular-nums">${data.span_count || (data.spans || []).length}</span>
+      <span class="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wider">Spans</span>
+    </div>`,
+    hasErrors ? `<div class="flex flex-col items-center p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+      <span class="text-2xl font-bold text-red-400 tabular-nums">${errorCount}</span>
+      <span class="text-[10px] text-red-400 mt-0.5 uppercase tracking-wider">Errors</span>
+    </div>` : `<div class="flex flex-col items-center p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+      <span class="text-2xl font-bold text-emerald-400 tabular-nums">OK</span>
+      <span class="text-[10px] text-emerald-400 mt-0.5 uppercase tracking-wider">Status</span>
+    </div>`,
+  ];
+
+  const secondaryMeta = [
+    `<span class="text-xs text-slate-500">Service: <strong class="text-slate-300">${escHtml(data.service_name || 'unknown')}</strong></span>`,
+    `<span class="text-xs text-slate-500">Tokens: <strong class="text-slate-300">${(data.total_tokens || 0).toLocaleString()}</strong></span>`,
+    `<span class="text-xs text-slate-500">Time: <strong class="text-slate-300">${timeStr}</strong></span>`,
+  ];
+
+  document.getElementById('detail-trace-meta').innerHTML = `
+    ${agentHeaderHtml}
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3 w-full">${metaItems.join('')}</div>
+    <div class="flex flex-wrap gap-4">${secondaryMeta.join('')}</div>
+    ${tokenBreakdownHtml}
+  `;
+
+  renderWaterfallTimeline(data.spans || []);
+}
+
+// =========================================================================
+// Timeline — Waterfall Chart
+// =========================================================================
+const SPAN_KIND_COLORS = {
+  llm:       { bg: 'bg-[#9b8ec4]/20', bar: '#9b8ec4', text: 'text-[#9b8ec4]', label: 'LLM' },
+  tool:      { bg: 'bg-[#7ab5a0]/20', bar: '#7ab5a0', text: 'text-[#7ab5a0]', label: 'Tool' },
+  agent:     { bg: 'bg-[#a88ec4]/20', bar: '#a88ec4', text: 'text-[#a88ec4]', label: 'Agent' },
+  chain:     { bg: 'bg-[#c4b07a]/20', bar: '#c4b07a', text: 'text-[#c4b07a]', label: 'Chain' },
+  retrieval: { bg: 'bg-[#7a9eb5]/20', bar: '#7a9eb5', text: 'text-[#7a9eb5]', label: 'Retrieval' },
+  custom:    { bg: 'bg-[#a0a09a]/20', bar: '#a0a09a', text: 'text-[#a0a09a]', label: 'Custom' },
+};
+
+/** Extract agent name prefix from span name (e.g. "vr-alpha/Read" -> "vr-alpha") */
+function extractAgentFromSpanName(spanName) {
+  if (!spanName) return null;
+  const slashIdx = spanName.indexOf('/');
+  if (slashIdx > 0) {
+    const prefix = spanName.substring(0, slashIdx);
+    if (AGENT_PROFILES[prefix]) return prefix;
+  }
+  return null;
+}
+
+function renderWaterfallTimeline(spans) {
+  const container = document.getElementById('timeline-container');
+  if (!spans || spans.length === 0) {
+    container.innerHTML = renderEmptyState('No spans in this trace', 'Spans appear when the trace includes instrumented operations.');
+    return;
+  }
+
+  // Sort by start_time
+  spans.sort((a, b) => (a.start_time || 0) - (b.start_time || 0));
+
+  const minTime = Math.min(...spans.map(s => s.start_time || 0));
+  const maxTime = Math.max(...spans.map(s => s.end_time || s.start_time || 0));
+  const totalDuration = maxTime - minTime || 1;
+  const totalDurationMs = totalDuration * 1000;
+
+  // Build hierarchy via DFS
+  const childMap = {};
+  spans.forEach(s => {
+    if (s.parent_span_id) {
+      childMap[s.parent_span_id] = childMap[s.parent_span_id] || [];
+      childMap[s.parent_span_id].push(s);
+    }
+  });
+
+  const rootSpans = spans.filter(s => !s.parent_span_id || !spans.find(p => p.span_id === s.parent_span_id));
+  const flatList = [];
+  function dfs(span, depth) {
+    flatList.push({ span, depth });
+    (childMap[span.span_id] || []).forEach(c => dfs(c, depth + 1));
+  }
+  rootSpans.forEach(s => dfs(s, 0));
+
+  // Time axis markers
+  const timeMarkers = 5;
+  let timeAxisHtml = '<div class="flex justify-between text-[10px] text-slate-600 mb-1 ml-[220px] mr-[70px]">';
+  for (let i = 0; i <= timeMarkers; i++) {
+    const ms = (totalDurationMs * i / timeMarkers);
+    timeAxisHtml += `<span>${formatDuration(ms)}</span>`;
+  }
+  timeAxisHtml += '</div>';
+
+  // Collect agents present in these spans for the agent color legend
+  const traceAgentTag = currentTraceData && (currentTraceData.tags || {}).agent || null;
+  const agentsInTrace = new Map(); // agentKey -> profile color
+  flatList.forEach(({ span }) => {
+    const _spanAttrs = span.attributes || {};
+    const _agentFromAttr = _spanAttrs.agent || _spanAttrs['agent.name'] || traceAgentTag || null;
+    const _agentFromName = extractAgentFromSpanName(span.name);
+    const _agentKey = _agentFromAttr || _agentFromName;
+    if (_agentKey && !agentsInTrace.has(_agentKey)) {
+      agentsInTrace.set(_agentKey, getAgentProfile(_agentKey).color);
+    }
+  });
+
+  // Span-kind legend
+  let legendHtml = '<div class="flex flex-wrap gap-3 mb-2 pb-2 border-b border-white/5">';
+  for (const [kind, cfg] of Object.entries(SPAN_KIND_COLORS)) {
+    legendHtml += `<div class="flex items-center gap-1.5 text-xs ${cfg.text}"><span class="w-3 h-1.5 rounded-full" style="background:${cfg.bar}"></span>${cfg.label}</div>`;
+  }
+  legendHtml += '</div>';
+
+  // Agent color legend (shown only when agents are detected in spans)
+  if (agentsInTrace.size > 0) {
+    legendHtml += '<div class="flex flex-wrap gap-3 mb-3 pb-3 border-b border-white/5 items-center">';
+    legendHtml += '<span class="text-[10px] text-slate-500 uppercase tracking-wider font-medium mr-1">Agents:</span>';
+    agentsInTrace.forEach((color, agentName) => {
+      const profile = getAgentProfile(agentName);
+      legendHtml += `<div class="flex items-center gap-1.5 text-xs" style="color:${color}">
+        ${renderAgentAvatar(agentName, 'sm')}
+        <span>${escHtml(profile.name)}</span>
+      </div>`;
+    });
+    legendHtml += '</div>';
+  }
+
+  // Vertical gridlines behind bars
+  let gridHtml = '<div class="absolute inset-0 ml-[220px] mr-[70px] pointer-events-none" style="top:0;bottom:0">';
+  for (let i = 1; i < timeMarkers; i++) {
+    const pct = (i / timeMarkers) * 100;
+    gridHtml += `<div class="absolute top-0 bottom-0 border-l border-white/[0.03]" style="left:${pct}%"></div>`;
+  }
+  gridHtml += '</div>';
+
+  // Track which spans have children for collapse toggle
+  const hasChildren = {};
+  spans.forEach(s => {
+    if (s.parent_span_id) hasChildren[s.parent_span_id] = true;
+  });
+
+  let rowsHtml = '';
+  flatList.forEach(({ span, depth }, idx) => {
+    const kind = (span.kind || 'custom').toLowerCase();
+    const cfg = SPAN_KIND_COLORS[kind] || SPAN_KIND_COLORS.custom;
+    const isError = span.status === 'error';
+
+    const spanStart = (span.start_time || 0) - minTime;
+    const spanDuration = ((span.end_time || span.start_time || 0) - (span.start_time || 0));
+    const leftPct = (spanStart / totalDuration) * 100;
+    const widthPct = Math.max((spanDuration / totalDuration) * 100, 0.5);
+    const durationMs = span.duration_ms || spanDuration * 1000 || 0;
+    const durationStr = formatDuration(durationMs);
+
+    // Resolve agent color for bar fill (agent color > kind color; error always red)
+    const spanAttrs = span.attributes || {};
+    const agentFromAttr = spanAttrs.agent || spanAttrs['agent.name'] || traceAgentTag || null;
+    const agentFromName = extractAgentFromSpanName(span.name);
+    const spanAgentKey = agentFromAttr || agentFromName;
+    const agentBarColor = spanAgentKey ? getAgentProfile(spanAgentKey).color : null;
+
+    const indent = depth * 20;
+    const barColor = isError ? '#c47070' : (agentBarColor || cfg.bar);
+    const barOpacity = isError ? 0.85 : 0.75;
+    const barBorder = isError ? '2px solid #d9a0a0' : 'none';
+    const errorTintStyle = isError ? 'box-shadow:inset 0 0 0 9999px rgba(196,112,112,0.18);' : '';
+
+    // Build tooltip data attributes
+    const tokens = span.token_usage ? (span.token_usage.total_tokens || (span.token_usage.input_tokens || 0) + (span.token_usage.output_tokens || 0) || 0) : 0;
+    const cost = span.token_usage ? (span.token_usage.total_cost_usd || 0) : 0;
+    const canCollapse = hasChildren[span.span_id];
+
+    // Error row: red left border + light red background tint
+    const rowErrorStyle = isError ? 'border-left:4px solid #c47070;background:rgba(196,112,112,0.06);' : '';
+
+    rowsHtml += `
+      <div class="flex items-center gap-0 py-1 px-2 rounded-lg hover:bg-white/[0.03] cursor-pointer transition group waterfall-row"
+           style="${rowErrorStyle}"
+           data-span-id="${span.span_id}"
+           data-parent-span-id="${span.parent_span_id || ''}"
+           data-depth="${depth}"
+           onclick="openSpanDetail('${span.span_id}')"
+           data-span-name="${escHtml(span.name)}"
+           data-span-kind="${cfg.label}"
+           data-span-duration="${durationStr}"
+           data-span-status="${isError ? 'error' : 'ok'}"
+           data-span-tokens="${tokens}"
+           data-span-cost="${cost.toFixed(6)}"
+           onmouseenter="showWaterfallTooltip(event, this)"
+           onmouseleave="hideWaterfallTooltip()">
+        <!-- Label column with tree indentation -->
+        <div class="span-label-col flex items-center gap-1 w-[220px] min-w-[220px] flex-shrink-0" style="padding-left:${indent}px">
+          ${canCollapse ? `<button class="collapsible-chevron rotated w-4 h-4 flex items-center justify-center text-slate-600 hover:text-slate-400 flex-shrink-0 transition" onclick="event.stopPropagation(); toggleSpanChildren('${span.span_id}', this)" title="Collapse/Expand"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg></button>` : (depth > 0 ? '<span class="w-4 flex-shrink-0"></span>' : '')}
+          ${isError ? `<svg class="w-3 h-3 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" title="Error"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>` : ''}
+          <span class="px-1.5 py-0.5 text-[10px] font-medium rounded flex-shrink-0 ${cfg.bg} ${cfg.text}">${cfg.label}</span>
+          <span class="text-xs ${isError ? 'text-red-300' : 'text-slate-300'} truncate group-hover:text-white transition">${escHtml(span.name)}</span>
+        </div>
+        <!-- Bar column -->
+        <div class="flex-1 relative h-7 min-w-0">
+          <div class="span-bar absolute top-1 h-5 rounded flex items-center overflow-hidden"
+               style="left:${leftPct}%;width:${widthPct}%;background:${barColor};opacity:${barOpacity};border:${barBorder};${errorTintStyle}">
+            ${widthPct > 8 ? `<span class="px-1.5 text-[10px] font-medium text-white/90 whitespace-nowrap">${durationStr}</span>` : ''}
+          </div>
+          ${widthPct <= 8 ? `<span class="absolute top-1.5 text-[10px] text-slate-500 whitespace-nowrap" style="left:${leftPct + widthPct + 0.5}%">${durationStr}</span>` : ''}
+        </div>
+        <!-- Duration column -->
+        <div class="text-xs text-slate-500 w-[70px] text-right flex-shrink-0 tabular-nums">${durationStr}</div>
+      </div>
+    `;
+  });
+
+  container.innerHTML = `
+    ${legendHtml}
+    ${timeAxisHtml}
+    <div class="relative">
+      ${gridHtml}
+      <div class="space-y-0 relative z-10">${rowsHtml}</div>
+    </div>
+  `;
+}
+
+// Waterfall tooltip
+let tooltipEl = null;
+function showWaterfallTooltip(event, row) {
+  if (!tooltipEl) {
+    tooltipEl = document.createElement('div');
+    tooltipEl.className = 'waterfall-tooltip';
+    document.body.appendChild(tooltipEl);
+  }
+
+  const name = row.dataset.spanName;
+  const kind = row.dataset.spanKind;
+  const duration = row.dataset.spanDuration;
+  const status = row.dataset.spanStatus;
+  const tokens = parseInt(row.dataset.spanTokens);
+  const cost = parseFloat(row.dataset.spanCost);
+
+  let html = `
+    <div class="font-semibold text-white mb-1">${escHtml(name)}</div>
+    <div class="space-y-0.5 text-slate-400">
+      <div>Kind: <span class="text-slate-200">${kind}</span></div>
+      <div>Duration: <span class="text-slate-200">${duration}</span></div>
+      <div>Status: <span class="${status === 'error' ? 'text-red-400' : 'text-emerald-400'}">${status}</span></div>
+      ${tokens > 0 ? `<div>Tokens: <span class="text-slate-200">${tokens.toLocaleString()}</span></div>` : ''}
+      ${cost > 0 ? `<div>Cost: <span class="text-emerald-300">$${cost}</span></div>` : ''}
+    </div>
+  `;
+  tooltipEl.innerHTML = html;
+  tooltipEl.style.display = 'block';
+
+  // Position near cursor
+  const rect = row.getBoundingClientRect();
+  tooltipEl.style.top = (rect.top - 10) + 'px';
+  tooltipEl.style.left = (event.clientX + 16) + 'px';
+
+  // Keep tooltip within viewport
+  const ttRect = tooltipEl.getBoundingClientRect();
+  if (ttRect.right > window.innerWidth) {
+    tooltipEl.style.left = (event.clientX - ttRect.width - 16) + 'px';
+  }
+  if (ttRect.top < 0) {
+    tooltipEl.style.top = (rect.bottom + 4) + 'px';
+  }
+}
+
+function hideWaterfallTooltip() {
+  if (tooltipEl) tooltipEl.style.display = 'none';
+}
+
+// =========================================================================
+// Span Detail Panel
+// =========================================================================
+function openSpanDetail(spanId) {
+  if (!currentTraceData || !currentTraceData.spans) return;
+  const span = currentTraceData.spans.find(s => s.span_id === spanId);
+  if (!span) return;
+
+  const panel = document.getElementById('span-detail-panel');
+  panel.classList.remove('hidden');
+  panel.classList.remove('fade-in');
+  void panel.offsetWidth;
+  panel.classList.add('fade-in');
+
+  const kind = (span.kind || 'custom').toLowerCase();
+  const cfg = SPAN_KIND_COLORS[kind] || SPAN_KIND_COLORS.custom;
+  const isError = span.status === 'error';
+
+  // Resolve agent for this span
+  const spanDetailAttrs = span.attributes || {};
+  const sdAgentFromAttr = spanDetailAttrs.agent || spanDetailAttrs['agent.name'] || (currentTraceData && (currentTraceData.tags || {}).agent) || null;
+  const sdAgentFromName = extractAgentFromSpanName(span.name);
+  const sdAgentKey = sdAgentFromAttr || sdAgentFromName;
+  const sdAgentProfile = sdAgentKey ? getAgentProfile(sdAgentKey) : null;
+
+  let html = '';
+
+  // Header — agent avatar + kind badge + status
+  html += `<div class="mb-4">`;
+
+  // Agent row at the top if we know the agent
+  if (sdAgentProfile) {
+    html += `<div class="flex items-center gap-2 mb-3 p-2 rounded-lg" style="background:${sdAgentProfile.color}18;border:1px solid ${sdAgentProfile.color}30">
+      ${renderAgentAvatar(sdAgentKey, 'md')}
+      <div class="min-w-0">
+        <div class="text-xs font-semibold" style="color:${sdAgentProfile.color}">${escHtml(sdAgentProfile.name)}</div>
+        <div class="text-[10px] text-slate-500">${escHtml(sdAgentProfile.role)}</div>
+      </div>
+    </div>`;
+  }
+
+  html += `<div class="flex items-center gap-2 mb-2">
+      <span class="px-2 py-0.5 text-xs font-medium rounded ${cfg.bg} ${cfg.text}">${cfg.label}</span>
+      ${isError ? '<span class="px-2 py-0.5 text-xs font-medium rounded bg-red-500/10 text-red-300 border border-red-500/20">ERROR</span>' : '<span class="px-2 py-0.5 text-xs font-medium rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">OK</span>'}
+    </div>
+    <h4 class="text-base font-semibold text-white">${escHtml(span.name)}</h4>
+    <div class="flex items-center gap-1 mt-1">
+      <span class="text-xs text-slate-500 font-mono">${span.span_id}</span>
+      <button onclick="navigator.clipboard.writeText('${span.span_id}');showToast('Span ID copied','success',1500)" class="p-0.5 rounded hover:bg-white/5 text-slate-600 hover:text-slate-400 transition" title="Copy span ID">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+      </button>
+    </div>
+  </div>`;
+
+  // Timing — collapsible
+  const startStr = span.start_time > 0 ? new Date(span.start_time * 1000).toLocaleTimeString() : '--';
+  const durationMs = span.duration_ms || ((span.end_time - span.start_time) * 1000) || 0;
+  html += renderCollapsibleSection('Timing', `
+    <div class="space-y-1 text-xs">
+      <div class="flex justify-between"><span class="text-slate-500">Start</span><span class="text-slate-300">${startStr}</span></div>
+      <div class="flex justify-between"><span class="text-slate-500">Duration</span><span class="text-slate-300">${formatDuration(durationMs)}</span></div>
+    </div>
+  `, true);
+
+  // Parent
+  if (span.parent_span_id) {
+    const parentSpan = currentTraceData.spans.find(s => s.span_id === span.parent_span_id);
+    html += renderCollapsibleSection('Parent', `
+      <div class="text-xs font-mono text-indigo-400 cursor-pointer hover:text-indigo-300 transition" onclick="openSpanDetail('${span.parent_span_id}')">
+        ${parentSpan ? escHtml(parentSpan.name) + ' — ' : ''}${span.parent_span_id}
+      </div>
+    `, true);
+  }
+
+  // Children
+  const children = currentTraceData.spans.filter(s => s.parent_span_id === span.span_id);
+  if (children.length > 0) {
+    let childrenHtml = '<div class="space-y-1">';
+    children.forEach(child => {
+      const childKind = (child.kind || 'custom').toLowerCase();
+      const childCfg = SPAN_KIND_COLORS[childKind] || SPAN_KIND_COLORS.custom;
+      const childErr = child.status === 'error';
+      childrenHtml += `
+        <div class="flex items-center gap-2 text-xs cursor-pointer hover:bg-white/[0.03] p-1 rounded transition" onclick="openSpanDetail('${child.span_id}')">
+          <span class="px-1 py-0.5 text-[9px] font-medium rounded ${childCfg.bg} ${childCfg.text}">${childCfg.label}</span>
+          <span class="text-slate-300 truncate">${escHtml(child.name)}</span>
+          ${childErr ? '<span class="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0"></span>' : ''}
+          <span class="text-slate-600 ml-auto text-[10px] tabular-nums">${formatDuration(child.duration_ms || 0)}</span>
+        </div>`;
+    });
+    childrenHtml += '</div>';
+    html += renderCollapsibleSection(`Children (${children.length})`, childrenHtml, true);
+  }
+
+  // Token Usage — mini bar chart (input vs output)
+  const tu = span.token_usage;
+  if (tu) {
+    const totalTok = (tu.input_tokens || 0) + (tu.output_tokens || 0);
+    const inputPct = totalTok > 0 ? ((tu.input_tokens || 0) / totalTok * 100).toFixed(1) : 0;
+    const outputPct = totalTok > 0 ? ((tu.output_tokens || 0) / totalTok * 100).toFixed(1) : 0;
+    html += renderCollapsibleSection('Token Usage', `
+      <div class="space-y-2 text-xs">
+        <div class="flex justify-between items-center">
+          <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-sm bg-blue-500/60 flex-shrink-0"></span><span class="text-slate-500">Input</span></div>
+          <span class="text-slate-300 tabular-nums">${(tu.input_tokens || 0).toLocaleString()} <span class="text-slate-600 text-[10px]">(${inputPct}%)</span></span>
+        </div>
+        <div class="flex justify-between items-center">
+          <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-sm bg-emerald-500/60 flex-shrink-0"></span><span class="text-slate-500">Output</span></div>
+          <span class="text-slate-300 tabular-nums">${(tu.output_tokens || 0).toLocaleString()} <span class="text-slate-600 text-[10px]">(${outputPct}%)</span></span>
+        </div>
+        ${totalTok > 0 ? `<div>
+          <div class="flex h-3 rounded overflow-hidden bg-surface-200 mt-1 gap-0.5">
+            <div class="bg-blue-500/70 rounded-l transition-all" style="width:${inputPct}%" title="Input: ${inputPct}%"></div>
+            <div class="bg-emerald-500/70 rounded-r transition-all" style="width:${outputPct}%" title="Output: ${outputPct}%"></div>
+          </div>
+          <div class="flex justify-between text-[10px] text-slate-600 mt-0.5">
+            <span>Input ${inputPct}%</span>
+            <span>Total: ${totalTok.toLocaleString()}</span>
+            <span>Output ${outputPct}%</span>
+          </div>
+        </div>` : ''}
+        <div class="flex justify-between border-t border-white/5 pt-1.5">
+          <span class="text-slate-500">Cost</span>
+          <span class="text-emerald-300 font-medium">$${(tu.total_cost_usd || 0).toFixed(6)}</span>
+        </div>
+      </div>
+    `, true);
+  }
+
+  // Error — collapsible, always open, with prominent red-bordered box
+  if (span.error || span.error_message) {
+    const errMsg = span.error ? (span.error.message || JSON.stringify(span.error)) : span.error_message;
+    html += renderCollapsibleSection('Error', `
+      <div class="p-3 rounded-lg bg-red-500/8 border-2 border-red-500/60 text-xs text-red-300 font-mono break-all" style="border-left:4px solid #ef4444;background:rgba(239,68,68,0.06)">
+        <div class="flex items-center gap-1.5 mb-1.5">
+          <svg class="w-3.5 h-3.5 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+          <span class="font-semibold text-red-400 text-[11px] uppercase tracking-wider">Error</span>
+        </div>
+        ${escHtml(errMsg)}
+      </div>
+    `, true, 'text-red-400');
+  }
+
+  // Attributes — collapsible, better key-value table layout
+  const attrs = span.attributes || {};
+  if (Object.keys(attrs).length > 0) {
+    let attrHtml = '<table class="w-full text-xs border-collapse">';
+    for (const [key, val] of Object.entries(attrs)) {
+      attrHtml += `<tr class="border-b border-white/5 last:border-0">
+        <td class="py-1 pr-3 text-slate-500 font-medium align-top w-2/5 break-all">${escHtml(key)}</td>
+        <td class="py-1 text-slate-300 text-right align-top break-all">${escHtml(String(val))}</td>
+      </tr>`;
+    }
+    attrHtml += '</table>';
+    html += renderCollapsibleSection(`Attributes (${Object.keys(attrs).length})`, attrHtml, false);
+  }
+
+  // Events — collapsible
+  const events = span.events || [];
+  if (events.length > 0) {
+    let eventsHtml = '<div class="space-y-2">';
+    events.forEach(ev => {
+      const evTime = ev.timestamp > 0 ? new Date(ev.timestamp * 1000).toLocaleTimeString() : '--';
+      eventsHtml += `<div class="p-2 rounded bg-surface-100 border border-white/5">
+        <div class="flex justify-between text-xs mb-1"><span class="text-slate-300 font-medium">${escHtml(ev.name)}</span><span class="text-slate-600">${evTime}</span></div>
+        ${Object.keys(ev.attributes || {}).length > 0 ? `<pre class="text-[10px] text-slate-500 mt-1 overflow-x-auto">${escHtml(JSON.stringify(ev.attributes, null, 2))}</pre>` : ''}
+      </div>`;
+    });
+    eventsHtml += '</div>';
+    html += renderCollapsibleSection(`Events (${events.length})`, eventsHtml, false);
+  }
+
+  document.getElementById('span-detail-content').innerHTML = html;
+}
+
+function closeSpanDetail() {
+  document.getElementById('span-detail-panel').classList.add('hidden');
+}
+
+// =========================================================================
+// Causal DAG — with dagre layout, animated edges, zoom controls, legend
+// =========================================================================
+async function loadDAG(traceId) {
+  // Show skeleton loading state
+  const cyContainer = document.getElementById('cy-container');
+  cyContainer.innerHTML = `
+    <div class="flex items-center justify-center h-full">
+      <div class="text-center">
+        <div class="skeleton w-48 h-4 mb-3 mx-auto"></div>
+        <div class="skeleton w-32 h-3 mx-auto"></div>
+        <div class="mt-6 flex gap-4 justify-center">
+          <div class="skeleton w-10 h-10 rounded-full"></div>
+          <div class="skeleton w-10 h-10 rounded-full"></div>
+          <div class="skeleton w-10 h-10 rounded-full"></div>
+        </div>
+        <div class="mt-4 flex gap-2 justify-center">
+          <div class="skeleton w-20 h-1 rounded"></div>
+          <div class="skeleton w-20 h-1 rounded"></div>
+        </div>
+      </div>
+    </div>`;
+
+  try {
+    const data = await apiFetch(`/v1/traces/${traceId}/dag`);
+    dagLoaded = true;
+    renderDAG(data);
+    renderDAGPatterns(data.patterns || []);
+  } catch (err) {
+    cyContainer.innerHTML = `<div class="flex items-center justify-center h-full text-slate-600 text-sm">Failed to load DAG: ${escHtml(err.message)}</div>`;
+  }
+}
+
+function renderDAG(dagData) {
+  if (cyInstance) { cyInstance.destroy(); cyInstance = null; }
+
+  const kindColors = {
+    llm: '#9b8ec4', tool: '#7ab5a0', agent: '#a88ec4', chain: '#c4b07a',
+    retrieval: '#7a9eb5', custom: '#a0a09a'
+  };
+
+  const nodes = (dagData.nodes || []).map(n => {
+    let bgColor = kindColors[n.kind] || '#64748b';
+    let borderColor = bgColor;
+    let borderWidth = 2;
+
+    if (n.status === 'error') {
+      if (n.error_role === 'root_cause') {
+        borderColor = '#c47070';
+        bgColor = '#c47070';
+        borderWidth = 4;
+      } else if (n.error_role === 'cascaded') {
+        borderColor = '#c49a5c';
+        bgColor = '#c49a5c';
+        borderWidth = 3;
+      }
+    }
+
+    return {
+      data: {
+        id: n.span_id,
+        label: n.name.length > 22 ? n.name.substring(0, 20) + '..' : n.name,
+        fullName: n.name,
+        kind: n.kind,
+        status: n.status,
+        errorRole: n.error_role,
+        bgColor,
+        borderColor,
+        borderWidth,
+        duration: `${(n.duration_ms || 0).toFixed(0)}ms`,
+        durationMs: n.duration_ms || 0,
+      }
+    };
+  });
+
+  const edges = (dagData.edges || []).map((e, i) => ({
+    data: {
+      id: `e${i}`,
+      source: e.source,
+      target: e.target,
+      relation: e.relation,
+      lineColor: e.relation === 'caused_by' ? '#c47070' : '#c49a5c',
+      isError: e.relation === 'caused_by',
+    }
+  }));
+
+  // Build parent-child edges from spans if none exist
+  if (edges.length === 0 && currentTraceData && currentTraceData.spans) {
+    const spanIds = new Set(nodes.map(n => n.data.id));
+    currentTraceData.spans.forEach((s, i) => {
+      if (s.parent_span_id && spanIds.has(s.parent_span_id) && spanIds.has(s.span_id)) {
+        edges.push({
+          data: {
+            id: `pe${i}`,
+            source: s.parent_span_id,
+            target: s.span_id,
+            relation: 'parent_child',
+            lineColor: '#b5b5b0',
+            isError: false,
+          }
+        });
+      }
+    });
+  }
+
+  // Register dagre layout if available
+  if (typeof cytoscape !== 'undefined' && typeof cytoscapeDagre !== 'undefined') {
+    try { cytoscape.use(cytoscapeDagre); } catch (e) { /* already registered */ }
+  }
+
+  // Choose layout — use dagre if available, fallback to breadthfirst
+  let layoutConfig;
+  if (typeof dagre !== 'undefined') {
+    layoutConfig = {
+      name: 'dagre',
+      rankDir: 'TB',
+      nodeSep: 50,
+      rankSep: 70,
+      edgeSep: 20,
+      padding: 40,
+    };
+  } else {
+    layoutConfig = {
+      name: 'breadthfirst',
+      directed: true,
+      spacingFactor: 1.3,
+      padding: 30,
+    };
+  }
+
+  cyInstance = cytoscape({
+    container: document.getElementById('cy-container'),
+    elements: [...nodes, ...edges],
+    style: [
+      {
+        selector: 'node',
+        style: {
+          'background-color': 'data(bgColor)',
+          'border-color': 'data(borderColor)',
+          'border-width': 'data(borderWidth)',
+          'label': 'data(label)',
+          'color': isDarkTheme ? '#e2e0db' : '#2c2c2a',
+          'font-size': '10px',
+          'font-family': 'Inter, system-ui, sans-serif',
+          'text-valign': 'bottom',
+          'text-margin-y': 8,
+          'width': 40,
+          'height': 40,
+          'text-outline-color': isDarkTheme ? '#2a2a28' : '#fafaf8',
+          'text-outline-width': 2,
+          'transition-property': 'border-color, border-width, background-color',
+          'transition-duration': '0.2s',
+        }
+      },
+      {
+        selector: 'node:active',
+        style: {
+          'overlay-opacity': 0.1,
+          'overlay-color': '#7c7aef',
+        }
+      },
+      {
+        selector: 'edge',
+        style: {
+          'line-color': 'data(lineColor)',
+          'target-arrow-color': 'data(lineColor)',
+          'target-arrow-shape': 'triangle',
+          'curve-style': 'bezier',
+          'width': 2,
+          'opacity': 0.7,
+          'arrow-scale': 0.8,
+        }
+      },
+      {
+        selector: 'edge[relation = "caused_by"]',
+        style: {
+          'line-style': 'solid',
+          'width': 3,
+          'opacity': 0.9,
+          'line-dash-pattern': [8, 4],
+          'line-dash-offset': 0,
+        }
+      },
+      {
+        selector: 'edge[relation = "preceded_by"]',
+        style: { 'line-style': 'dashed' }
+      },
+    ],
+    layout: layoutConfig,
+    minZoom: 0.2,
+    maxZoom: 4,
+  });
+
+  // Click node to show span details
+  cyInstance.on('tap', 'node', function(evt) {
+    openSpanDetail(evt.target.id());
+  });
+
+  // Hover effect on nodes
+  cyInstance.on('mouseover', 'node', function(evt) {
+    evt.target.style({
+      'border-width': Math.max(evt.target.data('borderWidth') + 2, 4),
+      'width': 48,
+      'height': 48,
+    });
+    document.getElementById('cy-container').style.cursor = 'pointer';
+  });
+  cyInstance.on('mouseout', 'node', function(evt) {
+    evt.target.style({
+      'border-width': evt.target.data('borderWidth'),
+      'width': 40,
+      'height': 40,
+    });
+    document.getElementById('cy-container').style.cursor = 'default';
+  });
+
+  // Animate error edges (caused_by) with a pulsing dash effect
+  animateErrorEdges();
+}
+
+/** Animate error propagation edges with flowing dashes */
+function animateErrorEdges() {
+  if (!cyInstance) return;
+  const errorEdges = cyInstance.edges('[relation = "caused_by"]');
+  if (errorEdges.length === 0) return;
+
+  let offset = 0;
+  function animate() {
+    if (!cyInstance) return;
+    offset = (offset + 1) % 20;
+    errorEdges.forEach(edge => {
+      edge.style('line-dash-offset', -offset);
+    });
+    requestAnimationFrame(animate);
+  }
+  animate();
+}
+
+/** DAG zoom controls */
+function dagZoom(action) {
+  if (!cyInstance) return;
+  const currentZoom = cyInstance.zoom();
+  if (action === 'in') {
+    cyInstance.animate({ zoom: { level: currentZoom * 1.3, position: cyInstance.pan() }, duration: 200 });
+  } else if (action === 'out') {
+    cyInstance.animate({ zoom: { level: currentZoom / 1.3, position: cyInstance.pan() }, duration: 200 });
+  } else if (action === 'fit') {
+    cyInstance.animate({ fit: { padding: 40 }, duration: 300 });
+  }
+}
+
+function renderDAGPatterns(patterns) {
+  const container = document.getElementById('dag-patterns');
+  if (!patterns || patterns.length === 0) {
+    container.innerHTML = '<div class="glass rounded-xl p-4 text-sm text-slate-500">No patterns detected in this trace.</div>';
+    return;
+  }
+
+  let html = '<div class="space-y-2">';
+  patterns.forEach(p => {
+    const sevClass = `severity-${p.severity}`;
+    html += `
+      <div class="rounded-xl p-4 border ${sevClass}">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="px-2 py-0.5 text-[10px] font-bold uppercase rounded ${sevClass}">${p.severity}</span>
+          <span class="text-xs font-medium text-slate-300">${escHtml(p.pattern)}</span>
+        </div>
+        <p class="text-xs text-slate-400">${escHtml(p.description)}</p>
+      </div>
+    `;
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+// =========================================================================
+// =========================================================================
+// Patterns
+// =========================================================================
+
+// Accumulated patterns (with trace context) for client-side filtering
+let _allPatternsData = [];
+let _activePatternFilter = 'all';
+
+const SEVERITY_CONFIG = {
+  critical: {
+    color: 'red',
+    cardClass: 'pattern-card-critical',
+    badgeClass: 'bg-red-500/15 text-red-400 border border-red-500/30',
+    icon: `<svg class="w-4 h-4 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><circle cx="12" cy="19" r="0.5" fill="currentColor"/></svg>`,
+    dotColor: 'bg-red-500',
+    largeIcon: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" fill="rgba(239,68,68,0.15)"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 9l-6 6m0-6l6 6" stroke="#ef4444"/></svg>`,
+    iconBg: 'sev-critical',
+  },
+  warning: {
+    color: 'amber',
+    cardClass: 'pattern-card-warning',
+    badgeClass: 'bg-amber-500/15 text-amber-400 border border-amber-500/30',
+    icon: `<svg class="w-4 h-4 text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>`,
+    dotColor: 'bg-amber-500',
+    largeIcon: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" fill="rgba(245,158,11,0.15)" stroke="#f59e0b" stroke-width="1.5"/><path d="M12 9v4m0 3h.01" stroke="#f59e0b" stroke-width="2" stroke-linecap="round"/></svg>`,
+    iconBg: 'sev-warning',
+  },
+  info: {
+    color: 'blue',
+    cardClass: 'pattern-card-info',
+    badgeClass: 'bg-blue-500/15 text-blue-400 border border-blue-500/30',
+    icon: `<svg class="w-4 h-4 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`,
+    dotColor: 'bg-blue-500',
+    largeIcon: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="rgba(59,130,246,0.15)" stroke="#3b82f6" stroke-width="1.5"/><path d="M12 16v-4m0-4h.01" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/></svg>`,
+    iconBg: 'sev-info',
+  },
+};
+
+function renderPatternCard(pattern, traceId) {
+  const sev = (pattern.severity || 'info').toLowerCase();
+  const cfg = SEVERITY_CONFIG[sev] || SEVERITY_CONFIG.info;
+  const patternName = escHtml((pattern.pattern || 'Unknown').replace(/_/g, ' '));
+  const description = escHtml(pattern.description || '');
+  const recommendation = escHtml(pattern.recommendation || '');
+  const affectedCount = pattern.involved_spans ? pattern.involved_spans.length : 0;
+  const cardId = 'pattern-' + Math.random().toString(36).substring(2, 8);
+
+  // Build involved spans detail section
+  let spansDetailHtml = '';
+  if (pattern.involved_spans && pattern.involved_spans.length > 0) {
+    const spanItems = pattern.involved_spans.map(s => {
+      const spanName = typeof s === 'string' ? s : (s.name || s.span_id || 'unknown');
+      const spanRole = typeof s === 'object' ? (s.role || '') : '';
+      return `<div class="flex items-center gap-2 px-2 py-1.5 rounded bg-surface-100/50 text-[11px]">
+        <span class="w-1.5 h-1.5 rounded-full ${cfg.dotColor} flex-shrink-0"></span>
+        <span class="text-slate-300 font-mono truncate">${escHtml(spanName)}</span>
+        ${spanRole ? `<span class="text-slate-600">${escHtml(spanRole)}</span>` : ''}
+      </div>`;
+    }).join('');
+    spansDetailHtml = `
+      <div class="pattern-detail-section mt-3 pt-3 border-t border-white/5">
+        <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-2">Affected Spans</div>
+        <div class="space-y-1 max-h-48 overflow-y-auto">${spanItems}</div>
+        <button class="mt-2 text-[10px] text-indigo-400 hover:text-indigo-300 transition" onclick="event.stopPropagation(); openTrace('${escHtml(traceId)}')">View full trace --></button>
+      </div>`;
+  }
+
+  return `
+    <div id="${cardId}" class="glass rounded-xl p-4 border border-white/5 ${cfg.cardClass} glass-hover cursor-pointer transition pattern-card-expandable"
+         data-severity="${escHtml(sev)}"
+         onclick="this.classList.toggle('expanded');">
+      <div class="flex items-start gap-3 mb-2">
+        <div class="pattern-severity-icon ${cfg.iconBg}">
+          ${cfg.largeIcon}
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-xs font-bold text-white">${patternName}</span>
+            <span class="px-1.5 py-0.5 text-[10px] font-semibold uppercase rounded ${cfg.badgeClass}">${escHtml(sev)}</span>
+            ${affectedCount > 0 ? `<span class="pattern-count-badge">${affectedCount} span${affectedCount > 1 ? 's' : ''}</span>` : ''}
+            <span class="pattern-expand-chevron text-slate-600 ml-auto">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </span>
+          </div>
+          <p class="text-xs text-slate-400 mt-1 leading-relaxed">${description}</p>
+        </div>
+        <span class="text-[10px] text-slate-600 font-mono flex-shrink-0">${traceId.substring(0, 8)}...</span>
+      </div>
+      ${recommendation ? `
+        <div class="mt-2 p-2.5 rounded-lg bg-surface-100 border border-white/5 text-xs text-slate-500">
+          <span class="text-slate-600 font-medium">Rec: </span>${recommendation}
+        </div>` : ''}
+      ${spansDetailHtml}
+    </div>
+  `;
+}
+
+function filterPatterns(severity) {
+  _activePatternFilter = severity;
+
+  // Update filter button active states
+  document.querySelectorAll('.pattern-filter-btn').forEach(btn => {
+    const btnSev = btn.getAttribute('onclick').match(/'([^']+)'/)?.[1];
+    if (btnSev === severity) {
+      btn.className = 'pattern-filter-btn px-2.5 py-1 text-[10px] rounded bg-indigo-500/20 text-indigo-300 font-medium border border-indigo-500/30 transition active';
+    } else {
+      btn.className = 'pattern-filter-btn px-2.5 py-1 text-[10px] rounded bg-surface-100 text-slate-400 hover:text-white border border-white/10 hover:border-white/20 transition';
+    }
+  });
+
+  // Re-render with filter
+  _renderFilteredPatterns();
+}
+
+function _renderFilteredPatterns() {
+  const container = document.getElementById('patterns-list');
+  if (!container) return;
+
+  const filtered = _activePatternFilter === 'all'
+    ? _allPatternsData
+    : _allPatternsData.filter(item => (item.pattern.severity || 'info').toLowerCase() === _activePatternFilter);
+
+  if (filtered.length === 0) {
+    const msg = _activePatternFilter === 'all'
+      ? 'No anti-patterns detected'
+      : `No ${_activePatternFilter} patterns detected`;
+    const sub = _activePatternFilter === 'all'
+      ? 'Checked recent error traces — all clear.'
+      : 'Try a different severity filter.';
+    // Preserve count header
+    const headerHtml = `
+      <div class="flex items-center justify-between mb-4">
+        <span class="text-xs text-slate-500">${_allPatternsData.length} total pattern(s) across all severities</span>
+      </div>`;
+    container.innerHTML = headerHtml + renderEmptyState(msg, sub);
+    return;
+  }
+
+  const totalCount = _allPatternsData.length;
+  const visibleCount = filtered.length;
+  container.innerHTML = `
+    <div class="flex items-center justify-between mb-4">
+      <span class="text-xs text-slate-500">${visibleCount} of ${totalCount} pattern(s) shown</span>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      ${filtered.map(item => renderPatternCard(item.pattern, item.traceId)).join('')}
+    </div>
+  `;
+}
+
+async function loadAllPatterns() {
+  const container = document.getElementById('patterns-list');
+  _allPatternsData = [];
+
+  try {
+    const tracesData = await apiFetch('/v1/traces?limit=20');
+    if (!tracesData.traces || tracesData.traces.length === 0) {
+      container.innerHTML = renderEmptyState('No traces available', 'Patterns are detected per-trace via the DAG analysis.');
+      return;
+    }
+
+    const errorTraces = tracesData.traces.filter(t => t.has_errors === true || t.has_errors === 1);
+    if (errorTraces.length === 0) {
+      container.innerHTML = `
+        <div class="glass rounded-xl p-8 text-center">
+          <svg class="w-16 h-16 text-emerald-500/20 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <p class="text-sm text-slate-400">No error traces found</p>
+          <p class="text-xs text-slate-600 mt-1">Anti-patterns are detected when traces contain errors.</p>
+        </div>
+      `;
+      return;
+    }
+
+    // Show loading skeleton
+    container.innerHTML = `
+      <div class="glass rounded-xl p-6 space-y-3">
+        <div class="skeleton skeleton-text w-48"></div>
+        <div class="skeleton skeleton-bar"></div>
+        <div class="skeleton skeleton-bar"></div>
+        <div class="skeleton skeleton-bar"></div>
+      </div>
+    `;
+
+    for (const trace of errorTraces.slice(0, 10)) {
+      try {
+        const dag = await apiFetch(`/v1/traces/${trace.trace_id}/dag`);
+        if (dag.patterns && dag.patterns.length > 0) {
+          dag.patterns.forEach(p => {
+            _allPatternsData.push({ pattern: p, traceId: trace.trace_id });
+          });
+        }
+      } catch (e) {
+        // Skip traces that fail DAG analysis
+      }
+    }
+
+    if (_allPatternsData.length === 0) {
+      container.innerHTML = renderEmptyState('No anti-patterns detected', 'Checked recent error traces — all clear.');
+    } else {
+      // Reset filter to 'all' when reloading
+      _activePatternFilter = 'all';
+      document.querySelectorAll('.pattern-filter-btn').forEach(btn => {
+        const btnSev = btn.getAttribute('onclick').match(/'([^']+)'/)?.[1];
+        if (btnSev === 'all') {
+          btn.className = 'pattern-filter-btn px-2.5 py-1 text-[10px] rounded bg-indigo-500/20 text-indigo-300 font-medium border border-indigo-500/30 transition active';
+        } else {
+          btn.className = 'pattern-filter-btn px-2.5 py-1 text-[10px] rounded bg-surface-100 text-slate-400 hover:text-white border border-white/10 hover:border-white/20 transition';
+        }
+      });
+      _renderFilteredPatterns();
+    }
+  } catch (err) {
+    container.innerHTML = `<div class="glass rounded-xl p-8 text-center text-red-400/60 text-sm">Failed to load patterns: ${escHtml(err.message)}</div>`;
+  }
+}
+
+// =========================================================================
+// Export Features
+// =========================================================================
+
+/** Export current trace data as JSON file */
+function exportTraceJSON() {
+  if (!currentTraceData) {
+    showToast('No trace data to export', 'warning');
+    return;
+  }
+  const json = JSON.stringify(currentTraceData, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `trace-${currentTraceId || 'unknown'}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Trace exported as JSON', 'success');
+}
+
+/** Export DAG as PNG using Cytoscape's png() method */
+function exportDAGPng() {
+  if (!cyInstance) {
+    showToast('No DAG to export', 'warning');
+    return;
+  }
+  try {
+    const pngData = cyInstance.png({ output: 'blob', bg: isDarkTheme ? '#2a2a28' : '#fafaf8', scale: 2, full: true });
+    const url = URL.createObjectURL(pngData);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `dag-${currentTraceId || 'unknown'}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('DAG exported as PNG', 'success');
+  } catch (err) {
+    console.error('DAG PNG export error:', err);
+    showToast('Failed to export DAG', 'error');
+  }
+}
+
+/** Copy current trace ID to clipboard */
+function copyTraceId() {
+  if (!currentTraceId) return;
+  navigator.clipboard.writeText(currentTraceId).then(() => {
+    showToast('Trace ID copied to clipboard', 'success', 2000);
+  }).catch(() => {
+    // Fallback for older browsers
+    const textarea = document.createElement('textarea');
+    textarea.value = currentTraceId;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    showToast('Trace ID copied to clipboard', 'success', 2000);
+  });
+}
+
+// =========================================================================
+// Connection Status
+// =========================================================================
+async function healthCheck() {
+  try {
+    await apiFetch('/health');
+    return true;
+  } catch {
+    updateWsStatus('error');
+    return false;
+  }
+}
+
+// =========================================================================
+// Keyboard Navigation
+// =========================================================================
+function setupKeyboardNavigation() {
+  document.addEventListener('keydown', (e) => {
+    // Close notification panel on Escape
+    const notifPanel = document.getElementById('notification-panel');
+    if (e.key === 'Escape' && notifPanel && !notifPanel.classList.contains('hidden')) {
+      notifPanel.classList.add('hidden');
+      return;
+    }
+
+    // Close shortcuts modal on Escape
+    const shortcutsModal = document.getElementById('shortcuts-modal');
+    if (e.key === 'Escape' && !shortcutsModal.classList.contains('hidden')) {
+      closeShortcutsModal();
+      return;
+    }
+
+    // "?" to show shortcuts help — only when not in input
+    if (e.key === '?' && !isInputFocused()) {
+      e.preventDefault();
+      openShortcutsModal();
+      return;
+    }
+
+    // "/" to focus search — only when not already in an input
+    if (e.key === '/' && !isInputFocused()) {
+      e.preventDefault();
+      const searchInput = document.getElementById('filter-service');
+      if (searchInput) {
+        switchView('traces');
+        setTimeout(() => searchInput.focus(), 100);
+      }
+      return;
+    }
+
+    // "t" to toggle theme
+    if (e.key === 't' && !isInputFocused()) {
+      toggleTheme();
+      return;
+    }
+
+    // "r" to refresh
+    if (e.key === 'r' && !isInputFocused()) {
+      refreshCurrentView();
+      return;
+    }
+
+    // "n" to toggle notification panel
+    if (e.key === 'n' && !isInputFocused()) {
+      toggleNotificationPanel();
+      return;
+    }
+
+    // Number keys + letter shortcuts for view switching
+    if (!isInputFocused()) {
+      const viewMap = { '1': 'overview', '2': 'traces', '3': 'cost', '4': 'patterns', '5': 'compare', '6': 'agents', 'a': 'agents' };
+      if (viewMap[e.key]) {
+        switchView(viewMap[e.key]);
+        return;
+      }
+    }
+
+    // Escape to go back or close panels
+    if (e.key === 'Escape') {
+      const agentModal = document.getElementById('agent-detail-modal');
+      if (agentModal && !agentModal.classList.contains('hidden')) {
+        closeAgentDetailModal();
+        return;
+      }
+      const spanPanel = document.getElementById('span-detail-panel');
+      if (!spanPanel.classList.contains('hidden')) {
+        closeSpanDetail();
+        return;
+      }
+      const detailPanel = document.getElementById('view-trace-detail');
+      if (!detailPanel.classList.contains('hidden')) {
+        backToTraces();
+        return;
+      }
+    }
+
+    // j/k and Arrow keys for trace list navigation
+    if (currentView === 'traces' || currentView === 'overview') {
+      const listId = currentView === 'traces' ? 'traces-list' : 'recent-traces-list';
+      const rows = document.querySelectorAll(`#${listId} .trace-row`);
+      if (rows.length === 0) return;
+
+      if ((e.key === 'j' || e.key === 'ArrowDown') && !isInputFocused()) {
+        e.preventDefault();
+        selectedTraceIndex = Math.min(selectedTraceIndex + 1, rows.length - 1);
+        highlightTraceRow(rows);
+      } else if ((e.key === 'k' || e.key === 'ArrowUp') && !isInputFocused()) {
+        e.preventDefault();
+        selectedTraceIndex = Math.max(selectedTraceIndex - 1, 0);
+        highlightTraceRow(rows);
+      } else if (e.key === 'Enter' && selectedTraceIndex >= 0 && !isInputFocused()) {
+        e.preventDefault();
+        const traceId = rows[selectedTraceIndex]?.dataset?.traceId;
+        if (traceId) openTrace(traceId);
+      }
+    }
+  });
+}
+
+function refreshCurrentView() {
+  if (currentView === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); loadActivityTimeline(); loadTrendChart(_trendHours || 24);  }
+  else if (currentView === 'traces') { loadTraces(); }
+  else if (currentView === 'cost') { loadCostData(); }
+  else if (currentView === 'patterns') { loadAllPatterns(); }
+  showToast('Refreshed', 'success', 1500);
+}
+
+// =========================================================================
+// Theme Toggle
+// =========================================================================
+function toggleTheme() {
+  isDarkTheme = !isDarkTheme;
+  if (isDarkTheme) {
+    document.documentElement.classList.add('dark');
+    document.body.classList.add('dark');
+    localStorage.setItem('flowlens-theme', 'dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+    document.body.classList.remove('dark');
+    localStorage.setItem('flowlens-theme', 'light');
+  }
+  // Update chart colors if charts exist
+  updateChartTheme();
+}
+
+function updateChartTheme() {
+  const textColor = isDarkTheme ? '#94a3b8' : '#64748b';
+  const gridColor = isDarkTheme ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.06)';
+  for (const [id, chart] of Object.entries(chartInstances)) {
+    if (chart && chart.options) {
+      if (chart.options.plugins && chart.options.plugins.legend && chart.options.plugins.legend.labels) {
+        chart.options.plugins.legend.labels.color = textColor;
+      }
+      if (chart.options.scales) {
+        for (const axis of Object.values(chart.options.scales)) {
+          if (axis.ticks) axis.ticks.color = textColor;
+          if (axis.grid) axis.grid.color = gridColor;
+        }
+      }
+      chart.update();
+    }
+  }
+}
+
+// =========================================================================
+// Shortcuts Modal
+// =========================================================================
+function openShortcutsModal() {
+  document.getElementById('shortcuts-modal').classList.remove('hidden');
+}
+function closeShortcutsModal() {
+  document.getElementById('shortcuts-modal').classList.add('hidden');
+}
+
+function isInputFocused() {
+  const el = document.activeElement;
+  return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT');
+}
+
+function highlightTraceRow(rows) {
+  rows.forEach((r, i) => {
+    r.classList.toggle('trace-row-selected', i === selectedTraceIndex);
+  });
+  // Scroll selected row into view
+  if (rows[selectedTraceIndex]) {
+    rows[selectedTraceIndex].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+}
+
+// =========================================================================
+// Auto-refresh
+// =========================================================================
+function startAutoRefresh() {
+  if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+  autoRefreshTimer = setInterval(async () => {
+    const ok = await healthCheck();
+    if (!ok) return;
+    // Only refresh lightweight data — skip heavy charts/agents/graph to avoid lag
+    if (currentView === 'overview') { loadStats(); loadRecentTraces(); }
+    else if (currentView === 'traces') { loadTraces(); }
+  }, 30000); // 30s instead of 15s
+}
+
+// =========================================================================
+// Collapsible Sections Helper
+// =========================================================================
+function renderCollapsibleSection(title, content, startOpen = true, titleColor = 'text-slate-400') {
+  const id = 'section-' + title.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase() + '-' + Math.random().toString(36).substr(2, 4);
+  return `<div class="mb-3">
+    <div class="collapsible-header flex items-center gap-1.5 mb-2" onclick="toggleCollapsible('${id}', this)">
+      <svg class="collapsible-chevron w-3 h-3 ${titleColor} ${startOpen ? 'rotated' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      <h5 class="text-xs font-semibold ${titleColor} uppercase tracking-wider">${title}</h5>
+    </div>
+    <div id="${id}" class="collapsible-content ${startOpen ? '' : 'collapsed'}" style="max-height:${startOpen ? '2000px' : '0'}">
+      ${content}
+    </div>
+  </div>`;
+}
+
+function toggleCollapsible(id, headerEl) {
+  const content = document.getElementById(id);
+  const chevron = headerEl.querySelector('.collapsible-chevron');
+  if (content.classList.contains('collapsed')) {
+    content.classList.remove('collapsed');
+    content.style.maxHeight = content.scrollHeight + 'px';
+    chevron.classList.add('rotated');
+  } else {
+    content.style.maxHeight = '0';
+    content.classList.add('collapsed');
+    chevron.classList.remove('rotated');
+  }
+}
+
+// =========================================================================
+// Span Tree Collapse/Expand
+// =========================================================================
+function toggleSpanChildren(spanId, btn) {
+  const rows = document.querySelectorAll('.waterfall-row');
+  const isCollapsing = btn.classList.contains('rotated');
+
+  btn.classList.toggle('rotated');
+
+  // Find all descendant spans
+  const descendants = new Set();
+  function findDescendants(parentId) {
+    rows.forEach(row => {
+      if (row.dataset.parentSpanId === parentId) {
+        descendants.add(row.dataset.spanId);
+        findDescendants(row.dataset.spanId);
+      }
+    });
+  }
+  findDescendants(spanId);
+
+  rows.forEach(row => {
+    if (descendants.has(row.dataset.spanId)) {
+      row.style.display = isCollapsing ? 'none' : 'flex';
+      // Also reset child collapse buttons when expanding
+      if (!isCollapsing) {
+        const childBtn = row.querySelector('.collapsible-chevron');
+        if (childBtn) childBtn.classList.add('rotated');
+      }
+    }
+  });
+}
+
+// =========================================================================
+// Trace Comparison
+// =========================================================================
+function toggleCompare(traceId, checkbox) {
+  const idx = compareSelection.indexOf(traceId);
+  if (idx >= 0) {
+    compareSelection.splice(idx, 1);
+    checkbox.classList.remove('checked');
+  } else {
+    if (compareSelection.length >= 2) {
+      showToast('Maximum 2 traces can be compared. Deselect one first.', 'warning');
+      checkbox.checked = false;
+      return;
+    }
+    compareSelection.push(traceId);
+    checkbox.classList.add('checked');
+  }
+  updateCompareBadge();
+}
+
+function updateCompareBadge() {
+  const badge = document.getElementById('compare-badge');
+  if (compareSelection.length > 0) {
+    badge.classList.remove('hidden');
+    badge.textContent = compareSelection.length;
+  } else {
+    badge.classList.add('hidden');
+  }
+}
+
+function clearComparison() {
+  compareSelection = [];
+  updateCompareBadge();
+  document.querySelectorAll('.compare-checkbox').forEach(cb => {
+    cb.checked = false;
+    cb.classList.remove('checked');
+  });
+  renderCompareView();
+}
+
+async function renderCompareView() {
+  const instructions = document.getElementById('compare-instructions');
+  const content = document.getElementById('compare-content');
+
+  if (compareSelection.length < 2) {
+    instructions.classList.remove('hidden');
+    content.classList.add('hidden');
+    return;
+  }
+
+  instructions.classList.add('hidden');
+  content.classList.remove('hidden');
+  content.innerHTML = '<div class="text-center text-sm text-slate-500 py-8">Loading traces for comparison...</div>';
+
+  try {
+    const [trace1, trace2] = await Promise.all([
+      apiFetch(`/v1/traces/${compareSelection[0]}`),
+      apiFetch(`/v1/traces/${compareSelection[1]}`),
+    ]);
+
+    // ---- Compute metrics for diff ----
+    const dur1 = trace1.duration_ms || 0;
+    const dur2 = trace2.duration_ms || 0;
+    const cost1 = trace1.total_cost_usd || 0;
+    const cost2 = trace2.total_cost_usd || 0;
+    const spans1 = trace1.span_count || (trace1.spans || []).length;
+    const spans2 = trace2.span_count || (trace2.spans || []).length;
+    const errors1 = trace1.has_errors ? 1 : 0;
+    const errors2 = trace2.has_errors ? 1 : 0;
+    const tokens1 = trace1.total_tokens || 0;
+    const tokens2 = trace2.total_tokens || 0;
+
+    // Compute verdict: look at duration + cost (weighted lower-is-better)
+    function verdictScore(d1, c1, e1, d2, c2, e2) {
+      let improvements = 0, regressions = 0;
+      // Duration
+      if (d1 > 0 && Math.abs(d2 - d1) / d1 > 0.02) { d2 < d1 ? improvements++ : regressions++; }
+      // Cost
+      if (c1 > 0 && Math.abs(c2 - c1) / c1 > 0.02) { c2 < c1 ? improvements++ : regressions++; }
+      // Errors
+      if (e1 !== e2) { e2 < e1 ? improvements++ : regressions++; }
+      if (improvements > regressions) return 'improved';
+      if (regressions > improvements) return 'regressed';
+      return 'similar';
+    }
+    const verdict = verdictScore(dur1, cost1, errors1, dur2, cost2, errors2);
+    const verdictConfig = {
+      improved:  { label: 'Improved',  icon: '↑', cls: 'compare-verdict-improved' },
+      regressed: { label: 'Regressed', icon: '↓', cls: 'compare-verdict-regressed' },
+      similar:   { label: 'Similar',   icon: '≈', cls: 'compare-verdict-similar' },
+    }[verdict];
+
+    // ---- Helper: diff bar HTML ----
+    function diffBar(v1, v2, lowerBetter) {
+      if (v1 === 0 && v2 === 0) return '';
+      const pctRaw = v1 > 0 ? (v2 - v1) / v1 : (v2 > 0 ? 1 : 0);
+      const absPct = Math.min(Math.abs(pctRaw) * 100, 100);
+      const isBetter = lowerBetter ? pctRaw < 0 : pctRaw > 0;
+      const barColor = pctRaw === 0 ? '#6366f1' : (isBetter ? '#10b981' : '#ef4444');
+      const sign = pctRaw > 0 ? '+' : '';
+      const pctLabel = v1 > 0 ? `${sign}${(pctRaw * 100).toFixed(1)}%` : (v2 > 0 ? 'new' : '—');
+      return `<div class="flex items-center gap-2 mt-1.5">
+        <div class="compare-diff-bar-bg flex-1"><div class="compare-diff-bar-fill" style="width:${absPct}%;background:${barColor}"></div></div>
+        <span class="text-[10px] font-medium flex-shrink-0" style="color:${barColor}">${pctLabel}</span>
+      </div>`;
+    }
+
+    // ---- Summary cards (Trace A vs Trace B) ----
+    function summaryCard(t, label, spanCount) {
+      const hasErrors = t.has_errors === true || t.has_errors === 1;
+      const p = getAgentProfile(t.service_name || '');
+      return `
+        <div class="glass compare-summary-card">
+          <div class="trace-label text-slate-400">${escHtml(label)}</div>
+          <div class="flex items-center gap-2 mb-3">
+            <span class="text-xs font-mono text-slate-400 truncate">${t.trace_id.substring(0, 16)}…</span>
+            ${hasErrors
+              ? '<span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-red-500/10 text-red-400 border border-red-500/20">Error</span>'
+              : '<span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">OK</span>'}
+            <button onclick="openTrace('${escHtml(t.trace_id)}')" class="ml-auto text-[10px] text-indigo-400 hover:text-indigo-300 transition">View →</button>
+          </div>
+          <div class="compare-metric-row">
+            <span class="text-slate-500">Service</span>
+            <span class="text-slate-300 font-medium">${escHtml(t.service_name || 'unknown')}</span>
+          </div>
+          <div class="compare-metric-row">
+            <span class="text-slate-500">Duration</span>
+            <span class="text-slate-300 font-medium">${formatDuration(t.duration_ms || 0)}</span>
+          </div>
+          <div class="compare-metric-row">
+            <span class="text-slate-500">Spans</span>
+            <span class="text-slate-300 font-medium">${spanCount}</span>
+          </div>
+          <div class="compare-metric-row">
+            <span class="text-slate-500">Cost</span>
+            <span class="text-slate-300 font-medium">$${(t.total_cost_usd || 0).toFixed(4)}</span>
+          </div>
+          <div class="compare-metric-row">
+            <span class="text-slate-500">Tokens</span>
+            <span class="text-slate-300 font-medium">${(t.total_tokens || 0).toLocaleString()}</span>
+          </div>
+          <div class="compare-metric-row">
+            <span class="text-slate-500">Errors</span>
+            ${hasErrors
+              ? '<span class="text-red-400 font-medium">Yes</span>'
+              : '<span class="text-emerald-400 font-medium">No</span>'}
+          </div>
+        </div>`;
+    }
+
+    let html = '';
+
+    // ---- Verdict banner ----
+    html += `<div class="glass rounded-xl p-4 mb-4 flex items-center gap-4">
+      <span class="compare-verdict-badge ${verdictConfig.cls}">
+        <span>${verdictConfig.icon}</span> ${verdictConfig.label}
+      </span>
+      <span class="text-xs text-slate-400">Trace B compared to Trace A</span>
+    </div>`;
+
+    // ---- Side-by-side summary cards ----
+    html += `<div class="compare-cards-grid grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+      ${summaryCard(trace1, 'Trace A (baseline)', spans1)}
+      ${summaryCard(trace2, 'Trace B (comparison)', spans2)}
+    </div>`;
+
+    // ---- Diff metrics section ----
+    html += `<div class="glass rounded-xl p-4">
+      <h3 class="text-sm font-semibold text-white mb-3">Metric Differences  <span class="text-[10px] font-normal text-slate-500">(B vs A)</span></h3>
+      <div class="space-y-3">`;
+
+    // Duration diff
+    const durDiff = dur2 - dur1;
+    const durPct = dur1 > 0 ? (durDiff / dur1 * 100).toFixed(1) : '—';
+    const durBetter = durDiff < 0;
+    html += `<div class="p-3 rounded-lg ${durDiff === 0 ? '' : (durBetter ? 'compare-diff-better' : 'compare-diff-worse')}">
+      <div class="flex items-center justify-between text-xs">
+        <span class="text-slate-400 font-medium">Duration</span>
+        <div class="flex items-center gap-3">
+          <span class="text-slate-300">${formatDuration(dur1)}</span>
+          <span class="text-slate-600 text-[10px]">→</span>
+          <span class="font-semibold ${durBetter ? 'text-emerald-400' : durDiff > 0 ? 'text-red-400' : 'text-slate-300'}">${formatDuration(dur2)}</span>
+        </div>
+      </div>
+      ${diffBar(dur1, dur2, true)}
+    </div>`;
+
+    // Cost diff
+    const costDiff = cost2 - cost1;
+    const costPct = cost1 > 0 ? (costDiff / cost1 * 100).toFixed(1) : '—';
+    const costBetter = costDiff < 0;
+    html += `<div class="p-3 rounded-lg ${costDiff === 0 ? '' : (costBetter ? 'compare-diff-better' : 'compare-diff-worse')}">
+      <div class="flex items-center justify-between text-xs">
+        <span class="text-slate-400 font-medium">Cost</span>
+        <div class="flex items-center gap-3">
+          <span class="text-slate-300">$${cost1.toFixed(4)}</span>
+          <span class="text-slate-600 text-[10px]">→</span>
+          <span class="font-semibold ${costBetter ? 'text-emerald-400' : costDiff > 0 ? 'text-red-400' : 'text-slate-300'}">$${cost2.toFixed(4)}</span>
+        </div>
+      </div>
+      ${diffBar(cost1, cost2, true)}
+    </div>`;
+
+    // Span count diff
+    const spanDiff = spans2 - spans1;
+    html += `<div class="p-3 rounded-lg">
+      <div class="flex items-center justify-between text-xs">
+        <span class="text-slate-400 font-medium">Span Count</span>
+        <div class="flex items-center gap-3">
+          <span class="text-slate-300">${spans1}</span>
+          <span class="text-slate-600 text-[10px]">→</span>
+          <span class="font-semibold ${spanDiff !== 0 ? 'text-slate-200' : 'text-slate-300'}">${spans2}${spanDiff !== 0 ? ` <span class="text-slate-500 font-normal">(${spanDiff > 0 ? '+' : ''}${spanDiff})</span>` : ''}</span>
+        </div>
+      </div>
+    </div>`;
+
+    // Error comparison
+    const bothOk = errors1 === 0 && errors2 === 0;
+    const errorFixed = errors1 === 1 && errors2 === 0;
+    const errorAdded = errors1 === 0 && errors2 === 1;
+    const errorCls = errorFixed ? 'compare-diff-better' : errorAdded ? 'compare-diff-worse' : '';
+    html += `<div class="p-3 rounded-lg ${errorCls}">
+      <div class="flex items-center justify-between text-xs">
+        <span class="text-slate-400 font-medium">Errors</span>
+        <div class="flex items-center gap-2">
+          <span class="${errors1 ? 'text-red-400' : 'text-emerald-400'}">${errors1 ? 'Error' : 'OK'}</span>
+          <span class="text-slate-600 text-[10px]">→</span>
+          <span class="${errors2 ? 'text-red-400' : 'text-emerald-400'} font-semibold">${errors2 ? 'Error' : 'OK'}</span>
+          ${errorFixed ? '<span class="text-[10px] text-emerald-400 ml-1">Fixed</span>' : ''}
+          ${errorAdded ? '<span class="text-[10px] text-red-400 ml-1">Introduced</span>' : ''}
+        </div>
+      </div>
+    </div>`;
+
+    // Tokens diff
+    const tokDiff = tokens2 - tokens1;
+    html += `<div class="p-3 rounded-lg ${tokDiff === 0 ? '' : (tokDiff < 0 ? 'compare-diff-better' : 'compare-diff-worse')}">
+      <div class="flex items-center justify-between text-xs">
+        <span class="text-slate-400 font-medium">Total Tokens</span>
+        <div class="flex items-center gap-3">
+          <span class="text-slate-300">${tokens1.toLocaleString()}</span>
+          <span class="text-slate-600 text-[10px]">→</span>
+          <span class="font-semibold ${tokDiff < 0 ? 'text-emerald-400' : tokDiff > 0 ? 'text-red-400' : 'text-slate-300'}">${tokens2.toLocaleString()}</span>
+        </div>
+      </div>
+      ${diffBar(tokens1, tokens2, true)}
+    </div>`;
+
+    html += `</div></div>`;
+
+    content.innerHTML = html;
+  } catch (err) {
+    content.innerHTML = `<div class="glass rounded-xl p-8 text-center text-red-400/60 text-sm">Failed to load traces: ${escHtml(err.message)}</div>`;
+  }
+}
+
+// =========================================================================
+// Virtualized Trace List
+// =========================================================================
+function renderVirtualizedTraces(traces, containerId) {
+  const container = document.getElementById(containerId);
+  if (!traces || traces.length === 0) {
+    container.innerHTML = renderEmptyState('No traces found', 'Try adjusting your filters.');
+    return;
+  }
+
+  // For small lists, render normally
+  if (traces.length <= 50) {
+    container.innerHTML = traces.map(t => renderTraceRow(t)).join('');
+    return;
+  }
+
+  // For large lists, use virtual scrolling
+  const rowHeight = 56;
+  const totalHeight = traces.length * rowHeight;
+  const visibleCount = Math.ceil(600 / rowHeight) + 4; // buffer
+
+  container.innerHTML = `<div class="virtual-scroll-container" style="height:600px" id="vs-${containerId}"><div class="virtual-scroll-spacer" style="height:${totalHeight}px;position:relative" id="vs-spacer-${containerId}"></div></div>`;
+
+  const scrollContainer = document.getElementById(`vs-${containerId}`);
+  const spacer = document.getElementById(`vs-spacer-${containerId}`);
+
+  function renderVisibleRows() {
+    const scrollTop = scrollContainer.scrollTop;
+    const startIdx = Math.max(0, Math.floor(scrollTop / rowHeight) - 2);
+    const endIdx = Math.min(traces.length, startIdx + visibleCount);
+
+    let html = '';
+    for (let i = startIdx; i < endIdx; i++) {
+      const top = i * rowHeight;
+      html += `<div style="position:absolute;top:${top}px;left:0;right:0;height:${rowHeight}px">${renderTraceRow(traces[i])}</div>`;
+    }
+    spacer.innerHTML = html;
+  }
+
+  scrollContainer.addEventListener('scroll', renderVisibleRows);
+  renderVisibleRows();
+}
+
+// =========================================================================
+// Trace Row Hover Preview
+// =========================================================================
+let _tracePreviewTimer = null;
+let _tracePreviewEl = null;
+
+function showTracePreview(traceId, event) {
+  clearTimeout(_tracePreviewTimer);
+  _tracePreviewTimer = setTimeout(async () => {
+    try {
+      const data = await apiFetch(`/v1/traces/${traceId}`);
+      const spans = data.spans || [];
+
+      // Count spans by kind
+      const kindCounts = { llm: 0, tool: 0, agent: 0 };
+      spans.forEach(s => {
+        const k = (s.kind || '').toLowerCase();
+        if (kindCounts[k] !== undefined) kindCounts[k]++;
+      });
+
+      const durationMs = data.duration_ms || 0;
+      const hasErrors = data.has_errors === true || data.has_errors === 1;
+      const errorMsg = hasErrors
+        ? (spans.find(s => s.error || s.error_message))
+        : null;
+      const errorText = errorMsg
+        ? (errorMsg.error ? (errorMsg.error.message || JSON.stringify(errorMsg.error)) : errorMsg.error_message)
+        : null;
+
+      // Max duration for visual bar (cap at 10s for proportionality)
+      const maxDur = 10000;
+      const barWidth = Math.min((durationMs / maxDur) * 100, 100);
+
+      if (!_tracePreviewEl) {
+        _tracePreviewEl = document.createElement('div');
+        _tracePreviewEl.className = 'trace-preview-tooltip';
+        document.body.appendChild(_tracePreviewEl);
+      }
+
+      const isDark = document.documentElement.classList.contains('dark');
+      const labelColor = isDark ? '#94a3b8' : '#64748b';
+      const valueColor = isDark ? '#e2e0db' : '#2c2c2a';
+
+      _tracePreviewEl.innerHTML = `
+        <div style="font-weight:600;margin-bottom:6px;font-size:11px;color:${valueColor}">
+          ${escHtml((data.service_name || traceId).substring(0, 30))}
+        </div>
+        <div style="font-size:11px;color:${labelColor};margin-bottom:4px">Span breakdown</div>
+        <div style="display:flex;gap:8px;font-size:11px;margin-bottom:8px">
+          <span style="color:#9b8ec4">LLM: ${kindCounts.llm}</span>
+          <span style="color:#7ab5a0">Tool: ${kindCounts.tool}</span>
+          <span style="color:#a88ec4">Agent: ${kindCounts.agent}</span>
+        </div>
+        <div style="font-size:11px;color:${labelColor};margin-bottom:2px">Duration: <span style="color:${valueColor}">${formatDuration(durationMs)}</span></div>
+        <div class="trace-preview-duration-bar">
+          <div class="trace-preview-duration-fill" style="width:${barWidth}%"></div>
+        </div>
+        ${errorText ? `<div style="font-size:10px;color:#f87171;margin-top:6px;white-space:normal;line-height:1.4">${escHtml(errorText.substring(0, 100))}${errorText.length > 100 ? '...' : ''}</div>` : ''}
+      `;
+      _tracePreviewEl.style.display = 'block';
+      _positionTracePreview(event);
+    } catch (e) {
+      // Silently fail — trace might not be available
+    }
+  }, 500);
+}
+
+function hideTracePreview() {
+  clearTimeout(_tracePreviewTimer);
+  _tracePreviewTimer = null;
+  if (_tracePreviewEl) _tracePreviewEl.style.display = 'none';
+}
+
+function _positionTracePreview(event) {
+  if (!_tracePreviewEl) return;
+  const x = event.clientX + 18;
+  const y = event.clientY - 10;
+  _tracePreviewEl.style.left = x + 'px';
+  _tracePreviewEl.style.top = y + 'px';
+  // Keep within viewport
+  const rect = _tracePreviewEl.getBoundingClientRect();
+  if (rect.right > window.innerWidth - 8) {
+    _tracePreviewEl.style.left = (event.clientX - rect.width - 18) + 'px';
+  }
+  if (rect.bottom > window.innerHeight - 8) {
+    _tracePreviewEl.style.top = (window.innerHeight - rect.height - 8) + 'px';
+  }
+}
+
+// =========================================================================
+// Init
+// =========================================================================
+document.addEventListener('DOMContentLoaded', async () => {
+  // Apply saved theme — default to light
+  const savedTheme = localStorage.getItem('flowlens-theme');
+  if (savedTheme === 'dark') {
+    document.documentElement.classList.add('dark');
+    document.body.classList.add('dark');
+    isDarkTheme = true;
+  } else {
+    document.documentElement.classList.remove('dark');
+    document.body.classList.remove('dark');
+    isDarkTheme = false;
+  }
+
+  // Setup keyboard navigation
+  setupKeyboardNavigation();
+
+  // Health check + initial data load
+  await healthCheck();
+  // Critical: load immediately (above the fold)
+  loadStats();
+  loadRecentTraces();
+  // Deferred: load after 500ms (below the fold)
+  setTimeout(() => {
+    loadAgentActivity();
+    loadOverviewAgents();
+  }, 500);
+  // Lazy: load after 1.5s (charts, graph — expensive)
+  setTimeout(() => {
+    loadActivityTimeline();
+    loadTrendChart(24);
+    loadOverviewCharts();
+  }, 1500);
+  // Very lazy: load after 3s (SVG graph — heaviest)
+  setTimeout(() => {
+    loadOverviewGraph();
+  }, 3000);
+  startAutoRefresh();
+
+  // Connect WebSocket for real-time updates
+  connectWebSocket();
+
+  // Bind filter events
+  document.getElementById('filter-service').addEventListener('keyup', (e) => {
+    if (e.key === 'Enter') { traceOffset = 0; loadTraces(); }
+  });
+  document.getElementById('filter-errors').addEventListener('change', () => { traceOffset = 0; loadTraces(); });
+
+  // Register dagre layout for Cytoscape if both libs loaded
+  if (typeof cytoscape !== 'undefined' && typeof cytoscapeDagre !== 'undefined') {
+    try { cytoscape.use(cytoscapeDagre); } catch (e) { /* already registered */ }
+  }
+});

@@ -1913,12 +1913,25 @@ def create_app(db_path: str | None = None) -> FastAPI:
 
     @app.get("/static/{filename}")
     async def serve_static(filename: str) -> Response:
-        """Serve bundled static assets (Tailwind fallback, etc.)."""
+        """Serve bundled static assets (Tailwind fallback, dashboard modules, etc.).
+
+        Looks first in the ``static/`` subdirectory (for modular CSS/JS files),
+        then falls back to the parent ``server/`` directory (for legacy .min.js
+        bundles that were placed there before the modular split).
+        """
         import re
         if not re.match(r'^[a-zA-Z0-9._-]+$', filename):
             return JSONResponse({"detail": "invalid filename"}, status_code=400)
-        static_path = Path(__file__).parent / filename
-        if not static_path.exists():
+        server_dir = Path(__file__).parent
+        # Prefer files in the static/ sub-directory (modular assets)
+        static_subdir_path = server_dir / "static" / filename
+        # Fall back to legacy location directly in server/ directory
+        legacy_path = server_dir / filename
+        if static_subdir_path.exists():
+            static_path = static_subdir_path
+        elif legacy_path.exists():
+            static_path = legacy_path
+        else:
             return JSONResponse({"detail": "not found"}, status_code=404)
         content_types = {".js": "application/javascript", ".css": "text/css"}
         ct = content_types.get(static_path.suffix, "application/octet-stream")
