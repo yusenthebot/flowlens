@@ -2,7 +2,21 @@
 
 ## PROJECT COMPLETE — 2026-03-14 (Cycle 6 delivered 2026-03-14)
 
-All planned improvements delivered across 5 development cycles (3 planned + 2 enhancement cycles). All tasks closed. System production-ready. Version 0.6.0. 1053 tests (all passing).
+All planned improvements delivered across 6 development cycles (3 planned + 3 enhancement cycles). All tasks closed. System production-ready. Version 0.7.0. 1066 tests (all passing).
+
+---
+
+## Cycle 6: Complete (2026-03-14) — COMPARISON & RELATIONSHIP VISUALIZATION CYCLE
+
+### Done (2026-03-14)
+- [x] **Enhanced Compare view with verdict badge** — Alpha — Side-by-side Trace A/B cards with visual diff bars (green=improvement, red=regression), verdict badge ("Improved", "Regressed", "Similar") computed from weighted score across duration, cost, and error metrics — Commit 29e55e9 — `flowlens/server/dashboard.html`
+- [x] **Responsive mobile layout** — Alpha — Breakpoints at 768px (tablet) and 480px (phone); stat-grid 2-col to 1-col conversion; cards stack vertically on mobile for readability — Commit 29e55e9 — `flowlens/server/dashboard.html`
+- [x] **Dark mode polish** — Alpha — Consistent warm dark gray (#2a2a28) with muted pastels across all UI sections; WCAG AA contrast validation — Commit 29e55e9 — `flowlens/server/dashboard.html`
+- [x] **Agent relationship graph API** — Beta — /v1/agents/relationships endpoint returning spawn graph with call counts and timing data; enables visualization of agent hierarchy and collaboration patterns — Commit cd10258 — `flowlens/server/app.py`
+- [x] **Activity report export API** — Beta — /v1/export/report endpoint exporting comprehensive reports (JSON/CSV/Markdown) with agent metrics, relationship data, and trace summaries; configurable time range and agent filtering — Commit cd10258 — `flowlens/server/app.py`
+- [x] **Agent relationship graph visualization** — Gamma — Cytoscape.js interactive directed graph showing agent spawn hierarchy; force-directed layout with zoom-to-fit; color-coded avatars from AGENT_PROFILES; call count edge labels; click-to-highlight spawn path — Commit 5580ce1 — `flowlens/server/dashboard.html`
+- [x] **Agent detail modal** — Gamma — Comprehensive agent information display (profile, avatar, roles, recent activity, error rate, total spans, cost contribution, related agents) with quick drill-down without leaving dashboard — Commit 5580ce1 — `flowlens/server/dashboard.html`
+- [x] **Keyboard shortcuts for agent graph** — Gamma — Global navigation (arrows for graph movement, D=detail modal, C=compare mode, E=export, R=reset layout); enables power-user workflows for rapid multi-agent system analysis — Commit 5580ce1 — `flowlens/server/dashboard.html`
 
 ---
 
@@ -86,12 +100,12 @@ The following tasks were proposed for future cycles but are deprioritized given 
 
 | Metric | Value |
 |--------|-------|
-| Total Cycles | 5 (3 planned + 2 enhancement) |
-| Total Commits | 23 |
-| Total Features | 19 |
-| Total Tests | 1053 |
+| Total Cycles | 6 (3 planned + 3 enhancement) |
+| Total Commits | 22 |
+| Total Features | 25 |
+| Total Tests | 1066 |
 | Test Pass Rate | 100% |
-| Lines Added | ~2000 (source + tests) |
+| Lines Added | ~2500 (source + tests) |
 | Active Blockers | 0 |
 | File Conflicts | 0 |
 | Deployment Status | Production-ready |
@@ -105,4 +119,4 @@ The following tasks were proposed for future cycles but are deprioritized given 
 - `[ ]` = backlog / deferred
 - Agent = responsible developer (Alpha, Beta, Gamma)
 - Priority = critical/high/medium/low
-- Status: Project Complete — All improvements delivered, system production-ready, version 0.6.0
+- Status: Project Complete — All improvements delivered, system production-ready, version 0.7.0

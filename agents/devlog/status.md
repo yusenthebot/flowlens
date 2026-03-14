@@ -1,35 +1,35 @@
 # Agent Status — 2026-03-14
 
-## Project Status: IN PROGRESS — Cycle 6 Enhancement
+## Project Status: CYCLE 6 COMPLETE — Agent Relationship Visualization
 
 ## Latest Work (2026-03-14 — Cycle 6)
 
 | Agent | Model     | Status      | Last Task                                                                       | Branch                            | Last Commit |
 |-------|-----------|-------------|---------------------------------------------------------------------------------|-----------------------------------|-------------|
 | Alpha | sonnet 4.6| complete    | Enhanced compare view + responsive mobile layout + dark mode polish             | main                              | 29e55e9     |
-| Beta  | sonnet 4.6| complete    | /v1/stats/trends + /v1/stats/summary APIs with agent breakdown                 | main                              | 4ef045d     |
-| Gamma | sonnet 4.6| complete    | Agent relationship graph, agent detail modal, keyboard shortcuts (Cycle 6)    | main                              | 5580ce1     |
+| Beta  | sonnet 4.6| complete    | /v1/agents/relationships + /v1/export/report APIs + 13 new tests                | main                              | cd10258     |
+| Gamma | sonnet 4.6| complete    | Agent relationship graph, agent detail modal, keyboard shortcuts                | main                              | 5580ce1     |
 
-### Alpha — Trace Detail Waterfall Visualization
-- **Commit**: `860d44b`
-- **Feature**: Agent-colored waterfall diagram with span hierarchy visualization. Error spans highlighted in red. Span detail panel displays agent avatars, status icons, and performance metrics. SVG-based rendering for crisp interactive debugging experience.
+### Alpha — Enhanced Compare View + Responsive Mobile + Dark Mode
+- **Commit**: `29e55e9`
+- **Feature**: Side-by-side Trace A/B comparison cards with visual diff bars (green=improvement, red=regression), verdict badge ("Improved", "Regressed", "Similar") computed from weighted score. Responsive mobile layouts with breakpoints at 768px and 480px. Dark mode polish with consistent warm palette (#2a2a28).
 - **Files**: `flowlens/server/dashboard.html`
-- **Tests**: All 1053 server tests pass
+- **Tests**: All 1066 server tests pass
 
-### Beta — Advanced Analytics APIs
-- **Commit**: `4ef045d`
-- **Feature**: Two new REST endpoints for advanced observability:
-  - `/v1/stats/trends` — Trace volume trends over time with per-agent breakdown
-  - `/v1/stats/summary` — Aggregate statistics (traces, spans, errors, cost, latency) with agent breakdown
-- **Impact**: Foundation for ML-based anomaly detection and external analytics integrations
+### Beta — Agent Relationship & Export APIs
+- **Commit**: `cd10258`
+- **Feature**: Two new REST endpoints for multi-agent analysis:
+  - `/v1/agents/relationships` — Agent spawn graph with call counts and timing data
+  - `/v1/export/report` — Activity reports (JSON/CSV/Markdown) with agent metrics and relationship data
+- **Impact**: Foundation for SRE team workflows and incident post-mortems
 - **Files**: `flowlens/server/app.py`
-- **Tests**: All 1053 tests pass (5 new analytics endpoint tests)
+- **Tests**: All 1066 tests pass (13 new endpoint tests)
 
-### Gamma — Trend Charts and Pattern Detection UI
-- **Commit**: `b2442cd, acdbe78`
-- **Feature**: Interactive Activity Analysis dashboard panel with trend line chart (24h trace volume + error rate) and per-agent stacked area visualization. Visual pattern cards displaying detected anti-patterns (retry storms, timeout cascades, context overflow, cold starts, empty responses, infinite loops) with severity icons and click-to-filter.
+### Gamma — Agent Relationship Graph Visualization + Detail Modal + Shortcuts
+- **Commit**: `5580ce1`
+- **Feature**: Interactive Cytoscape.js-based relationship graph showing agent spawn hierarchy with color-coded avatars. Agent detail modal with profile, metrics, and related agents. Keyboard shortcuts (D, C, E, R, arrows) for power-user navigation. Force-directed layout with zoom-to-fit and click-to-highlight.
 - **Files**: `flowlens/server/dashboard.html`
-- **Tests**: All 1053 tests pass
+- **Tests**: All 1066 tests pass
 
 ---
 
@@ -74,16 +74,27 @@
 - Visual pattern detection cards with severity indicators and filtering
 - **Tests**: 1048 → 1053 (5 new tests)
 
+### Cycle 6: Comparison & Agent Relationships (2026-03-14) — COMPLETE
+- Enhanced Compare view with verdict badge and diff progress bars
+- Responsive mobile layout (768px/480px breakpoints)
+- Dark mode polish with warm palette consistency
+- /v1/agents/relationships API for spawn graph visualization
+- /v1/export/report API for activity reports (JSON/CSV/Markdown)
+- Agent relationship graph visualization with Cytoscape.js
+- Agent detail modal with comprehensive metrics and relationships
+- Keyboard shortcuts for power-user navigation
+- **Tests**: 1053 → 1066 (13 new tests)
+
 ---
 
 ## Test Coverage Summary
 
 | Metric | Value |
 |--------|-------|
-| Total Tests | 1053 |
-| Tests Pass | 1053 (100%) |
+| Total Tests | 1066 |
+| Tests Pass | 1066 (100%) |
 | Test Files | 19 |
-| Coverage | Comprehensive (edges cases, concurrency, API, UI, schema, analytics) |
+| Coverage | Comprehensive (edges cases, concurrency, API, UI, schema, analytics, comparison, relationships) |
 | Test Duration | Fast (sub-minute execution) |
 
 ---
@@ -103,24 +114,25 @@ All agents completed their tasks. No blockers. No file conflicts. All tests pass
 | 3 | Advanced Alerting + Search | 2026-03-14 | 3 | 1025→1035 | Complete |
 | 4 | UI/UX + Agent APIs | 2026-03-14 | 3 | 1035→1048 | Complete |
 | 5 | Analytics & Visualization | 2026-03-14 | 4 | 1048→1053 | Complete |
+| 6 | Comparison & Relationships | 2026-03-14 | 3 | 1053→1066 | Complete |
 
-**Total**: 19 commits, 14 features, 1053 tests, 5 cycles, 1 day
+**Total**: 22 commits, 25 features, 1066 tests, 6 cycles, 1 day
 
 ---
 
 ## Deployment Status
 
 - All changes merged to `main`
-- No database schema migrations required (Cycle 5 is analytics API + UI only)
+- No database schema migrations required (Cycle 6 is UI/API only)
 - Schema version: v6 (unchanged from Cycle 3)
-- Version: 0.6.0 (bumped to reflect new analytics features)
+- Version: 0.7.0 (bumped to reflect new comparison and relationship features)
 - Production-ready for immediate deployment
 
 ---
 
 ## Next Steps
 
-Project complete. All planned improvements and enhancements delivered. Future enhancements documented in `CHANGELOG.md` [Unreleased] section:
+Project complete through Cycle 6. All planned improvements and enhancements delivered. Future enhancements documented in `CHANGELOG.md` [Unreleased] section:
 - ML-based anomaly detection (build on /v1/stats/trends API)
 - Trace sampling strategies
 - Kubernetes operator

@@ -18,6 +18,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.7.0] — 2026-03-14
+
+Comparison view enhancements and agent relationship visualization cycle. Enhanced trace comparison with verdict badges and diff indicators, new APIs for agent relationship graphs and activity reports, and interactive Cytoscape-based relationship visualization. 1053 → 1066 tests across 1 comparison and visualization cycle.
+
+### Added
+
+#### Cycle 6 Features (2026-03-14 — Comparison & Relationship Visualization)
+
+- **Enhanced Compare view with verdict badge**: Redesigned Compare view with side-by-side Trace A/B summary cards showing all key metrics (duration, cost, tokens, spans, errors) with clear visual diff indicators. Duration, cost, and token diffs rendered as colored progress bars (green=improvement, red=regression) with percentage change labels. Verdict badge ("Improved", "Regressed", "Similar") computed from weighted score across duration, cost, and error metrics for balanced assessment (commit 29e55e9)
+
+- **Responsive mobile layout**: Responsive grid layouts with breakpoints at 768px (tablet) and 480px (phone). Stat-grid changes from multi-column to single-column with stacked cards for readability on small screens. Compare view and overview panels fully responsive for tablet and phone users (commit 29e55e9)
+
+- **Dark mode polish**: Consistent warm dark gray (#2a2a28) with muted pastels across all UI sections for better eye comfort and accessibility. Color scheme validated against WCAG AA contrast ratios (commit 29e55e9)
+
+- **Agent relationship graph API**: New `/v1/agents/relationships` endpoint returning spawn graph of agent relationships showing which agents spawn which other agents (agent -> spawned_agents mapping), call counts, and timing data. Enables visualization of agent hierarchy and collaboration patterns (commit cd10258)
+
+- **Activity report export API**: New `/v1/export/report` endpoint exporting comprehensive activity reports with agent metrics, relationship data, and trace summaries. Supports multiple formats (JSON, CSV, Markdown) with configurable time range and agent filtering. Foundation for SRE team workflows and incident post-mortems (commit cd10258)
+
+- **Interactive agent relationship visualization**: Cytoscape.js-based interactive directed graph visualization showing agent spawn hierarchy. Nodes represent agents with color-coded avatars from AGENT_PROFILES. Edges show spawn relationships with call count labels. Force-directed layout with automatic zoom-to-fit for large hierarchies. Click-to-highlight shows agent spawn path and dependents (commit 5580ce1)
+
+- **Agent detail modal**: Comprehensive agent information modal displaying profile, avatar, roles, recent activity, error rate, total spans, cost contribution, and related agents. Quick drill-down to individual agent metrics and relationships without leaving dashboard (commit 5580ce1)
+
+- **Keyboard shortcuts for agent graph**: Global keyboard navigation: arrow keys to navigate graph, 'D' for detail modal, 'C' for compare mode, 'E' for export, 'R' to reset graph layout. Enables power-user workflows for rapid multi-agent system analysis (commit 5580ce1)
+
+### Changed
+
+- Version bumped to 0.7.0
+- Compare view: added side-by-side cards with diff progress bars and verdict badge
+- Dashboard layout: agent relationship graph visualization panel with Cytoscape.js
+- Mobile UI: responsive grid layouts and single-column stacking for small screens
+- Dark mode: warm palette (#2a2a28) with muted pastels, consistent across all sections
+
+### Technical Decisions
+
+- **Compare view verdict badge**: Weighted score (duration 40%, cost 35%, error count 25%) for balanced assessment across different system priorities
+- **Responsive breakpoints**: 768px for tablet (2-col → 1-col), 480px for phone (stacked cards). Mobile-first approach with progressive enhancement
+- **Cytoscape.js selection**: Force-directed layout algorithm for automatic node spacing and edge routing. Supports zoom/pan for large agent hierarchies
+- **Report export architecture**: Generic report structure (JSON) with adapters for CSV and Markdown. Enables future format additions without core changes
+- **Keyboard shortcut design**: Non-intrusive defaults (D, C, E, R) avoiding browser conflicts. Arrow key navigation for graph exploration
+
+---
+
 ## [0.6.0] — 2026-03-14
 
 Advanced analytics and trace visualization cycle. Agent-colored waterfall trace debugging, comprehensive trend analysis APIs with per-agent breakdown, interactive activity trend charts, and visual pattern detection dashboard. 1048 → 1053 tests across 1 analytics cycle.
