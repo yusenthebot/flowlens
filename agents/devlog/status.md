@@ -6,7 +6,7 @@
 
 | Agent | Model     | Status      | Last Task                                                                       | Branch                            | Last Commit |
 |-------|-----------|-------------|---------------------------------------------------------------------------------|-----------------------------------|-------------|
-| Alpha | sonnet 4.6| in_progress | Enhanced compare view + responsive mobile layout + dark mode polish             | main                              | pending     |
+| Alpha | sonnet 4.6| complete    | Enhanced compare view + responsive mobile layout + dark mode polish             | main                              | 29e55e9     |
 | Beta  | sonnet 4.6| complete    | /v1/stats/trends + /v1/stats/summary APIs with agent breakdown                 | main                              | 4ef045d     |
 | Gamma | sonnet 4.6| in_progress | Agent relationship graph, agent detail modal, keyboard shortcuts (Cycle 6)    | main                              | pending     |
 
