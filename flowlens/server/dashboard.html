@@ -18,6 +18,7 @@
   <script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/dagre@0.8.5/dist/dagre.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <script>
@@ -105,9 +106,48 @@
     #cy-container { width: 100%; height: 500px; }
 
     /* View transitions */
-    .view-panel { transition: opacity 0.25s ease, transform 0.25s ease; }
+    .view-panel { animation: viewEnter 0.3s ease-out; }
     .view-enter { animation: viewEnter 0.3s ease-out forwards; }
-    @keyframes viewEnter { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes viewEnter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Stagger entry animation for stat cards */
+    @keyframes cardSlideUp {
+      from { opacity: 0; transform: translateY(24px) scale(0.96); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .stat-card-enter {
+      animation: cardSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    .stat-card-enter:nth-child(1) { animation-delay: 0ms; }
+    .stat-card-enter:nth-child(2) { animation-delay: 80ms; }
+    .stat-card-enter:nth-child(3) { animation-delay: 160ms; }
+    .stat-card-enter:nth-child(4) { animation-delay: 240ms; }
+    .stat-card-enter:nth-child(5) { animation-delay: 320ms; }
+
+    /* 3D hover tilt for agent cards */
+    .card-3d-hover {
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      transform-style: preserve-3d;
+    }
+    .card-3d-hover:hover {
+      transform: perspective(800px) rotateY(4deg) rotateX(-2deg) translateY(-2px) scale(1.02);
+      box-shadow: 0 12px 40px -12px rgba(99, 102, 241, 0.15);
+    }
+
+    /* Gradient orbs */
+    .gradient-orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      pointer-events: none;
+      z-index: 0;
+    }
+    @keyframes orbFloat {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      25% { transform: translate(30px, -20px) scale(1.1); }
+      50% { transform: translate(-20px, 15px) scale(0.95); }
+      75% { transform: translate(15px, 25px) scale(1.05); }
+    }
 
     /* Skeleton loading animation */
     @keyframes shimmer {
@@ -339,9 +379,13 @@
 
     <!-- OVERVIEW VIEW -->
     <div id="view-overview" class="view-panel view-enter">
+      <div class="relative overflow-hidden">
+        <div class="gradient-orb" style="width:400px;height:400px;top:-100px;right:-100px;background:radial-gradient(circle,rgba(99,102,241,0.08),transparent 70%);animation:orbFloat 20s ease-in-out infinite;"></div>
+        <div class="gradient-orb" style="width:300px;height:300px;bottom:-50px;left:-50px;background:radial-gradient(circle,rgba(139,92,246,0.06),transparent 70%);animation:orbFloat 25s ease-in-out infinite reverse;"></div>
+        <div class="gradient-orb" style="width:250px;height:250px;top:50%;right:30%;background:radial-gradient(circle,rgba(99,102,241,0.04),transparent 70%);animation:orbFloat 30s ease-in-out infinite 5s;"></div>
       <!-- Stats Cards -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6 stat-grid">
-        <div class="glass rounded-xl p-5 stat-glow">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6 stat-grid relative z-10">
+        <div class="glass rounded-xl p-5 stat-glow stat-card-enter">
           <div class="flex items-center justify-between mb-3">
             <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Traces</span>
             <div class="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center">
@@ -355,7 +399,7 @@
             <div class="skeleton skeleton-text w-16 h-3"></div>
           </div>
         </div>
-        <div id="stat-card-error" class="glass rounded-xl p-5 stat-glow transition-colors duration-500">
+        <div id="stat-card-error" class="glass rounded-xl p-5 stat-glow transition-colors duration-500 stat-card-enter">
           <div class="flex items-center justify-between mb-3">
             <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Error Rate</span>
             <div class="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center">
@@ -369,7 +413,7 @@
             <div class="skeleton skeleton-text w-24 h-3"></div>
           </div>
         </div>
-        <div id="stat-card-latency" class="glass rounded-xl p-5 stat-glow transition-colors duration-500">
+        <div id="stat-card-latency" class="glass rounded-xl p-5 stat-glow transition-colors duration-500 stat-card-enter">
           <div class="flex items-center justify-between mb-3">
             <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Avg Latency</span>
             <div class="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
@@ -381,7 +425,7 @@
           </div>
           <div class="text-xs text-slate-500 mt-1">milliseconds</div>
         </div>
-        <div id="stat-card-cost" class="glass rounded-xl p-5 stat-glow transition-colors duration-500">
+        <div id="stat-card-cost" class="glass rounded-xl p-5 stat-glow transition-colors duration-500 stat-card-enter">
           <div class="flex items-center justify-between mb-3">
             <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Cost</span>
             <div class="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
@@ -395,7 +439,7 @@
             <div class="skeleton skeleton-text w-20 h-3"></div>
           </div>
         </div>
-        <div class="glass stat-glow rounded-xl p-5">
+        <div class="glass stat-glow rounded-xl p-5 stat-card-enter">
           <div class="flex items-center justify-between mb-3">
             <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Active Agents</span>
             <div class="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center">
@@ -414,6 +458,7 @@
           <span class="text-[10px] text-slate-500" id="team-status-label">--</span>
         </div>
         <div id="agent-team-bar" class="flex gap-3 overflow-x-auto pb-2"></div>
+        <div id="agent-graph-mini" class="glass rounded-xl overflow-hidden mt-3" style="height:200px;"></div>
       </div>
 
       <!-- Trace Volume Trend -->
@@ -456,6 +501,7 @@
           </div>
         </div>
       </div>
+      </div><!-- end relative orb wrapper -->
     </div>
 
     <!-- TRACES VIEW -->
@@ -1184,7 +1230,7 @@ async function loadAgentActivity() {
       const tools = (a.recent_tools || []).slice(0, 3).join(', ') || 'idle';
       const timeAgo = formatTimeAgo(a.last_seen);
       return `
-        <div class="glass rounded-xl p-3 min-w-[160px] border ${borderClass} cursor-pointer hover:border-indigo-500/30 transition flex-shrink-0" onclick="filterTracesByAgent('${escHtml(a.agent)}')">
+        <div class="glass rounded-xl p-3 min-w-[160px] border ${borderClass} cursor-pointer hover:border-indigo-500/30 transition flex-shrink-0 card-3d-hover" onclick="filterTracesByAgent('${escHtml(a.agent)}')">
           <div class="flex items-center gap-2.5 mb-2">
             ${renderAgentAvatar(a.agent, 'md')}
             <div class="min-w-0">
@@ -1249,7 +1295,7 @@ async function loadAgentData() {
       const avatarHtml = `<div class="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style="background:${p.color || '#6366f1'}">${initial}</div>`;
       // Store agent data for modal access
       const agentDataEncoded = escHtml(JSON.stringify({ agent: a.agent, trace_count: a.trace_count, error_rate: a.error_rate, avg_duration_ms: a.avg_duration_ms, total_cost_usd: a.total_cost_usd, total_spans: a.total_spans }));
-      return `<div class="glass rounded-xl p-5 cursor-pointer hover:border-indigo-500/40 border border-transparent transition" onclick="openAgentDetailModal('${escHtml(a.agent)}', ${JSON.stringify(agentDataEncoded)})">
+      return `<div class="glass rounded-xl p-5 cursor-pointer hover:border-indigo-500/40 border border-transparent transition card-3d-hover" onclick="openAgentDetailModal('${escHtml(a.agent)}', ${JSON.stringify(agentDataEncoded)})">
         <div class="flex items-center gap-2.5 mb-3">
           ${avatarHtml}
           <div class="min-w-0 flex-1">
@@ -1508,18 +1554,47 @@ function backToTraces() {
 }
 
 // =========================================================================
+// Counter Animation
+// =========================================================================
+function animateCounter(element, targetValue, duration = 800, prefix = '', suffix = '') {
+  const startValue = 0;
+  const startTime = performance.now();
+  const isFloat = String(targetValue).includes('.');
+
+  function update(currentTime) {
+    const elapsed = currentTime - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    // Ease out cubic
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const current = startValue + (targetValue - startValue) * eased;
+
+    if (isFloat) {
+      element.textContent = prefix + current.toFixed(targetValue < 1 ? 1 : 4) + suffix;
+    } else {
+      element.textContent = prefix + Math.round(current).toLocaleString() + suffix;
+    }
+
+    if (progress < 1) requestAnimationFrame(update);
+  }
+  requestAnimationFrame(update);
+}
+
+// =========================================================================
 // Stats
 // =========================================================================
 async function loadStats() {
   try {
     const stats = await apiFetch('/v1/stats');
-    document.getElementById('stat-traces').textContent = stats.total_traces.toLocaleString();
-    document.getElementById('stat-spans').textContent = `${(stats.total_spans || 0).toLocaleString()} spans`;
+    const tracesEl = document.getElementById('stat-traces');
+    const spansEl = document.getElementById('stat-spans');
+    animateCounter(tracesEl, stats.total_traces || 0);
+    animateCounter(spansEl, stats.total_spans || 0, 800, '', ' spans');
 
     const errorPct = stats.total_traces > 0
       ? (stats.error_traces / stats.total_traces) * 100
       : 0;
-    document.getElementById('stat-error-rate').textContent = errorPct.toFixed(1) + '%';
+    const errorRate = parseFloat(errorPct.toFixed(1));
+    animateCounter(document.getElementById('stat-error-rate'), errorRate, 800, '', '%');
     document.getElementById('stat-error-count').textContent = `${stats.error_traces} error traces`;
     const errorCard = document.getElementById('stat-card-error');
     if (errorCard) {
@@ -1529,7 +1604,7 @@ async function loadStats() {
     }
 
     const latencyMs = stats.avg_duration_ms || 0;
-    document.getElementById('stat-latency').textContent = latencyMs > 0 ? latencyMs.toFixed(0) : '0';
+    animateCounter(document.getElementById('stat-latency'), latencyMs > 0 ? parseFloat(latencyMs.toFixed(0)) : 0);
     const latencyCard = document.getElementById('stat-card-latency');
     if (latencyCard) {
       latencyCard.classList.toggle('bg-yellow-500/10', latencyMs > 10000);
@@ -1538,8 +1613,8 @@ async function loadStats() {
     }
 
     const totalCost = stats.total_cost || 0;
-    document.getElementById('stat-cost').textContent = '$' + totalCost.toFixed(4);
-    document.getElementById('stat-tokens').textContent = `${(stats.total_tokens || 0).toLocaleString()} tokens`;
+    animateCounter(document.getElementById('stat-cost'), totalCost, 800, '$', '');
+    animateCounter(document.getElementById('stat-tokens'), stats.total_tokens || 0, 800, '', ' tokens');
     const costCard = document.getElementById('stat-card-cost');
     if (costCard) {
       costCard.classList.toggle('bg-amber-500/10', totalCost > 1);
@@ -2743,11 +2818,17 @@ async function loadTrendChart(hours) {
   const canvas = document.getElementById('chart-trend');
   if (!canvas) return;
 
+  // Build canvas gradient for Traces dataset
+  const ctx = canvas.getContext('2d');
+  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  gradient.addColorStop(0, 'rgba(99, 102, 241, 0.25)');
+  gradient.addColorStop(1, 'rgba(99, 102, 241, 0.01)');
+
   const isDark = document.documentElement.classList.contains('dark');
   const gridColor = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)';
   const tickColor = isDark ? '#64748b' : '#94a3b8';
 
-  chartInstances['chart-trend'] = new Chart(canvas.getContext('2d'), {
+  chartInstances['chart-trend'] = new Chart(ctx, {
     type: 'line',
     data: {
       labels,
@@ -2755,8 +2836,8 @@ async function loadTrendChart(hours) {
         {
           label: 'Traces',
           data: traceCounts,
-          borderColor: '#6366f1',
-          backgroundColor: 'rgba(99, 102, 241, 0.12)',
+          borderColor: 'rgba(99, 102, 241, 0.8)',
+          backgroundColor: gradient,
           fill: true,
           tension: 0.4,
           pointRadius: 2,
