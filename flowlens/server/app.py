@@ -46,6 +46,8 @@ from .storage import TraceStore
 from ..sdk.models import Span, SpanKind, SpanStatus, Trace, TokenUsage
 from ..analysis.dag_builder import build_causal_dag
 from ..analysis.patterns import detect_patterns
+from ..config import settings
+from ..logging_config import configure_logging
 
 logger = logging.getLogger(__name__)
 
@@ -169,12 +171,14 @@ class _RateLimiter:
 # App factory
 # ---------------------------------------------------------------------------
 
-def create_app(db_path: str = "./flowlens.db") -> FastAPI:
+def create_app(db_path: str | None = None) -> FastAPI:
     """Create and return the configured FastAPI application instance."""
 
-    store = TraceStore(db_path=db_path)
+    configure_logging()
+
+    store = TraceStore(db_path=db_path or settings.db_path)
     ws_manager = ConnectionManager()
-    rate_limiter = _RateLimiter(requests_per_minute=120)
+    rate_limiter = _RateLimiter(requests_per_minute=settings.rate_limit)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
@@ -190,7 +194,7 @@ def create_app(db_path: str = "./flowlens.db") -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=settings.cors_origins,
         allow_methods=["*"],
         allow_headers=["*"],
     )

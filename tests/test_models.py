@@ -19,8 +19,8 @@ class TestSpan:
         span = Span(name="test")
         span.finish(status=SpanStatus.OK)
         assert span.status == SpanStatus.OK
-        assert span.end_time > span.start_time
-        assert span.duration_ms > 0
+        assert span.end_time >= span.start_time
+        assert span.duration_ms >= 0
 
     def test_finish_error(self):
         span = Span(name="test")

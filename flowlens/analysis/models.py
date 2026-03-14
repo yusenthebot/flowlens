@@ -6,6 +6,7 @@ CausalDAG 是核心输出：从 trace 数据构建的错误传播有向无环图
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
@@ -29,6 +30,10 @@ class PatternType(Enum):
     COST_SPIKE = "cost_spike"                  # 单次 LLM 调用消耗超过总 token 的 50%
     SLOW_TOOL = "slow_tool"                    # Tool 耗时超过平均值的 3 倍
     REDUNDANT_CALLS = "redundant_calls"        # 相同 tool 用相同参数调用多次
+    # New patterns
+    TOKEN_WASTE = "token_waste"                # High input tokens with very few output tokens
+    SEQUENTIAL_BOTTLENECK = "sequential_bottleneck"  # Independent tool calls run sequentially
+    ERROR_RECOVERY = "error_recovery"          # Positive: agent recovered from an error
 
 
 @dataclass
@@ -139,6 +144,41 @@ class CausalDAG:
             level = next_level
         return depth
 
+    # ------------------------------------------------------------------
+    # Summary statistics
+    # ------------------------------------------------------------------
+
+    @property
+    def total_errors(self) -> int:
+        """Total number of error nodes in the DAG."""
+        return sum(1 for n in self.nodes if n.status == "error")
+
+    @property
+    def patterns_found(self) -> int:
+        """Number of detected patterns stored in this DAG."""
+        return len(self.patterns)
+
+    def summary_stats(self) -> dict[str, Any]:
+        """
+        Return a compact dict of summary statistics for the DAG.
+
+        Keys
+        ----
+        ``total_nodes``, ``total_errors``, ``root_cause_count``,
+        ``cascade_depth``, ``patterns_found``.
+        """
+        return {
+            "total_nodes": len(self.nodes),
+            "total_errors": self.total_errors,
+            "root_cause_count": len(self.root_causes),
+            "cascade_depth": self.cascade_depth,
+            "patterns_found": self.patterns_found,
+        }
+
+    # ------------------------------------------------------------------
+    # Serialisation
+    # ------------------------------------------------------------------
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "trace_id": self.trace_id,
@@ -148,9 +188,121 @@ class CausalDAG:
             "root_causes": self.root_causes,
             "cascade_depth": self.cascade_depth,
             "has_errors": self.has_errors,
+            "summary_stats": self.summary_stats(),
         }
 
-    # Alias for JSON serialization
+    def to_json(self, *, indent: int = 2) -> str:
+        """
+        Serialise the DAG to a JSON string.
+
+        Parameters
+        ----------
+        indent:
+            JSON indentation level (default 2).
+
+        Returns
+        -------
+        str
+            Pretty-printed JSON representation of the DAG.
+        """
+        return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
+
+    def to_markdown(self) -> str:
+        """
+        Generate a human-readable Markdown report of the causal DAG.
+
+        The report includes:
+        - Summary statistics (total errors, root causes, cascade depth,
+          patterns found).
+        - Root cause nodes.
+        - Error propagation edges.
+        - Detected patterns.
+
+        Returns
+        -------
+        str
+            Markdown-formatted report.
+        """
+        lines: list[str] = []
+
+        lines.append(f"# Causal DAG Report — Trace `{self.trace_id}`\n")
+
+        # --- Summary statistics ---
+        stats = self.summary_stats()
+        lines.append("## Summary\n")
+        lines.append(f"| Metric | Value |")
+        lines.append(f"|--------|-------|")
+        lines.append(f"| Total nodes | {stats['total_nodes']} |")
+        lines.append(f"| Total errors | {stats['total_errors']} |")
+        lines.append(f"| Root causes | {stats['root_cause_count']} |")
+        lines.append(f"| Max cascade depth | {stats['cascade_depth']} |")
+        lines.append(f"| Patterns detected | {stats['patterns_found']} |")
+        lines.append("")
+
+        # --- Root causes ---
+        if self.root_causes:
+            lines.append("## Root Causes\n")
+            node_map = {n.span_id: n for n in self.nodes}
+            for rc_id in self.root_causes:
+                node = node_map.get(rc_id)
+                if node:
+                    lines.append(
+                        f"- **`{node.name}`** (`{rc_id}`)"
+                        + (f": {node.error_message}" if node.error_message else "")
+                    )
+            lines.append("")
+        else:
+            lines.append("## Root Causes\n\nNo root causes detected.\n")
+
+        # --- Error propagation edges ---
+        if self.edges:
+            lines.append("## Error Propagation\n")
+            node_map = {n.span_id: n for n in self.nodes}
+            for edge in self.edges:
+                src = node_map.get(edge.source_id)
+                tgt = node_map.get(edge.target_id)
+                src_label = src.name if src else edge.source_id
+                tgt_label = tgt.name if tgt else edge.target_id
+                lines.append(
+                    f"- `{src_label}` —[{edge.relation}]→ `{tgt_label}`"
+                )
+            lines.append("")
+
+        # --- Detected patterns ---
+        if self.patterns:
+            lines.append("## Detected Patterns\n")
+            for pat in self.patterns:
+                severity_badge = {
+                    "critical": "🔴",
+                    "warning": "🟡",
+                    "info": "🔵",
+                }.get(pat.severity, "")
+                lines.append(
+                    f"### {severity_badge} `{pat.pattern_type.value}` "
+                    f"({pat.severity})\n"
+                )
+                lines.append(f"{pat.description}\n")
+                if pat.involved_spans:
+                    spans_str = ", ".join(f"`{s}`" for s in pat.involved_spans)
+                    lines.append(f"**Involved spans:** {spans_str}\n")
+        else:
+            lines.append("## Detected Patterns\n\nNo patterns detected.\n")
+
+        # --- All nodes (collapsed table) ---
+        if self.nodes:
+            lines.append("## All Nodes\n")
+            lines.append("| Span | Kind | Status | Duration (ms) | Tokens |")
+            lines.append("|------|------|--------|---------------|--------|")
+            for node in self.nodes:
+                lines.append(
+                    f"| `{node.name}` | {node.kind} | {node.status} "
+                    f"| {node.duration_ms:.1f} | {node.token_count} |"
+                )
+            lines.append("")
+
+        return "\n".join(lines)
+
+    # Alias for JSON serialization (backward-compat)
     def dag_to_dict(self) -> dict[str, Any]:
         """Serialize the DAG to a JSON-compatible dictionary."""
         return self.to_dict()

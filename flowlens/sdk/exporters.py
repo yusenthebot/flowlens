@@ -6,6 +6,7 @@ Trace 导出器 — 将采集到的 trace 数据输出到不同目标
 - JSONLExporter: 写入 JSONL 文件（离线分析、导入 FlowLens Server）
 - CallbackExporter: 自定义回调（用于测试和扩展）
 - HTTPExporter: POST 到 FlowLens Server（生产部署）
+- OTLPExporter: 导出到 OpenTelemetry OTLP/HTTP 端点（兼容 Jaeger、Tempo 等）
 """
 
 from __future__ import annotations
@@ -18,9 +19,9 @@ import time
 import threading
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
-from .models import Trace
+from .models import Span, SpanKind, SpanStatus, Trace
 
 logger = logging.getLogger(__name__)
 
@@ -305,10 +306,316 @@ class MultiExporter(TraceExporter):
                 logger.warning(f"Shutdown of {type(exporter).__name__} failed: {e}")
 
 
+class OTLPExporter(TraceExporter):
+    """
+    Export traces to an OpenTelemetry OTLP/HTTP endpoint.
+
+    Converts FlowLens Span/Trace objects to the OTLP protobuf-JSON format and
+    POSTs them to a configurable collector endpoint (default: http://localhost:4318/v1/traces).
+
+    Requires the ``opentelemetry-exporter-otlp-proto-http`` package (installed via
+    ``pip install 'flowlens[otlp]'``).  When the package is absent the exporter
+    logs a warning and silently drops every trace instead of crashing.
+
+    SpanKind mapping
+    ----------------
+    FlowLens kind  → OTel SpanKind int
+    AGENT          → INTERNAL  (2)
+    LLM            → CLIENT    (3)
+    TOOL           → INTERNAL  (2)
+    CHAIN          → INTERNAL  (2)
+    RETRIEVAL      → CLIENT    (3)
+    CUSTOM         → INTERNAL  (2)
+
+    SpanStatus mapping
+    ------------------
+    FlowLens status → OTel StatusCode
+    UNSET           → STATUS_CODE_UNSET (0)
+    OK              → STATUS_CODE_OK    (1)
+    ERROR           → STATUS_CODE_ERROR (2)
+
+    Attributes
+    ----------
+    Token-usage fields are preserved under the ``gen_ai.*`` namespace so they
+    appear as first-class attributes in any OTel-compatible backend.
+    """
+
+    # OTel SpanKind constants (mirrors opentelemetry.trace.SpanKind values)
+    _OTEL_SPAN_KIND_INTERNAL = 1
+    _OTEL_SPAN_KIND_SERVER = 2
+    _OTEL_SPAN_KIND_CLIENT = 3
+    _OTEL_SPAN_KIND_PRODUCER = 4
+    _OTEL_SPAN_KIND_CONSUMER = 5
+
+    _KIND_MAP: dict[SpanKind, int] = {
+        SpanKind.AGENT: _OTEL_SPAN_KIND_INTERNAL,
+        SpanKind.LLM: _OTEL_SPAN_KIND_CLIENT,
+        SpanKind.TOOL: _OTEL_SPAN_KIND_INTERNAL,
+        SpanKind.CHAIN: _OTEL_SPAN_KIND_INTERNAL,
+        SpanKind.RETRIEVAL: _OTEL_SPAN_KIND_CLIENT,
+        SpanKind.CUSTOM: _OTEL_SPAN_KIND_INTERNAL,
+    }
+
+    # OTel StatusCode constants
+    _STATUS_CODE_UNSET = 0
+    _STATUS_CODE_OK = 1
+    _STATUS_CODE_ERROR = 2
+
+    _STATUS_MAP: dict[SpanStatus, int] = {
+        SpanStatus.UNSET: _STATUS_CODE_UNSET,
+        SpanStatus.OK: _STATUS_CODE_OK,
+        SpanStatus.ERROR: _STATUS_CODE_ERROR,
+    }
+
+    def __init__(
+        self,
+        endpoint: str = "http://localhost:4318/v1/traces",
+        headers: Optional[dict[str, str]] = None,
+        timeout: float = 10.0,
+        service_name: str = "flowlens",
+    ) -> None:
+        """Initialise the OTLP exporter.
+
+        Args:
+            endpoint: OTLP/HTTP traces endpoint URL.
+            headers: Optional HTTP headers (e.g. authentication tokens).
+            timeout: HTTP request timeout in seconds.
+            service_name: Fallback service name used when a Trace has none set.
+        """
+        self.endpoint = endpoint
+        self.headers = headers or {}
+        self.timeout = timeout
+        self.service_name = service_name
+        self._available = self._check_availability()
+
+    # ------------------------------------------------------------------
+    # Availability check
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _check_availability() -> bool:
+        """Return True if the opentelemetry packages are importable."""
+        try:
+            import opentelemetry  # noqa: F401
+            return True
+        except ImportError:
+            logger.warning(
+                "opentelemetry packages are not installed. "
+                "OTLPExporter will silently drop all traces. "
+                "Install them with: pip install 'flowlens[otlp]'"
+            )
+            return False
+
+    # ------------------------------------------------------------------
+    # Public export interface
+    # ------------------------------------------------------------------
+
+    def export(self, trace: Trace) -> None:
+        """Export a completed trace synchronously via OTLP/HTTP."""
+        if not self._available:
+            return
+        payload = self._build_payload(trace)
+        self._send(payload)
+
+    async def export_async(self, trace: Trace) -> None:
+        """Export a completed trace asynchronously via OTLP/HTTP."""
+        if not self._available:
+            return
+        import asyncio
+
+        payload = self._build_payload(trace)
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, self._send, payload)
+
+    # ------------------------------------------------------------------
+    # Conversion helpers
+    # ------------------------------------------------------------------
+
+    def _build_payload(self, trace: Trace) -> dict[str, Any]:
+        """Convert a FlowLens Trace into an OTLP/JSON ResourceSpans payload."""
+        svc_name = trace.service_name or self.service_name
+
+        resource_attrs = [
+            _otel_str_attr("service.name", svc_name),
+            _otel_str_attr("telemetry.sdk.name", "flowlens"),
+            _otel_str_attr("telemetry.sdk.language", "python"),
+        ]
+
+        otel_spans = [self._convert_span(span, trace) for span in trace.spans]
+
+        return {
+            "resourceSpans": [
+                {
+                    "resource": {"attributes": resource_attrs},
+                    "scopeSpans": [
+                        {
+                            "scope": {
+                                "name": "flowlens.tracer",
+                                "version": "0.1.0",
+                            },
+                            "spans": otel_spans,
+                        }
+                    ],
+                }
+            ]
+        }
+
+    def _convert_span(self, span: Span, trace: Trace) -> dict[str, Any]:
+        """Convert a single FlowLens Span to an OTLP span dict."""
+        # Timestamps must be in nanoseconds (Unix epoch)
+        start_ns = int(span.start_time * 1_000_000_000)
+        end_ns = int(span.end_time * 1_000_000_000) if span.end_time > 0 else start_ns
+
+        # IDs: OTel expects lowercase hex, 16 chars for span, 32 for trace
+        trace_id_hex = _pad_hex(trace.trace_id, 32)
+        span_id_hex = _pad_hex(span.span_id, 16)
+        parent_hex = _pad_hex(span.parent_span_id, 16) if span.parent_span_id else ""
+
+        attributes = self._build_attributes(span)
+
+        events = [
+            {
+                "timeUnixNano": str(int(ev.timestamp * 1_000_000_000)),
+                "name": ev.name,
+                "attributes": _dict_to_otel_attrs(ev.attributes),
+            }
+            for ev in span.events
+        ]
+
+        otel_status: dict[str, Any] = {
+            "code": self._STATUS_MAP.get(span.status, self._STATUS_CODE_UNSET)
+        }
+        if span.status == SpanStatus.ERROR and span.error_message:
+            otel_status["message"] = span.error_message
+
+        result: dict[str, Any] = {
+            "traceId": trace_id_hex,
+            "spanId": span_id_hex,
+            "name": span.name,
+            "kind": self._KIND_MAP.get(span.kind, self._OTEL_SPAN_KIND_INTERNAL),
+            "startTimeUnixNano": str(start_ns),
+            "endTimeUnixNano": str(end_ns),
+            "attributes": attributes,
+            "events": events,
+            "status": otel_status,
+        }
+
+        if parent_hex:
+            result["parentSpanId"] = parent_hex
+
+        return result
+
+    def _build_attributes(self, span: Span) -> list[dict[str, Any]]:
+        """Build the OTel attributes list from a FlowLens Span."""
+        attrs: dict[str, Any] = {}
+
+        # Copy span-level attributes directly
+        attrs.update(span.attributes)
+
+        # Map SpanKind to gen_ai.operation.name
+        attrs["gen_ai.operation.name"] = span.kind.value
+
+        # Token usage → gen_ai.* attributes
+        if span.token_usage:
+            tu = span.token_usage
+            attrs["gen_ai.usage.input_tokens"] = tu.input_tokens
+            attrs["gen_ai.usage.output_tokens"] = tu.output_tokens
+            attrs["gen_ai.usage.total_tokens"] = tu.total_tokens
+            attrs["gen_ai.usage.input_cost_usd"] = tu.input_cost_usd
+            attrs["gen_ai.usage.output_cost_usd"] = tu.output_cost_usd
+            attrs["gen_ai.usage.total_cost_usd"] = tu.total_cost_usd
+
+        # Error details
+        if span.error_message:
+            attrs["exception.message"] = span.error_message
+        if span.error_type:
+            attrs["exception.type"] = span.error_type
+
+        return _dict_to_otel_attrs(attrs)
+
+    # ------------------------------------------------------------------
+    # HTTP transport
+    # ------------------------------------------------------------------
+
+    def _send(self, payload: dict[str, Any]) -> None:
+        """POST the OTLP JSON payload to the configured endpoint."""
+        try:
+            import urllib.request
+
+            body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+            headers = {
+                "Content-Type": "application/json",
+                **self.headers,
+            }
+            req = urllib.request.Request(
+                self.endpoint,
+                data=body,
+                headers=headers,
+                method="POST",
+            )
+            urllib.request.urlopen(req, timeout=self.timeout)
+            logger.debug("OTLPExporter: exported %d span(s) to %s", len(payload.get("resourceSpans", [])), self.endpoint)
+        except Exception as exc:
+            logger.warning("OTLPExporter: failed to export to %s — %s", self.endpoint, exc)
+
+
+# ---------------------------------------------------------------------------
+# OTLP attribute helpers
+# ---------------------------------------------------------------------------
+
+def _pad_hex(value: Optional[str], length: int) -> str:
+    """Ensure a hex string has exactly *length* characters (pad or truncate)."""
+    if not value:
+        return "0" * length
+    clean = value.replace("-", "").lower()
+    if len(clean) < length:
+        clean = clean.zfill(length)
+    return clean[:length]
+
+
+def _otel_str_attr(key: str, value: str) -> dict[str, Any]:
+    """Return a single OTel attribute dict with a string value."""
+    return {"key": key, "value": {"stringValue": value}}
+
+
+def _dict_to_otel_attrs(d: dict[str, Any]) -> list[dict[str, Any]]:
+    """Convert a plain Python dict to a list of typed OTel attribute dicts."""
+    attrs: list[dict[str, Any]] = []
+    for key, value in d.items():
+        attrs.append({"key": str(key), "value": _to_otel_value(value)})
+    return attrs
+
+
+def _to_otel_value(value: Any) -> dict[str, Any]:
+    """Map a Python value to the appropriate OTel AnyValue representation."""
+    if isinstance(value, bool):
+        return {"boolValue": value}
+    if isinstance(value, int):
+        return {"intValue": value}
+    if isinstance(value, float):
+        return {"doubleValue": value}
+    if isinstance(value, str):
+        return {"stringValue": value}
+    if isinstance(value, (list, tuple)):
+        return {"arrayValue": {"values": [_to_otel_value(v) for v in value]}}
+    if isinstance(value, dict):
+        return {
+            "kvlistValue": {
+                "values": [
+                    {"key": str(k), "value": _to_otel_value(v)}
+                    for k, v in value.items()
+                ]
+            }
+        }
+    # Fallback: stringify
+    return {"stringValue": str(value)}
+
+
 def create_exporter(
     export_to: str = "console",
     output_dir: str = "./traces",
     endpoint: str = "http://localhost:8585/v1/traces/ingest",
+    otlp_endpoint: str = "http://localhost:4318/v1/traces",
     verbose: bool = False,
 ) -> TraceExporter:
     """工厂函数 — 根据配置创建导出器"""
@@ -316,7 +623,11 @@ def create_exporter(
         return JSONLExporter(output_dir=output_dir)
     elif export_to == "http":
         return HTTPExporter(endpoint=endpoint)
+    elif export_to == "otlp":
+        return OTLPExporter(endpoint=otlp_endpoint)
     elif export_to == "console":
         return ConsoleExporter(verbose=verbose)
     else:
-        raise ValueError(f"Unknown exporter: {export_to}. Use 'console', 'jsonl', or 'http'.")
+        raise ValueError(
+            f"Unknown exporter: {export_to}. Use 'console', 'jsonl', 'http', or 'otlp'."
+        )

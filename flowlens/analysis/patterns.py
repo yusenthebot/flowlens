@@ -44,6 +44,9 @@ def detect_patterns(trace: Trace, dag: CausalDAG) -> list[DetectedPattern]:
     patterns.extend(_detect_cost_spike(trace))
     patterns.extend(_detect_slow_tool(trace))
     patterns.extend(_detect_redundant_calls(trace))
+    patterns.extend(_detect_token_waste(trace))
+    patterns.extend(_detect_sequential_bottleneck(trace))
+    patterns.extend(_detect_error_recovery(trace))
 
     # 写回 DAG
     dag.patterns = patterns
@@ -378,6 +381,238 @@ def _detect_slow_tool(trace: Trace) -> list[DetectedPattern]:
                     "slowness_factor": round(slowness_factor, 1),
                 },
             ))
+
+    return patterns
+
+
+def _detect_token_waste(
+    trace: Trace, ratio_threshold: float = 10.0
+) -> list[DetectedPattern]:
+    """
+    Detect token waste: LLM calls that consumed many input tokens but produced
+    very few output tokens (input-to-output ratio > *ratio_threshold*).
+
+    A high ratio often means the agent is repeatedly feeding a large context
+    to the model but the model is not making meaningful progress — common in
+    stuck reasoning loops or over-specified system prompts.
+
+    Args:
+        trace: The trace to inspect.
+        ratio_threshold: Minimum input/output token ratio to flag (default 10).
+
+    Returns:
+        List of :class:`DetectedPattern` instances, one per offending span.
+    """
+    patterns: list[DetectedPattern] = []
+
+    for span in trace.spans:
+        if span.kind != SpanKind.LLM or not span.token_usage:
+            continue
+
+        input_tokens = span.token_usage.input_tokens
+        output_tokens = span.token_usage.output_tokens
+
+        # Avoid division by zero; also skip if there is genuinely no output
+        # (that is already covered by detect_empty_response).
+        if output_tokens <= 0:
+            continue
+
+        ratio = input_tokens / output_tokens
+        if ratio > ratio_threshold:
+            patterns.append(DetectedPattern(
+                pattern_type=PatternType.TOKEN_WASTE,
+                severity="warning",
+                description=(
+                    f"LLM '{span.name}' used {input_tokens} input tokens but "
+                    f"only {output_tokens} output tokens "
+                    f"(ratio {ratio:.1f}:1, threshold {ratio_threshold:.0f}:1). "
+                    f"Consider shortening the prompt or switching to a smaller model."
+                ),
+                involved_spans=[span.span_id],
+                details={
+                    "span_name": span.name,
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                    "ratio": round(ratio, 2),
+                    "threshold": ratio_threshold,
+                    "wasted_cost_usd": round(span.token_usage.input_cost_usd, 6),
+                },
+            ))
+
+    return patterns
+
+
+def _detect_sequential_bottleneck(trace: Trace) -> list[DetectedPattern]:
+    """
+    Detect groups of independent tool calls that were executed sequentially
+    but could have been parallelised.
+
+    Heuristic: two or more tool spans that share the same *parent* span and do
+    not reference each other's output in their attributes are considered
+    independent.  When they execute sequentially (non-overlapping time
+    windows) the agent is leaving latency on the table.
+
+    Args:
+        trace: The trace to inspect.
+
+    Returns:
+        At most one :class:`DetectedPattern` per parent group.
+    """
+    if not trace.spans:
+        return []
+
+    # Group tool spans by parent
+    parent_to_tools: dict[str | None, list[Span]] = {}
+    for span in trace.spans:
+        if span.kind != SpanKind.TOOL:
+            continue
+        parent_to_tools.setdefault(span.parent_span_id, []).append(span)
+
+    patterns: list[DetectedPattern] = []
+
+    for parent_id, tools in parent_to_tools.items():
+        if len(tools) < 2:
+            continue
+
+        # Sort by start time
+        sorted_tools = sorted(tools, key=lambda s: s.start_time)
+
+        # Identify sequential pairs (no time overlap)
+        sequential_group: list[Span] = [sorted_tools[0]]
+        for prev, curr in zip(sorted_tools, sorted_tools[1:]):
+            prev_end = prev.end_time if prev.end_time > 0 else prev.start_time
+            # If current starts after previous ended → sequential
+            if curr.start_time >= prev_end:
+                sequential_group.append(curr)
+
+        if len(sequential_group) < 2:
+            continue
+
+        # Check for data dependency: if span B's attributes reference span A's
+        # span_id we treat them as dependent and skip.
+        independent: list[Span] = _filter_independent_spans(sequential_group)
+
+        if len(independent) < 2:
+            continue
+
+        total_sequential_ms = sum(
+            s.duration_ms for s in independent
+        )
+        span_names = [s.name for s in independent]
+
+        patterns.append(DetectedPattern(
+            pattern_type=PatternType.SEQUENTIAL_BOTTLENECK,
+            severity="info",
+            description=(
+                f"{len(independent)} independent tool calls under parent "
+                f"'{parent_id or 'root'}' ran sequentially "
+                f"({', '.join(span_names)}). "
+                f"Running them in parallel could save ~"
+                f"{total_sequential_ms - max(s.duration_ms for s in independent):.0f} ms."
+            ),
+            involved_spans=[s.span_id for s in independent],
+            details={
+                "parent_span_id": parent_id,
+                "sequential_tool_names": span_names,
+                "sequential_count": len(independent),
+                "total_sequential_ms": round(total_sequential_ms, 1),
+                "potential_savings_ms": round(
+                    total_sequential_ms - max(s.duration_ms for s in independent), 1
+                ),
+            },
+        ))
+
+    return patterns
+
+
+def _filter_independent_spans(spans: list[Span]) -> list[Span]:
+    """
+    Return the subset of *spans* that have no detectable data dependency.
+
+    Dependency is detected heuristically: if span B's attribute values contain
+    span A's ``span_id``, B likely depends on A's output.
+    """
+    span_ids = {s.span_id for s in spans}
+    independent: list[Span] = []
+
+    for span in spans:
+        attrs_str = " ".join(str(v) for v in span.attributes.values()).lower()
+        # Check if this span references any sibling span_id
+        references_sibling = any(
+            sid in attrs_str
+            for sid in span_ids
+            if sid != span.span_id
+        )
+        if not references_sibling:
+            independent.append(span)
+
+    return independent
+
+
+def _detect_error_recovery(trace: Trace) -> list[DetectedPattern]:
+    """
+    Detect successful error recovery: a span that failed, followed by a sibling
+    span with the same tool/LLM name (or same parent) that succeeded.
+
+    This is a *positive* pattern — it means the agent is resilient — but it is
+    still worth surfacing because:
+    - the failed attempt wasted tokens / time, and
+    - the retry could be made cheaper (e.g. with a smaller model or cached result).
+
+    Args:
+        trace: The trace to inspect.
+
+    Returns:
+        One :class:`DetectedPattern` per recovery event found.
+    """
+    if not trace.spans:
+        return []
+
+    # Group by parent span
+    parent_to_children: dict[str | None, list[Span]] = {}
+    for span in trace.spans:
+        parent_to_children.setdefault(span.parent_span_id, []).append(span)
+
+    patterns: list[DetectedPattern] = []
+
+    for parent_id, siblings in parent_to_children.items():
+        if len(siblings) < 2:
+            continue
+
+        sorted_siblings = sorted(siblings, key=lambda s: s.start_time)
+
+        # Look for (error span, later success span) pairs with the same name
+        failed: dict[str, Span] = {}  # name → most recent failed span
+        for span in sorted_siblings:
+            if span.status == SpanStatus.ERROR:
+                failed[span.name] = span
+            elif span.status == SpanStatus.OK and span.name in failed:
+                failed_span = failed.pop(span.name)
+                recovery_time_ms = (
+                    (span.end_time - failed_span.start_time) * 1000
+                    if span.end_time > 0
+                    else 0.0
+                )
+                patterns.append(DetectedPattern(
+                    pattern_type=PatternType.ERROR_RECOVERY,
+                    severity="info",
+                    description=(
+                        f"Agent recovered from a '{failed_span.name}' failure: "
+                        f"span '{failed_span.span_id}' failed, then sibling "
+                        f"'{span.span_id}' succeeded. "
+                        f"Total recovery overhead ~{recovery_time_ms:.0f} ms."
+                    ),
+                    involved_spans=[failed_span.span_id, span.span_id],
+                    details={
+                        "failed_span_id": failed_span.span_id,
+                        "failed_span_name": failed_span.name,
+                        "recovery_span_id": span.span_id,
+                        "recovery_span_name": span.name,
+                        "parent_span_id": parent_id,
+                        "recovery_overhead_ms": round(recovery_time_ms, 1),
+                        "error_message": failed_span.error_message,
+                    },
+                ))
 
     return patterns
 

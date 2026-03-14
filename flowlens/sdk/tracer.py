@@ -49,6 +49,7 @@ class FlowLens:
         export_to: str = "console",
         output_dir: str = "./traces",
         endpoint: str = "http://localhost:8585/v1/traces/ingest",
+        otlp_endpoint: str = "http://localhost:4318/v1/traces",
         verbose: bool = False,
         metadata: Optional[dict[str, Any]] = None,
         sample_rate: float = 1.0,
@@ -58,9 +59,10 @@ class FlowLens:
 
         Args:
             service_name: 服务名称
-            export_to: 导出目标 ('console', 'jsonl', 'http')
+            export_to: 导出目标 ('console', 'jsonl', 'http', 'otlp')
             output_dir: 输出目录 (用于 jsonl 导出)
-            endpoint: HTTP 端点 (用于 http 导出)
+            endpoint: HTTP 端点 (用于 http 导出，指向 FlowLens Server)
+            otlp_endpoint: OTLP/HTTP 端点 (用于 otlp 导出，默认: http://localhost:4318/v1/traces)
             verbose: 详细输出
             metadata: 全局元数据
             sample_rate: 采样率 (0.0 to 1.0) — 只采集指定比例的 trace
@@ -74,6 +76,7 @@ class FlowLens:
             export_to=export_to,
             output_dir=output_dir,
             endpoint=endpoint,
+            otlp_endpoint=otlp_endpoint,
             verbose=verbose,
         )
         self._active_traces: dict[str, Trace] = {}
@@ -93,6 +96,7 @@ class FlowLens:
         export_to: str = "console",
         output_dir: str = "./traces",
         endpoint: str = "http://localhost:8585/v1/traces/ingest",
+        otlp_endpoint: str = "http://localhost:4318/v1/traces",
         verbose: bool = False,
         metadata: Optional[dict[str, Any]] = None,
         sample_rate: float = 1.0,
@@ -103,8 +107,8 @@ class FlowLens:
         用法:
             lens = FlowLens.configure(
                 service_name="my-agent",
-                export_to="jsonl",
-                sample_rate=0.1,
+                export_to="otlp",
+                otlp_endpoint="http://collector:4318/v1/traces",
             )
         """
         return cls(
@@ -112,6 +116,7 @@ class FlowLens:
             export_to=export_to,
             output_dir=output_dir,
             endpoint=endpoint,
+            otlp_endpoint=otlp_endpoint,
             verbose=verbose,
             metadata=metadata,
             sample_rate=sample_rate,

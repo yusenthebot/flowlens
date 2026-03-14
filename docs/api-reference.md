@@ -1,14 +1,30 @@
 # FlowLens API Reference
 
-Complete documentation of all public APIs in FlowLens SDK, Analysis, and Server modules.
+Complete documentation of all public APIs: SDK, Analysis, and Server.
 
 ## Table of Contents
 
 - [FlowLens Core Class](#flowlens-core-class)
 - [Decorators](#decorators)
+- [Auto-Instrumentation](#auto-instrumentation)
 - [Data Models](#data-models)
 - [Analysis Functions](#analysis-functions)
 - [Server API Endpoints](#server-api-endpoints)
+  - [Ingest](#post-v1tracesingest)
+  - [Import](#post-v1tracesimport)
+  - [List Traces](#get-v1traces)
+  - [Get Trace](#get-v1tracestrace_id)
+  - [Delete Trace](#delete-v1tracestrace_id)
+  - [Causal DAG](#get-v1tracestrace_iddag)
+  - [Error Traces](#get-v1traceserrors)
+  - [Search Traces](#get-v1tracessearch)
+  - [Cleanup](#post-v1tracescleanup)
+  - [Cost Breakdown](#get-v1costbreakdown)
+  - [Cost Trends](#get-v1costtrends)
+  - [Pattern Summary](#get-v1patternssummary)
+  - [Global Stats](#get-v1stats)
+  - [WebSocket](#ws-wstraces)
+  - [Health Check](#get-health)
 
 ---
 
@@ -16,22 +32,22 @@ Complete documentation of all public APIs in FlowLens SDK, Analysis, and Server 
 
 The main entry point for instrumentation.
 
-### `FlowLens(service_name, export_to, output_dir, endpoint, verbose, metadata)`
+### `FlowLens(service_name, export_to, ...)`
 
-Initialize a FlowLens tracer instance. Creates a singleton that decorators reference.
+Initialize the FlowLens tracer. Creates a global singleton that all decorators reference automatically.
 
 **Parameters:**
 
-- `service_name` (str, default: `"flowlens"`): Human-readable service name appearing in traces
-- `export_to` (str, default: `"console"`): Exporter type — one of:
-  - `"console"`: Colored output to stdout (recommended for dev)
-  - `"jsonl"`: Write JSONL files to disk
-  - `"http"`: Send to remote server
-  - `"callback"`: User-provided callback function
-- `output_dir` (str, default: `"./traces"`): Directory for JSONL exporter (if used)
-- `endpoint` (str, default: `"http://localhost:8585/v1/traces/ingest"`): HTTP endpoint for HTTP exporter
-- `verbose` (bool, default: `False`): Print debug info during export
-- `metadata` (dict, optional): Default metadata added to every trace (e.g., `{"env": "prod"}`)
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `service_name` | str | `"flowlens"` | Human-readable service name appearing in all traces |
+| `export_to` | str | `"console"` | Exporter: `"console"`, `"jsonl"`, `"http"`, or `"callback"` |
+| `output_dir` | str | `"./traces"` | Directory for JSONL exporter output |
+| `endpoint` | str | `"http://localhost:8585/v1/traces/ingest"` | Target URL for HTTP exporter |
+| `verbose` | bool | `False` | Print debug information during export |
+| `metadata` | dict | `None` | Default metadata added to every trace |
+| `sample_rate` | float | `1.0` | Fraction of traces to export (0.0–1.0) |
+| `on_trace_complete` | callable | `None` | Callback invoked when each trace finishes |
 
 **Example:**
 
@@ -40,37 +56,39 @@ from flowlens import FlowLens
 
 lens = FlowLens(
     service_name="my-agent",
-    export_to="console",
+    export_to="http",
+    endpoint="http://localhost:8585/v1/traces/ingest",
     verbose=True,
-    metadata={"env": "development", "version": "1.0"}
+    metadata={"env": "production", "version": "2.1"},
+    sample_rate=0.5,  # Export 50% of traces
 )
 ```
 
-### `FlowLens.get_instance()`
+### `FlowLens.configure(**kwargs) -> FlowLens`
 
-Retrieve the global FlowLens singleton instance.
+Alternative class-method constructor. Identical parameters to `__init__`.
 
-**Returns:** `Optional[FlowLens]` — The singleton if initialized, None otherwise
+```python
+lens = FlowLens.configure(
+    service_name="my-agent",
+    export_to="jsonl",
+    sample_rate=0.1,
+)
+```
 
-**Example:**
+### `FlowLens.get_instance() -> Optional[FlowLens]`
+
+Retrieve the global singleton. Returns `None` if not yet initialized.
 
 ```python
 lens = FlowLens.get_instance()
 if lens:
-    trace = lens.start_trace()
+    lens.checkpoint("my_step", result_count=42)
 ```
 
-### `FlowLens.start_trace(metadata)`
+### `FlowLens.start_trace(metadata) -> Trace`
 
-Create and activate a new trace context.
-
-**Parameters:**
-
-- `metadata` (dict, optional): Trace-specific metadata, merged with instance metadata
-
-**Returns:** `Trace` object
-
-**Example:**
+Manually create a new trace context. Prefer decorators; use this for manual instrumentation.
 
 ```python
 trace = lens.start_trace(metadata={"task_id": "research-001"})
@@ -78,43 +96,21 @@ trace = lens.start_trace(metadata={"task_id": "research-001"})
 
 ### `FlowLens.end_trace(trace)`
 
-Finish a trace and export it via the configured exporter.
-
-**Parameters:**
-
-- `trace` (Trace): The trace object to export
-
-**Example:**
+Finish a trace and trigger export. Called automatically by decorators.
 
 ```python
-lens.end_trace(trace)  # Exports immediately
+lens.end_trace(trace)
 ```
 
-### `FlowLens.start_span(name, kind, attributes)`
+### `FlowLens.start_span(name, kind, attributes) -> Span`
 
-Create a span within the current trace context. Automatically links to parent span if nested.
-
-**Parameters:**
-
-- `name` (str): Span name (e.g., `"web_search"`, `"llm_call"`)
-- `kind` (SpanKind, default: `SpanKind.CUSTOM`): Span category:
-  - `SpanKind.AGENT`: Agent main loop
-  - `SpanKind.LLM`: Language model call
-  - `SpanKind.TOOL`: Tool/API invocation
-  - `SpanKind.CHAIN`: Multi-step workflow
-  - `SpanKind.RETRIEVAL`: RAG retrieval
-  - `SpanKind.CUSTOM`: User-defined
-- `attributes` (dict, optional): Key-value metadata attached to span
-
-**Returns:** `Span` object (not yet started — call `span.finish()` when done)
-
-**Example:**
+Create a span within the current trace. Automatically links to the parent span if nested.
 
 ```python
 span = lens.start_span(
     "db_query",
     kind=SpanKind.TOOL,
-    attributes={"db": "postgres", "query_type": "select"}
+    attributes={"db": "postgres", "query": "SELECT ..."}
 )
 # ... do work ...
 span.finish(status=SpanStatus.OK)
@@ -122,110 +118,120 @@ span.finish(status=SpanStatus.OK)
 
 ### `FlowLens.checkpoint(name, **attrs)`
 
-Add a named checkpoint event to the current span.
-
-**Parameters:**
-
-- `name` (str): Checkpoint identifier
-- `**attrs`: Arbitrary keyword arguments logged with the checkpoint
-
-**Example:**
+Add a named event checkpoint to the currently active span.
 
 ```python
-lens.checkpoint("retrieval_done", docs_count=42)
+lens.checkpoint("retrieval_done", docs_count=42, latency_ms=120)
+```
+
+### `FlowLens.set_exporter(exporter)`
+
+Swap the exporter at runtime. Useful for testing.
+
+```python
+from flowlens.sdk.exporters import CallbackExporter
+
+captured = []
+lens.set_exporter(CallbackExporter(lambda t: captured.append(t)))
 ```
 
 ### `FlowLens.shutdown()`
 
-Gracefully shut down FlowLens. Exports any pending traces and closes resources.
-
-**Example:**
+Flush pending traces and close resources. Call at program exit.
 
 ```python
-lens.shutdown()  # Call at program exit
+import atexit
+atexit.register(lens.shutdown)
 ```
 
 ---
 
 ## Decorators
 
-Zero-intrusion decorators that wrap your functions. Support both async and sync functions.
+Zero-intrusion decorators that wrap your functions. All decorators support both `async` and `sync` functions. Exceptions are re-raised after being recorded — no business logic is suppressed.
 
 ### `@trace_agent(name, metadata, **attrs)`
 
-Wrap an agent's main entry point. Creates a trace with a root AGENT span.
+Wrap an agent's entry point. Creates a new trace and a root AGENT span. Exports the complete trace when the function returns.
 
 **Parameters:**
 
-- `name` (str, default: `"agent"`): Root span name
-- `metadata` (dict, optional): Trace metadata
-- `**attrs`: Additional span attributes
-
-**Returns:** Decorated function
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `name` | str | `"agent"` | Root span name |
+| `metadata` | dict | `None` | Trace-level metadata |
+| `**attrs` | any | — | Additional span attributes |
 
 **Example:**
 
 ```python
 from flowlens import trace_agent
 
-@trace_agent(name="research_bot")
+@trace_agent(name="research_bot", metadata={"version": "2"})
 async def run_agent(task: str) -> str:
-    result = await search(task)
-    return f"Done: {result}"
+    return await execute(task)
 
-# Sync version also supported:
+# Sync also supported
 @trace_agent(name="sync_bot")
-def run_sync_agent(task: str) -> str:
+def run_sync(task: str) -> str:
     return task.upper()
 ```
 
-### `@trace_llm(model, name, **attrs)`
+### `@trace_llm(model, name, streaming, **attrs)`
 
-Wrap LLM calls. Automatically extracts token usage and estimates cost.
+Wrap LLM calls. Automatically extracts token usage and cost from the response.
 
 **Parameters:**
 
-- `model` (str, default: `""`): Model identifier (e.g., `"claude-sonnet-4-20250514"`, `"gpt-4o"`)
-- `name` (str, optional): Span name (defaults to function name)
-- `**attrs`: Additional attributes
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `model` | str | `""` | Model identifier (e.g., `"claude-sonnet-4-20250514"`) |
+| `name` | str | function name | Span name override |
+| `streaming` | bool | `False` | Enable streaming trace mode |
+| `**attrs` | any | — | Additional span attributes |
 
-**Returns:** Decorated function
+**Token extraction support:**
 
-**Supported Models & Pricing:**
-
-- Claude: Opus 4, Sonnet 4, Haiku 4 (3.5)
-- OpenAI: GPT-4o, GPT-4o-mini, GPT-4.1, GPT-4.1-mini
-- Google: Gemini 2.5 Pro, Gemini 2.5 Flash
-- DeepSeek: V3, R1
-- Llama: 3.1 (70B, 405B)
-- Mistral: Large
-- Command: R+
+- Anthropic SDK: `result.usage.input_tokens / output_tokens`
+- OpenAI SDK: `result["usage"]["prompt_tokens"] / completion_tokens`
+- Google Generative AI: `result.usage_metadata.prompt_token_count`
+- LiteLLM: `result.usage.prompt_tokens / completion_tokens`
 
 **Example:**
 
 ```python
 from flowlens import trace_llm
 
-@trace_llm(model="claude-sonnet-4-20250514", name="think")
+@trace_llm(model="claude-sonnet-4-20250514")
 async def call_claude(messages: list) -> str:
     response = await client.messages.create(
         model="claude-sonnet-4-20250514",
         messages=messages
     )
     return response.content[0].text
+
+# Streaming variant
+@trace_llm(model="claude-sonnet-4-20250514", streaming=True)
+async def stream_claude(messages: list):
+    async with client.messages.stream(
+        model="claude-sonnet-4-20250514",
+        max_tokens=1024,
+        messages=messages,
+    ) as stream:
+        async for text in stream.text_stream:
+            yield text
 ```
 
-Token usage is automatically extracted from Anthropic SDK (`.usage.input_tokens`) or OpenAI SDK (`["usage"]["prompt_tokens"]`).
+### `@trace_tool(name, **attrs)`
 
-### `@trace_tool(name)`
-
-Wrap tool/API calls. Automatically captures parameters and results.
+Wrap tool or API calls. Captures input parameters as span attributes and records a result summary.
 
 **Parameters:**
 
-- `name` (str, optional): Tool name (defaults to function name)
-
-**Returns:** Decorated function
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `name` | str | function name | Tool span name |
+| `**attrs` | any | — | Additional span attributes |
 
 **Example:**
 
@@ -234,110 +240,152 @@ from flowlens import trace_tool
 
 @trace_tool(name="web_search")
 async def search(query: str, limit: int = 10) -> dict:
-    results = await search_api.query(query, limit)
-    return results
+    return await search_api.query(query, limit)
 
-# Parameters captured as span attributes:
-# - tool.input.query = "hello"
+# Attributes automatically captured on the span:
+# - tool.input.query = "..."
 # - tool.input.limit = 10
-# - tool.output_summary = "<dict summary>"
+# - tool.output_summary = "<result summary>"
 ```
+
+### `@trace_chain(name, **attrs)`
+
+Wrap multi-step workflows or pipeline stages.
+
+```python
+from flowlens import trace_chain
+
+@trace_chain(name="research_pipeline")
+async def run_pipeline(task: str):
+    docs = await retrieve(task)
+    summary = await summarize(docs)
+    return summary
+```
+
+### `@trace_retrieval(name, **attrs)`
+
+Wrap RAG retrieval steps. Automatically records `retrieval.result_count` if the result is a list.
+
+```python
+from flowlens import trace_retrieval
+
+@trace_retrieval(name="vector_search")
+async def retrieve(query: str) -> list[dict]:
+    return await vector_db.similarity_search(query, k=5)
+
+# Attributes automatically captured:
+# - retrieval.result_count = 5
+# - retrieval.output_summary = "<list summary>"
+```
+
+---
+
+## Auto-Instrumentation
+
+Patch supported LLM clients automatically — no decorators required.
+
+### `auto_instrument(lens, patch)`
+
+Instrument supported frameworks by monkey-patching their core call methods.
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `lens` | FlowLens | required | The initialized FlowLens instance |
+| `patch` | list[str] | all supported | Frameworks to patch: `"anthropic"`, `"openai"`, `"langchain"` |
+
+**Example:**
+
+```python
+from flowlens import FlowLens
+from flowlens.sdk.auto_instrument import auto_instrument
+
+lens = FlowLens(service_name="my-agent", export_to="http")
+auto_instrument(lens)
+
+# From here, all Anthropic / OpenAI / LangChain calls are traced automatically
+```
+
+**Selective patching:**
+
+```python
+# Only patch Anthropic
+auto_instrument(lens, patch=["anthropic"])
+
+# Patch OpenAI and LangChain only
+auto_instrument(lens, patch=["openai", "langchain"])
+```
+
+**What gets traced per framework:**
+
+| Framework | Traced calls |
+|---|---|
+| `anthropic` | `client.messages.create()`, `client.messages.stream()` |
+| `openai` | `client.chat.completions.create()` |
+| `langchain` | LLM `__call__`, tool `run`, chain `__call__` |
 
 ---
 
 ## Data Models
 
-Core data structures passed through the SDK.
-
 ### `Span`
 
-Represents a single operation.
+Represents a single instrumented operation.
 
 **Attributes:**
 
-- `span_id` (str): Unique identifier (auto-generated)
-- `trace_id` (str): Parent trace identifier
-- `parent_span_id` (Optional[str]): Parent span for nesting
-- `name` (str): Operation name
-- `kind` (SpanKind): Category (AGENT, LLM, TOOL, etc.)
-- `status` (SpanStatus): OK, ERROR, or UNSET
-- `start_time` (float): Unix timestamp (seconds)
-- `end_time` (float): Unix timestamp (seconds)
-- `duration_ms` (float, read-only): Computed duration
-- `attributes` (dict): Custom metadata
-- `events` (list[SpanEvent]): Checkpoint events within span
-- `token_usage` (Optional[TokenUsage]): Token counts (LLM spans only)
-- `error_message` (Optional[str]): Error description if status=ERROR
-- `error_type` (Optional[str]): Exception class name
+| Attribute | Type | Description |
+|---|---|---|
+| `span_id` | str | Unique identifier (auto-generated) |
+| `trace_id` | str | Parent trace identifier |
+| `parent_span_id` | Optional[str] | Parent span for nesting (auto-linked) |
+| `name` | str | Operation name |
+| `kind` | SpanKind | Category: AGENT, LLM, TOOL, CHAIN, RETRIEVAL, CUSTOM |
+| `status` | SpanStatus | OK, ERROR, or UNSET |
+| `start_time` | float | Unix timestamp (seconds) |
+| `end_time` | float | Unix timestamp (seconds) |
+| `duration_ms` | float | Computed duration (read-only) |
+| `attributes` | dict | Custom metadata key-value pairs |
+| `events` | list[SpanEvent] | Named checkpoint events within the span |
+| `token_usage` | Optional[TokenUsage] | Token counts and cost (LLM spans only) |
+| `error_message` | Optional[str] | Error description if status=ERROR |
+| `error_type` | Optional[str] | Exception class name |
 
 **Methods:**
 
 ```python
-span = Span(name="my_op", kind=SpanKind.TOOL)
-
-# Finish the span
-span.finish(status=SpanStatus.OK, error=None)
-
-# Add a checkpoint event
+span.finish(status=SpanStatus.OK)
 span.add_event("step_complete", step=1, data="sample")
-
-# Set token usage (for LLM spans)
-span.set_token_usage(
-    input_tokens=1000,
-    output_tokens=500,
-    model="claude-sonnet-4-20250514"
-)
-
-# Serialize to dict
+span.set_token_usage(input_tokens=1000, output_tokens=500, model="claude-sonnet-4-20250514")
 span_dict = span.to_dict()
 ```
 
 ### `Trace`
 
-A complete execution trace containing multiple spans.
+A complete execution trace containing all spans.
 
 **Attributes:**
 
-- `trace_id` (str): Unique identifier (auto-generated)
-- `service_name` (str): Service name
-- `root_span_id` (Optional[str]): Top-level span
-- `spans` (list[Span]): All spans in execution order
-- `start_time` (float): Trace start time
-- `end_time` (float): Trace end time
-- `duration_ms` (float, read-only): Total duration
-- `total_tokens` (int, read-only): Sum of all token usage
-- `total_cost_usd` (float, read-only): Estimated cost
-- `has_errors` (bool, read-only): True if any span errored
-- `error_count` (int, read-only): Number of error spans
-- `error_rate` (float, read-only): Fraction of spans that errored
-- `metadata` (dict): Custom metadata
-
-**Methods:**
-
-```python
-trace = Trace(service_name="my-agent")
-
-# Finish the trace
-trace.finish()
-
-# Serialize to dict
-trace_dict = trace.to_dict()
-```
+| Attribute | Type | Description |
+|---|---|---|
+| `trace_id` | str | Unique identifier (auto-generated) |
+| `service_name` | str | Service name |
+| `root_span_id` | Optional[str] | Top-level span |
+| `spans` | list[Span] | All spans in execution order |
+| `start_time` | float | Trace start time |
+| `end_time` | float | Trace end time |
+| `duration_ms` | float | Total duration (read-only) |
+| `total_tokens` | int | Sum of all token usage (read-only) |
+| `total_cost_usd` | float | Estimated cost (read-only) |
+| `has_errors` | bool | True if any span errored (read-only) |
+| `error_count` | int | Number of error spans (read-only) |
+| `error_rate` | float | Fraction of spans that errored (read-only) |
+| `metadata` | dict | Custom metadata |
 
 ### `TokenUsage`
 
-Token usage and cost for an LLM call.
-
-**Attributes:**
-
-- `input_tokens` (int): Input token count
-- `output_tokens` (int): Output token count
-- `total_tokens` (int): Sum
-- `input_cost_usd` (float): Input cost
-- `output_cost_usd` (float): Output cost
-- `total_cost_usd` (float): Total cost
-
-**Example:**
+Token usage and estimated cost for an LLM span.
 
 ```python
 usage = TokenUsage(
@@ -345,210 +393,147 @@ usage = TokenUsage(
     output_tokens=500,
     total_tokens=1500,
     input_cost_usd=0.003,
-    output_cost_usd=0.005,
-    total_cost_usd=0.008
+    output_cost_usd=0.0075,
+    total_cost_usd=0.0105,
 )
 ```
 
 ### `SpanKind` (Enum)
 
-Span category enumeration.
-
-- `AGENT`: Agent main loop
-- `LLM`: Language model call
-- `TOOL`: Tool/API execution
-- `CHAIN`: Multi-step workflow
-- `RETRIEVAL`: RAG retrieval
-- `CUSTOM`: User-defined
+- `AGENT` — Agent main loop
+- `LLM` — Language model call
+- `TOOL` — Tool or API execution
+- `CHAIN` — Multi-step workflow
+- `RETRIEVAL` — RAG retrieval
+- `CUSTOM` — User-defined
 
 ### `SpanStatus` (Enum)
 
-Span execution status.
-
-- `OK`: Completed successfully
-- `ERROR`: Threw an exception
-- `UNSET`: Not yet finished
+- `OK` — Completed successfully
+- `ERROR` — Threw an exception
+- `UNSET` — Not yet finished
 
 ---
 
 ## Analysis Functions
 
-Post-trace analysis to understand failures and detect patterns.
-
 ### `build_causal_dag(trace) -> CausalDAG`
 
-Build a directed acyclic graph showing error propagation.
-
-**Parameters:**
-
-- `trace` (Trace): Completed trace with spans
-
-**Returns:** `CausalDAG` object containing nodes, edges, and root causes
-
-**Algorithm:**
-
-1. Build parent-child tree from span relationships
-2. Identify error spans
-3. Classify each error as ROOT_CAUSE, CASCADED, or INDEPENDENT
-4. Build edges showing error propagation
-
-**Example:**
+Build a directed acyclic graph showing error propagation paths.
 
 ```python
 from flowlens.analysis.dag_builder import build_causal_dag
 
 dag = build_causal_dag(trace)
+print(dag.root_causes)     # ["span_id_1"]
+print(dag.cascade_depth)   # 2
+print(dag.has_errors)      # True
 
-print(f"Root causes: {dag.root_causes}")        # ["span_id_1", "span_id_2"]
-print(f"Cascade depth: {dag.cascade_depth}")    # 2
-print(f"Has errors: {dag.has_errors}")          # True
-
-# Iterate nodes
 for node in dag.nodes:
-    print(f"{node.name} [{node.kind}] - {node.status}")
     if node.error_role == ErrorRole.ROOT_CAUSE:
-        print(f"  Root cause: {node.error_message}")
+        print(f"Root cause: {node.name} — {node.error_message}")
 ```
 
 ### `detect_patterns(trace, dag) -> list[DetectedPattern]`
 
-Run all pattern detectors and return detected anti-patterns.
-
-**Parameters:**
-
-- `trace` (Trace): Execution trace
-- `dag` (CausalDAG): Pre-built DAG (patterns are written to `dag.patterns`)
-
-**Returns:** List of `DetectedPattern` objects
-
-**Detectors:**
-
-| Pattern | Description | Threshold |
-|---------|-------------|-----------|
-| RETRY_STORM | Same tool called ≥5 times | >= 5 calls |
-| INFINITE_LOOP | Repeating tool sequence | >= 3 repetitions |
-| CONTEXT_OVERFLOW | Token usage ≥90% of model limit | >= 0.9 ratio |
-| TIMEOUT_CASCADE | Timeout causing downstream failures | Any timeout |
-| EMPTY_RESPONSE | LLM returns 0 output tokens | 0 output tokens |
-
-**Example:**
+Run all five pattern detectors and populate `dag.patterns`.
 
 ```python
 from flowlens.analysis.patterns import detect_patterns
 
 patterns = detect_patterns(trace, dag)
 
-for pattern in patterns:
-    print(f"[{pattern.severity}] {pattern.pattern_type.value}")
-    print(f"  {pattern.description}")
-    print(f"  Involved: {pattern.involved_spans}")
-    print(f"  Details: {pattern.details}")
+for p in patterns:
+    print(f"[{p.severity}] {p.pattern_type.value}: {p.description}")
+    print(f"  Spans: {p.involved_spans}")
 ```
+
+**Pattern thresholds:**
+
+| Pattern | Threshold |
+|---|---|
+| `RETRY_STORM` | Same tool called 5+ times |
+| `INFINITE_LOOP` | Sequence repeats 3+ times |
+| `CONTEXT_OVERFLOW` | Token usage >= 90% of model limit |
+| `TIMEOUT_CASCADE` | Any timeout with downstream failures |
+| `EMPTY_RESPONSE` | LLM returns 0 output tokens |
 
 ### `CausalDAG` Data Structure
 
-Result of DAG analysis.
-
-**Attributes:**
-
-- `trace_id` (str): Source trace ID
-- `nodes` (list[CausalNode]): Span nodes in graph
-- `edges` (list[CausalEdge]): Error propagation edges
-- `patterns` (list[DetectedPattern]): Detected patterns
-- `root_causes` (list[str]): Root cause span IDs
-- `has_errors` (bool, read-only): True if any root causes
-- `cascade_depth` (int, read-only): Max error cascade depth
-
-**Example:**
-
 ```python
-dag.to_dict()  # Serialize to JSON-compatible dict
+@dataclass
+class CausalDAG:
+    trace_id: str
+    nodes: list[CausalNode]          # All spans as graph nodes
+    edges: list[CausalEdge]          # Error propagation edges
+    patterns: list[DetectedPattern]  # Detected anti-patterns
+    root_causes: list[str]           # Root cause span IDs
+    has_errors: bool                 # True if any root causes exist
+    cascade_depth: int               # Maximum error cascade depth
+
+    def to_dict(self) -> dict: ...
 ```
 
 ---
 
 ## Server API Endpoints
 
-RESTful API for ingesting, querying, and analyzing traces.
+Base URL: `http://localhost:8585`
 
-### Base URL
+Interactive documentation: `http://localhost:8585/docs`
 
-Default: `http://localhost:8585`
+---
 
-### Health Check
+### `POST /v1/traces/ingest`
 
-**GET /health**
+Receive and store a single trace from the SDK HTTP exporter.
 
-Check server status.
-
-**Response:**
+**Request body:**
 
 ```json
 {
-  "status": "ok",
-  "version": "0.1.0"
-}
-```
-
-**curl:**
-
-```bash
-curl http://localhost:8585/health
-```
-
-### Ingest Trace
-
-**POST /v1/traces/ingest**
-
-Receive a single trace from SDK.
-
-**Request Body:**
-
-```json
-{
-  "trace_id": "abc123",
+  "trace_id": "a1b2c3d4",
   "service_name": "my-agent",
-  "start_time": 1000.0,
-  "end_time": 1005.0,
-  "duration_ms": 5000,
-  "total_tokens": 2000,
-  "total_cost_usd": 0.012,
-  "has_errors": false,
-  "error_count": 0,
+  "start_time": 1700000000.0,
+  "end_time": 1700000005.847,
+  "duration_ms": 5847,
+  "total_tokens": 2967,
+  "total_cost_usd": 0.019,
+  "has_errors": true,
+  "error_count": 2,
+  "span_count": 8,
   "metadata": {"env": "prod"},
   "spans": [
     {
       "span_id": "s1",
-      "trace_id": "abc123",
+      "trace_id": "a1b2c3d4",
       "parent_span_id": null,
-      "name": "agent_run",
+      "name": "research_bot",
       "kind": "agent",
-      "status": "ok",
-      "start_time": 1000.0,
-      "end_time": 1005.0,
-      "duration_ms": 5000,
+      "status": "error",
+      "start_time": 1700000000.0,
+      "end_time": 1700000005.847,
+      "duration_ms": 5847,
       "attributes": {},
       "events": [],
       "token_usage": {
-        "input_tokens": 1000,
-        "output_tokens": 1000,
-        "total_cost_usd": 0.012
+        "input_tokens": 1856,
+        "output_tokens": 1111,
+        "total_cost_usd": 0.019
       }
     }
   ]
 }
 ```
 
-**Response:**
+**Response (201):**
 
 ```json
 {
   "status": "ok",
-  "trace_id": "abc123"
+  "trace_id": "a1b2c3d4"
 }
 ```
-
-**curl:**
 
 ```bash
 curl -X POST http://localhost:8585/v1/traces/ingest \
@@ -556,17 +541,19 @@ curl -X POST http://localhost:8585/v1/traces/ingest \
   -d @trace.json
 ```
 
-### Import JSONL File
+---
 
-**POST /v1/traces/import**
+### `POST /v1/traces/import`
 
-Bulk import traces from JSONL file.
+Bulk import traces from a JSONL file on disk. Each line must be a valid trace JSON object.
 
-**Query Parameters:**
+**Query parameters:**
 
-- `file_path` (str, required): Absolute path to JSONL file
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `file_path` | str | yes | Absolute path to the JSONL file |
 
-**Response:**
+**Response (201):**
 
 ```json
 {
@@ -575,40 +562,40 @@ Bulk import traces from JSONL file.
 }
 ```
 
-**curl:**
-
 ```bash
-curl -X POST "http://localhost:8585/v1/traces/import?file_path=/traces/export.jsonl"
+curl -X POST "http://localhost:8585/v1/traces/import?file_path=/data/traces/export.jsonl"
 ```
 
-### List Traces
+---
 
-**GET /v1/traces**
+### `GET /v1/traces`
 
-Query traces with pagination and filtering.
+List traces with pagination and optional filtering.
 
-**Query Parameters:**
+**Query parameters:**
 
-- `limit` (int, default: 50, max: 200): Traces per page
-- `offset` (int, default: 0): Pagination offset
-- `service` (str, optional): Filter by service name
-- `errors_only` (bool, default: false): Only traces with errors
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `limit` | int | 50 | Traces per page (max 200) |
+| `offset` | int | 0 | Pagination offset |
+| `service` | str | — | Filter by service name (exact match) |
+| `errors_only` | bool | false | Return only traces with errors |
 
-**Response:**
+**Response (200):**
 
 ```json
 {
   "traces": [
     {
-      "trace_id": "abc123",
+      "trace_id": "a1b2c3d4",
       "service_name": "my-agent",
-      "start_time": 1000.0,
-      "duration_ms": 5000,
-      "span_count": 3,
-      "total_tokens": 2000,
-      "total_cost_usd": 0.012,
-      "has_errors": false,
-      "error_count": 0
+      "start_time": 1700000000.0,
+      "duration_ms": 5847,
+      "span_count": 8,
+      "total_tokens": 2967,
+      "total_cost_usd": 0.019,
+      "has_errors": true,
+      "error_count": 2
     }
   ],
   "total": 150,
@@ -617,145 +604,422 @@ Query traces with pagination and filtering.
 }
 ```
 
-**curl:**
-
 ```bash
-# Get first 50 traces
+# First page
 curl "http://localhost:8585/v1/traces?limit=50&offset=0"
 
 # Filter by service
 curl "http://localhost:8585/v1/traces?service=my-agent&limit=20"
 
-# Only errors
+# Errors only
 curl "http://localhost:8585/v1/traces?errors_only=true"
+
+# Second page of errors for a specific service
+curl "http://localhost:8585/v1/traces?service=my-agent&errors_only=true&limit=20&offset=20"
 ```
 
-### Get Trace
+---
 
-**GET /v1/traces/{trace_id}**
+### `GET /v1/traces/{trace_id}`
 
-Retrieve complete trace with all spans.
+Retrieve the complete trace including all spans.
 
-**Path Parameters:**
+**Path parameters:**
 
-- `trace_id` (str): Trace identifier
+| Parameter | Type | Description |
+|---|---|---|
+| `trace_id` | str | Trace identifier |
 
-**Response:**
+**Response (200):**
 
 ```json
 {
-  "trace_id": "abc123",
+  "trace_id": "a1b2c3d4",
   "service_name": "my-agent",
-  "start_time": 1000.0,
-  "end_time": 1005.0,
-  "duration_ms": 5000,
-  "span_count": 3,
-  "total_tokens": 2000,
-  "total_cost_usd": 0.012,
-  "has_errors": false,
-  "error_count": 0,
+  "start_time": 1700000000.0,
+  "end_time": 1700000005.847,
+  "duration_ms": 5847,
+  "span_count": 8,
+  "total_tokens": 2967,
+  "total_cost_usd": 0.019,
+  "has_errors": true,
+  "error_count": 2,
+  "metadata": {"env": "prod"},
   "spans": [...]
 }
 ```
 
-**curl:**
+**Error (404):**
 
-```bash
-curl http://localhost:8585/v1/traces/abc123
+```json
+{"detail": "Trace not found: a1b2c3d4"}
 ```
 
-### Get Causal DAG
+```bash
+curl http://localhost:8585/v1/traces/a1b2c3d4
+```
 
-**GET /v1/traces/{trace_id}/dag**
+---
 
-Retrieve causal DAG analysis with detected patterns.
+### `DELETE /v1/traces/{trace_id}`
 
-**Path Parameters:**
+Permanently delete a trace and all its spans.
 
-- `trace_id` (str): Trace identifier
+**Path parameters:**
 
-**Response:**
+| Parameter | Type | Description |
+|---|---|---|
+| `trace_id` | str | Trace identifier |
+
+**Response (200):**
 
 ```json
 {
-  "trace_id": "abc123",
-  "nodes": [
-    {
-      "span_id": "s1",
-      "name": "agent_run",
-      "kind": "agent",
-      "status": "ok",
-      "error_role": "independent",
-      "duration_ms": 5000,
-      "token_count": 2000
-    }
-  ],
-  "edges": [],
-  "patterns": [],
-  "root_causes": [],
-  "cascade_depth": 0,
-  "has_errors": false
+  "status": "deleted",
+  "trace_id": "a1b2c3d4"
 }
 ```
 
-**curl:**
+**Error (404):**
 
-```bash
-curl http://localhost:8585/v1/traces/abc123/dag | jq '.'
+```json
+{"detail": "Trace not found: a1b2c3d4"}
 ```
 
-### Cost Breakdown
+```bash
+curl -X DELETE http://localhost:8585/v1/traces/a1b2c3d4
+```
 
-**GET /v1/cost/breakdown**
+---
 
-Multi-dimensional cost attribution.
+### `GET /v1/traces/{trace_id}/dag`
 
-**Query Parameters:**
+Retrieve the causal DAG analysis for a trace, including detected patterns.
 
-- `group_by` (str, default: "service_name"): Grouping dimension
-  - `"service_name"`: By service
-  - `"kind"`: By span type (agent, llm, tool)
-  - `"name"`: By span name
+**Path parameters:**
 
-**Response:**
+| Parameter | Type | Description |
+|---|---|---|
+| `trace_id` | str | Trace identifier |
+
+**Response (200):**
+
+```json
+{
+  "trace_id": "a1b2c3d4",
+  "nodes": [
+    {
+      "span_id": "s3",
+      "name": "web_search",
+      "kind": "tool",
+      "status": "error",
+      "error_role": "root_cause",
+      "error_message": "Connection timeout after 2000ms",
+      "duration_ms": 2003,
+      "token_count": 0
+    },
+    {
+      "span_id": "s4",
+      "name": "fetch_page",
+      "kind": "tool",
+      "status": "error",
+      "error_role": "cascaded",
+      "error_message": "Invalid input: empty URL",
+      "duration_ms": 5,
+      "token_count": 0
+    }
+  ],
+  "edges": [
+    {
+      "source_id": "s3",
+      "target_id": "s4",
+      "relation": "preceded_by"
+    }
+  ],
+  "patterns": [
+    {
+      "pattern_type": "timeout_cascade",
+      "severity": "critical",
+      "description": "'web_search' timeout caused 1 downstream failure",
+      "involved_spans": ["s3", "s4"],
+      "details": {"timeout": "web_search"}
+    }
+  ],
+  "root_causes": ["s3"],
+  "cascade_depth": 1,
+  "has_errors": true
+}
+```
+
+```bash
+curl http://localhost:8585/v1/traces/a1b2c3d4/dag | jq '.'
+```
+
+---
+
+### `GET /v1/traces/errors`
+
+List traces that contain at least one error span, sorted by most recent first.
+
+**Query parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `limit` | int | 50 | Traces per page (max 200) |
+| `offset` | int | 0 | Pagination offset |
+| `service` | str | — | Filter by service name |
+
+**Response (200):**
+
+```json
+{
+  "traces": [
+    {
+      "trace_id": "a1b2c3d4",
+      "service_name": "my-agent",
+      "start_time": 1700000000.0,
+      "duration_ms": 5847,
+      "span_count": 8,
+      "total_tokens": 2967,
+      "total_cost_usd": 0.019,
+      "has_errors": true,
+      "error_count": 2
+    }
+  ],
+  "total": 23,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+```bash
+# All error traces
+curl "http://localhost:8585/v1/traces/errors"
+
+# Error traces for a specific service
+curl "http://localhost:8585/v1/traces/errors?service=my-agent"
+```
+
+---
+
+### `GET /v1/traces/search`
+
+Full-text search across trace and span content.
+
+**Query parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `q` | str | yes | Search query string |
+| `limit` | int | 20 | Results per page (max 100) |
+| `offset` | int | 0 | Pagination offset |
+| `service` | str | — | Filter by service name |
+
+**Searchable fields:** `trace_id`, `service_name`, span `name`, span `error_message`, span `attributes`
+
+**Response (200):**
+
+```json
+{
+  "query": "timeout",
+  "results": [
+    {
+      "trace_id": "a1b2c3d4",
+      "service_name": "my-agent",
+      "matched_spans": ["web_search"],
+      "duration_ms": 5847,
+      "has_errors": true
+    }
+  ],
+  "total": 7,
+  "limit": 20,
+  "offset": 0
+}
+```
+
+```bash
+# Search for timeout-related traces
+curl "http://localhost:8585/v1/traces/search?q=timeout"
+
+# Search within a specific service
+curl "http://localhost:8585/v1/traces/search?q=fetch_page&service=my-agent"
+```
+
+---
+
+### `POST /v1/traces/cleanup`
+
+Delete traces older than a specified number of days to manage disk usage.
+
+**Request body:**
+
+```json
+{
+  "older_than_days": 30
+}
+```
+
+**Response (200):**
+
+```json
+{
+  "deleted": 412,
+  "older_than_days": 30
+}
+```
+
+```bash
+# Delete traces older than 30 days
+curl -X POST http://localhost:8585/v1/traces/cleanup \
+  -H "Content-Type: application/json" \
+  -d '{"older_than_days": 30}'
+```
+
+---
+
+### `GET /v1/cost/breakdown`
+
+Multi-dimensional cost attribution across all stored traces.
+
+**Query parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `group_by` | str | `"service_name"` | Grouping dimension: `"service_name"`, `"kind"`, `"name"` |
+
+**Response (200):**
 
 ```json
 [
   {
-    "dimension": "my-agent",
-    "total_cost_usd": 0.50,
-    "total_tokens": 50000,
-    "span_count": 100
+    "dimension": "research-bot",
+    "total_cost_usd": 2.50,
+    "total_tokens": 100000,
+    "span_count": 200
   },
   {
-    "dimension": "other-agent",
-    "total_cost_usd": 0.30,
-    "total_tokens": 30000,
-    "span_count": 60
+    "dimension": "qa-bot",
+    "total_cost_usd": 1.20,
+    "total_tokens": 50000,
+    "span_count": 100
   }
 ]
 ```
-
-**curl:**
 
 ```bash
 # Cost by service
 curl "http://localhost:8585/v1/cost/breakdown?group_by=service_name"
 
-# Cost by span type
+# Cost by span type (agent, llm, tool)
 curl "http://localhost:8585/v1/cost/breakdown?group_by=kind"
 
-# Cost by operation
+# Cost by operation name
 curl "http://localhost:8585/v1/cost/breakdown?group_by=name"
 ```
 
-### Global Statistics
+---
 
-**GET /v1/stats**
+### `GET /v1/cost/trends`
 
-Aggregate statistics across all traces.
+Cost aggregated over time intervals. Useful for monitoring spend trends.
 
-**Response:**
+**Query parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `interval` | str | `"day"` | Aggregation interval: `"hour"`, `"day"`, `"week"` |
+| `days` | int | 30 | Number of days of history to return |
+| `service` | str | — | Filter by service name |
+
+**Response (200):**
+
+```json
+{
+  "interval": "day",
+  "data": [
+    {
+      "date": "2026-03-14",
+      "total_cost_usd": 0.82,
+      "total_tokens": 41000,
+      "trace_count": 18
+    },
+    {
+      "date": "2026-03-13",
+      "total_cost_usd": 1.15,
+      "total_tokens": 57500,
+      "trace_count": 25
+    }
+  ]
+}
+```
+
+```bash
+# Daily cost for last 30 days
+curl "http://localhost:8585/v1/cost/trends?interval=day&days=30"
+
+# Weekly cost for a specific service
+curl "http://localhost:8585/v1/cost/trends?interval=week&service=research-bot"
+```
+
+---
+
+### `GET /v1/patterns/summary`
+
+Aggregated counts and rates for all detected anti-patterns across stored traces.
+
+**Query parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `service` | str | — | Filter by service name |
+| `days` | int | 7 | Lookback window in days |
+
+**Response (200):**
+
+```json
+{
+  "total_traces_analyzed": 250,
+  "period_days": 7,
+  "patterns": [
+    {
+      "pattern_type": "timeout_cascade",
+      "count": 12,
+      "rate": 0.048,
+      "severity_distribution": {
+        "critical": 8,
+        "warning": 4
+      },
+      "most_affected_service": "research-bot"
+    },
+    {
+      "pattern_type": "retry_storm",
+      "count": 5,
+      "rate": 0.02,
+      "severity_distribution": {
+        "critical": 5,
+        "warning": 0
+      },
+      "most_affected_service": "research-bot"
+    }
+  ]
+}
+```
+
+```bash
+# Pattern summary for last 7 days
+curl "http://localhost:8585/v1/patterns/summary"
+
+# Pattern summary for a specific service, last 30 days
+curl "http://localhost:8585/v1/patterns/summary?service=research-bot&days=30"
+```
+
+---
+
+### `GET /v1/stats`
+
+Global aggregate statistics across all stored traces.
+
+**Response (200):**
 
 ```json
 {
@@ -768,24 +1032,107 @@ Aggregate statistics across all traces.
 }
 ```
 
-**curl:**
-
 ```bash
 curl http://localhost:8585/v1/stats | jq '.'
 ```
 
 ---
 
-## Complete Example
+### `WS /ws/traces`
 
-End-to-end usage of SDK → Server:
+WebSocket endpoint that broadcasts a message for every trace ingested by the server.
+
+**Connection URL:** `ws://localhost:8585/ws/traces`
+
+**Message format:** Each message is a complete trace serialized as JSON (same schema as `GET /v1/traces/{id}`).
+
+**Behavior:**
+- Connects immediately; no authentication required
+- Receives one message per trace as soon as it is stored
+- Connection remains open until closed by client or server restart
+- Multiple clients may connect simultaneously
+
+**Python example:**
 
 ```python
-# Step 1: Instrument code
+import asyncio
+import websockets
+import json
+
+async def stream_traces():
+    uri = "ws://localhost:8585/ws/traces"
+    async with websockets.connect(uri) as ws:
+        print("Connected to FlowLens trace stream")
+        async for message in ws:
+            trace = json.loads(message)
+            print(
+                f"[{trace['service_name']}] {trace['trace_id']} "
+                f"| {trace['duration_ms']:.0f}ms "
+                f"| {'ERROR' if trace['has_errors'] else 'OK'}"
+            )
+
+asyncio.run(stream_traces())
+```
+
+**JavaScript example:**
+
+```javascript
+const ws = new WebSocket("ws://localhost:8585/ws/traces");
+
+ws.onopen = () => {
+  console.log("Connected to FlowLens trace stream");
+};
+
+ws.onmessage = (event) => {
+  const trace = JSON.parse(event.data);
+  if (trace.has_errors) {
+    showAlert(`Error in ${trace.service_name}: ${trace.error_count} span(s) failed`);
+  }
+  appendTraceRow(trace);
+};
+
+ws.onclose = () => {
+  console.log("Disconnected from FlowLens");
+  setTimeout(() => reconnect(), 3000);  // auto-reconnect
+};
+```
+
+---
+
+### `GET /health`
+
+Server health check.
+
+**Response (200):**
+
+```json
+{
+  "status": "ok",
+  "version": "0.1.0"
+}
+```
+
+```bash
+curl http://localhost:8585/health
+```
+
+---
+
+## Complete End-to-End Example
+
+```python
+import asyncio
+import httpx
 from flowlens import FlowLens, trace_agent, trace_llm, trace_tool
 
-lens = FlowLens(service_name="research-bot", export_to="http", endpoint="http://localhost:8585/v1/traces/ingest")
+# 1. Initialize SDK to send traces to server
+lens = FlowLens(
+    service_name="research-bot",
+    export_to="http",
+    endpoint="http://localhost:8585/v1/traces/ingest",
+)
 
+# 2. Instrument your agent
 @trace_agent(name="researcher")
 async def run(task: str):
     plan = await think(task)
@@ -796,28 +1143,40 @@ async def run(task: str):
 async def think(task: str):
     return await llm_client.messages.create(
         model="claude-sonnet-4-20250514",
-        messages=[{"role": "user", "content": task}]
+        messages=[{"role": "user", "content": task}],
     )
 
 @trace_tool(name="search")
 async def search(query: str):
     return await search_api.query(query)
 
-# Step 2: Run agent
-await run("What is AI safety?")
+# 3. Run the agent
+asyncio.run(run("What is AI safety?"))
 
-# Step 3: Query via API
-import httpx
+# 4. Query results via REST API
+async def analyze():
+    async with httpx.AsyncClient() as client:
+        # List recent traces for this service
+        r = await client.get(
+            "http://localhost:8585/v1/traces",
+            params={"service": "research-bot", "limit": 5},
+        )
+        traces = r.json()["traces"]
 
-async with httpx.AsyncClient() as client:
-    # Get all traces for this service
-    r = await client.get("http://localhost:8585/v1/traces?service=research-bot")
-    traces = r.json()["traces"]
+        # Analyze the most recent trace
+        trace_id = traces[0]["trace_id"]
 
-    # Analyze the first trace
-    trace_id = traces[0]["trace_id"]
-    r = await client.get(f"http://localhost:8585/v1/traces/{trace_id}/dag")
-    dag = r.json()
-    print(f"Root causes: {dag['root_causes']}")
-    print(f"Patterns: {dag['patterns']}")
+        r = await client.get(f"http://localhost:8585/v1/traces/{trace_id}/dag")
+        dag = r.json()
+        print(f"Root causes: {dag['root_causes']}")
+        print(f"Patterns: {[p['pattern_type'] for p in dag['patterns']]}")
+
+        # Cost breakdown
+        r = await client.get(
+            "http://localhost:8585/v1/cost/breakdown",
+            params={"group_by": "service_name"},
+        )
+        print(r.json())
+
+asyncio.run(analyze())
 ```

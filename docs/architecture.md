@@ -8,6 +8,7 @@ Complete technical guide to FlowLens internals, design decisions, and algorithms
 ┌──────────────────────────────────────────────────────────────┐
 │                    Your Agent Code                            │
 │   @trace_agent  ·  @trace_llm  ·  @trace_tool                │
+│   @trace_chain  ·  @trace_retrieval  ·  auto_instrument()    │
 └────────────┬─────────────────────────────────┬────────────────┘
              │                                  │
     ┌────────▼────────┐              ┌─────────▼──────────┐
@@ -17,26 +18,28 @@ Complete technical guide to FlowLens internals, design decisions, and algorithms
     │ • Decorators    │              │ • Pattern Detect   │
     │ • Context Mgmt  │              │ • Root Cause ID    │
     │ • Exporters     │              │ • Cost Engine      │
-    │ (Console,       │              └────────┬───────────┘
-    │  JSONL,         │                       │
-    │  HTTP,          │              ┌────────▼───────┐
-    │  Callback)      │              │  Server Layer   │
-    └────────┬────────┘              │                 │
-             │                       │ • FastAPI REST  │
-             └──────────► export     │ • SQLite Store  │
-                                     │ • Query Engine  │
-                                     └─────────────────┘
+    │ • Auto-Instr.   │              └────────┬───────────┘
+    └────────┬────────┘                       │
+             │                      ┌────────▼────────────┐
+             └────────► export      │  Server Layer        │
+                                    │                      │
+                                    │ • FastAPI REST API   │
+                                    │ • WebSocket Hub      │
+                                    │ • SQLite Store       │
+                                    │ • Rate Limiting      │
+                                    │ • Dashboard Serving  │
+                                    └──────────────────────┘
 ```
 
 ### Three-Layer Architecture
 
-1. **SDK Layer** (`flowlens/sdk/`): Instrumentation via decorators, context management, data collection
-2. **Analysis Layer** (`flowlens/analysis/`): Post-trace processing, causal DAG construction, pattern detection
-3. **Server Layer** (`flowlens/server/`): REST API, persistence, querying
+1. **SDK Layer** (`flowlens/sdk/`): Instrumentation via decorators and auto-patching, context propagation, data collection, and export.
+2. **Analysis Layer** (`flowlens/analysis/`): Post-trace processing — causal DAG construction, error classification, pattern detection, cost estimation.
+3. **Server Layer** (`flowlens/server/`): REST API, real-time WebSocket broadcasting, persistence, querying, and static dashboard serving.
 
 ---
 
-## Data Flow: Decorator → Export
+## Data Flow: Decorator to Export
 
 ### 1. Decorator Wraps Function
 
@@ -47,44 +50,43 @@ async def my_agent():
     return result
 ```
 
-The decorator (`decorators.py`) becomes:
+The decorator (`decorators.py`) executes as:
 
 ```
 my_agent()
   → async_wrapper()
-    → FlowLens.get_instance() [get singleton]
-    → lens.start_trace() [create Trace, set current_trace]
-    → TraceContext(trace).__enter__() [enter context]
-    → lens.start_span(name="my_bot", kind=AGENT) [create Span, append to trace.spans]
-    → SpanContext(span).__enter__() [enter context, set current_span]
-    → [call original my_agent function]
+    → FlowLens.get_instance()          [get singleton]
+    → lens.start_trace()               [create Trace, register in _active_traces]
+    → TraceContext(trace).__enter__()  [set context var]
+    → lens.start_span("my_bot", AGENT) [create Span, append to trace.spans]
+    → SpanContext(span).__enter__()    [set context var, auto-link parent]
+    → [call original my_agent()]
     → span.finish(status=OK)
-    → lens.end_trace(trace)
-    → exporter.export(trace) [send to destination]
+    → lens.end_trace(trace)            [sample, callback, export]
+    → exporter.export(trace)           [send to destination]
 ```
 
 ### 2. Context Management (contextvars)
 
-**Why contextvars?**
-- Safe for async/await: Each coroutine has its own context
-- Parent-child linking: Child spans know their parent automatically
-- Zero-intrusion: User code doesn't manage context
+**Why `contextvars`?**
 
-**How it works:**
+- Each coroutine has its own context — safe for concurrent `asyncio` tasks
+- Parent-child linking happens automatically — user code never manages context
+- Standard library — zero external dependencies
+
+**Implementation:**
 
 ```python
-# In context.py
+# context.py
 _current_trace = contextvars.ContextVar('flowlens_current_trace', default=None)
 _current_span = contextvars.ContextVar('flowlens_current_span', default=None)
 
 class TraceContext:
     def __enter__(self):
-        # Stack the trace on enter
-        self._token = set_current_trace(self.trace)
+        self._token = _current_trace.set(self.trace)
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        # Pop the trace on exit (restore previous)
-        _current_trace.reset(self._token)
+    def __exit__(self, *_):
+        _current_trace.reset(self._token)  # Restore previous value
 
 class SpanContext:
     def __enter__(self):
@@ -92,59 +94,51 @@ class SpanContext:
         parent = get_current_span()
         if parent:
             self.span.parent_span_id = parent.span_id
+        self._token = _current_span.set(self.span)
 
-        # Stack this span
-        self._token = set_current_span(self.span)
+    def __exit__(self, *_):
+        _current_span.reset(self._token)
 ```
 
-**Example: Nested Trace Execution**
+**Nested trace execution:**
 
 ```
-Main async context:
-  TraceContext(trace1)
-    │
-    ├─ SpanContext(agent_span)
-    │   └─ current_span = agent_span
-    │
-    └─ SpanContext(llm_span)
-        └─ current_span = llm_span
-           parent_span_id = agent_span.span_id [auto-detected]
+Async task A:
+  TraceContext(trace1)                   ← current_trace = trace1
+    SpanContext(agent_span)              ← current_span = agent_span
+      SpanContext(llm_span)             ← current_span = llm_span
+        parent_span_id = agent_span.id  ← auto-linked
+      SpanContext(tool_span)            ← current_span = tool_span
+        parent_span_id = agent_span.id  ← auto-linked
 ```
 
-Each async task (task, coroutine) inherits contextvars from its parent task, enabling automatic parent-child linking across async boundaries.
+Async tasks inherit their parent's context variables at creation time. Concurrent tasks (e.g., `asyncio.gather`) each get independent copies of the context, preventing cross-contamination.
 
-### 3. Span Structure
+### 3. Span Lifecycle
 
 ```python
 @dataclass
 class Span:
-    # Identity
-    span_id: str              # UUID[:16]
-    trace_id: str             # Set by TraceContext
-    parent_span_id: Optional  # Set by SpanContext
-
-    # Metadata
-    name: str                 # e.g., "web_search"
-    kind: SpanKind            # AGENT, LLM, TOOL, etc.
-    status: SpanStatus        # OK, ERROR, UNSET
-
-    # Timing
-    start_time: float         # Unix timestamp
-    end_time: float           # Set on finish()
-
-    # Data
-    attributes: dict          # Custom metadata
-    events: list[SpanEvent]   # Checkpoints
-    token_usage: TokenUsage   # For LLM spans
-    error_message: Optional   # If status=ERROR
+    span_id: str              # UUID[:16] — auto-generated
+    trace_id: str             # Set when span is added to trace
+    parent_span_id: Optional  # Set by SpanContext.__enter__
+    name: str
+    kind: SpanKind
+    status: SpanStatus        # UNSET until finish() is called
+    start_time: float         # Set at construction time
+    end_time: float           # Set by finish()
+    attributes: dict
+    events: list[SpanEvent]
+    token_usage: TokenUsage   # LLM spans only
+    error_message: Optional[str]
 ```
 
-**Lifetime:**
+Lifecycle:
 
-1. Created: `lens.start_span(...)` at function entry
-2. Modified: `span.add_event(...)`, `span.set_token_usage(...)`
-3. Finished: `span.finish(status, error)` at function exit
-4. Exported: Span appended to trace, then exported via exporter
+1. Created by `lens.start_span(...)` at function entry
+2. Modified by `span.add_event(...)`, `span.set_token_usage(...)`
+3. Finished by `span.finish(status, error)` at function exit (finally block)
+4. Exported when `lens.end_trace(trace)` is called
 
 ### 4. Exporter Interface
 
@@ -154,31 +148,78 @@ class TraceExporter:
     def shutdown(self) -> None: ...
 ```
 
-**Built-in Exporters:**
+| Exporter | Use case | Config |
+|---|---|---|
+| `ConsoleExporter` | Development: colored tree output to stdout | `export_to="console"` |
+| `JSONLExporter` | File storage: one JSON object per line | `export_to="jsonl"` |
+| `HTTPExporter` | Remote server: POST to ingest endpoint | `export_to="http"` |
+| `CallbackExporter` | Testing: user-provided Python callable | Manual construction |
 
-| Exporter | Purpose | Example |
-|----------|---------|---------|
-| `ConsoleExporter` | Dev: colored output to stdout | `export_to="console"` |
-| `JSONLExporter` | File: one JSON per line | `export_to="jsonl"` |
-| `HTTPExporter` | Remote: POST to server | `export_to="http"` |
-| `CallbackExporter` | Testing: user-provided function | For unit tests |
-
-**Console Exporter Output:**
+**Console exporter output format:**
 
 ```
 [FlowLens] Trace a1b2c3d4 | 8 spans | 1847ms | 2967 tokens | $0.0190 | ERROR
-  🤖 agent_span (1847ms) [AGENT]
-  ├─ 🧠 llm_call (312ms) [LLM] [856 tok]
-  └─ 🔧 web_search (2003ms) [TOOL] ❌ timeout
+  agent research_bot (1847ms)
+  ├─ llm plan_research (312ms) [856 tok]
+  └─ tool web_search (2003ms) ERROR timeout
 ```
+
+---
+
+## Auto-Instrumentation Architecture
+
+Auto-instrumentation (`flowlens/sdk/auto_instrument.py`) works by monkey-patching the core call methods of supported LLM client libraries at runtime.
+
+### Patching Strategy
+
+```
+auto_instrument(lens)
+  → _patch_anthropic(lens)
+      → original_create = anthropic.Anthropic.messages.create
+      → anthropic.Anthropic.messages.create = _wrapped_create
+      → _wrapped_create():
+          span = lens.start_span("anthropic.messages.create", kind=LLM)
+          result = original_create(...)
+          _extract_llm_usage(span, result, model)
+          span.finish(OK)
+          return result
+
+  → _patch_openai(lens)
+      → original = openai.OpenAI.chat.completions.create
+      → openai.OpenAI.chat.completions.create = _wrapped(...)
+
+  → _patch_langchain(lens)
+      → patches BaseLLM.__call__, BaseTool.run, Chain.__call__
+```
+
+### Streaming Patch
+
+For streaming calls, the patch wraps the async generator to accumulate token counts as chunks arrive:
+
+```
+_patched_stream(messages)
+  → span = lens.start_span("anthropic.messages.stream", kind=LLM)
+  → async with original_stream(messages) as stream:
+      async for text in stream.text_stream:
+          yield text             ← pass-through, no buffering
+  → # After stream completes:
+      _extract_llm_usage(span, stream.get_final_message(), model)
+      span.finish(OK)
+```
+
+Token counts come from the final message object (Anthropic) or the `usage` chunk (OpenAI SSE), not from counting characters — ensuring accuracy.
+
+### Safe Patching
+
+Each patch stores the original method and restores it on `lens.shutdown()`, making auto-instrumentation safe for testing environments where you want to swap configurations between test runs.
 
 ---
 
 ## Causal DAG Algorithm
 
-The core analysis engine identifies root causes and error propagation patterns.
+The core analysis engine identifies root causes and maps error propagation.
 
-### Input: Trace with Error Spans
+### Input
 
 ```
 Trace:
@@ -191,268 +232,165 @@ Trace:
 
 ### Algorithm Steps
 
-#### Step 1: Build Index Structures
+**Step 1: Build index structures**
 
 ```python
-# Parent-child relationships
-parent_of = {
-    "S2": "S1",  # S2's parent is S1
-    "S3": "S1",
-    "S4": "S1",
-    "S5": "S1",
-}
-
-children_of = {
-    "S1": ["S2", "S3", "S4", "S5"],
-}
-
-# Execution order (by start_time)
-sibling_groups = {
-    "S1": ["S2", "S3", "S4", "S5"],  # All under S1, ordered by time
-}
-
-# Error set
-error_span_ids = {"S3", "S4"}  # Only ERROR status spans
+parent_of = {"S2": "S1", "S3": "S1", "S4": "S1", "S5": "S1"}
+children_of = {"S1": ["S2", "S3", "S4", "S5"]}
+sibling_groups = {"S1": ["S2", "S3", "S4", "S5"]}  # Ordered by start_time
+error_span_ids = {"S3", "S4"}
 ```
 
-#### Step 2: Classify Errors (ROOT_CAUSE vs CASCADED)
+**Step 2: Classify each error span**
 
 For each error span, check:
+1. Does it have an error ancestor? (walk up parent chain)
+2. Does it have an error predecessor? (earlier sibling in execution order with ERROR status)
 
-1. **Has error ancestor?** Walk up parent chain, looking for ERROR status
-2. **Has error predecessor?** In sibling order, is there an earlier ERROR?
-
-Classification:
-
-- **ROOT_CAUSE**: No error ancestor AND no error predecessor
-- **CASCADED**: Has error ancestor OR error predecessor
-- **INDEPENDENT**: Error but no causal relationship to other errors
-
-**Example:**
+Classification rules:
+- `ROOT_CAUSE`: No error ancestor AND no error predecessor
+- `CASCADED`: Has error ancestor OR error predecessor
+- `INDEPENDENT`: Error with no relationship to other errors
 
 ```
-S3 (ERROR): parent=S1 (OK), no earlier ERROR sibling
-  → ROOT_CAUSE ✓
-
-S4 (ERROR): parent=S1 (OK), earlier ERROR sibling=S3
-  → CASCADED (predecessor=S3) ✓
+S3 (ERROR): parent=S1 (OK), no earlier ERROR sibling → ROOT_CAUSE
+S4 (ERROR): parent=S1 (OK), earlier ERROR sibling=S3 → CASCADED
 ```
 
-#### Step 3: Build Causal Edges
-
-Two types of edges:
-
-1. **Parent → Child**: Error parent to error child
-2. **Sibling → Sibling**: Error to next error in execution order
-
-**Code:**
+**Step 3: Build causal edges**
 
 ```python
+# Edge types:
+# 1. Parent → child (error parent → error child)
+# 2. Sibling → sibling (earlier error → next error in time order)
+
 for span_id in error_span_ids:
-    # Parent-child edge
     parent = parent_of.get(span_id)
     if parent and parent in error_span_ids:
         edges.append(CausalEdge(parent, span_id, "caused_by"))
 
-    # Sibling edge
-    siblings = sibling_groups[parent_of.get(span_id)]
+    siblings = sibling_groups.get(parent_of.get(span_id), [])
     idx = siblings.index(span_id)
-    if idx > 0 and siblings[idx-1] in error_span_ids:
-        edges.append(CausalEdge(siblings[idx-1], span_id, "preceded_by"))
+    if idx > 0 and siblings[idx - 1] in error_span_ids:
+        edges.append(CausalEdge(siblings[idx - 1], span_id, "preceded_by"))
 ```
 
-#### Step 4: Output CausalDAG
+**Step 4: Compute cascade depth**
+
+BFS from each root cause following edges, recording the maximum depth reached.
+
+**Output:**
 
 ```python
 CausalDAG(
     trace_id="t1",
     nodes=[
-        CausalNode(span_id="S3", error_role=ROOT_CAUSE, error_message="timeout"),
-        CausalNode(span_id="S4", error_role=CASCADED, error_message="invalid input"),
+        CausalNode(span_id="S3", error_role=ROOT_CAUSE),
+        CausalNode(span_id="S4", error_role=CASCADED),
     ],
-    edges=[
-        CausalEdge(source="S3", target="S4", relation="preceded_by"),
-    ],
+    edges=[CausalEdge("S3", "S4", "preceded_by")],
     root_causes=["S3"],
     cascade_depth=1,
 )
-```
-
-### Visual Output
-
-```
-Trace t1:
-  Nodes:
-    S1 [AGENT, OK]
-    S2 [LLM, OK]
-    S3 [TOOL, ERROR] ← ROOT_CAUSE
-    S4 [TOOL, ERROR] ← CASCADED
-    S5 [TOOL, OK]
-
-  Edges:
-    S3 ──preceded_by──> S4
-
-  Root Causes: [S3]
-  Cascade Depth: 1
 ```
 
 ---
 
 ## Pattern Detection Logic
 
-Five detectors run over trace + DAG to identify anti-patterns.
+Five detectors run sequentially after `build_causal_dag()` completes.
 
 ### 1. Retry Storm
 
-**Definition:** Same tool called ≥5 times, likely due to flaky API or bad retry logic.
-
-**Detection:**
+**Trigger:** Same tool name appears 5+ times in the trace.
 
 ```python
-tool_spans = [s for s in trace.spans if s.kind == TOOL]
-name_counts = Counter(s.name for s in tool_spans)
-
-for name, count in name_counts.items():
+tool_counts = Counter(s.name for s in spans if s.kind == TOOL)
+for name, count in tool_counts.items():
     if count >= 5:
-        error_rate = sum(1 for s in tool_spans if s.name == name and s.status == ERROR) / count
+        error_rate = errors_with_name / count
         severity = "critical" if error_rate > 0.8 else "warning"
-        → DetectedPattern(RETRY_STORM, severity, description=f"Tool '{name}' called {count} times")
+        yield DetectedPattern(RETRY_STORM, severity, ...)
 ```
 
 ### 2. Infinite Loop
 
-**Definition:** Repeating sequence of tool calls (e.g., A→B→A→B→A→B, 3+ times).
-
-**Detection:**
+**Trigger:** A sequence of 2 or 3 tool names repeats 3+ consecutive times.
 
 ```python
-tool_sequence = [s.name for s in sorted(trace.spans) if s.kind == TOOL]
+tool_sequence = [s.name for s in sorted_tool_spans]
 # e.g., ["search", "fetch", "search", "fetch", "search", "fetch"]
 
-for cycle_len in (2, 3):  # Try 2-step and 3-step cycles
+for cycle_len in (2, 3):
     for start in range(len(tool_sequence)):
-        cycle = tool_sequence[start:start+cycle_len]
-        repeat_count = 0
-
-        # Count how many times cycle repeats starting at 'start'
-        pos = start
-        while pos + cycle_len <= len(tool_sequence):
-            if tool_sequence[pos:pos+cycle_len] == cycle:
-                repeat_count += 1
-                pos += cycle_len
-            else:
-                break
-
+        cycle = tool_sequence[start:start + cycle_len]
+        repeat_count = count_consecutive_repetitions(tool_sequence, start, cycle)
         if repeat_count >= 3:
-            → DetectedPattern(INFINITE_LOOP, "critical", description=f"Cycle {cycle} repeated {repeat_count} times")
+            yield DetectedPattern(INFINITE_LOOP, "critical", ...)
 ```
 
 ### 3. Context Overflow
 
-**Definition:** LLM token usage approaching or exceeding model's context window.
-
-**Detection:**
+**Trigger:** Token usage >= 90% of the model's context window.
 
 ```python
-for span in trace.spans:
-    if span.kind == LLM and span.token_usage:
-        model = span.attributes.get("gen_ai.request.model", "")
-        limit = _MODEL_CONTEXT_LIMITS.get(model, DEFAULT_LIMIT)
+MODEL_LIMITS = {
+    "claude-*": 200_000,
+    "gpt-4o": 128_000,
+    "gemini-2.5-pro": 1_000_000,
+    "deepseek-*": 64_000,
+}
 
-        usage_ratio = span.token_usage.total_tokens / limit
-
-        if usage_ratio >= 0.9:
-            severity = "critical" if usage_ratio >= 1.0 else "warning"
-            → DetectedPattern(CONTEXT_OVERFLOW, severity,
-                description=f"Token usage {usage_ratio:.0%} of context limit")
+for span in llm_spans:
+    limit = lookup_model_limit(span.attributes["gen_ai.request.model"])
+    ratio = span.token_usage.total_tokens / limit
+    if ratio >= 0.9:
+        severity = "critical" if ratio >= 1.0 else "warning"
+        yield DetectedPattern(CONTEXT_OVERFLOW, severity, ...)
 ```
-
-**Built-in Context Limits:**
-
-| Model | Limit |
-|-------|-------|
-| Claude Opus/Sonnet/Haiku | 200,000 |
-| GPT-4o | 128,000 |
-| Gemini 2.5 Pro | 1,000,000 |
-| DeepSeek V3/R1 | 64,000 |
 
 ### 4. Timeout Cascade
 
-**Definition:** Timeout causing downstream errors (found via DAG traversal).
-
-**Detection:**
+**Trigger:** A span with "timeout" in its error message has downstream error spans in the DAG.
 
 ```python
-timeout_spans = [s for s in trace.spans
-                 if s.status == ERROR and "timeout" in s.error_message.lower()]
-
+timeout_spans = [s for s in spans if "timeout" in (s.error_message or "").lower()]
 for ts in timeout_spans:
-    cascaded = _find_downstream_errors(ts.span_id, dag)
-
-    if cascaded:
-        → DetectedPattern(TIMEOUT_CASCADE, "critical",
-            description=f"'{ts.name}' timeout caused {len(cascaded)} downstream failures",
-            involved_spans=[ts.span_id] + cascaded)
-```
-
-**Helper: Find Downstream Errors**
-
-```python
-def _find_downstream_errors(span_id: str, dag: CausalDAG) -> list[str]:
-    """BFS to find all error children in DAG"""
-    children = {}
-    for edge in dag.edges:
-        children.setdefault(edge.source_id, []).append(edge.target_id)
-
-    result = []
-    queue = children.get(span_id, [])
-    visited = set()
-
-    while queue:
-        nid = queue.pop(0)
-        if nid in visited:
-            continue
-        visited.add(nid)
-        result.append(nid)
-        queue.extend(children.get(nid, []))
-
-    return result
+    downstream = bfs_error_descendants(ts.span_id, dag)
+    if downstream:
+        yield DetectedPattern(TIMEOUT_CASCADE, "critical", ...)
 ```
 
 ### 5. Empty Response
 
-**Definition:** LLM returns 0 output tokens (suspicious behavior).
-
-**Detection:**
+**Trigger:** An LLM span completes successfully (status=OK) but reports 0 output tokens.
 
 ```python
-for span in trace.spans:
-    if (span.kind == LLM
-        and span.token_usage
-        and span.token_usage.output_tokens == 0
-        and span.status == OK):
-        → DetectedPattern(EMPTY_RESPONSE, "warning",
-            description=f"LLM '{span.name}' returned 0 output tokens")
+for span in llm_spans:
+    if span.status == OK and span.token_usage and span.token_usage.output_tokens == 0:
+        yield DetectedPattern(EMPTY_RESPONSE, "warning", ...)
 ```
 
 ---
 
 ## Cost Estimation
 
-Token-based cost calculation with 16+ model pricing tables.
-
-### Pricing Table (2026 Rates)
+### Pricing Table
 
 ```python
 _MODEL_PRICING: dict[str, tuple[float, float]] = {
-    # (input_per_1M, output_per_1M)
-    "claude-opus-4-20250514": (15.0, 75.0),
-    "claude-sonnet-4-20250514": (3.0, 15.0),
-    "gpt-4o": (2.5, 10.0),
-    "gpt-4o-mini": (0.15, 0.6),
-    "gemini-2.5-pro": (1.25, 10.0),
-    "deepseek-v3": (0.27, 1.1),
-    # ... 10+ more models
+    # Format: (input_per_1M_tokens, output_per_1M_tokens) in USD
+    "claude-opus-4-20250514":    (15.0, 75.0),
+    "claude-sonnet-4-20250514":  (3.0,  15.0),
+    "claude-haiku-3-5-20251022": (0.8,  4.0),
+    "gpt-4o":                    (2.5,  10.0),
+    "gpt-4o-mini":               (0.15, 0.6),
+    "gpt-4.1":                   (2.0,  8.0),
+    "gemini-2.5-pro":            (1.25, 10.0),
+    "gemini-2.5-flash":          (0.075, 0.3),
+    "deepseek-v3":               (0.27, 1.1),
+    "deepseek-r1":               (0.55, 2.19),
+    # ... 6+ more models
 }
 
 _DEFAULT_PRICING = (3.0, 15.0)  # Fallback for unknown models
@@ -460,12 +398,13 @@ _DEFAULT_PRICING = (3.0, 15.0)  # Fallback for unknown models
 
 ### Fuzzy Model Matching
 
+The cost estimator uses substring matching to handle model version strings gracefully:
+
 ```python
 def _estimate_cost(model: str, input_tokens: int, output_tokens: int) -> dict:
-    pricing = _DEFAULT_PRICING
     model_lower = model.lower()
+    pricing = _DEFAULT_PRICING
 
-    # Try exact substring match
     for key in _MODEL_PRICING:
         if key in model_lower or model_lower in key:
             pricing = _MODEL_PRICING[key]
@@ -473,187 +412,274 @@ def _estimate_cost(model: str, input_tokens: int, output_tokens: int) -> dict:
 
     input_cost = (input_tokens / 1_000_000) * pricing[0]
     output_cost = (output_tokens / 1_000_000) * pricing[1]
-
-    return {
-        "input_cost_usd": round(input_cost, 6),
-        "output_cost_usd": round(output_cost, 6),
-        "total_cost_usd": round(input_cost + output_cost, 6),
-    }
-```
-
-**Examples:**
-
-```
-_estimate_cost("claude-sonnet-4-20250514", 1_000_000, 1_000_000)
-→ {"input_cost_usd": 3.0, "output_cost_usd": 15.0, "total_cost_usd": 18.0}
-
-_estimate_cost("gpt-4o-mini", 1_000_000, 1_000_000)
-→ {"input_cost_usd": 0.15, "output_cost_usd": 0.6, "total_cost_usd": 0.75}
-
-_estimate_cost("unknown-model-xyz", 1_000_000, 1_000_000)
-→ {"input_cost_usd": 3.0, "output_cost_usd": 15.0, "total_cost_usd": 18.0}  # Default
+    return {"total_cost_usd": round(input_cost + output_cost, 6), ...}
 ```
 
 ---
 
-## Server Storage & Querying
+## Server Storage and Querying
 
 ### Database Schema (SQLite)
 
 ```sql
--- Main traces table
 CREATE TABLE traces (
-    trace_id TEXT PRIMARY KEY,
+    trace_id    TEXT PRIMARY KEY,
     service_name TEXT,
-    start_time REAL,
-    end_time REAL,
+    start_time  REAL,
+    end_time    REAL,
     duration_ms REAL,
     total_tokens INTEGER,
     total_cost_usd REAL,
-    has_errors BOOLEAN,
+    has_errors  BOOLEAN,
     error_count INTEGER,
-    span_count INTEGER,
-    metadata TEXT,  -- JSON
-    spans_json TEXT, -- JSON array of spans
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    span_count  INTEGER,
+    metadata    TEXT,     -- JSON blob
+    spans_json  TEXT,     -- JSON array of all spans
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Index for fast queries
-CREATE INDEX idx_service ON traces(service_name);
-CREATE INDEX idx_has_errors ON traces(has_errors);
-CREATE INDEX idx_created ON traces(created_at DESC);
+CREATE INDEX idx_service   ON traces(service_name);
+CREATE INDEX idx_errors    ON traces(has_errors);
+CREATE INDEX idx_created   ON traces(created_at DESC);
+CREATE INDEX idx_cost      ON traces(total_cost_usd DESC);
 ```
 
 ### Query Operations
 
 ```python
 class TraceStore:
-    def save_trace(self, trace_data: dict) -> None:
-        """Insert or upsert trace"""
-
-    def get_trace(self, trace_id: str) -> Optional[dict]:
-        """Fetch single trace with all spans"""
-
-    def list_traces(self, limit=50, offset=0, service_name=None, has_errors=None) -> list[dict]:
-        """Paginated query with filtering"""
-
-    def get_cost_breakdown(self, group_by: str = "service_name") -> list[dict]:
-        """Aggregate cost by dimension"""
-
-    def get_stats(self) -> dict:
-        """Aggregate statistics"""
+    def save_trace(self, trace_data: dict) -> None: ...
+    def get_trace(self, trace_id: str) -> Optional[dict]: ...
+    def delete_trace(self, trace_id: str) -> bool: ...
+    def list_traces(self, limit, offset, service_name, has_errors) -> list[dict]: ...
+    def search_traces(self, query: str, limit, offset, service_name) -> list[dict]: ...
+    def get_error_traces(self, limit, offset, service_name) -> list[dict]: ...
+    def cleanup_old_traces(self, older_than_days: int) -> int: ...
+    def get_cost_breakdown(self, group_by: str) -> list[dict]: ...
+    def get_cost_trends(self, interval: str, days: int, service_name) -> dict: ...
+    def get_pattern_summary(self, days: int, service_name) -> dict: ...
+    def get_stats(self) -> dict: ...
 ```
 
-### Example: Cost Breakdown Query
+### Full-Text Search Implementation
+
+Search uses SQLite's `LIKE` operator across multiple text columns:
+
+```sql
+SELECT trace_id, service_name, duration_ms, has_errors, spans_json
+FROM traces
+WHERE (
+    trace_id LIKE '%:query:%'
+    OR service_name LIKE '%:query:%'
+    OR spans_json LIKE '%:query:%'
+)
+AND (:service IS NULL OR service_name = :service)
+ORDER BY created_at DESC
+LIMIT :limit OFFSET :offset;
+```
+
+Post-query, the server inspects `spans_json` to identify which span names matched, returning them in the `matched_spans` field.
+
+### Cost Trends Query
 
 ```sql
 SELECT
-    service_name as dimension,
+    strftime('%Y-%m-%d', datetime(created_at)) as date,
     SUM(total_cost_usd) as total_cost_usd,
     SUM(total_tokens) as total_tokens,
-    COUNT(*) as span_count
+    COUNT(*) as trace_count
 FROM traces
-GROUP BY service_name
-ORDER BY total_cost_usd DESC;
+WHERE created_at >= datetime('now', '-:days days')
+  AND (:service IS NULL OR service_name = :service)
+GROUP BY date
+ORDER BY date DESC;
 ```
 
-**Result:**
+---
+
+## WebSocket Connection Management
+
+The WebSocket hub (`/ws/traces`) maintains a set of connected clients and broadcasts to all of them whenever a trace is ingested.
+
+### Architecture
 
 ```
-[
-  {"dimension": "research-bot", "total_cost_usd": 2.50, "total_tokens": 100000, "span_count": 200},
-  {"dimension": "qa-bot", "total_cost_usd": 1.20, "total_tokens": 50000, "span_count": 100},
-]
+                ┌─────────────────────────────────────┐
+                │          WebSocket Hub               │
+                │                                      │
+Ingest POST ───►│  broadcast(trace_json)               │
+                │      │                               │
+                │      ├──► client_1.send_text(...)    │
+                │      ├──► client_2.send_text(...)    │
+                │      └──► client_N.send_text(...)    │
+                │                                      │
+                │  Connected set: {ws_1, ws_2, ...}    │
+                └─────────────────────────────────────┘
 ```
+
+### Connection Lifecycle
+
+```python
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: set[WebSocket] = set()
+
+    async def connect(self, ws: WebSocket):
+        await ws.accept()
+        self.active_connections.add(ws)
+
+    def disconnect(self, ws: WebSocket):
+        self.active_connections.discard(ws)
+
+    async def broadcast(self, message: str):
+        dead = set()
+        for ws in self.active_connections:
+            try:
+                await ws.send_text(message)
+            except Exception:
+                dead.add(ws)
+        self.active_connections -= dead  # Remove stale connections
+```
+
+### Integration with Ingest
+
+After `store.save_trace(data)` succeeds in the `/v1/traces/ingest` handler, the server calls `manager.broadcast(json.dumps(data))`. This happens in the same request handler, so WebSocket delivery is synchronous with storage — clients always receive a trace that is already queryable via REST.
+
+### Concurrency Model
+
+The WebSocket hub is a single in-process object shared across all FastAPI route handlers. Because FastAPI runs on a single-threaded async event loop (Uvicorn), the `active_connections` set is accessed only from coroutines on the same event loop — no locking is required.
+
+If you scale to multiple Uvicorn worker processes, add a Redis Pub/Sub layer between the ingest handler and the WebSocket hub.
+
+---
+
+## Rate Limiting Design
+
+Rate limiting protects the ingest endpoint from trace floods in production.
+
+### Implementation
+
+FlowLens uses a token-bucket algorithm per source IP, enforced via a FastAPI middleware:
+
+```python
+class RateLimiter:
+    def __init__(self, rate: int = 100, per: float = 1.0):
+        self.rate = rate            # Max requests per window
+        self.per = per              # Window size in seconds
+        self._buckets: dict[str, list[float]] = {}  # IP → list of timestamps
+
+    def is_allowed(self, key: str) -> bool:
+        now = time.time()
+        window_start = now - self.per
+        timestamps = self._buckets.get(key, [])
+
+        # Remove timestamps outside window
+        timestamps = [t for t in timestamps if t > window_start]
+        if len(timestamps) >= self.rate:
+            return False
+        timestamps.append(now)
+        self._buckets[key] = timestamps
+        return True
+```
+
+**Default limits:**
+
+| Endpoint | Limit |
+|---|---|
+| `POST /v1/traces/ingest` | 200 requests/second per IP |
+| `GET /v1/traces/*` | 100 requests/second per IP |
+| `WS /ws/traces` | 10 concurrent connections per IP |
+
+**Response when rate limit exceeded (429):**
+
+```json
+{
+  "detail": "Rate limit exceeded. Retry after 1 second.",
+  "retry_after": 1
+}
+```
+
+---
+
+## Dashboard Serving
+
+The FlowLens server serves the interactive dashboard as a static HTML file from the `examples/` directory, accessible at `http://localhost:8585`.
+
+### Static File Mounting
+
+```python
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+# Mount static assets
+app.mount("/static", StaticFiles(directory="examples"), name="static")
+
+@app.get("/")
+async def serve_dashboard():
+    return FileResponse("examples/demo_dashboard.html")
+```
+
+### Dashboard Architecture
+
+The dashboard (`demo_dashboard.html`) is a self-contained single-page application that:
+
+1. Polls `GET /v1/traces` on page load to populate the trace list
+2. Opens a WebSocket to `/ws/traces` for real-time updates
+3. Renders span trees using a recursive HTML/CSS tree structure
+4. Renders the causal DAG using a canvas-based force-directed graph
+5. Displays cost breakdowns via `GET /v1/cost/breakdown`
+
+No JavaScript bundler or build step is required — the dashboard is a single file using vanilla JS and inline CSS.
 
 ---
 
 ## Performance Characteristics
 
-### Tracing Overhead
+### SDK Overhead
 
-- **Per-span**: ~0.1ms (context operations + list append)
-- **Per-trace**: ~1ms (exporter serialization)
-- **Concurrent**: Linear with span count, no locks (async-safe)
+| Operation | Cost |
+|---|---|
+| Per-span context operations | ~0.1ms |
+| Per-trace export (console/JSONL) | ~1ms |
+| Per-trace export (HTTP) | ~5ms network round-trip |
+| Concurrent traces | Linear with span count, no locks needed |
 
 ### Memory
 
-- **Trace**: ~50 KB per 100 spans (JSON serialization)
-- **Context stack**: ~100 bytes per ContextVar (constant, not per-span)
-- **DAG analysis**: O(n) where n = span count
+| Object | Size |
+|---|---|
+| Per trace (100 spans) | ~50 KB (JSON serialization) |
+| Context variable | ~100 bytes (constant, not per-span) |
+| WebSocket connection | ~4 KB per active connection |
 
 ### Database
 
-- **Insert**: ~10ms per trace (SQLite)
-- **Query**: ~50ms per 1000 traces (indexed)
-- **Disk**: ~100 KB per 10 traces
+| Operation | Latency |
+|---|---|
+| Insert trace | ~10ms (SQLite WAL mode) |
+| Query 1,000 traces (indexed) | ~50ms |
+| Full-text search (LIKE scan) | ~200ms per 10,000 traces |
+| Cost breakdown aggregate | ~30ms per 10,000 traces |
 
 ---
 
 ## Design Decisions
 
-### Why contextvars?
+### Why `contextvars` instead of thread-local storage?
 
-✅ Async-safe (each coroutine has isolated context)
-✅ Zero-intrusion (automatic parent-child linking)
-✅ Standard library (no external deps)
+Thread-local storage (`threading.local`) breaks with `asyncio` because many coroutines share the same OS thread. `contextvars.ContextVar` gives each coroutine (and each async task spawned from it) an isolated copy of the variable, enabling correct parent-child span linking without any manual plumbing.
 
-Alternative: Thread-local storage → broken with asyncio
+### Why SQLite instead of PostgreSQL?
 
-### Why SQLite?
+SQLite requires zero configuration — `pip install flowlens` and run. This is critical for a developer tool where the first-run experience matters. SQLite handles ~100K traces/day on a single machine comfortably. When you need more, swap `TraceStore` for a PostgreSQL-backed implementation; the interface contract does not change.
 
-✅ Zero-config (no database server)
-✅ ACID (safe concurrent reads)
-✅ Good for <1M traces
+### Why a single HTML file for the dashboard?
 
-Limitation: Not suitable for >10M traces (use PostgreSQL)
+Avoiding a build step keeps the project dependency-free for contributors and makes it trivial to embed the dashboard in environments without npm. The dashboard is a debugging tool, not a production application — simplicity wins over framework sophistication.
 
-### Why Pydantic?
+### Why broadcast on ingest rather than polling?
 
-✅ Runtime validation (reject malformed traces)
-✅ Auto-generated OpenAPI docs
-✅ Performance (Rust-compiled validators in v2)
-
-### Why Console + JSONL exporters?
-
-✅ Console: instant feedback during development
-✅ JSONL: import/export, human-readable, append-only
-
----
-
-## Integration Points
-
-### With OpenTelemetry
-
-FlowLens uses OTEL GenAI semantic conventions:
-
-```python
-# Automatic OTEL attributes
-span.attributes = {
-    "gen_ai.system": "anthropic",  # LLM provider
-    "gen_ai.request.model": "claude-sonnet-4",
-    "gen_ai.usage.input_tokens": 1000,
-    "gen_ai.usage.output_tokens": 500,
-    "gen_ai.response.model": "claude-sonnet-4",
-}
-```
-
-Can export to OTEL collectors (Jaeger, Grafana Tempo, etc.) via custom exporter.
-
-### With LangChain / CrewAI / AutoGen
-
-No direct integration yet. Usage pattern:
-
-```python
-from flowlens import FlowLens, trace_agent, trace_tool
-
-lens = FlowLens()
-
-@trace_agent
-async def run_langchain_agent():
-    # LangChain code here
-    return agent.run(...)
-```
+Polling introduces 1–30 second latency depending on the interval. WebSocket broadcast delivers traces to the dashboard in under 100ms after ingest, making the dashboard feel genuinely live during debugging sessions. The implementation cost is a single `asyncio` broadcast call per ingest request.
 
 ---
 
@@ -662,20 +688,38 @@ async def run_langchain_agent():
 ### Single-Process (Development)
 
 ```
-Client Code → FlowLens SDK → Console/JSONL Exporter → stdout / disk
+Agent Code → FlowLens SDK → Console/JSONL Exporter → stdout / disk
 ```
 
-### Multi-Process (Production)
+### Multi-Service (Production)
 
 ```
-Client 1 → FlowLens SDK \
-Client 2 → FlowLens SDK  → HTTP Exporter → Server → SQLite → Dashboard
-Client 3 → FlowLens SDK /
+Service A → FlowLens SDK \
+Service B → FlowLens SDK  ──► HTTP Exporter ──► FlowLens Server ──► SQLite
+Service C → FlowLens SDK /                             │
+                                               WebSocket Hub
+                                                       │
+                                              Dashboard / Alerts
+```
+
+### Docker (Recommended for Production)
+
+```
+             ┌─────────────────────────────────┐
+             │  Docker Container: flowlens      │
+             │                                 │
+Agent ───────┤► POST /v1/traces/ingest         │
+             │         │                       │
+             │     SQLite DB (/data/flowlens.db)│
+             │         │                       │
+Browser ─────┤◄ GET / (Dashboard)              │
+             │         │                       │
+WS Client ───┤◄► WS /ws/traces                 │
+             └─────────────────────────────────┘
 ```
 
 ### Scaling
 
-- **Traces/day**: 100K → Single machine (10ms insert)
-- **Traces/day**: 1M → Consider PostgreSQL + read replicas
-- **Dashboard**: Separate frontend (React/Vue) queries `/v1/traces` API
-
+- **Up to 100K traces/day**: Single container, default SQLite
+- **100K–1M traces/day**: Multiple Uvicorn workers + Redis Pub/Sub for WebSocket broadcast
+- **Beyond 1M traces/day**: Replace SQLite with PostgreSQL, consider ClickHouse for analytics queries
