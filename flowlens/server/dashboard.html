@@ -671,7 +671,7 @@
       <!-- Agent Network Graph -->
       <div class="glass rounded-xl p-4 mb-6">
         <h3 class="text-xs font-medium text-slate-400 mb-2">Agent Network</h3>
-        <div id="overview-agent-graph" style="width:100%;height:450px;position:relative;background:#080c18;border-radius:16px;overflow:hidden;"></div>
+        <div id="overview-agent-graph" style="width:100%;height:400px;position:relative;background:#fafaf8;border-radius:16px;overflow:hidden;border:1px solid #e5e7eb;"></div>
       </div>
 
       <!-- Summary Metrics Row -->
@@ -1623,18 +1623,12 @@ function handleLiveTraceUpdate(traceData) {
     });
   }
 
-  // Full refresh based on current view
+  // Lightweight refresh on WebSocket event — only update stats + traces, skip heavy calls
   if (currentView === 'overview') {
     loadStats();
     loadRecentTraces();
-    if (typeof loadAgentActivity === 'function') loadAgentActivity();
-    if (typeof loadActivityTimeline === 'function') loadActivityTimeline();
-    if (typeof loadTrendChart === 'function') loadTrendChart(_trendHours || 24);
-    if (typeof loadOverviewAgents === 'function') loadOverviewAgents();
   } else if (currentView === 'traces') {
     loadTraces();
-  } else if (currentView === 'agents') {
-    if (typeof loadAgentData === 'function') loadAgentData();
   }
 }
 
@@ -2442,7 +2436,7 @@ async function loadOverviewGraph() {
 
     // Defs: gradients, filters, animations
     svg += `<defs>
-      <radialGradient id="bg-grad"><stop offset="0%" stop-color="#111827"/><stop offset="100%" stop-color="#080c18"/></radialGradient>
+      <radialGradient id="bg-grad"><stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#f8fafc"/></radialGradient>
       <filter id="glow"><feGaussianBlur stdDeviation="4" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
       <filter id="glow-strong"><feGaussianBlur stdDeviation="8" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
     </defs>`;
@@ -2453,7 +2447,7 @@ async function loadOverviewGraph() {
     // Grid dots background
     for (let gx = 30; gx < W; gx += 40) {
       for (let gy = 30; gy < H; gy += 40) {
-        svg += `<circle cx="${gx}" cy="${gy}" r="0.5" fill="#1e293b" opacity="0.3"/>`;
+        svg += `<circle cx="${gx}" cy="${gy}" r="0.5" fill="#cbd5e1" opacity="0.3"/>`;
       }
     }
 
@@ -2519,7 +2513,7 @@ async function loadOverviewGraph() {
       svg += `<circle cx="${pos.x - size*0.25}" cy="${pos.y - size*0.25}" r="${size*0.35}" fill="white" opacity="0.2"/>`;
 
       // Label
-      svg += `<text x="${pos.x}" y="${pos.y + size + 18}" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="600" font-family="Inter,system-ui,sans-serif">${escHtml(profile.name || node.id)}</text>`;
+      svg += `<text x="${pos.x}" y="${pos.y + size + 18}" text-anchor="middle" fill="#1e293b" font-size="12" font-weight="600" font-family="Inter,system-ui,sans-serif">${escHtml(profile.name || node.id)}</text>`;
       svg += `<text x="${pos.x}" y="${pos.y + size + 32}" text-anchor="middle" fill="#64748b" font-size="10" font-family="Inter,system-ui,sans-serif">${node.trace_count || 0} traces \u00b7 $${(node.cost || 0).toFixed(1)}</text>`;
     });
 
@@ -5142,9 +5136,10 @@ function startAutoRefresh() {
   autoRefreshTimer = setInterval(async () => {
     const ok = await healthCheck();
     if (!ok) return;
-    if (currentView === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); loadActivityTimeline(); loadTrendChart(_trendHours || 24); loadOverviewCharts(); loadOverviewAgents(); }
+    // Only refresh lightweight data — skip heavy charts/agents/graph to avoid lag
+    if (currentView === 'overview') { loadStats(); loadRecentTraces(); }
     else if (currentView === 'traces') { loadTraces(); }
-  }, 15000);
+  }, 30000); // 30s instead of 15s
 }
 
 // =========================================================================
