@@ -584,6 +584,10 @@
           <h3 class="text-sm font-semibold text-white mb-4">Cost by Operation</h3>
           <div class="h-72"><canvas id="chart-cost-name"></canvas></div>
         </div>
+        <div class="glass rounded-xl p-4 lg:col-span-2">
+          <h3 class="text-xs font-medium text-slate-400 mb-3">Cost by Agent</h3>
+          <canvas id="chart-cost-agent" height="200"></canvas>
+        </div>
       </div>
     </div>
 
@@ -1010,6 +1014,7 @@ function handleLiveTraceUpdate(traceData) {
     loadStats();
     loadRecentTraces();
     if (typeof loadAgentActivity === 'function') loadAgentActivity();
+    if (typeof loadActivityTimeline === 'function') loadActivityTimeline();
   } else if (currentView === 'traces') {
     loadTraces();
   } else if (currentView === 'agents') {
@@ -1039,7 +1044,7 @@ function switchView(view) {
   if (tabBtn) { tabBtn.classList.remove('tab-inactive'); tabBtn.classList.add('tab-active'); }
 
   // Load data for the view
-  if (view === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); }
+  if (view === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); loadActivityTimeline(); }
   else if (view === 'traces') { loadTraces(); }
   else if (view === 'cost') { loadCostData(); }
   else if (view === 'patterns') { loadAllPatterns(); }
@@ -1130,13 +1135,15 @@ async function loadAgentData() {
         : '<span class="text-[10px] text-slate-600">no recent tools</span>';
       const opsLastHour = activity ? activity.trace_count_1h : 0;
 
-      const agentProfile = getAgentProfile(a.agent);
+      const p = getAgentProfile(a.agent);
+      const initial = (p.name || a.agent)[0].toUpperCase();
+      const avatarHtml = `<div class="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style="background:${p.color || '#6366f1'}">${initial}</div>`;
       return `<div class="glass rounded-xl p-5 cursor-pointer hover:border-indigo-500/40 border border-transparent transition" onclick="filterTracesByAgent('${escHtml(a.agent)}')">
         <div class="flex items-center gap-2.5 mb-3">
-          ${renderAgentAvatar(a.agent, 'lg')}
+          ${avatarHtml}
           <div class="min-w-0 flex-1">
-            <div class="text-base font-semibold text-white truncate" title="${escHtml(a.agent)}">${escHtml(agentProfile.name)}</div>
-            <div class="text-[10px] text-slate-500">${escHtml(agentProfile.role)}</div>
+            <div class="text-base font-semibold text-white truncate" title="${escHtml(a.agent)}">${escHtml(p.name || a.agent)}</div>
+            <div class="text-[10px] text-slate-500">${escHtml(p.role || 'Agent')}</div>
           </div>
           <div class="flex items-center gap-1.5">
             <span class="w-2 h-2 rounded-full ${statusColor} flex-shrink-0"></span>
@@ -2188,23 +2195,140 @@ function renderDAGPatterns(patterns) {
 }
 
 // =========================================================================
+// Activity Timeline
+// =========================================================================
+async function loadActivityTimeline() {
+  try {
+    const data = await apiFetch('/v1/activity/stream?limit=30');
+    const container = document.getElementById('activity-timeline');
+    const countEl = document.getElementById('timeline-count');
+
+    if (!data.events || data.events.length === 0) {
+      container.innerHTML = '<p class="p-4 text-xs text-slate-500">No activity yet</p>';
+      countEl.textContent = '';
+      return;
+    }
+
+    countEl.textContent = `${data.events.length} events`;
+
+    // Agent color mapping (must match AGENT_PROFILES if available)
+    const colors = {
+      'vr-alpha': '#3b82f6', 'vr-beta': '#10b981', 'vr-gamma': '#8b5cf6',
+      'vr-lead': '#f59e0b', 'vr-scribe': '#6b7280', 'main': '#6366f1',
+      'Explore': '#06b6d4'
+    };
+
+    container.innerHTML = data.events.map(e => {
+      const color = colors[e.agent] || '#9ca3af';
+      const isError = e.status === 'error';
+      const statusIcon = isError
+        ? '<span class="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0"></span>'
+        : '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0"></span>';
+      const dur = e.duration_ms ? `${Math.round(e.duration_ms)}ms` : '';
+      const timeAgo = typeof formatTimeAgo === 'function' ? formatTimeAgo(e.timestamp) : '--';
+      const errorText = isError && e.error ? `<div class="text-[9px] text-red-400 truncate mt-0.5">${escHtml(e.error.substring(0, 80))}</div>` : '';
+
+      return `
+        <div class="flex items-start gap-2.5 px-4 py-2.5 hover:bg-white/[0.02] transition cursor-pointer" onclick="openTrace('${escHtml(e.trace_id || '')}')">
+          <div class="w-0.5 h-full min-h-[24px] rounded-full flex-shrink-0 mt-1" style="background:${color}"></div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-1.5">
+              ${statusIcon}
+              <span class="text-[10px] font-medium" style="color:${color}">${escHtml(e.agent)}</span>
+              <span class="text-[10px] text-slate-500">→</span>
+              <span class="text-[10px] text-slate-300">${escHtml(e.tool)}</span>
+              ${dur ? `<span class="text-[10px] text-slate-600 ml-auto">${dur}</span>` : ''}
+            </div>
+            ${errorText}
+          </div>
+          <span class="text-[9px] text-slate-600 flex-shrink-0">${timeAgo}</span>
+        </div>`;
+    }).join('');
+  } catch (e) { /* silently fail */ }
+}
+
+// =========================================================================
 // Cost Analysis
 // =========================================================================
 async function loadCostData() {
   try {
-    const [byService, byKind, byName] = await Promise.all([
+    const [byService, byKind, byName, agentSummary] = await Promise.all([
       apiFetch('/v1/cost/breakdown?group_by=service_name'),
       apiFetch('/v1/cost/breakdown?group_by=kind'),
       apiFetch('/v1/cost/breakdown?group_by=name'),
+      apiFetch('/v1/agents/summary').catch(() => ({ agents: [] })),
     ]);
 
     renderCostChart('chart-cost-service', byService, 'doughnut');
     renderCostChart('chart-cost-kind', byKind, 'doughnut');
     renderCostChart('chart-cost-name', byName, 'bar');
+    renderAgentCostChart('chart-cost-agent', agentSummary.agents || []);
     updateRefreshTime();
   } catch (err) {
     console.error('Cost load error:', err);
   }
+}
+
+function renderAgentCostChart(canvasId, agents) {
+  if (chartInstances[canvasId]) { chartInstances[canvasId].destroy(); }
+
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || !agents || agents.length === 0) {
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#475569';
+      ctx.font = '14px Inter';
+      ctx.textAlign = 'center';
+      ctx.fillText('No agent cost data available', canvas.width / 2, canvas.height / 2);
+    }
+    return;
+  }
+
+  // Sort agents by cost descending
+  const sorted = [...agents].sort((a, b) => (b.total_cost_usd || 0) - (a.total_cost_usd || 0));
+  const labels = sorted.map(a => a.agent);
+  const costs = sorted.map(a => a.total_cost_usd || 0);
+
+  // Use agent profile colors if available
+  const agentColorMap = {
+    'vr-alpha': '#3b82f6', 'vr-beta': '#10b981', 'vr-gamma': '#8b5cf6',
+    'vr-lead': '#f59e0b', 'vr-scribe': '#6b7280', 'main': '#6366f1',
+    'Explore': '#06b6d4'
+  };
+  const barColors = labels.map(l => (agentColorMap[l] || '#9b8ec4') + 'aa');
+  const borderColors = labels.map(l => agentColorMap[l] || '#9b8ec4');
+
+  chartInstances[canvasId] = new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Cost (USD)',
+        data: costs,
+        backgroundColor: barColors,
+        borderColor: borderColors,
+        borderWidth: 1,
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ` $${costs[ctx.dataIndex].toFixed(6)}`
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#64748b', font: { size: 10 }, callback: v => '$' + v.toFixed(4) }, grid: { color: 'rgba(255,255,255,0.03)' } },
+        y: { ticks: { color: '#94a3b8', font: { size: 11 } }, grid: { color: 'rgba(255,255,255,0.03)' } },
+      }
+    }
+  });
 }
 
 const CHART_COLORS = ['#9b8ec4', '#7ab5a0', '#c49a5c', '#7a9eb5', '#c47070', '#b5a082', '#a88ec4', '#c4b07a'];
@@ -2519,7 +2643,7 @@ function setupKeyboardNavigation() {
 }
 
 function refreshCurrentView() {
-  if (currentView === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); }
+  if (currentView === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); loadActivityTimeline(); }
   else if (currentView === 'traces') { loadTraces(); }
   else if (currentView === 'cost') { loadCostData(); }
   else if (currentView === 'patterns') { loadAllPatterns(); }
@@ -2596,7 +2720,7 @@ function startAutoRefresh() {
   autoRefreshTimer = setInterval(async () => {
     const ok = await healthCheck();
     if (!ok) return;
-    if (currentView === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); }
+    if (currentView === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); loadActivityTimeline(); }
     else if (currentView === 'traces') { loadTraces(); }
   }, 15000);
 }
@@ -2854,6 +2978,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   loadStats();
   loadRecentTraces();
   loadAgentActivity();
+  loadActivityTimeline();
   startAutoRefresh();
 
   // Connect WebSocket for real-time updates
