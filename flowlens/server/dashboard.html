@@ -343,29 +343,39 @@
         </div>
       </div>
 
-      <!-- Agent Activity (below stats, above recent traces) -->
+      <!-- Agent Team Status -->
       <div class="mb-6">
-        <h2 class="text-sm font-semibold text-white mb-3">Agent Activity</h2>
-        <div id="agent-activity" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-          <!-- Skeleton loading state -->
-          <div class="skeleton rounded-lg h-16"></div>
-          <div class="skeleton rounded-lg h-16"></div>
-          <div class="skeleton rounded-lg h-16"></div>
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-sm font-semibold text-white">Agent Team</h2>
+          <span class="text-[10px] text-slate-500" id="team-status-label">--</span>
         </div>
+        <div id="agent-team-bar" class="flex gap-3 overflow-x-auto pb-2"></div>
       </div>
 
-      <!-- Recent Traces -->
-      <div class="glass rounded-xl overflow-hidden">
-        <div class="flex items-center justify-between px-5 py-4 border-b border-white/5">
-          <h2 class="text-sm font-semibold text-white">Recent Traces</h2>
-          <button onclick="switchView('traces')" class="text-xs text-indigo-400 hover:text-indigo-300 transition">View all</button>
+      <!-- Activity Timeline + Recent Traces (side by side) -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <!-- Activity Timeline (left) -->
+        <div class="glass rounded-xl overflow-hidden">
+          <div class="flex items-center justify-between p-4 border-b border-white/5">
+            <h2 class="text-sm font-semibold text-white">Activity Timeline</h2>
+            <span class="text-[10px] text-slate-500" id="timeline-count">--</span>
+          </div>
+          <div id="activity-timeline" class="max-h-[400px] overflow-y-auto divide-y divide-white/5"></div>
         </div>
-        <div id="recent-traces-list" class="divide-y divide-white/5">
-          <!-- Skeleton loading state -->
-          <div class="p-4 space-y-3">
-            <div class="flex items-center gap-4"><div class="skeleton w-2 h-2 rounded-full"></div><div class="skeleton skeleton-text flex-1"></div><div class="skeleton skeleton-text w-16"></div></div>
-            <div class="flex items-center gap-4"><div class="skeleton w-2 h-2 rounded-full"></div><div class="skeleton skeleton-text flex-1"></div><div class="skeleton skeleton-text w-16"></div></div>
-            <div class="flex items-center gap-4"><div class="skeleton w-2 h-2 rounded-full"></div><div class="skeleton skeleton-text flex-1"></div><div class="skeleton skeleton-text w-16"></div></div>
+
+        <!-- Recent Traces (right) -->
+        <div class="glass rounded-xl overflow-hidden">
+          <div class="flex items-center justify-between px-5 py-4 border-b border-white/5">
+            <h2 class="text-sm font-semibold text-white">Recent Traces</h2>
+            <button onclick="switchView('traces')" class="text-xs text-indigo-400 hover:text-indigo-300 transition">View all</button>
+          </div>
+          <div id="recent-traces-list" class="divide-y divide-white/5">
+            <!-- Skeleton loading state -->
+            <div class="p-4 space-y-3">
+              <div class="flex items-center gap-4"><div class="skeleton w-2 h-2 rounded-full"></div><div class="skeleton skeleton-text flex-1"></div><div class="skeleton skeleton-text w-16"></div></div>
+              <div class="flex items-center gap-4"><div class="skeleton w-2 h-2 rounded-full"></div><div class="skeleton skeleton-text flex-1"></div><div class="skeleton skeleton-text w-16"></div></div>
+              <div class="flex items-center gap-4"><div class="skeleton w-2 h-2 rounded-full"></div><div class="skeleton skeleton-text flex-1"></div><div class="skeleton skeleton-text w-16"></div></div>
+            </div>
           </div>
         </div>
       </div>
@@ -686,6 +696,63 @@
 // State
 // =========================================================================
 const API_BASE = window.location.origin;
+
+// =========================================================================
+// Agent Profile System
+// =========================================================================
+const AGENT_PROFILES = {
+  'vr-alpha': {
+    name: 'Alpha', role: 'Core Developer', color: '#3b82f6', bgClass: 'from-blue-500/20 to-blue-600/10',
+    badgeClass: 'bg-blue-500/15 text-blue-400 border-blue-500/25',
+    icon: `<svg viewBox="0 0 32 32" fill="none"><rect x="4" y="6" width="24" height="20" rx="3" stroke="currentColor" stroke-width="2"/><path d="M16 12v8m-4-4h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`
+  },
+  'vr-beta': {
+    name: 'Beta', role: 'Worker Engineer', color: '#10b981', bgClass: 'from-emerald-500/20 to-emerald-600/10',
+    badgeClass: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25',
+    icon: `<svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="10" stroke="currentColor" stroke-width="2"/><path d="M16 11v5l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`
+  },
+  'vr-gamma': {
+    name: 'Gamma', role: 'Test & Monitor', color: '#8b5cf6', bgClass: 'from-purple-500/20 to-purple-600/10',
+    badgeClass: 'bg-purple-500/15 text-purple-400 border-purple-500/25',
+    icon: `<svg viewBox="0 0 32 32" fill="none"><path d="M16 4l3 8h8l-6.5 5 2.5 8L16 20l-7 5 2.5-8L5 12h8z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>`
+  },
+  'vr-lead': {
+    name: 'Lead', role: 'Architect', color: '#f59e0b', bgClass: 'from-amber-500/20 to-amber-600/10',
+    badgeClass: 'bg-amber-500/15 text-amber-400 border-amber-500/25',
+    icon: `<svg viewBox="0 0 32 32" fill="none"><path d="M6 20l4-8 6 4 6-4 4 8H6z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><rect x="8" y="20" width="16" height="4" rx="1" stroke="currentColor" stroke-width="2"/></svg>`
+  },
+  'vr-scribe': {
+    name: 'Scribe', role: 'Documentation', color: '#6b7280', bgClass: 'from-slate-500/20 to-slate-600/10',
+    badgeClass: 'bg-slate-500/15 text-slate-400 border-slate-500/25',
+    icon: `<svg viewBox="0 0 32 32" fill="none"><rect x="7" y="4" width="18" height="24" rx="2" stroke="currentColor" stroke-width="2"/><path d="M11 10h10M11 14h10M11 18h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`
+  },
+  'main': {
+    name: 'Main', role: 'Session', color: '#6366f1', bgClass: 'from-indigo-500/20 to-indigo-600/10',
+    badgeClass: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/25',
+    icon: `<svg viewBox="0 0 32 32" fill="none"><rect x="4" y="6" width="24" height="20" rx="3" stroke="currentColor" stroke-width="2"/><path d="M10 16l3 3 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+  },
+  'Explore': {
+    name: 'Explore', role: 'Explorer', color: '#06b6d4', bgClass: 'from-cyan-500/20 to-cyan-600/10',
+    badgeClass: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/25',
+    icon: `<svg viewBox="0 0 32 32" fill="none"><circle cx="14" cy="14" r="8" stroke="currentColor" stroke-width="2"/><path d="M20 20l6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`
+  },
+};
+const DEFAULT_PROFILE = {
+  name: '?', role: 'Agent', color: '#9ca3af', bgClass: 'from-slate-500/20 to-slate-600/10',
+  badgeClass: 'bg-slate-500/15 text-slate-400 border-slate-500/25',
+  icon: `<svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="12" r="5" stroke="currentColor" stroke-width="2"/><path d="M8 26c0-4.4 3.6-8 8-8s8 3.6 8 8" stroke="currentColor" stroke-width="2"/></svg>`
+};
+
+function getAgentProfile(name) {
+  return AGENT_PROFILES[name] || { ...DEFAULT_PROFILE, name: name || '?' };
+}
+
+function renderAgentAvatar(name, size = 'md') {
+  const p = getAgentProfile(name);
+  const sizes = { sm: 'w-6 h-6', md: 'w-8 h-8', lg: 'w-10 h-10' };
+  return `<div class="${sizes[size] || sizes.md} rounded-lg bg-gradient-to-br ${p.bgClass} flex items-center justify-center flex-shrink-0" style="color:${p.color}">${p.icon}</div>`;
+}
+
 let currentView = 'overview';
 let traceOffset = 0;
 const TRACE_LIMIT = 30;
@@ -986,29 +1053,37 @@ function switchView(view) {
 async function loadAgentActivity() {
   try {
     const data = await apiFetch('/v1/agents/activity');
-    const container = document.getElementById('agent-activity');
-    if (!container) return;
+    const bar = document.getElementById('agent-team-bar');
+    const label = document.getElementById('team-status-label');
     if (!data.agents || data.agents.length === 0) {
-      container.innerHTML = '<p class="text-xs text-slate-500 col-span-full">No agent activity yet</p>';
+      bar.innerHTML = '<p class="text-xs text-slate-500">No agents detected yet</p>';
+      label.textContent = '';
       return;
     }
-    container.innerHTML = data.agents.map(a => {
-      const statusColor = a.status === 'active' ? 'bg-emerald-500' : 'bg-slate-600';
+    const activeCount = data.agents.filter(a => a.status === 'active').length;
+    label.textContent = `${activeCount} active / ${data.agents.length} total`;
+
+    bar.innerHTML = data.agents.map(a => {
+      const p = getAgentProfile(a.agent);
+      const isActive = a.status === 'active';
+      const borderClass = isActive ? 'border-emerald-500/40 shadow-emerald-500/10 shadow-lg' : 'border-white/5';
       const tools = (a.recent_tools || []).slice(0, 3).join(', ') || 'idle';
       const timeAgo = formatTimeAgo(a.last_seen);
       return `
-        <div class="glass rounded-lg p-3 cursor-pointer hover:border-indigo-500/30 transition" onclick="filterTracesByAgent('${escHtml(a.agent)}')">
-          <div class="flex items-center gap-2 mb-1">
-            <span class="w-2 h-2 rounded-full ${statusColor} flex-shrink-0"></span>
-            <span class="text-xs font-medium text-white truncate">${escHtml(a.agent)}</span>
+        <div class="glass rounded-xl p-3 min-w-[160px] border ${borderClass} cursor-pointer hover:border-indigo-500/30 transition flex-shrink-0" onclick="filterTracesByAgent('${escHtml(a.agent)}')">
+          <div class="flex items-center gap-2.5 mb-2">
+            ${renderAgentAvatar(a.agent, 'md')}
+            <div class="min-w-0">
+              <div class="text-xs font-semibold text-white truncate">${escHtml(p.name)}</div>
+              <div class="text-[10px] text-slate-500">${escHtml(p.role)}</div>
+            </div>
+            ${isActive ? '<span class="w-2 h-2 rounded-full bg-emerald-500 pulse-dot ml-auto flex-shrink-0"></span>' : '<span class="w-2 h-2 rounded-full bg-slate-600 ml-auto flex-shrink-0"></span>'}
           </div>
           <div class="text-[10px] text-slate-400 truncate">${escHtml(tools)}</div>
-          <div class="text-[10px] text-slate-500 mt-1">${timeAgo} · ${a.trace_count_1h} ops</div>
+          <div class="text-[10px] text-slate-500 mt-1">${timeAgo} · ${a.trace_count_1h || 0} ops</div>
         </div>`;
     }).join('');
-  } catch (e) {
-    // silently fail — agent activity panel is non-critical
-  }
+  } catch (e) { /* silently fail */ }
 }
 
 // =========================================================================
@@ -1055,11 +1130,18 @@ async function loadAgentData() {
         : '<span class="text-[10px] text-slate-600">no recent tools</span>';
       const opsLastHour = activity ? activity.trace_count_1h : 0;
 
+      const agentProfile = getAgentProfile(a.agent);
       return `<div class="glass rounded-xl p-5 cursor-pointer hover:border-indigo-500/40 border border-transparent transition" onclick="filterTracesByAgent('${escHtml(a.agent)}')">
-        <div class="flex items-center gap-2 mb-3">
-          <span class="w-2.5 h-2.5 rounded-full ${statusColor} flex-shrink-0"></span>
-          <div class="text-base font-semibold text-white truncate flex-1" title="${escHtml(a.agent)}">${escHtml(a.agent)}</div>
-          <span class="text-[10px] text-slate-500">${statusLabel}</span>
+        <div class="flex items-center gap-2.5 mb-3">
+          ${renderAgentAvatar(a.agent, 'lg')}
+          <div class="min-w-0 flex-1">
+            <div class="text-base font-semibold text-white truncate" title="${escHtml(a.agent)}">${escHtml(agentProfile.name)}</div>
+            <div class="text-[10px] text-slate-500">${escHtml(agentProfile.role)}</div>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full ${statusColor} flex-shrink-0"></span>
+            <span class="text-[10px] text-slate-500">${statusLabel}</span>
+          </div>
         </div>
         <div class="grid grid-cols-2 gap-2 text-xs mb-3">
           <div>
@@ -1199,23 +1281,12 @@ function renderTraceRow(trace, compact = false) {
   const agentName = tags.agent || null;
   const projectName = tags.project || meta.project || (meta.cwd ? meta.cwd.split('/').pop() : null);
 
-  // Agent color mapping
-  const agentColors = {
-    'vr-alpha': 'bg-blue-500/15 text-blue-400 border-blue-500/25',
-    'vr-beta': 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25',
-    'vr-gamma': 'bg-purple-500/15 text-purple-400 border-purple-500/25',
-    'vr-lead': 'bg-amber-500/15 text-amber-400 border-amber-500/25',
-    'vr-scribe': 'bg-slate-500/15 text-slate-400 border-slate-500/25',
-    'main': 'bg-indigo-500/15 text-indigo-400 border-indigo-500/25',
-    'Explore': 'bg-cyan-500/15 text-cyan-400 border-cyan-500/25',
-  };
-
   // Build display name and agent badge
   let displayName = agentName || projectName || (trace.trace_id || '').substring(0, 12) + '...';
   let agentBadge = '';
   if (agentName) {
-    const colorClass = agentColors[agentName] || 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20';
-    agentBadge = `<span class="px-1.5 py-0.5 text-[10px] font-medium rounded border ${colorClass}">${escHtml(agentName)}</span>`;
+    const profile = getAgentProfile(agentName);
+    agentBadge = `<span class="px-1.5 py-0.5 text-[10px] font-medium rounded border ${profile.badgeClass} inline-flex items-center gap-1">${escHtml(profile.name)}</span>`;
     displayName = projectName || trace.service_name || 'session';
   }
 
