@@ -1,8 +1,16 @@
 # Task Board — FlowLens Development
 
-## PROJECT COMPLETE — 2026-03-14 (Cycle 9 delivered 2026-03-14)
+## Cycle 10: In Progress (2026-03-14) — DASHBOARD PERFORMANCE & MODULARIZATION
 
-All planned improvements and enhancements delivered across 9 development cycles. All tasks closed. System production-ready. Version 0.9.0 (ready for v1.0.0 release). 1071 tests (all passing).
+### In Progress
+
+- [ ] **SVG-based agent network visualization** — Alpha — Priority: high — Replace Three.js WebGL 3D rendering with lightweight SVG network using animated particles, glow effects, pulsing nodes, curved connections. Lazy-load Three.js as fallback. Target: 60-70% reduction in initial load time. Files: `flowlens/server/dashboard.html`, new `flowlens/server/network.js`
+
+- [ ] **Dashboard.html modularization** — Beta — Priority: high — Refactor 5664-line monolithic HTML into modular structure: separate CSS files (overview.css, traces.css, agents.css, compare.css, network.css, patterns.css, costs.css) + JS modules (api.js, views.js, events.js, utils.js). Reduce main HTML to ~500 lines. Improve code organization and reduce merge conflicts. Files: `flowlens/server/dashboard.html`, new CSS/JS files
+
+- [ ] **Integration testing for modularized dashboard** — Alpha, Beta — Priority: high — E2E tests verifying all tabs work correctly after modularization; performance benchmarking (load time, render FPS, memory usage)
+
+- [ ] **Performance benchmarking baseline** — Beta — Priority: medium — Measure load time, FPS, memory usage before/after refactoring; document in cycle report
 
 ---
 
@@ -149,23 +157,23 @@ The following tasks were proposed for future cycles but are deprioritized given 
 
 | Metric | Value |
 |--------|-------|
-| Total Cycles | 9 |
-| Total Commits | 34 |
-| Total Features | 36 |
+| Total Cycles | 10 |
+| Total Commits | 34+ (Cycle 10 in progress) |
+| Total Features | 36+ (Cycle 10 in progress) |
 | Total Tests | 1071 |
 | Test Pass Rate | 100% |
-| Lines Added | ~4500 (source + tests) |
+| Lines Added | ~4500 (source + tests, through Cycle 9) |
 | Active Blockers | 0 |
-| File Conflicts | 0 |
-| Deployment Status | Production-ready |
-| Project Duration | 1 day |
+| File Conflicts | 0 (Alpha & Beta coordinating on dashboard.html split) |
+| Deployment Status | Production-ready (v0.9.0, ready for v1.0.0 after Cycle 10) |
+| Project Duration | 1 day (9 complete cycles) |
 
 ---
 
 ## Legend
 
 - `[x]` = done (date in Cycle header)
-- `[ ]` = backlog / deferred
+- `[ ]` = in progress / backlog / deferred
 - Agent = responsible developer (Lead, Alpha, Beta, Gamma)
 - Priority = critical/high/medium/low
-- Status: Project Complete — All improvements delivered, system production-ready, version 0.9.0 (ready for v1.0.0 release)
+- Status: 9 cycles complete, Cycle 10 in progress — Dashboard performance and modularization in active development
