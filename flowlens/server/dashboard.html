@@ -1199,7 +1199,7 @@ function switchView(view) {
   if (tabBtn) { tabBtn.classList.remove('tab-inactive'); tabBtn.classList.add('tab-active'); }
 
   // Load data for the view
-  if (view === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); loadActivityTimeline(); loadTrendChart(_trendHours || 24); }
+  if (view === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); loadActivityTimeline(); loadTrendChart(_trendHours || 24); loadAgentGraphMini(); }
   else if (view === 'traces') { loadTraces(); }
   else if (view === 'cost') { loadCostData(); }
   else if (view === 'patterns') { loadAllPatterns(); }
@@ -1351,76 +1351,328 @@ function filterTracesByAgent(agentName) {
 }
 
 // =========================================================================
-// Agent Relationship Graph
+// Agent Relationship Graph — Three.js 3D Visualization
 // =========================================================================
+
+let _three3D = null;    // main 3D scene state
+let _threeMini = null;  // mini 3D scene state (overview)
+let _agentRelData = null; // cached relationship data shared between scenes
+
+/** Dispose all Three.js resources in a scene state object. */
+function _disposeThreeScene(state) {
+  if (!state) return;
+  if (state.animFrameId) { cancelAnimationFrame(state.animFrameId); }
+  if (state.labelContainer && state.labelContainer.parentNode) {
+    state.labelContainer.parentNode.removeChild(state.labelContainer);
+  }
+  if (state.resizeObserver) { state.resizeObserver.disconnect(); }
+  (state.meshes || []).forEach(m => {
+    if (m.geometry) m.geometry.dispose();
+    if (m.material) m.material.dispose();
+  });
+  (state.lines || []).forEach(l => {
+    if (l.geometry) l.geometry.dispose();
+    if (l.material) l.material.dispose();
+  });
+  if (state.renderer) {
+    state.renderer.dispose();
+    if (state.renderer.domElement && state.renderer.domElement.parentNode) {
+      state.renderer.domElement.parentNode.removeChild(state.renderer.domElement);
+    }
+  }
+}
+
+/** Compute circle positions for n nodes at radius r. */
+function _circlePositions(n, r) {
+  const pos = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 - Math.PI / 2;
+    pos.push([Math.cos(a) * r, Math.sin(a) * r, 0]);
+  }
+  return pos;
+}
+
+/** Parse '#rrggbb' to {r,g,b} in [0,1]. */
+function _hexToRgb01(hex) {
+  const h = (hex || '#9ca3af').replace('#', '');
+  return {
+    r: parseInt(h.substring(0, 2), 16) / 255,
+    g: parseInt(h.substring(2, 4), 16) / 255,
+    b: parseInt(h.substring(4, 6), 16) / 255,
+  };
+}
+
+/**
+ * Build and start a Three.js 3D scene inside `container`.
+ * opts: { showLabels, autoRotate, miniMode }
+ * Returns a state object to pass to _disposeThreeScene().
+ */
+function _buildThreeScene(container, data, opts) {
+  if (typeof THREE === 'undefined') return null;
+  opts = Object.assign({ showLabels: true, autoRotate: true, miniMode: false }, opts);
+
+  const bgColor = isDarkTheme ? 0x2a2a28 : 0xfafaf8;
+  const cw = container.clientWidth || 600;
+  const ch = container.clientHeight || 350;
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(cw, ch);
+  renderer.setClearColor(bgColor, 1);
+  renderer.domElement.style.cssText = 'display:block;width:100%;height:100%;';
+  container.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(55, cw / ch, 0.1, 1000);
+  camera.position.set(0, 0, opts.miniMode ? 4.5 : 5.5);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+  const ptLight = new THREE.PointLight(0xffffff, 1.2, 50);
+  ptLight.position.set(0, 5, 5);
+  scene.add(ptLight);
+
+  const nodes = data.nodes || [];
+  const edges = data.edges || [];
+  const maxCount = nodes.reduce((acc, n) => Math.max(acc, n.trace_count || 1), 1);
+  const maxEdgeCount = edges.reduce((acc, e) => Math.max(acc, e.count || 1), 1);
+  const radius = Math.max(1.4, nodes.length * 0.38);
+  const positions = _circlePositions(nodes.length, radius);
+
+  const nodeIndex = {};
+  nodes.forEach((n, i) => { nodeIndex[n.id] = i; });
+
+  const meshes = [];
+  const lines = [];
+  const rotationGroup = new THREE.Group();
+  scene.add(rotationGroup);
+
+  // Spheres (one per agent node)
+  nodes.forEach((n, i) => {
+    const p = getAgentProfile(n.id);
+    const rgb = _hexToRgb01(p.color);
+    const color = new THREE.Color(rgb.r, rgb.g, rgb.b);
+    const normSize = 0.3 + ((n.trace_count || 1) / maxCount) * 0.7;
+    const r = opts.miniMode ? normSize * 0.7 : normSize;
+    const geo = new THREE.SphereGeometry(r, 32, 32);
+    const isActive = n.status === 'active';
+    const mat = new THREE.MeshStandardMaterial({
+      color, emissive: color,
+      emissiveIntensity: isActive ? 0.55 : 0.1,
+      transparent: !isActive, opacity: isActive ? 1.0 : 0.45,
+      roughness: 0.3, metalness: 0.15,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(...positions[i]);
+    mesh.userData = { agentId: n.id, baseEmissive: isActive ? 0.55 : 0.1, isActive };
+    rotationGroup.add(mesh);
+    meshes.push(mesh);
+  });
+
+  // Dashed lines for spawn-relationship edges
+  edges.forEach(e => {
+    const si = nodeIndex[e.source], ti = nodeIndex[e.target];
+    if (si === undefined || ti === undefined) return;
+    const pts = [new THREE.Vector3(...positions[si]), new THREE.Vector3(...positions[ti])];
+    const geoL = new THREE.BufferGeometry().setFromPoints(pts);
+    const opacity = 0.2 + ((e.count || 1) / maxEdgeCount) * 0.5;
+    const matL = new THREE.LineDashedMaterial({
+      color: 0xffffff, transparent: true, opacity, dashSize: 0.18, gapSize: 0.09,
+    });
+    const line = new THREE.Line(geoL, matL);
+    line.computeLineDistances();
+    rotationGroup.add(line);
+    lines.push(line);
+  });
+
+  // HTML labels positioned via 3D projection (main scene only)
+  let labelContainer = null;
+  const labelEls = [];
+  if (opts.showLabels) {
+    container.style.position = 'relative';
+    labelContainer = document.createElement('div');
+    labelContainer.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:hidden;';
+    container.appendChild(labelContainer);
+
+    nodes.forEach((n) => {
+      const p = getAgentProfile(n.id);
+      const el = document.createElement('div');
+      el.style.cssText = [
+        'position:absolute', 'transform:translate(-50%,-100%)', 'pointer-events:none', 'white-space:nowrap',
+        'font-family:Inter,system-ui,sans-serif', 'line-height:1.3', 'padding:2px 6px', 'border-radius:4px',
+        isDarkTheme ? 'background:rgba(42,42,38,0.85)' : 'background:rgba(250,250,248,0.85)',
+        'backdrop-filter:blur(4px)', 'border:1px solid rgba(255,255,255,0.08)',
+      ].join(';');
+      el.innerHTML = `<span style="font-size:10px;font-weight:600;color:${p.color}">${p.name || n.id}</span>`
+        + `<br><span style="font-size:9px;color:${isDarkTheme ? '#94a3b8' : '#64748b'}">${p.role || ''}</span>`;
+      labelContainer.appendChild(el);
+      labelEls.push(el);
+    });
+  }
+
+  // Mouse drag to rotate, hover highlight, click to open agent detail modal
+  let isDragging = false;
+  let lastMouseX = 0, lastMouseY = 0;
+  let rotX = 0, rotY = 0;
+  let hoveredMesh = null;
+  const raycaster = new THREE.Raycaster();
+  const mouse2D = new THREE.Vector2();
+
+  function onMouseDown(e) { isDragging = true; lastMouseX = e.clientX; lastMouseY = e.clientY; }
+  function onMouseMove(e) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouse2D.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse2D.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    if (isDragging) {
+      rotY += (e.clientX - lastMouseX) * 0.008;
+      rotX += (e.clientY - lastMouseY) * 0.008;
+      rotX = Math.max(-1.2, Math.min(1.2, rotX));
+      lastMouseX = e.clientX; lastMouseY = e.clientY;
+    }
+    raycaster.setFromCamera(mouse2D, camera);
+    const hits = raycaster.intersectObjects(meshes);
+    if (hits.length > 0) {
+      const hit = hits[0].object;
+      if (hoveredMesh !== hit) {
+        if (hoveredMesh) { hoveredMesh.scale.setScalar(1.0); hoveredMesh.material.emissiveIntensity = hoveredMesh.userData.baseEmissive; }
+        hoveredMesh = hit;
+        hit.scale.setScalar(1.3);
+        hit.material.emissiveIntensity = Math.min(1.0, hit.userData.baseEmissive + 0.4);
+      }
+      renderer.domElement.style.cursor = 'pointer';
+    } else {
+      if (hoveredMesh) { hoveredMesh.scale.setScalar(1.0); hoveredMesh.material.emissiveIntensity = hoveredMesh.userData.baseEmissive; hoveredMesh = null; }
+      renderer.domElement.style.cursor = 'default';
+    }
+  }
+  function onMouseUp(e) {
+    if (!isDragging) return;
+    isDragging = false;
+    if (Math.abs(e.clientX - lastMouseX) < 4 && Math.abs(e.clientY - lastMouseY) < 4) {
+      raycaster.setFromCamera(mouse2D, camera);
+      const hits = raycaster.intersectObjects(meshes);
+      if (hits.length > 0) { openAgentDetailModal(hits[0].object.userData.agentId); }
+    }
+  }
+  function onMouseLeave() { isDragging = false; }
+
+  if (!opts.miniMode) {
+    renderer.domElement.addEventListener('mousedown', onMouseDown);
+    renderer.domElement.addEventListener('mousemove', onMouseMove);
+    renderer.domElement.addEventListener('mouseup', onMouseUp);
+    renderer.domElement.addEventListener('mouseleave', onMouseLeave);
+  }
+
+  // requestAnimationFrame render loop
+  let frame = 0;
+  let animFrameId = null;
+  function animate() {
+    animFrameId = requestAnimationFrame(animate);
+    frame++;
+    if (!isDragging && opts.autoRotate) rotY += 0.0008;
+    rotationGroup.rotation.y = rotY;
+    rotationGroup.rotation.x = rotX;
+
+    // Pulse emissive intensity for active agents
+    meshes.forEach(m => {
+      if (m.userData.isActive && m !== hoveredMesh) {
+        m.material.emissiveIntensity = 0.55 + Math.sin(frame * 0.05) * 0.25;
+      }
+    });
+
+    renderer.render(scene, camera);
+
+    // Update HTML label screen positions
+    if (opts.showLabels && labelContainer) {
+      const elW = container.clientWidth, elH = container.clientHeight;
+      nodes.forEach((n, i) => {
+        if (!labelEls[i] || !meshes[i]) return;
+        const wp = new THREE.Vector3();
+        meshes[i].getWorldPosition(wp);
+        const proj = wp.clone().project(camera);
+        const sx = (proj.x * 0.5 + 0.5) * elW;
+        const wpTop = wp.clone();
+        wpTop.y += (meshes[i].geometry.parameters.radius || 0.5);
+        const sy = (-(wpTop.clone().project(camera).y) * 0.5 + 0.5) * elH;
+        labelEls[i].style.left = sx + 'px';
+        labelEls[i].style.top = sy + 'px';
+        labelEls[i].style.display = proj.z < 1 ? 'block' : 'none';
+      });
+    }
+  }
+  animate();
+
+  // Responsive resize
+  const resizeObserver = new ResizeObserver(() => {
+    const nw = container.clientWidth, nh = container.clientHeight;
+    if (nw && nh) {
+      renderer.setSize(nw, nh);
+      camera.aspect = nw / nh;
+      camera.updateProjectionMatrix();
+    }
+  });
+  resizeObserver.observe(container);
+
+  return { renderer, scene, camera, meshes, lines, rotationGroup, labelContainer, labelEls, resizeObserver, animFrameId };
+}
+
+// Cytoscape fallback when THREE.js is unavailable
 let _agentCyInstance = null;
+function _loadAgentGraphCytoscape(data) {
+  const container = document.getElementById('agent-graph');
+  if (!container || typeof cytoscape === 'undefined') return;
+  if (_agentCyInstance) { try { _agentCyInstance.destroy(); } catch (_) {} _agentCyInstance = null; }
+  const elements = [];
+  data.nodes.forEach(n => {
+    const p = getAgentProfile(n.id);
+    elements.push({ data: { id: n.id, label: p.name || n.id }, style: { 'background-color': p.color || '#6366f1' } });
+  });
+  data.edges.forEach(e => {
+    elements.push({ data: { source: e.source, target: e.target, label: `\u00d7${e.count}` } });
+  });
+  _agentCyInstance = cytoscape({
+    container, elements,
+    style: [
+      { selector: 'node', style: { 'label': 'data(label)', 'text-valign': 'center', 'color': '#e2e0db', 'font-size': '11px', 'width': 40, 'height': 40, 'border-width': 2, 'border-color': '#3a3a36' } },
+      { selector: 'edge', style: { 'label': 'data(label)', 'font-size': '9px', 'color': '#8a8a86', 'width': 2, 'line-color': '#4a4a46', 'target-arrow-color': '#6366f1', 'target-arrow-shape': 'triangle', 'curve-style': 'bezier' } },
+    ],
+    layout: { name: 'dagre', rankDir: 'TB', nodeSep: 50, rankSep: 60 },
+  });
+  _agentCyInstance.on('mouseover', 'node', evt => { evt.target.style('border-color', getAgentProfile(evt.target.id()).color || '#6366f1'); });
+  _agentCyInstance.on('mouseout', 'node', evt => { evt.target.style('border-color', '#3a3a36'); });
+  _agentCyInstance.on('tap', 'node', evt => { filterTracesByAgent(evt.target.id()); });
+}
 
 async function loadAgentGraph() {
   try {
     const data = await apiFetch('/v1/agents/relationships');
     if (!data.nodes || data.nodes.length === 0) return;
+    _agentRelData = data;
 
-    const container = document.getElementById('agent-graph');
-    if (!container) return;
-
-    // Destroy previous instance to avoid reuse issues
-    if (_agentCyInstance) {
-      try { _agentCyInstance.destroy(); } catch (_) {}
-      _agentCyInstance = null;
+    if (typeof THREE !== 'undefined') {
+      const container = document.getElementById('agent-graph');
+      if (!container) return;
+      if (_three3D) { _disposeThreeScene(_three3D); _three3D = null; }
+      container.innerHTML = '';
+      container.style.height = '350px';
+      _three3D = _buildThreeScene(container, data, { showLabels: true, autoRotate: true, miniMode: false });
+    } else {
+      _loadAgentGraphCytoscape(data);
     }
+  } catch (e) { /* silently fail */ }
+}
 
-    const elements = [];
-
-    // Add nodes with agent colors
-    data.nodes.forEach(n => {
-      const p = getAgentProfile(n.id);
-      elements.push({
-        data: { id: n.id, label: p.name || n.id },
-        style: { 'background-color': p.color || '#6366f1' }
-      });
-    });
-
-    // Add edges
-    data.edges.forEach(e => {
-      elements.push({
-        data: { source: e.source, target: e.target, label: `\u00d7${e.count}` }
-      });
-    });
-
-    // Render
-    _agentCyInstance = cytoscape({
-      container: container,
-      elements: elements,
-      style: [
-        { selector: 'node', style: {
-          'label': 'data(label)', 'text-valign': 'center',
-          'color': '#e2e0db', 'font-size': '11px',
-          'width': 40, 'height': 40, 'border-width': 2, 'border-color': '#3a3a36'
-        }},
-        { selector: 'edge', style: {
-          'label': 'data(label)', 'font-size': '9px', 'color': '#8a8a86',
-          'width': 2, 'line-color': '#4a4a46',
-          'target-arrow-color': '#6366f1', 'target-arrow-shape': 'triangle',
-          'curve-style': 'bezier'
-        }}
-      ],
-      layout: { name: 'dagre', rankDir: 'TB', nodeSep: 50, rankSep: 60 }
-    });
-
-    // Hover tooltip: show agent details
-    _agentCyInstance.on('mouseover', 'node', function(evt) {
-      const node = evt.target;
-      const agentId = node.id();
-      const p = getAgentProfile(agentId);
-      node.style('border-color', p.color || '#6366f1');
-    });
-    _agentCyInstance.on('mouseout', 'node', function(evt) {
-      evt.target.style('border-color', '#3a3a36');
-    });
-    _agentCyInstance.on('tap', 'node', function(evt) {
-      const agentId = evt.target.id();
-      filterTracesByAgent(agentId);
-    });
+async function loadAgentGraphMini() {
+  try {
+    const container = document.getElementById('agent-graph-mini');
+    if (!container) return;
+    const data = _agentRelData || await apiFetch('/v1/agents/relationships');
+    if (!data || !data.nodes || data.nodes.length === 0) return;
+    _agentRelData = data;
+    if (typeof THREE !== 'undefined') {
+      if (_threeMini) { _disposeThreeScene(_threeMini); _threeMini = null; }
+      container.innerHTML = '';
+      _threeMini = _buildThreeScene(container, data, { showLabels: false, autoRotate: true, miniMode: true });
+    }
   } catch (e) { /* silently fail */ }
 }
 
@@ -3408,7 +3660,7 @@ function setupKeyboardNavigation() {
 }
 
 function refreshCurrentView() {
-  if (currentView === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); loadActivityTimeline(); loadTrendChart(_trendHours || 24); }
+  if (currentView === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); loadActivityTimeline(); loadTrendChart(_trendHours || 24); loadAgentGraphMini(); }
   else if (currentView === 'traces') { loadTraces(); }
   else if (currentView === 'cost') { loadCostData(); }
   else if (currentView === 'patterns') { loadAllPatterns(); }
@@ -3488,6 +3740,7 @@ function startAutoRefresh() {
     if (currentView === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); loadActivityTimeline(); loadTrendChart(_trendHours || 24); }
     else if (currentView === 'traces') { loadTraces(); }
   }, 15000);
+  // Note: loadAgentGraphMini is not included in auto-refresh to avoid frequent WebGL teardown
 }
 
 // =========================================================================
@@ -3878,6 +4131,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   loadAgentActivity();
   loadActivityTimeline();
   loadTrendChart(24);
+  loadAgentGraphMini();
   startAutoRefresh();
 
   // Connect WebSocket for real-time updates
