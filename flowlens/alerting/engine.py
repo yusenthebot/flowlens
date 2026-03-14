@@ -7,9 +7,14 @@ and fires webhooks for any rules that match.
 Supported condition syntax:
     "error_rate > X"       — checks trace error_rate (0.0–1.0)
     "cost_per_trace > X"   — checks trace total_cost_usd
+    "cost_total > X"       — checks CUMULATIVE cost across ALL traces seen
     "latency > X"          — checks trace duration_ms
     "tokens > X"           — checks trace total_tokens
     "pattern:NAME"         — checks if the named pattern was detected
+
+Compound conditions (AND logic):
+    "error_rate > 0.1 AND latency > 5000"
+    All sub-conditions must be True for the compound condition to fire.
 
 Cooldown:
     A per-rule, per-trace-service cooldown prevents alert storms.  After a
@@ -63,13 +68,18 @@ def _eval_threshold(
     return fn(metric_value, threshold)
 
 
-def _extract_metric(trace: dict[str, Any], metric: str) -> Optional[float]:
+def _extract_metric(
+    trace: dict[str, Any],
+    metric: str,
+    cumulative_cost: float = 0.0,
+) -> Optional[float]:
     """
     Extract a numeric metric from a trace dict.
 
     Supported metrics:
         error_rate      — error_count / span_count (0.0–1.0)
         cost_per_trace  — total_cost_usd
+        cost_total      — cumulative cost across all traces (passed in)
         latency         — duration_ms
         tokens          — total_tokens
     """
@@ -81,6 +91,8 @@ def _extract_metric(trace: dict[str, Any], metric: str) -> Optional[float]:
         return error_count / span_count
     if metric == "cost_per_trace":
         return float(trace.get("total_cost_usd", 0.0))
+    if metric == "cost_total":
+        return float(cumulative_cost)
     if metric == "latency":
         return float(trace.get("duration_ms", 0.0))
     if metric == "tokens":
@@ -137,6 +149,8 @@ class AlertEngine:
         self._rules: dict[str, AlertRule] = {}
         # cooldown tracking: rule_name -> last_fired timestamp
         self._last_fired: dict[str, float] = {}
+        # running total of total_cost_usd across all traces evaluated
+        self._cumulative_cost: float = 0.0
 
     # ------------------------------------------------------------------
     # Rule management
@@ -166,16 +180,24 @@ class AlertEngine:
     # Condition evaluation
     # ------------------------------------------------------------------
 
-    def _evaluate_condition(
-        self, rule: AlertRule, trace: dict[str, Any]
+    def _evaluate_single(
+        self,
+        condition: str,
+        trace: dict[str, Any],
+        patterns: list,
     ) -> tuple[bool, str, dict[str, Any]]:
         """
-        Evaluate a single rule condition against a trace dict.
+        Evaluate one atomic condition clause against a trace dict.
+
+        Args:
+            condition: A single (non-compound) condition string.
+            trace:     Trace dict.
+            patterns:  Pre-extracted list of pattern names detected in trace.
 
         Returns:
             (matched, message, metrics)
         """
-        condition = rule.condition.strip()
+        condition = condition.strip()
 
         # --- pattern:NAME ---
         m = _PATTERN_RE.match(condition)
@@ -196,12 +218,12 @@ class AlertEngine:
             op = m.group("op")
             threshold = float(m.group("value"))
 
-            value = _extract_metric(trace, metric)
+            value = _extract_metric(trace, metric, self._cumulative_cost)
             if value is None:
                 logger.debug(
-                    "Rule %s: unknown metric %r in trace, skipping",
-                    rule.name,
+                    "Unknown metric %r in condition %r, skipping",
                     metric,
+                    condition,
                 )
                 return False, "", {}
 
@@ -218,10 +240,55 @@ class AlertEngine:
             }
             return matched, message, metrics
 
-        logger.warning(
-            "Rule %s: unrecognised condition %r — skipping", rule.name, condition
-        )
+        logger.warning("Unrecognised condition clause %r — skipping", condition)
         return False, "", {}
+
+    def _evaluate_condition(
+        self, rule: AlertRule, trace: dict[str, Any]
+    ) -> tuple[bool, str, dict[str, Any]]:
+        """
+        Evaluate a rule condition (possibly compound with AND) against a trace.
+
+        Supports compound conditions joined by " AND " (case-sensitive).
+        All sub-conditions must be True for the compound to fire.
+
+        Returns:
+            (matched, message, metrics)
+        """
+        condition = rule.condition.strip()
+        patterns = trace.get("patterns", [])
+
+        # --- Compound AND condition ---
+        if " AND " in condition:
+            parts = condition.split(" AND ")
+            results = [
+                self._evaluate_single(p.strip(), trace, patterns)
+                for p in parts
+            ]
+            # All parts must match
+            all_matched = all(r[0] for r in results)
+            if not all_matched:
+                # Return the first non-empty metrics we can find for context
+                merged_metrics: dict[str, Any] = {}
+                messages: list[str] = []
+                for matched, msg, mets in results:
+                    if mets:
+                        merged_metrics.update(mets)
+                    if msg:
+                        messages.append(msg)
+                return False, " AND ".join(messages), merged_metrics
+
+            # Merge metrics from all sub-conditions
+            merged_metrics = {}
+            messages = []
+            for _, msg, mets in results:
+                merged_metrics.update(mets)
+                if msg:
+                    messages.append(msg)
+            return True, " AND ".join(messages), merged_metrics
+
+        # --- Single condition ---
+        return self._evaluate_single(condition, trace, patterns)
 
     # ------------------------------------------------------------------
     # Cooldown tracking
@@ -252,6 +319,10 @@ class AlertEngine:
         Returns:
             List of Alert objects that were fired (may be empty).
         """
+        # Accumulate cumulative cost before evaluating any rule so that
+        # cost_total conditions see the updated total for this trace.
+        self._cumulative_cost += float(trace.get("total_cost_usd", 0.0))
+
         fired: list[Alert] = []
 
         for rule in self._rules.values():

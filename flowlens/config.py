@@ -103,6 +103,11 @@ class FlowLensConfig:
         default_factory=lambda: _env_float("FLOWLENS_PATTERN_TOKEN_WASTE_RATIO", 10.0)
     )
 
+    # Budget alert — cumulative cost threshold in USD (0.0 = disabled)
+    alert_budget_usd: float = field(
+        default_factory=lambda: _env_float("FLOWLENS_ALERT_BUDGET_USD", 0.0)
+    )
+
     def __post_init__(self) -> None:
         valid_log_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
         if self.log_level not in valid_log_levels:

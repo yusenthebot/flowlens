@@ -20,7 +20,7 @@ import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 
 from flowlens.alerting import AlertRule, Alert
-from flowlens.alerting.engine import AlertEngine, _eval_threshold, _extract_metric, _check_pattern
+from flowlens.alerting.engine import AlertEngine, _eval_threshold, _extract_metric, _check_pattern, _THRESHOLD_RE
 from flowlens.alerting.webhooks import build_payload, _build_generic_payload, _build_slack_payload
 
 
@@ -399,6 +399,129 @@ class TestAlertEngineCooldown:
         # Should fire again
         alerts2 = _run(engine.check_trace(trace))
         assert len(alerts2) == 1
+
+
+# ===========================================================================
+# Budget alert (cost_total — cumulative cost)
+# ===========================================================================
+
+class TestBudgetAlert:
+    def setup_method(self):
+        self.engine = AlertEngine()
+        self.engine.add_rule(AlertRule(
+            name="budget-alert",
+            condition="cost_total > 1.0",
+            severity="critical",
+            cooldown_seconds=0,
+        ))
+
+    def test_budget_alert_fires_on_cumulative_cost(self):
+        """Alert should fire once cumulative cost exceeds the threshold."""
+        # First trace: 0.6 USD — cumulative = 0.6, no fire
+        trace1 = _make_trace(trace_id="t1", total_cost_usd=0.6)
+        alerts1 = _run(self.engine.check_trace(trace1))
+        assert alerts1 == [], "Should not fire when cumulative cost is below threshold"
+
+        # Second trace: 0.5 USD — cumulative = 1.1, should fire
+        trace2 = _make_trace(trace_id="t2", total_cost_usd=0.5)
+        alerts2 = _run(self.engine.check_trace(trace2))
+        assert len(alerts2) == 1
+        assert alerts2[0].rule_name == "budget-alert"
+        assert alerts2[0].metrics["metric"] == "cost_total"
+        assert alerts2[0].metrics["value"] == pytest.approx(1.1)
+
+    def test_budget_alert_respects_cooldown(self):
+        """Once fired, budget alert should respect cooldown_seconds."""
+        engine = AlertEngine()
+        engine.add_rule(AlertRule(
+            name="budget-cooldown",
+            condition="cost_total > 0.5",
+            severity="warning",
+            cooldown_seconds=300,
+        ))
+        # First trace pushes cumulative over threshold — fires
+        trace1 = _make_trace(trace_id="t1", total_cost_usd=0.6)
+        alerts1 = _run(engine.check_trace(trace1))
+        assert len(alerts1) == 1
+
+        # Second trace immediately after — cooldown active, should NOT fire
+        trace2 = _make_trace(trace_id="t2", total_cost_usd=0.1)
+        alerts2 = _run(engine.check_trace(trace2))
+        assert alerts2 == [], "Should be suppressed by cooldown"
+
+        # Expire cooldown manually — should fire again
+        engine._last_fired["budget-cooldown"] = time.time() - 400
+        trace3 = _make_trace(trace_id="t3", total_cost_usd=0.1)
+        alerts3 = _run(engine.check_trace(trace3))
+        assert len(alerts3) == 1
+
+
+# ===========================================================================
+# Compound AND conditions
+# ===========================================================================
+
+class TestCompoundAndConditions:
+    def setup_method(self):
+        self.engine = AlertEngine()
+
+    def test_compound_and_condition_both_true(self):
+        """Compound AND fires only when BOTH sub-conditions are True."""
+        self.engine.add_rule(AlertRule(
+            name="compound",
+            condition="error_rate > 0.1 AND latency > 5000",
+            severity="critical",
+            cooldown_seconds=0,
+        ))
+        trace = _make_trace(
+            span_count=10,
+            error_count=5,   # error_rate = 0.5 — exceeds 0.1
+            duration_ms=8000.0,  # latency = 8000 — exceeds 5000
+        )
+        alerts = _run(self.engine.check_trace(trace))
+        assert len(alerts) == 1
+        assert alerts[0].rule_name == "compound"
+
+    def test_compound_and_condition_one_false(self):
+        """Compound AND must NOT fire when only one sub-condition is True."""
+        self.engine.add_rule(AlertRule(
+            name="compound",
+            condition="error_rate > 0.1 AND latency > 5000",
+            severity="critical",
+            cooldown_seconds=0,
+        ))
+        # error_rate = 0.5 (True) but latency = 1000 (False)
+        trace = _make_trace(
+            span_count=10,
+            error_count=5,
+            duration_ms=1000.0,
+        )
+        alerts = _run(self.engine.check_trace(trace))
+        assert alerts == [], "Should not fire when only one AND clause is True"
+
+    def test_compound_and_with_pattern(self):
+        """Compound AND with a pattern sub-condition."""
+        self.engine.add_rule(AlertRule(
+            name="pattern-and-cost",
+            condition="pattern:retry_storm AND cost_per_trace > 0.5",
+            severity="warning",
+            cooldown_seconds=0,
+        ))
+        # Both conditions True
+        trace_both = _make_trace(
+            total_cost_usd=1.0,
+            patterns=[{"pattern": "retry_storm"}],
+        )
+        alerts = _run(self.engine.check_trace(trace_both))
+        assert len(alerts) == 1
+        assert alerts[0].rule_name == "pattern-and-cost"
+
+        # Only pattern True, cost below threshold
+        trace_pattern_only = _make_trace(
+            total_cost_usd=0.1,
+            patterns=[{"pattern": "retry_storm"}],
+        )
+        alerts2 = _run(self.engine.check_trace(trace_pattern_only))
+        assert alerts2 == [], "Should not fire when cost sub-condition is False"
 
 
 # ===========================================================================
