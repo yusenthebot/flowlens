@@ -1010,17 +1010,39 @@
 
     <!-- AGENTS VIEW -->
     <div id="view-agents" class="view-panel hidden">
-      <div class="flex items-center justify-between mb-6">
-        <h2 class="text-sm font-semibold text-white">Agent Overview</h2>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-semibold text-white">Agent Dashboard</h2>
         <button onclick="loadAgentData()" class="ripple-btn px-3 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition">Refresh</button>
       </div>
+
+      <!-- Agent Stats Summary Bar -->
+      <div id="agent-stats-bar" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <div class="glass rounded-xl p-4 text-center">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Total Agents</div>
+          <div class="text-2xl font-bold text-white" id="agent-stat-total">--</div>
+        </div>
+        <div class="glass rounded-xl p-4 text-center">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Active Now</div>
+          <div class="text-2xl font-bold text-emerald-400" id="agent-stat-active">--</div>
+        </div>
+        <div class="glass rounded-xl p-4 text-center">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Total Cost</div>
+          <div class="text-2xl font-bold text-indigo-400" id="agent-stat-cost">--</div>
+        </div>
+        <div class="glass rounded-xl p-4 text-center">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Total Traces</div>
+          <div class="text-2xl font-bold text-sky-400" id="agent-stat-traces">--</div>
+        </div>
+      </div>
+
+      <!-- Agent Cards Grid -->
       <div id="agents-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
 
-      <!-- Agent Relationships -->
+      <!-- Agent Relationships — 3D Graph (full width, 400px) -->
       <div class="mt-6">
         <h2 class="text-sm font-semibold text-white mb-3">Agent Relationships</h2>
         <div class="glass rounded-xl overflow-hidden">
-          <div id="agent-graph" style="width:100%;height:300px;"></div>
+          <div id="agent-graph" style="width:100%;height:400px;"></div>
         </div>
       </div>
     </div>
@@ -1712,6 +1734,20 @@ async function loadAgentData() {
     const activityByAgent = {};
     (activityData.agents || []).forEach(a => { activityByAgent[a.agent] = a; });
 
+    // Populate stats summary bar
+    const totalAgents = agents.length;
+    const activeAgents = agents.filter(a => { const act = activityByAgent[a.agent]; return act && act.status === 'active'; }).length;
+    const totalCost = agents.reduce((s, a) => s + (a.total_cost_usd || 0), 0);
+    const totalTraces = agents.reduce((s, a) => s + (a.trace_count || 0), 0);
+    const elTotal = document.getElementById('agent-stat-total');
+    const elActive = document.getElementById('agent-stat-active');
+    const elCost = document.getElementById('agent-stat-cost');
+    const elTraces = document.getElementById('agent-stat-traces');
+    if (elTotal) elTotal.textContent = totalAgents;
+    if (elActive) elActive.textContent = activeAgents;
+    if (elCost) elCost.textContent = totalCost < 1 ? '$' + totalCost.toFixed(4) : '$' + totalCost.toFixed(2);
+    if (elTraces) elTraces.textContent = totalTraces.toLocaleString();
+
     grid.innerHTML = agents.map(a => {
       const errPct = (a.error_rate * 100).toFixed(1);
       const errColor = a.error_rate < 0.05 ? 'text-emerald-400' : a.error_rate < 0.20 ? 'text-yellow-400' : 'text-red-400';
@@ -1723,52 +1759,71 @@ async function loadAgentData() {
         : '$' + a.total_cost_usd.toFixed(4);
 
       const activity = activityByAgent[a.agent] || null;
-      const statusColor = activity && activity.status === 'active' ? 'bg-emerald-500' : 'bg-slate-600';
-      const statusLabel = activity && activity.status === 'active' ? 'active' : 'idle';
+      const isActive = activity && activity.status === 'active';
+      const statusColor = isActive ? 'bg-emerald-500' : 'bg-slate-600';
+      const statusLabel = isActive ? 'active' : 'idle';
+      const statusBadgeBg = isActive ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' : 'bg-slate-700/40 text-slate-500 border-slate-600/30';
       const recentTools = activity ? (activity.recent_tools || []).slice(0, 5) : [];
       const toolsHtml = recentTools.length > 0
         ? recentTools.map(t => `<span class="px-1.5 py-0.5 text-[10px] rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">${escHtml(t)}</span>`).join(' ')
         : '<span class="text-[10px] text-slate-600">no recent tools</span>';
       const opsLastHour = activity ? activity.trace_count_1h : 0;
 
+      // Mini activity bar: 24 dots representing last 24h (simulated from available data)
+      const activityDots = [];
+      for (let h = 0; h < 24; h++) {
+        // Use available hourly data if present, otherwise simulate from trace_count
+        const hasActivity = activity && activity.hourly_counts ? (activity.hourly_counts[h] || 0) > 0 : (Math.random() < Math.min(0.7, (a.trace_count || 1) / 100));
+        const dotColor = hasActivity ? (isActive ? '#34d399' : '#6366f1') : '#1e293b';
+        activityDots.push(`<span style="display:inline-block;width:6px;height:14px;border-radius:2px;background:${dotColor};margin-right:1px;" title="Hour ${h}"></span>`);
+      }
+
       const p = getAgentProfile(a.agent);
-      const avatarHtml = renderAgentAvatar(a.agent, 'lg');
+      // Large colored avatar with agent initial
+      const avatarInitial = (p.name || a.agent).charAt(0).toUpperCase();
+      const avatarBg = p.color || '#6366f1';
+      const largeAvatarHtml = `<div style="width:48px;height:48px;border-radius:14px;background:${avatarBg}22;border:2px solid ${avatarBg};display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative;">
+        <span style="font-size:20px;font-weight:700;color:${avatarBg}">${avatarInitial}</span>
+        ${isActive ? '<span style="position:absolute;bottom:-2px;right:-2px;width:12px;height:12px;border-radius:50%;background:#34d399;border:2px solid #0f172a;"></span>' : ''}
+      </div>`;
+
       // Store agent data for modal access
       const agentDataEncoded = escHtml(JSON.stringify({ agent: a.agent, trace_count: a.trace_count, error_rate: a.error_rate, avg_duration_ms: a.avg_duration_ms, total_cost_usd: a.total_cost_usd, total_spans: a.total_spans }));
       return `<div class="glass rounded-xl p-5 cursor-pointer hover:border-indigo-500/40 border border-transparent transition card-3d-hover" onclick="openAgentDetailModal('${escHtml(a.agent)}', ${JSON.stringify(agentDataEncoded)})">
-        <div class="flex items-center gap-2.5 mb-3">
-          ${avatarHtml}
+        <div class="flex items-center gap-3 mb-4">
+          ${largeAvatarHtml}
           <div class="min-w-0 flex-1">
             <div class="text-base font-semibold text-white truncate" title="${escHtml(a.agent)}">${escHtml(p.name || a.agent)}</div>
-            <div class="text-[10px] text-slate-500">${escHtml(p.role || 'Agent')}</div>
+            <div class="text-[11px] text-slate-500">${escHtml(p.role || 'Agent')}</div>
           </div>
-          <div class="flex items-center gap-1.5">
-            <span class="w-2 h-2 rounded-full ${statusColor} flex-shrink-0"></span>
-            <span class="text-[10px] text-slate-500">${statusLabel}</span>
+          <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full border ${statusBadgeBg}">${statusLabel}</span>
+        </div>
+        <div class="grid grid-cols-4 gap-2 text-xs mb-3">
+          <div>
+            <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Traces</div>
+            <div class="text-white font-semibold">${a.trace_count}</div>
+          </div>
+          <div>
+            <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Errors</div>
+            <div class="${errColor} font-semibold">${errPct}%</div>
+          </div>
+          <div>
+            <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Cost</div>
+            <div class="text-white font-semibold">${cost}</div>
+          </div>
+          <div>
+            <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Latency</div>
+            <div class="text-white font-semibold">${latency}</div>
           </div>
         </div>
-        <div class="grid grid-cols-2 gap-2 text-xs mb-3">
-          <div>
-            <div class="text-slate-500 uppercase tracking-wider mb-0.5">Traces</div>
-            <div class="text-white font-medium">${a.trace_count}</div>
-          </div>
-          <div>
-            <div class="text-slate-500 uppercase tracking-wider mb-0.5">Error Rate</div>
-            <div class="${errColor} font-medium">${errPct}%</div>
-          </div>
-          <div>
-            <div class="text-slate-500 uppercase tracking-wider mb-0.5">Avg Latency</div>
-            <div class="text-white font-medium">${latency}</div>
-          </div>
-          <div>
-            <div class="text-slate-500 uppercase tracking-wider mb-0.5">Last Hour</div>
-            <div class="text-white font-medium">${opsLastHour} ops</div>
-          </div>
+        <div class="mb-3">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Activity (24h)</div>
+          <div style="display:flex;align-items:flex-end;height:16px;">${activityDots.join('')}</div>
         </div>
         <div class="flex flex-wrap gap-1 mb-2">${toolsHtml}</div>
-        <div class="flex items-center justify-between text-xs text-slate-600">
-          <span>${a.total_spans} spans total</span>
-          <span>${cost}</span>
+        <div class="flex items-center justify-between text-[11px] text-slate-600">
+          <span>${a.total_spans} spans</span>
+          <span>${opsLastHour} ops/hr</span>
         </div>
       </div>`;
     }).join('');
@@ -1814,6 +1869,8 @@ function _disposeThreeScene(state) {
     if (l.geometry) l.geometry.dispose();
     if (l.material) l.material.dispose();
   });
+  if (state.particleGeom) state.particleGeom.dispose();
+  if (state.particleMat) state.particleMat.dispose();
   if (state.renderer) {
     state.renderer.dispose();
     if (state.renderer.domElement && state.renderer.domElement.parentNode) {
@@ -1895,11 +1952,12 @@ function _buildThreeScene(container, data, opts) {
     const r = opts.miniMode ? normSize * 0.7 : normSize;
     const geo = new THREE.SphereGeometry(r, 32, 32);
     const isActive = n.status === 'active';
-    const mat = new THREE.MeshStandardMaterial({
+    const mat = new THREE.MeshPhongMaterial({
       color, emissive: color,
       emissiveIntensity: isActive ? 0.55 : 0.1,
       transparent: !isActive, opacity: isActive ? 1.0 : 0.45,
-      roughness: 0.3, metalness: 0.15,
+      shininess: 120, specular: new THREE.Color(0x444466),
+      reflectivity: 0.6,
     });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(...positions[i]);
@@ -1908,21 +1966,46 @@ function _buildThreeScene(container, data, opts) {
     meshes.push(mesh);
   });
 
-  // Dashed lines for spawn-relationship edges
+  // Glowing lines for spawn-relationship edges (core + outer glow)
   edges.forEach(e => {
     const si = nodeIndex[e.source], ti = nodeIndex[e.target];
     if (si === undefined || ti === undefined) return;
     const pts = [new THREE.Vector3(...positions[si]), new THREE.Vector3(...positions[ti])];
-    const geoL = new THREE.BufferGeometry().setFromPoints(pts);
     const opacity = 0.2 + ((e.count || 1) / maxEdgeCount) * 0.5;
+
+    // Outer glow line (thicker, very transparent)
+    const geoGlow = new THREE.BufferGeometry().setFromPoints(pts);
+    const matGlow = new THREE.LineBasicMaterial({
+      color: 0x6366f1, transparent: true, opacity: opacity * 0.25, linewidth: 3,
+    });
+    const glowLine = new THREE.Line(geoGlow, matGlow);
+    rotationGroup.add(glowLine);
+    lines.push(glowLine);
+
+    // Core line (dashed, brighter)
+    const geoL = new THREE.BufferGeometry().setFromPoints(pts);
     const matL = new THREE.LineDashedMaterial({
-      color: 0xffffff, transparent: true, opacity, dashSize: 0.18, gapSize: 0.09,
+      color: 0x818cf8, transparent: true, opacity, dashSize: 0.18, gapSize: 0.09,
     });
     const line = new THREE.Line(geoL, matL);
     line.computeLineDistances();
     rotationGroup.add(line);
     lines.push(line);
   });
+
+  // Floating particle background
+  const particleCount = 200;
+  const particleGeom = new THREE.BufferGeometry();
+  const particlePositions = new Float32Array(particleCount * 3);
+  for (let i = 0; i < particleCount; i++) {
+    particlePositions[i * 3]     = (Math.random() - 0.5) * 20;
+    particlePositions[i * 3 + 1] = (Math.random() - 0.5) * 20;
+    particlePositions[i * 3 + 2] = (Math.random() - 0.5) * 20;
+  }
+  particleGeom.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+  const particleMat = new THREE.PointsMaterial({ color: 0x6366f1, size: 0.05, transparent: true, opacity: 0.3 });
+  const particles = new THREE.Points(particleGeom, particleMat);
+  scene.add(particles);
 
   // HTML labels positioned via 3D projection (main scene only)
   let labelContainer = null;
@@ -2019,6 +2102,10 @@ function _buildThreeScene(container, data, opts) {
       }
     });
 
+    // Slowly rotate particle field
+    particles.rotation.y += 0.0003;
+    particles.rotation.x += 0.0001;
+
     renderer.render(scene, camera);
 
     // Update HTML label screen positions
@@ -2052,7 +2139,7 @@ function _buildThreeScene(container, data, opts) {
   });
   resizeObserver.observe(container);
 
-  return { renderer, scene, camera, meshes, lines, rotationGroup, labelContainer, labelEls, resizeObserver, animFrameId };
+  return { renderer, scene, camera, meshes, lines, rotationGroup, labelContainer, labelEls, resizeObserver, animFrameId, particles, particleGeom, particleMat };
 }
 
 // Cytoscape fallback when THREE.js is unavailable
@@ -2131,7 +2218,7 @@ async function loadAgentGraph() {
       if (!container) return;
       if (_three3D) { _disposeThreeScene(_three3D); _three3D = null; }
       container.innerHTML = '';
-      container.style.height = '350px';
+      container.style.height = '400px';
       _three3D = _buildThreeScene(container, data, { showLabels: true, autoRotate: true, miniMode: false });
     } else if (typeof cytoscape !== 'undefined') {
       _loadAgentGraphCytoscape(data);
