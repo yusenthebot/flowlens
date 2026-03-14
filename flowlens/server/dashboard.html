@@ -3767,6 +3767,7 @@ let _trendHours = 24; // Currently active window
 
 async function loadTrendChart(hours) {
   _trendHours = hours;
+  console.log('[FlowLens] loadTrendChart called with hours=' + hours);
 
   // Update button active states
   document.querySelectorAll('.trend-btn').forEach(btn => {

@@ -1,20 +1,18 @@
 """Tests for new analysis features: patterns, advisor, comparator, critical path."""
 
-from flowlens.sdk.models import Span, SpanKind, SpanStatus, Trace
+from flowlens.analysis.advisor import TraceAdvisor
+from flowlens.analysis.comparator import compare_traces
+from flowlens.analysis.correlator import (
+    correlate_traces,
+)
 from flowlens.analysis.dag_builder import (
     build_causal_dag,
     calculate_critical_path,
     get_error_propagation_chain,
 )
-from flowlens.analysis.models import CausalDAG, PatternType
+from flowlens.analysis.models import PatternType
 from flowlens.analysis.patterns import detect_patterns
-from flowlens.analysis.advisor import TraceAdvisor, Recommendation
-from flowlens.analysis.comparator import compare_traces
-from flowlens.analysis.correlator import (
-    CorrelationReport,
-    correlate_traces,
-)
-
+from flowlens.sdk.models import Span, SpanKind, Trace
 
 _trace_counter = 0
 

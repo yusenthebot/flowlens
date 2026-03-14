@@ -1,8 +1,8 @@
 """Tests for Causal DAG builder and pattern detection."""
-from flowlens.sdk.models import Span, SpanKind, SpanStatus, Trace
 from flowlens.analysis.dag_builder import build_causal_dag
 from flowlens.analysis.models import ErrorRole, PatternType
 from flowlens.analysis.patterns import detect_patterns
+from flowlens.sdk.models import Span, SpanKind, Trace
 
 
 def _make_trace(*spans: Span) -> Trace:

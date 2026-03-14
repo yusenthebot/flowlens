@@ -4,17 +4,14 @@ from __future__ import annotations
 
 import pytest
 
+from flowlens import SpanEvent as PublicSpanEvent  # verify __init__ export
 from flowlens.sdk.models import (
+    _MODEL_CONTEXT_WINDOWS,
+    _MODEL_PRICING,
     Span,
     SpanEvent,
-    SpanKind,
-    SpanStatus,
     _estimate_cost,
-    _MODEL_PRICING,
-    _MODEL_CONTEXT_WINDOWS,
 )
-from flowlens import SpanEvent as PublicSpanEvent  # verify __init__ export
-
 
 # ---------------------------------------------------------------------------
 # SpanEvent public export

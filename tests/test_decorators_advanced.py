@@ -1,14 +1,12 @@
 """Advanced decorator tests for flowlens/sdk/decorators.py."""
 from __future__ import annotations
 
-import asyncio
 import pytest
 
-from flowlens import FlowLens, trace_agent, trace_tool, trace_llm
+from flowlens import FlowLens, trace_agent, trace_llm, trace_tool
 from flowlens.sdk.decorators import trace_llm_stream
-from flowlens.sdk.models import Trace, SpanKind, SpanStatus
 from flowlens.sdk.exporters import CallbackExporter
-
+from flowlens.sdk.models import SpanKind, SpanStatus, Trace
 
 # ---------------------------------------------------------------------------
 # Fixtures

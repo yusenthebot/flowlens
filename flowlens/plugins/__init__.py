@@ -67,7 +67,7 @@ class PluginRegistry:
         plugin.patch()
     """
 
-    _singleton: "PluginRegistry | None" = None
+    _singleton: PluginRegistry | None = None
 
     def __init__(self) -> None:
         self._plugins: dict[str, BasePlugin] = {}
@@ -77,7 +77,7 @@ class PluginRegistry:
     # ------------------------------------------------------------------
 
     @classmethod
-    def instance(cls) -> "PluginRegistry":
+    def instance(cls) -> PluginRegistry:
         """Return (or create) the process-wide singleton registry."""
         if cls._singleton is None:
             cls._singleton = cls()

@@ -17,11 +17,10 @@ from __future__ import annotations
 
 import statistics
 from collections import Counter, defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
-from ..sdk.models import Span, SpanKind, SpanStatus, Trace
-
+from ..sdk.models import SpanStatus, Trace
 
 # ---------------------------------------------------------------------------
 # Fleet recommendation model

@@ -1,7 +1,6 @@
 """Generate screenshots from demo_dashboard.html for README."""
 import os
-import sys
-import time
+
 
 def main():
     from playwright.sync_api import sync_playwright

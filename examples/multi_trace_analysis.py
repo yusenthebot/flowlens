@@ -18,17 +18,15 @@ What this demonstrates:
   - Exporting the correlation report as JSON
 """
 
-import asyncio
 import json
-import random
-import sys
 import os
+import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from flowlens.sdk.models import Trace, Span, SpanKind, SpanStatus
-from flowlens.analysis.correlator import correlate_traces, CorrelationReport
+from flowlens.analysis.correlator import CorrelationReport, correlate_traces
+from flowlens.sdk.models import Span, SpanKind, SpanStatus, Trace
 
 # ───────────────────────────────────────────────────────────────────────────
 # ANSI helpers
@@ -419,7 +417,7 @@ def print_report(report: CorrelationReport, traces: list[Trace]) -> None:
             print(f"  {c(dir_sym, dir_color, BOLD)}  {c(trend.metric, WHITE, BOLD)}")
             print(f"     Direction : {c(trend.direction.upper(), dir_color)}")
             print(f"     Slope     : {c(f'{trend.slope:+.2f} per trace step', dir_color)}")
-            print(f"     Values    : ", end="")
+            print("     Values    : ", end="")
 
             max_v = max(trend.values) if trend.values else 1
             for v in trend.values:

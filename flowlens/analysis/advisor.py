@@ -11,12 +11,11 @@ produce:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from ..sdk.models import Trace
 from .models import CausalDAG, DetectedPattern, PatternType
-
 
 # ---------------------------------------------------------------------------
 # Recommendation model

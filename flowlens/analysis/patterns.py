@@ -12,10 +12,10 @@ Pattern Detection — 检测已知的 Agent 错误模式
 from __future__ import annotations
 
 from collections import Counter
-from ..sdk.models import Span, SpanKind, SpanStatus, Trace
-from .models import DetectedPattern, PatternType, CausalDAG
-from ..config import settings
 
+from ..config import settings
+from ..sdk.models import Span, SpanKind, SpanStatus, Trace
+from .models import CausalDAG, DetectedPattern, PatternType
 
 # 模型 context window 大小
 _MODEL_CONTEXT_LIMITS: dict[str, int] = {

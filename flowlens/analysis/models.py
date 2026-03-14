@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 
 class ErrorRole(Enum):
@@ -43,7 +43,7 @@ class CausalNode:
     name: str
     kind: str                  # agent / llm / tool
     status: str                # ok / error
-    error_message: Optional[str] = None
+    error_message: str | None = None
     error_role: ErrorRole = ErrorRole.INDEPENDENT
     duration_ms: float = 0.0
     token_count: int = 0
@@ -230,8 +230,8 @@ class CausalDAG:
         # --- Summary statistics ---
         stats = self.summary_stats()
         lines.append("## Summary\n")
-        lines.append(f"| Metric | Value |")
-        lines.append(f"|--------|-------|")
+        lines.append("| Metric | Value |")
+        lines.append("|--------|-------|")
         lines.append(f"| Total nodes | {stats['total_nodes']} |")
         lines.append(f"| Total errors | {stats['total_errors']} |")
         lines.append(f"| Root causes | {stats['root_cause_count']} |")

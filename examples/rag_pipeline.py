@@ -20,31 +20,50 @@ Run with:
 """
 
 import asyncio
+import os
 import random
 import sys
-import os
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # ── FlowLens imports ────────────────────────────────────────────────────────
 from flowlens import (
-    FlowLens, trace_agent, trace_llm, trace_tool,
-    trace_chain, trace_retrieval, trace_embedding,
+    FlowLens,
+    trace_agent,
+    trace_chain,
+    trace_embedding,
+    trace_llm,
+    trace_retrieval,
+    trace_tool,
 )
-from flowlens.sdk.models import Trace
+from flowlens.analysis.advisor import TraceAdvisor
 from flowlens.analysis.dag_builder import build_causal_dag
 from flowlens.analysis.patterns import detect_patterns
-from flowlens.analysis.advisor import TraceAdvisor
+from flowlens.sdk.models import Trace
 
 # ── Utils (shared helpers from _utils.py) ──────────────────────────────────
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _utils import (
-    c, banner, section, subsection, ok, err, info, warn, note,
-    print_trace_tree, print_table, hbar, progress,
-    RESET, BOLD, DIM, ITALIC,
-    BRIGHT_RED, BRIGHT_GREEN, BRIGHT_YELLOW, BRIGHT_BLUE,
-    BRIGHT_MAGENTA, BRIGHT_CYAN, BRIGHT_WHITE, WHITE, CYAN, GREEN, RED, YELLOW,
+    BOLD,
+    BRIGHT_BLUE,
+    BRIGHT_CYAN,
+    BRIGHT_GREEN,
+    BRIGHT_MAGENTA,
+    BRIGHT_RED,
+    BRIGHT_WHITE,
+    BRIGHT_YELLOW,
+    DIM,
+    WHITE,
+    c,
+    hbar,
+    info,
+    ok,
+    print_table,
+    print_trace_tree,
+    progress,
+    section,
+    subsection,
 )
 
 # ── Simulated knowledge base ─────────────────────────────────────────────────

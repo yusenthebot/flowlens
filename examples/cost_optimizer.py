@@ -18,27 +18,40 @@ Run with:
 """
 
 import asyncio
+import os
 import random
 import sys
-import os
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from flowlens import FlowLens, trace_agent, trace_llm, trace_tool, trace_retrieval
-from flowlens.sdk.models import Trace, Span, SpanKind, SpanStatus
+from flowlens import FlowLens, trace_agent, trace_llm, trace_retrieval
+from flowlens.analysis.advisor import TraceAdvisor
 from flowlens.analysis.dag_builder import build_causal_dag
 from flowlens.analysis.patterns import detect_patterns
-from flowlens.analysis.advisor import TraceAdvisor
+from flowlens.sdk.models import Trace
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _utils import (
-    c, banner, section, subsection, ok, err, info, warn, note,
-    print_trace_tree, print_table, hbar, progress,
-    RESET, BOLD, DIM,
-    BRIGHT_RED, BRIGHT_GREEN, BRIGHT_YELLOW, BRIGHT_BLUE,
-    BRIGHT_MAGENTA, BRIGHT_CYAN, BRIGHT_WHITE, WHITE, GREEN, RED, YELLOW,
+    BOLD,
+    BRIGHT_BLUE,
+    BRIGHT_CYAN,
+    BRIGHT_GREEN,
+    BRIGHT_RED,
+    BRIGHT_WHITE,
+    BRIGHT_YELLOW,
+    DIM,
+    WHITE,
+    c,
+    err,
+    hbar,
+    ok,
+    print_table,
+    print_trace_tree,
+    section,
+    subsection,
 )
+
 
 # ── Fake LLM response (Anthropic SDK shape) ───────────────────────────────────
 class FakeLLM:
@@ -196,8 +209,8 @@ async def run_all_scenarios(lens: FlowLens, task: str, traces: list) -> list[dic
             avg_tokens = int(sum(run_tokens) / len(run_tokens))
             avg_ms     = sum(run_ms) / len(run_ms)
             ok(
-                f"3 runs avg: {c('${:.5f}'.format(avg_cost), col)} cost | "
-                f"{c(str(avg_tokens), col)} tokens | {c('{:.0f}ms'.format(avg_ms), col)} lat"
+                f"3 runs avg: {c(f'${avg_cost:.5f}', col)} cost | "
+                f"{c(str(avg_tokens), col)} tokens | {c(f'{avg_ms:.0f}ms', col)} lat"
             )
             results.append({
                 "label":      label,
@@ -366,12 +379,12 @@ async def main() -> None:
         print(f"  {c('Cheapest scenario:', DIM)}  {c(cheapest['label'], BRIGHT_GREEN, BOLD)}")
         print(f"  {c('Costliest scenario:', DIM)} {c(expensive['label'], BRIGHT_RED, BOLD)}")
         print(f"  {c('Cost ratio:', DIM)}          {c(f'{ratio:.1f}x', BRIGHT_RED, BOLD)} more expensive")
-        print(f"  {c('Monthly waste (50k):', DIM)} {c('${:.2f}/mo'.format(monthly_waste), BRIGHT_RED, BOLD)}")
+        print(f"  {c('Monthly waste (50k):', DIM)} {c(f'${monthly_waste:.2f}/mo', BRIGHT_RED, BOLD)}")
         print()
         print(c("  Recommendation:", BRIGHT_WHITE, BOLD))
         print(f"    Use {c(cheapest['label'], BRIGHT_GREEN, BOLD)} as your baseline model strategy.")
-        print(f"    Reserve claude-opus / gpt-4o for high-stakes generation only.")
-        print(f"    Implement RAG with chunked context instead of full KB injection.")
+        print("    Reserve claude-opus / gpt-4o for high-stakes generation only.")
+        print("    Implement RAG with chunked context instead of full KB injection.")
         print()
 
     lens.shutdown()

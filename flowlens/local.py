@@ -24,7 +24,7 @@ from __future__ import annotations
 import logging
 import threading
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +93,7 @@ class LocalCollector:
     # Read
     # ------------------------------------------------------------------
 
-    def query(self, trace_id: str) -> Optional[dict[str, Any]]:
+    def query(self, trace_id: str) -> dict[str, Any] | None:
         """
         Retrieve a single trace with all its spans.
 
@@ -110,7 +110,7 @@ class LocalCollector:
         self,
         limit: int = 50,
         offset: int = 0,
-        service: Optional[str] = None,
+        service: str | None = None,
     ) -> list[dict[str, Any]]:
         """
         List traces ordered newest-first, without span detail.
@@ -179,7 +179,7 @@ class LocalCollector:
     # Context manager
     # ------------------------------------------------------------------
 
-    def __enter__(self) -> "LocalCollector":
+    def __enter__(self) -> LocalCollector:
         return self
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:

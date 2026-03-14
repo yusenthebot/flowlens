@@ -3,27 +3,19 @@ from __future__ import annotations
 
 import contextvars
 import threading
-from typing import Optional
 
-import pytest
-
-from flowlens.sdk.models import Span, Trace, SpanKind
 from flowlens.sdk.context import (
     SpanContext,
     TraceContext,
     _baggage,
-    _current_span,
-    _current_trace,
     get_baggage,
     get_baggage_item,
     get_current_span,
     get_current_trace,
     set_baggage,
     set_baggage_item,
-    set_current_span,
-    set_current_trace,
 )
-
+from flowlens.sdk.models import Span, SpanKind, Trace
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -66,17 +58,15 @@ class TestContextPropagation:
         trace = _make_trace()
         span = _make_span("child")
 
-        with TraceContext(trace):
-            with SpanContext(span):
-                assert span.trace_id == trace.trace_id
+        with TraceContext(trace), SpanContext(span):
+            assert span.trace_id == trace.trace_id
 
     def test_child_span_gets_parent_id(self):
         parent = _make_span("parent")
         child = _make_span("child")
 
-        with SpanContext(parent):
-            with SpanContext(child):
-                assert child.parent_span_id == parent.span_id
+        with SpanContext(parent), SpanContext(child):
+            assert child.parent_span_id == parent.span_id
 
         assert parent.parent_span_id is None
 
@@ -85,9 +75,8 @@ class TestContextPropagation:
         span = _make_span()
 
         try:
-            with TraceContext(trace):
-                with SpanContext(span):
-                    raise ValueError("boom")
+            with TraceContext(trace), SpanContext(span):
+                raise ValueError("boom")
         except ValueError:
             pass
 
@@ -146,7 +135,7 @@ class TestContextIsolation:
         trace_a = _make_trace("svc-a")
         trace_b = _make_trace("svc-b")
 
-        results: list[Optional[Trace]] = []
+        results: list[Trace | None] = []
 
         def run_in_a():
             ctx = contextvars.copy_context()
@@ -233,7 +222,7 @@ class TestNestedSpanContext:
 class TestThreadSafety:
     def test_context_isolated_per_thread(self):
         """Each thread should see its own trace, not another thread's."""
-        results: dict[int, Optional[Trace]] = {}
+        results: dict[int, Trace | None] = {}
         errors: list[Exception] = []
 
         def worker(tid: int, trace: Trace) -> None:
@@ -263,7 +252,7 @@ class TestThreadSafety:
 
     def test_baggage_isolated_per_thread(self):
         """Baggage set in one thread must not be visible in another."""
-        seen: dict[int, Optional[str]] = {}
+        seen: dict[int, str | None] = {}
         errors: list[Exception] = []
 
         def worker(tid: int, value: str) -> None:

@@ -12,7 +12,7 @@ Causal DAG Builder — 从 trace 数据构建错误因果图
 from __future__ import annotations
 
 from ..sdk.models import Span, SpanStatus, Trace
-from .models import CausalDAG, CausalNode, CausalEdge, ErrorRole
+from .models import CausalDAG, CausalEdge, CausalNode, ErrorRole
 
 
 def build_causal_dag(trace: Trace) -> CausalDAG:

@@ -1,14 +1,14 @@
 """Tests for @trace_llm_stream — streaming LLM decorator."""
 from __future__ import annotations
 
-import pytest
 from unittest.mock import MagicMock
 
-from flowlens import FlowLens, trace_agent, trace_llm_stream
-from flowlens.sdk.models import Trace, SpanKind, SpanStatus
-from flowlens.sdk.exporters import CallbackExporter
-from flowlens.sdk.decorators import _estimate_tokens_from_text
+import pytest
 
+from flowlens import FlowLens, trace_agent, trace_llm_stream
+from flowlens.sdk.decorators import _estimate_tokens_from_text
+from flowlens.sdk.exporters import CallbackExporter
+from flowlens.sdk.models import SpanKind, SpanStatus, Trace
 
 # ---------------------------------------------------------------------------
 # Fixtures

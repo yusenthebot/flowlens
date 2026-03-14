@@ -14,15 +14,18 @@ Covers:
 from __future__ import annotations
 
 import asyncio
-import json
 import time
+
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
 
-from flowlens.alerting import AlertRule, Alert
-from flowlens.alerting.engine import AlertEngine, _eval_threshold, _extract_metric, _check_pattern, _THRESHOLD_RE
-from flowlens.alerting.webhooks import build_payload, _build_generic_payload, _build_slack_payload
-
+from flowlens.alerting import Alert, AlertRule
+from flowlens.alerting.engine import (
+    AlertEngine,
+    _check_pattern,
+    _eval_threshold,
+    _extract_metric,
+)
+from flowlens.alerting.webhooks import _build_generic_payload, _build_slack_payload, build_payload
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -739,6 +742,7 @@ class TestAlertingAPI:
     @pytest.fixture
     def client(self, tmp_path):
         from fastapi.testclient import TestClient
+
         from flowlens.server.app import create_app
         app = create_app(db_path=str(tmp_path / "test_api.db"))
         return TestClient(app, raise_server_exceptions=True)

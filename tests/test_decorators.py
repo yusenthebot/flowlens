@@ -1,9 +1,9 @@
 """Tests for FlowLens decorators — trace_agent, trace_llm, trace_tool."""
-import asyncio
 import pytest
-from flowlens import FlowLens, trace_agent, trace_tool, trace_llm
-from flowlens.sdk.models import Trace, SpanKind, SpanStatus
+
+from flowlens import FlowLens, trace_agent, trace_llm, trace_tool
 from flowlens.sdk.exporters import CallbackExporter
+from flowlens.sdk.models import SpanKind, SpanStatus, Trace
 
 
 @pytest.fixture

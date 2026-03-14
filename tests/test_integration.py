@@ -18,21 +18,20 @@ import json
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-import pytest
 import httpx
+import pytest
 
-from flowlens.sdk.models import Span, SpanKind, SpanStatus, Trace
-from flowlens.sdk.tracer import FlowLens
-from flowlens.sdk.decorators import trace_agent, trace_llm, trace_tool
-from flowlens.sdk.exporters import CallbackExporter
-from flowlens.sdk.context import TraceContext
-from flowlens.analysis.dag_builder import build_causal_dag
-from flowlens.analysis.patterns import detect_patterns
 from flowlens.analysis.advisor import TraceAdvisor
 from flowlens.analysis.correlator import correlate_traces
-from flowlens.analysis.models import PatternType, ErrorRole
+from flowlens.analysis.dag_builder import build_causal_dag
+from flowlens.analysis.models import ErrorRole, PatternType
+from flowlens.analysis.patterns import detect_patterns
+from flowlens.sdk.context import TraceContext
+from flowlens.sdk.decorators import trace_agent, trace_llm, trace_tool
+from flowlens.sdk.exporters import CallbackExporter
+from flowlens.sdk.models import Span, SpanKind, SpanStatus, Trace
+from flowlens.sdk.tracer import FlowLens
 from flowlens.server.app import create_app
-
 
 # ===========================================================================
 # Shared helpers
@@ -1028,7 +1027,7 @@ class TestAutoInstrumentationE2E:
 
     def test_idempotent_patching(self):
         """Calling auto_instrument twice for the same lib should not raise."""
-        from flowlens.sdk.auto_instrument import auto_instrument, _patched
+        from flowlens.sdk.auto_instrument import _patched, auto_instrument
 
         # Manually add a fake lib as already-patched to test the guard
         _patched.add("__test_idem__")
@@ -1129,6 +1128,7 @@ class TestConfigAndCLISmokeTests:
 
     def test_cli_help_does_not_crash(self):
         from click.testing import CliRunner
+
         from flowlens.cli import cli
 
         runner = CliRunner()
@@ -1138,6 +1138,7 @@ class TestConfigAndCLISmokeTests:
 
     def test_cli_version_subcommand(self):
         from click.testing import CliRunner
+
         from flowlens.cli import cli
 
         runner = CliRunner()
@@ -1147,6 +1148,7 @@ class TestConfigAndCLISmokeTests:
 
     def test_cli_serve_help(self):
         from click.testing import CliRunner
+
         from flowlens.cli import cli
 
         runner = CliRunner()
@@ -1156,6 +1158,7 @@ class TestConfigAndCLISmokeTests:
 
     def test_cli_analyze_help(self):
         from click.testing import CliRunner
+
         from flowlens.cli import cli
 
         runner = CliRunner()

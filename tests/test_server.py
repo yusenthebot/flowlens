@@ -1,10 +1,11 @@
 """Tests for FlowLens API Server and Storage."""
 import json
 import time
-import pytest
-from flowlens.server.storage import TraceStore
-from flowlens.server.app import create_app, _ALLOWED_IMPORT_DIRS
 
+import pytest
+
+from flowlens.server.app import _ALLOWED_IMPORT_DIRS, create_app
+from flowlens.server.storage import TraceStore
 
 # ===========================================================================
 # Shared fixture helpers
@@ -747,11 +748,13 @@ class TestAPI:
     def test_auto_cleanup_on_ingest_exceeding_limit(self, tmp_path):
         """When trace count exceeds max_traces, cleanup_excess_traces should delete oldest."""
         import os
+
         from flowlens.server.storage import TraceStore
         # Temporarily set a low max_traces limit for testing
         os.environ["FLOWLENS_MAX_TRACES"] = "5"
         try:
             from importlib import reload
+
             import flowlens.config
             reload(flowlens.config)
 
@@ -926,8 +929,9 @@ class TestAPI:
         now = time.time()
         # We need to insert a trace with an old start_time (10 min ago) directly
         db_path = str(tmp_path / "idle_test.db")
-        from flowlens.server.app import create_app
         from fastapi.testclient import TestClient
+
+        from flowlens.server.app import create_app
         app = create_app(db_path=db_path)
         c = TestClient(app)
 

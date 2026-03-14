@@ -27,7 +27,7 @@ import asyncio
 import logging
 import re
 import time
-from typing import Any, Optional
+from typing import Any
 
 from . import Alert, AlertRule
 from .webhooks import send_webhook
@@ -72,7 +72,7 @@ def _extract_metric(
     trace: dict[str, Any],
     metric: str,
     cumulative_cost: float = 0.0,
-) -> Optional[float]:
+) -> float | None:
     """
     Extract a numeric metric from a trace dict.
 
@@ -172,7 +172,7 @@ class AlertEngine:
         """Return all registered rules (in insertion order)."""
         return list(self._rules.values())
 
-    def get_rule(self, name: str) -> Optional[AlertRule]:
+    def get_rule(self, name: str) -> AlertRule | None:
         """Return a rule by name or None."""
         return self._rules.get(name)
 

@@ -6,14 +6,13 @@ import time
 
 import pytest
 
-from flowlens.sdk.models import Span, SpanKind, SpanStatus, Trace, TokenUsage
 from flowlens.analysis.trace_diff import (
     DiffResult,
     ExperimentDiffResult,
     SpanComparison,
     TraceDiff,
 )
-
+from flowlens.sdk.models import Span, SpanKind, SpanStatus, TokenUsage, Trace
 
 # ---------------------------------------------------------------------------
 # Helpers

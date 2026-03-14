@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ def _iso_now() -> str:
 
 def _build_generic_payload(
     alert_dict: dict[str, Any],
-    trace_context: Optional[dict[str, Any]],
+    trace_context: dict[str, Any] | None,
 ) -> dict[str, Any]:
     """Build the standard FlowLens webhook payload."""
     trace_section: dict[str, Any] = {}
@@ -56,7 +56,7 @@ def _build_generic_payload(
 
 def _build_slack_payload(
     alert_dict: dict[str, Any],
-    trace_context: Optional[dict[str, Any]],
+    trace_context: dict[str, Any] | None,
 ) -> dict[str, Any]:
     """Build a Slack Block Kit payload for Slack Incoming Webhooks."""
     severity = alert_dict.get("severity", "info")
@@ -126,7 +126,7 @@ def _build_slack_payload(
 
 def build_payload(
     alert_dict: dict[str, Any],
-    trace_context: Optional[dict[str, Any]],
+    trace_context: dict[str, Any] | None,
     url: str,
 ) -> dict[str, Any]:
     """Choose and build the appropriate payload format based on the URL."""
@@ -138,7 +138,7 @@ def build_payload(
 async def send_webhook(
     url: str,
     alert_dict: dict[str, Any],
-    trace_context: Optional[dict[str, Any]] = None,
+    trace_context: dict[str, Any] | None = None,
     timeout: float = 5.0,
 ) -> bool:
     """

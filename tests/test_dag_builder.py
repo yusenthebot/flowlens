@@ -2,18 +2,14 @@
 from __future__ import annotations
 
 import time
-import uuid
 
-import pytest
-
-from flowlens.sdk.models import Span, SpanKind, SpanStatus, Trace
 from flowlens.analysis.dag_builder import (
     build_causal_dag,
     calculate_critical_path,
     get_error_propagation_chain,
 )
 from flowlens.analysis.models import CausalDAG, ErrorRole
-
+from flowlens.sdk.models import Span, SpanKind, SpanStatus, Trace
 
 # ---------------------------------------------------------------------------
 # Helpers

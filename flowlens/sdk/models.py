@@ -11,7 +11,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 
 class SpanKind(Enum):
@@ -61,7 +61,7 @@ class Span:
     # 标识
     span_id: str = field(default_factory=lambda: uuid.uuid4().hex[:16])
     trace_id: str = ""
-    parent_span_id: Optional[str] = None
+    parent_span_id: str | None = None
 
     # 元数据
     name: str = ""
@@ -79,11 +79,11 @@ class Span:
     events: list[SpanEvent] = field(default_factory=list)
 
     # LLM 专属
-    token_usage: Optional[TokenUsage] = None
+    token_usage: TokenUsage | None = None
 
     # 错误信息
-    error_message: Optional[str] = None
-    error_type: Optional[str] = None
+    error_message: str | None = None
+    error_type: str | None = None
 
     @property
     def duration_ms(self) -> float:
@@ -95,7 +95,7 @@ class Span:
     def finish(
         self,
         status: SpanStatus = SpanStatus.OK,
-        error: Optional[str] = None,
+        error: str | None = None,
     ) -> None:
         """结束 Span"""
         self.end_time = time.time()
@@ -104,7 +104,7 @@ class Span:
             self.status = SpanStatus.ERROR
             self.error_message = error
 
-    def add_event(self, name: str, attributes: Optional[dict[str, Any]] = None, **attrs: Any) -> None:
+    def add_event(self, name: str, attributes: dict[str, Any] | None = None, **attrs: Any) -> None:
         """Add a discrete event to this span.
 
         Args:
@@ -128,7 +128,7 @@ class Span:
         """
         self.attributes[key] = value
 
-    def add_link(self, trace_id: str, span_id: str, attributes: Optional[dict[str, Any]] = None) -> None:
+    def add_link(self, trace_id: str, span_id: str, attributes: dict[str, Any] | None = None) -> None:
         """Add a cross-trace link to another span.
 
         Links are stored as span events with the name ``"span_link"`` and the
@@ -206,16 +206,16 @@ class Trace:
     """一次完整的 Agent 执行追踪"""
     trace_id: str = field(default_factory=lambda: uuid.uuid4().hex)
     service_name: str = ""
-    root_span_id: Optional[str] = None
+    root_span_id: str | None = None
     spans: list[Span] = field(default_factory=list)
     start_time: float = field(default_factory=time.time)
     end_time: float = 0.0
     metadata: dict[str, Any] = field(default_factory=dict)
     # User/session/experiment context
-    user_id: Optional[str] = None
-    session_id: Optional[str] = None
-    experiment: Optional[str] = None
-    tags: Optional[dict[str, str]] = None
+    user_id: str | None = None
+    session_id: str | None = None
+    experiment: str | None = None
+    tags: dict[str, str] | None = None
 
     @property
     def duration_ms(self) -> float:

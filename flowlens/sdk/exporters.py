@@ -18,13 +18,13 @@ import gzip
 import io
 import json
 import logging
-import os
 import sys
-import time
 import threading
+import time
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, List, Optional
+from typing import Any
 
 from .models import Span, SpanKind, SpanStatus, Trace
 
@@ -53,7 +53,7 @@ class ConsoleExporter(TraceExporter):
 
     def export(self, trace: Trace) -> None:
         if self.colored:
-            header = f"\033[96m\033[1m[FlowLens]\033[0m"
+            header = "\033[96m\033[1m[FlowLens]\033[0m"
         else:
             header = "[FlowLens]"
 
@@ -78,7 +78,7 @@ class ConsoleExporter(TraceExporter):
     def _print_span_tree(self, trace: Trace) -> None:
         """打印 span 树结构（带缩进表示层级）"""
         # 构建 parent -> children 映射
-        children_map: dict[Optional[str], list] = {}
+        children_map: dict[str | None, list] = {}
         for span in trace.spans:
             parent_id = span.parent_span_id
             if parent_id not in children_map:
@@ -90,7 +90,7 @@ class ConsoleExporter(TraceExporter):
         for span in root_spans:
             self._print_span_node(span, children_map, depth=0)
 
-    def _print_span_node(self, span: "Span", children_map: dict, depth: int = 0) -> None:
+    def _print_span_node(self, span: Span, children_map: dict, depth: int = 0) -> None:
         """递归打印单个 span 节点及其子节点"""
         # 缩进
         indent = "  " * depth
@@ -382,7 +382,7 @@ class OTLPExporter(TraceExporter):
     def __init__(
         self,
         endpoint: str = "http://localhost:4318/v1/traces",
-        headers: Optional[dict[str, str]] = None,
+        headers: dict[str, str] | None = None,
         timeout: float = 10.0,
         service_name: str = "flowlens",
     ) -> None:
@@ -599,7 +599,7 @@ class OTLPBatchExporter(TraceExporter):
     def __init__(
         self,
         endpoint: str = "http://localhost:4318/v1/traces",
-        headers: Optional[dict[str, str]] = None,
+        headers: dict[str, str] | None = None,
         timeout: float = 10.0,
         service_name: str = "flowlens",
         batch_size: int = 10,
@@ -616,7 +616,7 @@ class OTLPBatchExporter(TraceExporter):
         self.use_gzip = gzip
         self.max_retries = max_retries
 
-        self._batch: List[Trace] = []
+        self._batch: list[Trace] = []
         self._lock = threading.Lock()
         self._last_flush = time.time()
         self._shutdown_event = threading.Event()
@@ -679,7 +679,7 @@ class OTLPBatchExporter(TraceExporter):
     # Network transport with retry
     # ------------------------------------------------------------------
 
-    def _build_payload(self, traces: List[Trace]) -> dict[str, Any]:
+    def _build_payload(self, traces: list[Trace]) -> dict[str, Any]:
         """Build an OTLP-compatible JSON payload for a list of traces."""
         resource_spans = []
         for trace in traces:
@@ -770,7 +770,7 @@ class OTLPBatchExporter(TraceExporter):
             result["parentSpanId"] = parent_hex
         return result
 
-    def _send_batch(self, traces: List[Trace]) -> None:
+    def _send_batch(self, traces: list[Trace]) -> None:
         """Send a batch with exponential-backoff retry."""
         payload = self._build_payload(traces)
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -785,7 +785,7 @@ class OTLPBatchExporter(TraceExporter):
         if self.use_gzip:
             headers["Content-Encoding"] = "gzip"
 
-        last_exc: Optional[Exception] = None
+        last_exc: Exception | None = None
         for attempt in range(self.max_retries):
             try:
                 import urllib.request
@@ -830,7 +830,7 @@ class OTLPBatchExporter(TraceExporter):
 
 
 # Default columns exported per span row
-_CSV_DEFAULT_COLUMNS: List[str] = [
+_CSV_DEFAULT_COLUMNS: list[str] = [
     "trace_id",
     "span_id",
     "parent_span_id",
@@ -864,8 +864,8 @@ class CSVExporter(TraceExporter):
 
     def __init__(
         self,
-        file_path: Optional[str | Path] = None,
-        columns: Optional[List[str]] = None,
+        file_path: str | Path | None = None,
+        columns: list[str] | None = None,
         write_header: bool = True,
     ) -> None:
         self.columns = columns if columns is not None else list(_CSV_DEFAULT_COLUMNS)
@@ -878,8 +878,8 @@ class CSVExporter(TraceExporter):
         self._mem_writer = csv.writer(self._buffer)
 
         # File writer
-        self._file: Optional[Any] = None
-        self._file_writer: Optional[csv.writer] = None  # type: ignore[type-arg]
+        self._file: Any | None = None
+        self._file_writer: csv.writer | None = None  # type: ignore[type-arg]
         if self._file_path:
             self._file_path.parent.mkdir(parents=True, exist_ok=True)
             self._file = open(self._file_path, "a", newline="", encoding="utf-8")
@@ -916,13 +916,13 @@ class CSVExporter(TraceExporter):
     # Helpers
     # ------------------------------------------------------------------
 
-    def _write_row(self, row: List[Any]) -> None:
+    def _write_row(self, row: list[Any]) -> None:
         with self._lock:
             self._mem_writer.writerow(row)
             if self._file_writer is not None:
                 self._file_writer.writerow(row)
 
-    def _span_to_row(self, span: Span, trace: Trace) -> List[Any]:
+    def _span_to_row(self, span: Span, trace: Trace) -> list[Any]:
         """Extract a CSV row from a span according to self.columns."""
         mapping: dict[str, Any] = {
             "trace_id": trace.trace_id,
@@ -976,7 +976,7 @@ class JSONLStreamExporter(TraceExporter):
 
     def __init__(
         self,
-        file_path: Optional[str | Path] = None,
+        file_path: str | Path | None = None,
         ensure_ascii: bool = False,
     ) -> None:
         self.ensure_ascii = ensure_ascii
@@ -1009,7 +1009,7 @@ class JSONLStreamExporter(TraceExporter):
 # OTLP attribute helpers
 # ---------------------------------------------------------------------------
 
-def _pad_hex(value: Optional[str], length: int) -> str:
+def _pad_hex(value: str | None, length: int) -> str:
     """Ensure a hex string has exactly *length* characters (pad or truncate)."""
     if not value:
         return "0" * length

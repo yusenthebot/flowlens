@@ -20,8 +20,7 @@ from flowlens.sdk.exporters import (
     _to_otel_value,
     create_exporter,
 )
-from flowlens.sdk.models import Span, SpanKind, SpanStatus, SpanEvent, Trace
-
+from flowlens.sdk.models import Span, SpanEvent, SpanKind, SpanStatus, Trace
 
 # ---------------------------------------------------------------------------
 # Helpers

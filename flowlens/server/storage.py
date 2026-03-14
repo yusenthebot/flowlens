@@ -20,7 +20,7 @@ import sqlite3
 import threading
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -685,7 +685,7 @@ class TraceStore:
             }
         return span
 
-    def get_trace(self, trace_id: str) -> Optional[dict[str, Any]]:
+    def get_trace(self, trace_id: str) -> dict[str, Any] | None:
         """Fetch a single trace with all its spans."""
         conn = self._pool.primary
         row = conn.execute(
@@ -707,11 +707,11 @@ class TraceStore:
         self,
         limit: int = 50,
         offset: int = 0,
-        service_name: Optional[str] = None,
-        has_errors: Optional[bool] = None,
-        user_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-        experiment: Optional[str] = None,
+        service_name: str | None = None,
+        has_errors: bool | None = None,
+        user_id: str | None = None,
+        session_id: str | None = None,
+        experiment: str | None = None,
     ) -> list[dict[str, Any]]:
         """List traces (without span detail)."""
         conn = self._pool.primary
@@ -1025,8 +1025,8 @@ class TraceStore:
         self,
         trace_id: str,
         rating: int,
-        comment: Optional[str] = None,
-        metadata: Optional[dict[str, Any]] = None,
+        comment: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> int:
         """
         Save user feedback for a trace.
@@ -1192,7 +1192,7 @@ class TraceStore:
         conn.commit()
         logger.debug("Saved alert rule: %s", rule["name"])
 
-    def get_alert_rule(self, name: str) -> Optional[dict[str, Any]]:
+    def get_alert_rule(self, name: str) -> dict[str, Any] | None:
         """Return a single alert rule by name, or None."""
         conn = self._pool.primary
         row = conn.execute(

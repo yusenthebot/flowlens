@@ -17,14 +17,14 @@ What this shows:
 """
 
 import asyncio
-import sys
 import os
-import time
 import random
+import sys
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from flowlens import FlowLens, trace_agent, auto_instrument
+from flowlens import FlowLens, auto_instrument, trace_agent
 from flowlens.sdk.models import Trace
 
 # ───────────────────────────────────────────────────────────────────────────

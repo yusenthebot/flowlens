@@ -9,13 +9,13 @@ Run with:
 """
 
 import asyncio
+import os
 import random
 import sys
-import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from flowlens import FlowLens, trace_agent, trace_llm, trace_tool, trace_retrieval
+from flowlens import FlowLens, trace_agent, trace_llm, trace_retrieval, trace_tool
 from flowlens.sdk.models import Trace
 
 # ── Shared ANSI helpers ────────────────────────────────────────────────────
@@ -109,7 +109,7 @@ async def main() -> None:
                   f"{c(span.name, BOLD if not span.parent_span_id else '')}  "
                   f"{c(f'{span.duration_ms:.0f}ms', DIM)}{c(tok, DIM)}")
 
-    print(c(f"\n  Done! Next: python3 examples/rag_pipeline.py", DIM))
+    print(c("\n  Done! Next: python3 examples/rag_pipeline.py", DIM))
     lens.shutdown()
 
 if __name__ == "__main__":

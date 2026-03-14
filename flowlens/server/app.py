@@ -39,8 +39,7 @@ import time
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Optional
-import sqlite3
+from typing import Any
 
 from fastapi import (
     FastAPI,
@@ -55,17 +54,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel, Field, field_validator
 
-from .storage import TraceStore
-from ..sdk.models import Span, SpanKind, SpanStatus, Trace, TokenUsage
-from ..analysis.dag_builder import build_causal_dag
-from ..analysis.patterns import detect_patterns
-from ..analysis.trace_diff import TraceDiff as _TraceDiff
-from ..analysis.smart_advisor import SmartAdvisor as _SmartAdvisor
-from ..config import settings
-from ..logging_config import configure_logging
-from ..alerting import AlertRule, Alert
+from ..alerting import Alert, AlertRule
 from ..alerting.engine import AlertEngine
 from ..alerting.webhooks import send_webhook as _send_webhook
+from ..analysis.dag_builder import build_causal_dag
+from ..analysis.patterns import detect_patterns
+from ..analysis.smart_advisor import SmartAdvisor as _SmartAdvisor
+from ..analysis.trace_diff import TraceDiff as _TraceDiff
+from ..config import settings
+from ..logging_config import configure_logging
+from ..sdk.models import Span, SpanKind, SpanStatus, TokenUsage, Trace
+from .storage import TraceStore
 
 logger = logging.getLogger(__name__)
 
@@ -123,10 +122,10 @@ class TraceIngestRequest(BaseModel):
     metadata: dict[str, Any] = {}
     spans: list[dict[str, Any]] = Field(default_factory=list, max_length=_MAX_SPANS_PER_INGEST)
     # User/session/experiment context
-    user_id: Optional[str] = Field(None, max_length=_MAX_ID_LENGTH)
-    session_id: Optional[str] = Field(None, max_length=_MAX_ID_LENGTH)
-    experiment: Optional[str] = Field(None, max_length=_MAX_ID_LENGTH)
-    tags: Optional[dict[str, str]] = None
+    user_id: str | None = Field(None, max_length=_MAX_ID_LENGTH)
+    session_id: str | None = Field(None, max_length=_MAX_ID_LENGTH)
+    experiment: str | None = Field(None, max_length=_MAX_ID_LENGTH)
+    tags: dict[str, str] | None = None
 
     @field_validator("trace_id")
     @classmethod
@@ -146,7 +145,7 @@ class TraceIngestRequest(BaseModel):
 class FeedbackRequest(BaseModel):
     """Payload for POST /v1/traces/{trace_id}/feedback."""
     rating: int = Field(..., ge=1, le=5, description="Rating from 1 (worst) to 5 (best)")
-    comment: Optional[str] = Field(None, max_length=4096)
+    comment: str | None = Field(None, max_length=4096)
     metadata: dict[str, Any] = {}
 
 
@@ -190,7 +189,7 @@ class AlertRuleCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=256)
     condition: str = Field(..., min_length=1, max_length=512)
     severity: str = Field("warning", pattern="^(critical|warning|info)$")
-    webhook_url: Optional[str] = Field(None, max_length=2048)
+    webhook_url: str | None = Field(None, max_length=2048)
     cooldown_seconds: int = Field(300, ge=0)
     enabled: bool = True
 
@@ -283,7 +282,7 @@ class _RateLimiter:
         self,
         client_ip: str,
         limit_key: str = "default",
-        limit_override: Optional[int] = None,
+        limit_override: int | None = None,
     ) -> tuple[bool, int, int, int]:
         """
         Record a request and return (allowed, remaining, limit, retry_after_seconds).
@@ -719,11 +718,11 @@ def create_app(db_path: str | None = None) -> FastAPI:
     async def list_traces(
         limit: int = Query(50, ge=1, le=200),
         offset: int = Query(0, ge=0),
-        service: Optional[str] = Query(None, max_length=_MAX_ID_LENGTH),
+        service: str | None = Query(None, max_length=_MAX_ID_LENGTH),
         errors_only: bool = False,
-        user_id: Optional[str] = Query(None, max_length=_MAX_ID_LENGTH),
-        session_id: Optional[str] = Query(None, max_length=_MAX_ID_LENGTH),
-        experiment: Optional[str] = Query(None, max_length=_MAX_ID_LENGTH),
+        user_id: str | None = Query(None, max_length=_MAX_ID_LENGTH),
+        session_id: str | None = Query(None, max_length=_MAX_ID_LENGTH),
+        experiment: str | None = Query(None, max_length=_MAX_ID_LENGTH),
     ) -> TraceListResponse:
         """List traces (paginated). Filter by service, errors, user, session, or experiment."""
         # Sanitize the service filter against path traversal
@@ -876,7 +875,7 @@ def create_app(db_path: str | None = None) -> FastAPI:
     @app.get("/v1/analysis/fleet")
     async def fleet_analysis(
         limit: int = Query(500, ge=1, le=2000),
-        service: Optional[str] = Query(None, max_length=_MAX_ID_LENGTH),
+        service: str | None = Query(None, max_length=_MAX_ID_LENGTH),
     ) -> dict[str, Any]:
         """Fleet-wide analysis and recommendations."""
         if service is not None:
@@ -897,7 +896,7 @@ def create_app(db_path: str | None = None) -> FastAPI:
     @app.get("/v1/analysis/regressions")
     async def regression_analysis(
         days: int = Query(7, ge=1, le=365, description="Days to treat as recent"),
-        service: Optional[str] = Query(None, max_length=_MAX_ID_LENGTH),
+        service: str | None = Query(None, max_length=_MAX_ID_LENGTH),
         limit: int = Query(500, ge=1, le=2000),
     ) -> dict[str, Any]:
         """Detect regressions by comparing recent traces against baseline."""

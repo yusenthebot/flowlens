@@ -1,14 +1,14 @@
 """Tests for flowlens.sdk.auto_instrument — monkey-patching LLM libraries."""
 from __future__ import annotations
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
 
 from flowlens import FlowLens, auto_instrument
-from flowlens.sdk.models import Trace, SpanKind, SpanStatus
-from flowlens.sdk.exporters import CallbackExporter
 from flowlens.sdk import auto_instrument as ai_module
-
+from flowlens.sdk.exporters import CallbackExporter
+from flowlens.sdk.models import SpanKind, SpanStatus, Trace
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -194,12 +194,11 @@ class TestWrapSyncLlmCall:
         def bad_fn(*args, **kwargs):
             raise ValueError("API error")
 
-        with TraceContext(trace):
-            with pytest.raises(ValueError, match="API error"):
-                _wrap_sync_llm_call(
-                    bad_fn, args=(), kwargs={}, model="gpt-4.1",
-                    system="openai", span_name="bad.create",
-                )
+        with TraceContext(trace), pytest.raises(ValueError, match="API error"):
+            _wrap_sync_llm_call(
+                bad_fn, args=(), kwargs={}, model="gpt-4.1",
+                system="openai", span_name="bad.create",
+            )
 
         lens.end_trace(trace)
         llm_spans = [s for s in captured_traces[0].spans if s.kind == SpanKind.LLM]
@@ -256,12 +255,11 @@ class TestWrapAsyncLlmCall:
         async def bad_async_fn(*args, **kwargs):
             raise RuntimeError("async error")
 
-        with TraceContext(trace):
-            with pytest.raises(RuntimeError, match="async error"):
-                await _wrap_async_llm_call(
-                    bad_async_fn, args=(), kwargs={}, model="claude-sonnet-4",
-                    system="anthropic", span_name="anthropic.messages.create",
-                )
+        with TraceContext(trace), pytest.raises(RuntimeError, match="async error"):
+            await _wrap_async_llm_call(
+                bad_async_fn, args=(), kwargs={}, model="claude-sonnet-4",
+                system="anthropic", span_name="anthropic.messages.create",
+            )
 
         lens.end_trace(trace)
         llm_spans = [s for s in captured_traces[0].spans if s.kind == SpanKind.LLM]
@@ -305,7 +303,8 @@ class TestAutoInstrumentNoInstance:
 class TestOpenAILegacyPatch:
     def test_patch_openai_legacy_create_skipped_gracefully(self):
         """If openai.ChatCompletion does not exist, no exception is raised."""
-        import types, sys
+        import sys
+        import types
         fake_openai = types.ModuleType("openai")
         # Expose OpenAI / AsyncOpenAI stubs so attribute access doesn't blow up
         fake_openai.OpenAI = type("OpenAI", (), {
@@ -326,7 +325,8 @@ class TestOpenAILegacyPatch:
 
     def test_patch_openai_legacy_create_patched(self):
         """If openai.ChatCompletion.create exists it is wrapped."""
-        import types, sys
+        import sys
+        import types
         call_log: list[dict] = []
 
         def original_create(*args, **kwargs):
@@ -551,15 +551,14 @@ class TestLangChainChainPatching:
         def failing_chain(self, inputs, **kwargs):
             raise ValueError("chain failed")
 
-        with TraceContext(trace):
-            with pytest.raises(ValueError, match="chain failed"):
-                _wrap_sync_chain_call(
-                    failing_chain,
-                    args=(object(), {"input": "test"}),
-                    kwargs={},
-                    chain_name="FailingChain",
-                    span_name="langchain.chain.FailingChain",
-                )
+        with TraceContext(trace), pytest.raises(ValueError, match="chain failed"):
+            _wrap_sync_chain_call(
+                failing_chain,
+                args=(object(), {"input": "test"}),
+                kwargs={},
+                chain_name="FailingChain",
+                span_name="langchain.chain.FailingChain",
+            )
 
         lens.end_trace(trace)
         chain_spans = [s for s in captured_traces[0].spans if s.kind == SpanKind.CHAIN]
@@ -610,8 +609,8 @@ class TestSpanKindExtensions:
 class TestTraceEmbeddingDecorator:
     def test_trace_embedding_sync(self, captured_traces):
         """@trace_embedding creates an EMBEDDING span for sync functions."""
-        from flowlens.sdk.decorators import trace_embedding
         from flowlens.sdk.context import TraceContext
+        from flowlens.sdk.decorators import trace_embedding
         from flowlens.sdk.tracer import FlowLens as FL
 
         lens = FL.get_instance()
@@ -649,8 +648,8 @@ class TestTraceEmbeddingDecorator:
     @pytest.mark.asyncio
     async def test_trace_embedding_async(self, captured_traces):
         """@trace_embedding creates an EMBEDDING span for async functions."""
-        from flowlens.sdk.decorators import trace_embedding
         from flowlens.sdk.context import TraceContext
+        from flowlens.sdk.decorators import trace_embedding
         from flowlens.sdk.tracer import FlowLens as FL
 
         lens = FL.get_instance()
@@ -685,8 +684,8 @@ class TestTraceEmbeddingDecorator:
 
     def test_trace_embedding_error_captured(self, captured_traces):
         """Errors inside @trace_embedding are captured in the span."""
-        from flowlens.sdk.decorators import trace_embedding
         from flowlens.sdk.context import TraceContext
+        from flowlens.sdk.decorators import trace_embedding
         from flowlens.sdk.tracer import FlowLens as FL
 
         lens = FL.get_instance()
@@ -696,9 +695,8 @@ class TestTraceEmbeddingDecorator:
         def embed_fail(texts):
             raise RuntimeError("embedding API down")
 
-        with TraceContext(trace):
-            with pytest.raises(RuntimeError, match="embedding API down"):
-                embed_fail(["test"])
+        with TraceContext(trace), pytest.raises(RuntimeError, match="embedding API down"):
+            embed_fail(["test"])
 
         lens.end_trace(trace)
         emb_spans = [s for s in captured_traces[0].spans if s.kind == SpanKind.EMBEDDING]
@@ -712,8 +710,8 @@ class TestTraceEmbeddingDecorator:
 
     def test_trace_embedding_dict_response(self, captured_traces):
         """trace_embedding handles dict-style embedding responses."""
-        from flowlens.sdk.decorators import trace_embedding
         from flowlens.sdk.context import TraceContext
+        from flowlens.sdk.decorators import trace_embedding
         from flowlens.sdk.tracer import FlowLens as FL
 
         lens = FL.get_instance()

@@ -15,14 +15,14 @@ FlowLens 装饰器 — 零侵入采集 Agent 执行 trace
 
 from __future__ import annotations
 
-import asyncio
 import functools
 import inspect
 import logging
-from typing import Any, AsyncGenerator, Callable, Generator, Iterator, Optional
+from collections.abc import Callable
+from typing import Any
 
-from .models import Span, SpanKind, SpanStatus, TokenUsage
-from .context import SpanContext, TraceContext, get_current_trace
+from .context import SpanContext, TraceContext
+from .models import Span, SpanKind, SpanStatus
 from .tracer import FlowLens
 
 logger = logging.getLogger(__name__)
@@ -30,11 +30,11 @@ logger = logging.getLogger(__name__)
 
 def trace_agent(
     name: str = "agent",
-    metadata: Optional[dict] = None,
-    user_id: Optional[str] = None,
-    session_id: Optional[str] = None,
-    experiment: Optional[str] = None,
-    tags: Optional[dict] = None,
+    metadata: dict | None = None,
+    user_id: str | None = None,
+    session_id: str | None = None,
+    experiment: str | None = None,
+    tags: dict | None = None,
     **attrs: Any,
 ) -> Callable:
     """
@@ -119,7 +119,7 @@ def trace_agent(
 
 def trace_llm(
     model: str = "",
-    name: Optional[str] = None,
+    name: str | None = None,
     **attrs: Any,
 ) -> Callable:
     """
@@ -198,7 +198,7 @@ def trace_llm(
 
 def trace_llm_stream(
     model: str = "",
-    name: Optional[str] = None,
+    name: str | None = None,
     **attrs: Any,
 ) -> Callable:
     """Decorate a streaming LLM call.
@@ -425,7 +425,7 @@ def trace_llm_stream(
 
 
 def trace_tool(
-    name: Optional[str] = None,
+    name: str | None = None,
     **attrs: Any,
 ) -> Callable:
     """
@@ -642,7 +642,7 @@ def trace_retrieval(
 
 def trace_embedding(
     model: str = "",
-    name: Optional[str] = None,
+    name: str | None = None,
     **attrs: Any,
 ) -> Callable:
     """Decorate an embedding API call.

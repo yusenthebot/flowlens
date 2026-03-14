@@ -30,13 +30,12 @@ Server endpoints demonstrated:
 
 import asyncio
 import json
-import sys
 import os
-import time
-import threading
-import random
-import uuid
 import socket
+import sys
+import threading
+import time
+import uuid
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -90,7 +89,7 @@ def curl(method: str, path: str, host: str = "localhost:8585", body: str = "") -
         cmd = f"curl -s -X {method} http://{host}{path} \\\n       -H 'Content-Type: application/json' \\\n       -d '{body[:100]}...'"
     else:
         cmd = f"curl -s http://{host}{path}"
-    print(c(f"  # curl equivalent:", DIM))
+    print(c("  # curl equivalent:", DIM))
     print(c(f"  # {cmd}", DIM))
     print()
 
@@ -240,6 +239,7 @@ def _start_server(port: int) -> bool:
 
     try:
         import uvicorn
+
         from flowlens.server.app import create_app
     except ImportError as exc:
         warn(f"Cannot start server: {exc}")
@@ -645,7 +645,7 @@ async def main() -> None:
         "# Point the SDK at your running FlowLens server",
         "lens = FlowLens(",
         "    service_name='my-agent',",
-        f"    export_to='http',",
+        "    export_to='http',",
         f"    endpoint='{base}/v1/traces/ingest',",
         ")",
         "",

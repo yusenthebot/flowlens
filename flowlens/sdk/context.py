@@ -10,17 +10,16 @@ Trace 上下文管理 — 维护 span 的父子关系和 trace 归属
 from __future__ import annotations
 
 import contextvars
-from typing import Optional
 
 from .models import Span, Trace
 
 # 当前活跃的 trace
-_current_trace: contextvars.ContextVar[Optional[Trace]] = contextvars.ContextVar(
+_current_trace: contextvars.ContextVar[Trace | None] = contextvars.ContextVar(
     "flowlens_current_trace", default=None
 )
 
 # 当前活跃的 span（用于建立 parent-child）
-_current_span: contextvars.ContextVar[Optional[Span]] = contextvars.ContextVar(
+_current_span: contextvars.ContextVar[Span | None] = contextvars.ContextVar(
     "flowlens_current_span", default=None
 )
 
@@ -30,22 +29,22 @@ _baggage: contextvars.ContextVar[dict[str, str]] = contextvars.ContextVar(
 )
 
 
-def get_current_trace() -> Optional[Trace]:
+def get_current_trace() -> Trace | None:
     """获取当前 trace"""
     return _current_trace.get()
 
 
-def set_current_trace(trace: Optional[Trace]) -> contextvars.Token:
+def set_current_trace(trace: Trace | None) -> contextvars.Token:
     """设置当前 trace"""
     return _current_trace.set(trace)
 
 
-def get_current_span() -> Optional[Span]:
+def get_current_span() -> Span | None:
     """获取当前 span"""
     return _current_span.get()
 
 
-def set_current_span(span: Optional[Span]) -> contextvars.Token:
+def set_current_span(span: Span | None) -> contextvars.Token:
     """设置当前 span"""
     return _current_span.set(span)
 
@@ -60,7 +59,7 @@ def set_baggage(baggage: dict[str, str]) -> contextvars.Token:
     return _baggage.set(baggage.copy())
 
 
-def get_baggage_item(key: str) -> Optional[str]:
+def get_baggage_item(key: str) -> str | None:
     """获取 baggage 中的单个项目"""
     return _baggage.get().get(key)
 
@@ -86,8 +85,8 @@ class SpanContext:
 
     def __init__(self, span: Span):
         self.span = span
-        self._trace_token: Optional[contextvars.Token] = None
-        self._span_token: Optional[contextvars.Token] = None
+        self._trace_token: contextvars.Token | None = None
+        self._span_token: contextvars.Token | None = None
 
     def __enter__(self) -> Span:
         # 自动设置 parent
@@ -124,7 +123,7 @@ class TraceContext:
 
     def __init__(self, trace: Trace):
         self.trace = trace
-        self._trace_token: Optional[contextvars.Token] = None
+        self._trace_token: contextvars.Token | None = None
 
     def __enter__(self) -> Trace:
         self._trace_token = set_current_trace(self.trace)

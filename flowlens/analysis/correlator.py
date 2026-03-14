@@ -20,7 +20,6 @@ from .dag_builder import build_causal_dag
 from .models import DetectedPattern, PatternType
 from .patterns import detect_patterns
 
-
 # ---------------------------------------------------------------------------
 # Result models
 # ---------------------------------------------------------------------------

@@ -11,23 +11,21 @@ import gzip
 import io
 import json
 import sys
-import time
 import threading
-from typing import Any, List
-from unittest.mock import MagicMock, call, patch
+from typing import Any
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from flowlens.sdk.exporters import (
+    _CSV_DEFAULT_COLUMNS,
     CSVExporter,
     HTTPExporter,
     JSONLExporter,
     JSONLStreamExporter,
     OTLPBatchExporter,
-    _CSV_DEFAULT_COLUMNS,
 )
-from flowlens.sdk.models import Span, SpanKind, SpanStatus, SpanEvent, Trace, TokenUsage
-
+from flowlens.sdk.models import Span, SpanKind, SpanStatus, Trace
 
 # ---------------------------------------------------------------------------
 # Shared test helpers
@@ -86,7 +84,7 @@ class TestOTLPBatchExporterAccumulation:
     def test_traces_buffered_until_batch_size(self):
         """Traces should accumulate without sending until batch_size is hit."""
         exp = self._make_exporter(batch_size=3)
-        sent_batches: List[List[Trace]] = []
+        sent_batches: list[list[Trace]] = []
 
         original_send = exp._send_batch
 
@@ -112,7 +110,7 @@ class TestOTLPBatchExporterAccumulation:
 
     def test_flush_clears_buffer(self):
         exp = self._make_exporter(batch_size=10)
-        sent: List[int] = []
+        sent: list[int] = []
 
         def capturing_send(traces):
             sent.append(len(traces))
@@ -133,7 +131,7 @@ class TestOTLPBatchExporterAccumulation:
 
     def test_shutdown_flushes_remaining(self):
         exp = self._make_exporter(batch_size=10)
-        sent: List[int] = []
+        sent: list[int] = []
 
         def capturing_send(traces):
             sent.append(len(traces))
@@ -147,7 +145,7 @@ class TestOTLPBatchExporterAccumulation:
 
     def test_batch_reset_after_flush(self):
         exp = self._make_exporter(batch_size=2)
-        sent: List[int] = []
+        sent: list[int] = []
 
         def capturing_send(traces):
             sent.append(len(traces))
@@ -168,7 +166,7 @@ class TestOTLPBatchExporterAccumulation:
 
     def test_empty_batch_no_send(self):
         exp = self._make_exporter(batch_size=5)
-        sent: List[int] = []
+        sent: list[int] = []
 
         def capturing_send(traces):
             sent.append(len(traces))
@@ -196,7 +194,7 @@ class TestOTLPBatchExporterTransport:
 
     def test_sends_json_post(self):
         exp = self._make_exp(gzip=False)
-        captured: List[Any] = []
+        captured: list[Any] = []
 
         def fake_urlopen(req, timeout=None):
             captured.append(req)
@@ -214,7 +212,7 @@ class TestOTLPBatchExporterTransport:
 
     def test_gzip_compression(self):
         exp = self._make_exp(gzip=True)
-        captured: List[Any] = []
+        captured: list[Any] = []
 
         def fake_urlopen(req, timeout=None):
             captured.append(req)
@@ -233,7 +231,7 @@ class TestOTLPBatchExporterTransport:
 
     def test_no_gzip_by_default(self):
         exp = self._make_exp(gzip=False)
-        captured: List[Any] = []
+        captured: list[Any] = []
 
         def fake_urlopen(req, timeout=None):
             captured.append(req)
@@ -252,7 +250,7 @@ class TestOTLPBatchExporterTransport:
             batch_size=1,
             flush_interval_seconds=60,
         )
-        captured: List[Any] = []
+        captured: list[Any] = []
 
         def fake_urlopen(req, timeout=None):
             captured.append(req)
@@ -313,7 +311,7 @@ class TestOTLPBatchExporterRetry:
             max_retries=3,
         )
 
-        sleep_calls: List[float] = []
+        sleep_calls: list[float] = []
 
         with patch("urllib.request.urlopen", side_effect=ConnectionError("fail")):
             with patch("time.sleep", side_effect=lambda t: sleep_calls.append(t)):
@@ -333,7 +331,7 @@ class TestOTLPBatchExporterRetry:
             max_retries=3,
         )
 
-        sleep_calls: List[float] = []
+        sleep_calls: list[float] = []
 
         with patch("urllib.request.urlopen", return_value=MagicMock()):
             with patch("time.sleep", side_effect=lambda t: sleep_calls.append(t)):
@@ -761,7 +759,7 @@ class TestJSONLExporterThreadSafety:
 
         num_threads = 10
         traces_per_thread = 50
-        errors: List[Exception] = []
+        errors: list[Exception] = []
 
         def worker(thread_idx: int) -> None:
             for i in range(traces_per_thread):
@@ -812,7 +810,7 @@ class TestCSVExporterThreadSafety:
 
         num_threads = 10
         traces_per_thread = 50
-        errors: List[Exception] = []
+        errors: list[Exception] = []
 
         def worker(thread_idx: int) -> None:
             for i in range(traces_per_thread):
@@ -865,7 +863,7 @@ class TestHTTPExporterCustomTimeout:
 
     def test_custom_timeout_forwarded_to_urlopen(self):
         """urlopen must receive the configured timeout, not a hardcoded value."""
-        captured_timeouts: List[Any] = []
+        captured_timeouts: list[Any] = []
 
         def fake_urlopen(req, timeout=None):
             captured_timeouts.append(timeout)
@@ -883,7 +881,7 @@ class TestHTTPExporterCustomTimeout:
         assert captured_timeouts[0] == pytest.approx(42.0)
 
     def test_default_timeout_forwarded_to_urlopen(self):
-        captured_timeouts: List[Any] = []
+        captured_timeouts: list[Any] = []
 
         def fake_urlopen(req, timeout=None):
             captured_timeouts.append(timeout)

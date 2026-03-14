@@ -7,16 +7,15 @@ Tests for the FlowLens plugin infrastructure:
 
 from __future__ import annotations
 
+import logging
 import sys
 import types
-import logging
 from unittest.mock import patch
 
 import pytest
 
 from flowlens.plugins import BasePlugin, PluginRegistry, discover_plugins, load_plugin
 from flowlens.sdk import auto_instrument as _ai_module
-
 
 # ---------------------------------------------------------------------------
 # Helpers / fixtures
@@ -97,7 +96,8 @@ class TestBasePlugin:
 
     def test_top_level_import(self):
         """BasePlugin and PluginRegistry are importable from the top-level package."""
-        from flowlens import BasePlugin as BP, PluginRegistry as PR
+        from flowlens import BasePlugin as BP
+        from flowlens import PluginRegistry as PR
         assert BP is BasePlugin
         assert PR is PluginRegistry
 

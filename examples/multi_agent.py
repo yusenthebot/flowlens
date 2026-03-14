@@ -27,28 +27,50 @@ Run with:
 """
 
 import asyncio
+import os
 import random
 import sys
-import os
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from flowlens import (
-    FlowLens, trace_agent, trace_llm, trace_tool, trace_retrieval,
+    FlowLens,
+    trace_agent,
+    trace_llm,
+    trace_retrieval,
+    trace_tool,
 )
-from flowlens.sdk.models import Trace
+from flowlens.analysis.advisor import TraceAdvisor
 from flowlens.analysis.dag_builder import build_causal_dag
 from flowlens.analysis.patterns import detect_patterns
-from flowlens.analysis.advisor import TraceAdvisor
+from flowlens.sdk.models import Trace
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _utils import (
-    c, banner, section, subsection, ok, err, info, warn, note,
-    print_trace_tree, print_table, hbar,
-    RESET, BOLD, DIM,
-    BRIGHT_RED, BRIGHT_GREEN, BRIGHT_YELLOW, BRIGHT_BLUE,
-    BRIGHT_MAGENTA, BRIGHT_CYAN, BRIGHT_WHITE, WHITE, GREEN, RED, YELLOW,
+    BOLD,
+    BRIGHT_BLUE,
+    BRIGHT_CYAN,
+    BRIGHT_GREEN,
+    BRIGHT_MAGENTA,
+    BRIGHT_RED,
+    BRIGHT_WHITE,
+    BRIGHT_YELLOW,
+    DIM,
+    RED,
+    WHITE,
+    YELLOW,
+    c,
+    err,
+    hbar,
+    info,
+    note,
+    ok,
+    print_table,
+    print_trace_tree,
+    section,
+    subsection,
+    warn,
 )
 
 # ── Shared knowledge base (reused across agents) ─────────────────────────────
@@ -334,7 +356,7 @@ def print_dag_section(trace: Trace) -> None:
 
     if dag.edges:
         print()
-        print(f"  Propagation:")
+        print("  Propagation:")
         for edge in dag.edges:
             src = node_map.get(edge.source_id)
             tgt = node_map.get(edge.target_id)

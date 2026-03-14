@@ -38,7 +38,7 @@ class AlertRule:
     name: str
     condition: str
     severity: str = "warning"
-    webhook_url: Optional[str] = None
+    webhook_url: str | None = None
     cooldown_seconds: int = 300
     enabled: bool = True
 
@@ -53,7 +53,7 @@ class AlertRule:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "AlertRule":
+    def from_dict(cls, data: dict[str, Any]) -> AlertRule:
         return cls(
             name=data["name"],
             condition=data["condition"],
@@ -80,7 +80,7 @@ class Alert:
     rule_name: str
     severity: str
     message: str
-    trace_id: Optional[str] = None
+    trace_id: str | None = None
     metrics: dict[str, Any] = field(default_factory=dict)
     fired_at: float = field(default_factory=time.time)
 
@@ -95,7 +95,7 @@ class Alert:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "Alert":
+    def from_dict(cls, data: dict[str, Any]) -> Alert:
         return cls(
             rule_name=data["rule_name"],
             severity=data["severity"],

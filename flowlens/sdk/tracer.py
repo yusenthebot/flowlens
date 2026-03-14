@@ -10,17 +10,15 @@ import logging
 import random
 import re
 import threading
-from typing import Optional, Any, Callable
+from collections.abc import Callable
+from typing import Any
 
-from .models import Span, SpanKind, SpanStatus, Trace
 from .context import (
-    TraceContext,
-    SpanContext,
-    get_current_trace,
     get_current_span,
-    set_current_trace,
+    get_current_trace,
 )
 from .exporters import TraceExporter, create_exporter
+from .models import Span, SpanKind, Trace
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +92,7 @@ class FlowLens:
 
     # Protects reads and writes to _instance
     _instance_lock: threading.Lock = threading.Lock()
-    _instance: Optional[FlowLens] = None
+    _instance: FlowLens | None = None
 
     def __init__(
         self,
@@ -104,9 +102,9 @@ class FlowLens:
         endpoint: str = "http://localhost:8585/v1/traces/ingest",
         otlp_endpoint: str = "http://localhost:4318/v1/traces",
         verbose: bool = False,
-        metadata: Optional[dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
         sample_rate: float = 1.0,
-        on_trace_complete: Optional[Callable[[Trace], None]] = None,
+        on_trace_complete: Callable[[Trace], None] | None = None,
     ):
         """初始化 FlowLens
 
@@ -141,7 +139,7 @@ class FlowLens:
             FlowLens._instance = self
 
     @classmethod
-    def get_instance(cls) -> Optional[FlowLens]:
+    def get_instance(cls) -> FlowLens | None:
         """获取全局 FlowLens 实例 (thread-safe)"""
         with cls._instance_lock:
             return cls._instance
@@ -155,9 +153,9 @@ class FlowLens:
         endpoint: str = "http://localhost:8585/v1/traces/ingest",
         otlp_endpoint: str = "http://localhost:4318/v1/traces",
         verbose: bool = False,
-        metadata: Optional[dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
         sample_rate: float = 1.0,
-        on_trace_complete: Optional[Callable[[Trace], None]] = None,
+        on_trace_complete: Callable[[Trace], None] | None = None,
     ) -> FlowLens:
         """流式配置方式创建 FlowLens 实例
 
@@ -188,11 +186,11 @@ class FlowLens:
 
     def start_trace(
         self,
-        metadata: Optional[dict] = None,
-        user_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-        experiment: Optional[str] = None,
-        tags: Optional[dict[str, str]] = None,
+        metadata: dict | None = None,
+        user_id: str | None = None,
+        session_id: str | None = None,
+        experiment: str | None = None,
+        tags: dict[str, str] | None = None,
     ) -> Trace:
         """创建并启动一个新的 trace (thread-safe)"""
         trace = Trace(
@@ -211,8 +209,8 @@ class FlowLens:
         self,
         trace_id: str,
         rating: int,
-        comment: Optional[str] = None,
-        metadata: Optional[dict[str, Any]] = None,
+        comment: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> bool:
         """Submit feedback for a completed trace.
 
@@ -242,8 +240,8 @@ class FlowLens:
         try:
             from .exporters import HttpExporter  # local import to avoid circular
             if isinstance(self._exporter, HttpExporter):
-                import urllib.request
                 import json as _json
+                import urllib.request
                 url = self._exporter.endpoint.replace(
                     "/v1/traces/ingest",
                     f"/v1/traces/{trace_id}/feedback",
@@ -290,7 +288,7 @@ class FlowLens:
         self,
         name: str,
         kind: SpanKind = SpanKind.CUSTOM,
-        attributes: Optional[dict] = None,
+        attributes: dict | None = None,
     ) -> Span:
         """
         创建并启动一个 span（自动关联到当前 trace 和父 span）
@@ -381,7 +379,7 @@ class FlowLens:
 # ===== Utility functions =====
 
 
-def get_current_trace() -> Optional[Trace]:
+def get_current_trace() -> Trace | None:
     """获取当前 trace（全局便捷函数）
 
     用法:
@@ -393,7 +391,7 @@ def get_current_trace() -> Optional[Trace]:
     return _get_current_trace()
 
 
-def get_current_span() -> Optional[Span]:
+def get_current_span() -> Span | None:
     """获取当前 span（全局便捷函数）
 
     用法:

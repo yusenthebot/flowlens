@@ -7,11 +7,10 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from flowlens.server.app import create_app
-from flowlens.server.storage import TraceStore
 from flowlens.sdk.models import Trace
 from flowlens.sdk.tracer import FlowLens
-
+from flowlens.server.app import create_app
+from flowlens.server.storage import TraceStore
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -33,7 +32,8 @@ def client(tmp_path):
 
 def _make_trace_payload(**kwargs) -> dict:
     """Build a minimal valid ingest payload."""
-    import uuid, time
+    import time
+    import uuid
     payload = {
         "trace_id": uuid.uuid4().hex,
         "service_name": "test-svc",
@@ -107,7 +107,8 @@ class TestTraceModel:
 
 class TestStorageUserContext:
     def test_save_and_retrieve_user_context(self, store):
-        import uuid, time
+        import time
+        import uuid
         trace_id = uuid.uuid4().hex
         payload = {
             "trace_id": trace_id,
@@ -136,7 +137,8 @@ class TestStorageUserContext:
         assert retrieved["tags"] == {"env": "staging"}
 
     def test_filter_by_user_id(self, store):
-        import uuid, time
+        import time
+        import uuid
         for user in ("alice", "bob", "alice"):
             store.save_trace({
                 "trace_id": uuid.uuid4().hex,
@@ -159,7 +161,8 @@ class TestStorageUserContext:
         assert len(bob_traces) == 1
 
     def test_filter_by_session_id(self, store):
-        import uuid, time
+        import time
+        import uuid
         for sess in ("s1", "s2", "s1"):
             store.save_trace({
                 "trace_id": uuid.uuid4().hex,
@@ -180,7 +183,8 @@ class TestStorageUserContext:
         assert len(store.list_traces(session_id="s2")) == 1
 
     def test_filter_by_experiment(self, store):
-        import uuid, time
+        import time
+        import uuid
         for exp in ("ctrl", "variant-A", "ctrl"):
             store.save_trace({
                 "trace_id": uuid.uuid4().hex,

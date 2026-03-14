@@ -18,11 +18,9 @@ import statistics
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..sdk.models import Span, SpanStatus, Trace
+from ..sdk.models import Span, Trace
 from .dag_builder import build_causal_dag
-from .models import PatternType
 from .patterns import detect_patterns
-
 
 # ---------------------------------------------------------------------------
 # Per-span comparison result

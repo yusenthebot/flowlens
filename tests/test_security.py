@@ -16,21 +16,19 @@ from __future__ import annotations
 import json
 import threading
 import time
-from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
+from flowlens.sdk.models import SpanKind
+from flowlens.sdk.tracer import _MAX_SPANS_PER_TRACE, FlowLens, _validate_span_name
 from flowlens.server.app import (
     _ALLOWED_IMPORT_DIRS,
     _MAX_SPANS_PER_INGEST,
     create_app,
 )
 from flowlens.server.storage import TraceStore
-from flowlens.sdk.tracer import FlowLens, _MAX_SPANS_PER_TRACE, _validate_span_name
-from flowlens.sdk.models import SpanKind
-
 
 # ===========================================================================
 # Helpers
@@ -286,10 +284,7 @@ class TestSQLInjection:
 class TestRateLimiting:
     def _make_low_limit_client(self, tmp_path, limit: int = 3):
         """Create a client whose app has a very low rate limit."""
-        import os
         # Patch settings by monkey-patching the rate_limiter inside the app
-        from flowlens.server.app import _RateLimiter
-        from fastapi import FastAPI
         app = create_app(db_path=str(tmp_path / "rl_test.db"))
         # Replace the rate limiter that was baked into the closure with a tight one
         # We can't do that directly, so instead we test via the _RateLimiter class.
@@ -572,7 +567,7 @@ class TestFlowLensThreadSafety:
     def test_concurrent_get_instance_returns_consistent_singleton(self):
         """All threads must see the same FlowLens instance."""
         lens = FlowLens(service_name="threaded", export_to="console")
-        results: list[Optional[FlowLens]] = []
+        results: list[FlowLens | None] = []
         errors: list[Exception] = []
 
         def _get():

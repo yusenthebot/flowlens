@@ -23,11 +23,10 @@ from __future__ import annotations
 
 import functools
 import logging
-import time
-from typing import Any, Iterator, AsyncIterator, Optional
+from typing import Any
 
+from .context import SpanContext
 from .models import SpanKind, SpanStatus
-from .context import SpanContext, get_current_trace
 from .tracer import FlowLens
 
 logger = logging.getLogger(__name__)
@@ -85,7 +84,7 @@ def _patch_anthropic() -> None:
                 kwargs=kwargs,
                 model=model,
                 system="anthropic",
-                span_name=f"anthropic.messages.create",
+                span_name="anthropic.messages.create",
             )
 
         anthropic.Anthropic.messages.create = patched_create  # type: ignore[attr-defined]

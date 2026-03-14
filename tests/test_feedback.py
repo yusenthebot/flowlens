@@ -13,7 +13,6 @@ from fastapi.testclient import TestClient
 from flowlens.server.app import create_app
 from flowlens.server.storage import TraceStore
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

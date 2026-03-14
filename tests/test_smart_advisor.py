@@ -4,11 +4,8 @@ from __future__ import annotations
 
 import time
 
-import pytest
-
-from flowlens.sdk.models import Span, SpanKind, SpanStatus, Trace, TokenUsage
-from flowlens.analysis.smart_advisor import SmartAdvisor, FleetRecommendation, RegressionReport
-
+from flowlens.analysis.smart_advisor import SmartAdvisor
+from flowlens.sdk.models import Span, SpanKind, SpanStatus, TokenUsage, Trace
 
 # ---------------------------------------------------------------------------
 # Helpers

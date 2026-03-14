@@ -5,14 +5,14 @@ Tests for Cost Intelligence: forecasting, budget management, breakdown, and API 
 from __future__ import annotations
 
 import time
+
 import pytest
 from fastapi.testclient import TestClient
 
-from flowlens.analysis.cost_forecast import CostForecaster, CostForecast, _linear_regression
 from flowlens.analysis.cost_breakdown import CostBreakdown
-from flowlens.server.storage import TraceStore
+from flowlens.analysis.cost_forecast import CostForecaster, _linear_regression
 from flowlens.server.app import create_app
-
+from flowlens.server.storage import TraceStore
 
 # ---------------------------------------------------------------------------
 # Helpers

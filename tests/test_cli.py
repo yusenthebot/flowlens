@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 import pytest
@@ -12,7 +11,6 @@ from click.testing import CliRunner
 import flowlens as _fl_pkg
 from flowlens.cli import cli
 from flowlens.server.storage import TraceStore
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -488,7 +486,6 @@ class TestDemoCommand:
         self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         """--dashboard with missing script should exit non-zero."""
-        from pathlib import Path as _Path
 
         # Point the CLI at a temp dir that has no server_demo.py
         fake_root = tmp_path

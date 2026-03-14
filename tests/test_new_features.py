@@ -8,6 +8,7 @@ Tests for new features added in Cycle 4:
 from __future__ import annotations
 
 import os
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -20,7 +21,6 @@ from flowlens.exceptions import (
 )
 from flowlens.server.app import create_app
 from flowlens.server.storage import TraceStore
-
 
 # ---------------------------------------------------------------------------
 # Helpers

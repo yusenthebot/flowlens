@@ -18,7 +18,6 @@ import csv
 import io
 import json
 import sys
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -27,7 +26,6 @@ import click
 
 import flowlens as _fl_pkg
 from flowlens.logging_config import configure_logging
-
 
 # ---------------------------------------------------------------------------
 # Root group
@@ -151,10 +149,10 @@ def analyze(trace_file: Path, output_format: str) -> None:
     TRACE_FILE must be a newline-delimited JSON file where each line is a
     serialized FlowLens trace (as produced by the JSONL exporter).
     """
-    from flowlens.server.app import _reconstruct_trace
+    from flowlens.analysis.advisor import TraceAdvisor
     from flowlens.analysis.dag_builder import build_causal_dag
     from flowlens.analysis.patterns import detect_patterns
-    from flowlens.analysis.advisor import TraceAdvisor
+    from flowlens.server.app import _reconstruct_trace
 
     configure_logging()
 
@@ -476,7 +474,6 @@ def stats(db_path: str | None) -> None:
     error_rate = (error_traces / total_traces * 100) if total_traces else 0.0
 
     # Date range
-    from flowlens.server.storage import _ConnectionPool  # use a lightweight direct query
     import sqlite3
     conn = sqlite3.connect(str(db_file))
     conn.row_factory = sqlite3.Row
@@ -588,7 +585,7 @@ def health(db_path: str | None, host: str | None, port: int | None) -> None:
             click.echo(f"  Database status : ERROR — {exc}", err=True)
     else:
         click.echo(f"  Database path   : {resolved_db}")
-        click.echo(f"  Database status : NOT FOUND")
+        click.echo("  Database status : NOT FOUND")
 
     # --- Config summary ---
     click.echo("\n  Configuration:")
@@ -756,6 +753,7 @@ def demo(run_all: bool, run_dashboard: bool, quick: bool) -> None:
         # Fall back to inline import (legacy behaviour)
         try:
             import asyncio
+
             from examples.demo_agent import main as _demo_main  # type: ignore[import]
         except ImportError:
             _demo_err(

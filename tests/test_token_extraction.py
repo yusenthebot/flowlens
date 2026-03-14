@@ -1,11 +1,12 @@
 """Tests for _extract_llm_usage — improved token extraction in decorators.py."""
 from __future__ import annotations
 
-import pytest
 from unittest.mock import MagicMock
 
-from flowlens.sdk.models import Span, SpanKind
+import pytest
+
 from flowlens.sdk.decorators import _extract_llm_usage, _extract_output_text
+from flowlens.sdk.models import Span, SpanKind
 
 
 def _make_span() -> Span:

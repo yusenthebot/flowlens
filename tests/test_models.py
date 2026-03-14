@@ -1,8 +1,12 @@
 """Tests for SDK data models."""
-import time
 import pytest
+
 from flowlens.sdk.models import (
-    Span, SpanKind, SpanStatus, SpanEvent, TokenUsage, Trace, _estimate_cost,
+    Span,
+    SpanKind,
+    SpanStatus,
+    Trace,
+    _estimate_cost,
 )
 
 

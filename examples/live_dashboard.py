@@ -35,18 +35,29 @@ import webbrowser
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from flowlens import FlowLens, trace_agent, trace_llm, trace_tool, trace_retrieval
-from flowlens.sdk.models import Trace, Span, SpanKind, SpanStatus
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _utils import (
-    c, banner, section, subsection, ok, err, info, warn, note,
-    print_table, hbar, spin,
-    RESET, BOLD, DIM,
-    BRIGHT_RED, BRIGHT_GREEN, BRIGHT_YELLOW, BRIGHT_BLUE,
-    BRIGHT_MAGENTA, BRIGHT_CYAN, BRIGHT_WHITE, WHITE, GREEN, RED, YELLOW,
+    BOLD,
+    BRIGHT_BLUE,
+    BRIGHT_CYAN,
+    BRIGHT_GREEN,
+    BRIGHT_RED,
+    BRIGHT_WHITE,
+    BRIGHT_YELLOW,
+    DIM,
+    WHITE,
+    c,
+    err,
+    hbar,
+    info,
+    note,
+    ok,
+    print_table,
+    section,
+    spin,
+    warn,
 )
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Trace payload builder (mirrors the server ingest format)
@@ -223,8 +234,9 @@ def _start_server(port: int, db_path: str = ":memory:") -> bool:
     """Start the FlowLens API server in a daemon thread. Returns True on success."""
     try:
         import uvicorn
+
         from flowlens.server.app import create_app
-    except ImportError as exc:
+    except ImportError:
         return False
 
     app = create_app(db_path=db_path)
@@ -307,11 +319,11 @@ def print_console_summary(traces: list[dict]) -> None:
         [
             ["Total traces",       c(str(len(traces)), BRIGHT_CYAN)],
             ["Error traces",       c(str(error_count), BRIGHT_RED)],
-            ["Error rate",         c("{:.0%}".format(error_count / len(traces) if traces else 0), BRIGHT_RED)],
-            ["Total tokens",       c("{:,}".format(total_tokens), BRIGHT_YELLOW)],
-            ["Total cost",         c("${:.4f}".format(total_cost), BRIGHT_GREEN)],
-            ["Avg cost/trace",     c("${:.5f}".format(total_cost / len(traces) if traces else 0), BRIGHT_GREEN)],
-            ["Avg duration",       c("{:.0f} ms".format(avg_duration), BRIGHT_CYAN)],
+            ["Error rate",         c(f"{error_count / len(traces) if traces else 0:.0%}", BRIGHT_RED)],
+            ["Total tokens",       c(f"{total_tokens:,}", BRIGHT_YELLOW)],
+            ["Total cost",         c(f"${total_cost:.4f}", BRIGHT_GREEN)],
+            ["Avg cost/trace",     c(f"${total_cost / len(traces) if traces else 0:.5f}", BRIGHT_GREEN)],
+            ["Avg duration",       c(f"{avg_duration:.0f} ms", BRIGHT_CYAN)],
         ],
         colors=[DIM, BRIGHT_WHITE],
         title="Aggregate Metrics",

@@ -11,10 +11,9 @@ Trace 比较引擎 — 对比两个 traces，用于 A/B 测试
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 from ..sdk.models import Span, Trace
-from .models import CausalDAG, PatternType
 
 
 @dataclass
@@ -23,8 +22,8 @@ class SpanDiff:
     span_id: str
     span_name: str
     change_type: str  # "added" / "removed" / "changed"
-    old_span: Optional[Span] = None
-    new_span: Optional[Span] = None
+    old_span: Span | None = None
+    new_span: Span | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {

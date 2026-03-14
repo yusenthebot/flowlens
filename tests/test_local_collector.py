@@ -22,8 +22,7 @@ import pytest
 
 from flowlens.local import LocalCollector
 from flowlens.sdk.exporters import LocalExporter, create_exporter
-from flowlens.sdk.models import Span, SpanKind, SpanStatus, Trace, TokenUsage
-
+from flowlens.sdk.models import Span, SpanKind, SpanStatus, TokenUsage, Trace
 
 # ---------------------------------------------------------------------------
 # Helpers
