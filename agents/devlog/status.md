@@ -8,8 +8,8 @@
 |-------|-----------|-----------|-----------------------------------------------------------------------|--------|-------------|
 | Lead  | sonnet 4.6| idle      | —                                                                     | main   | 4587523     |
 | Alpha | sonnet 4.6| in_progress | 3D Agent Network performance: SVG/CSS rendering, lazy-load Three.js   | dev    | b739517     |
-| Beta  | sonnet 4.6| in_progress | Modularize dashboard.html (5664→~500 lines): split CSS/JS into files  | dev    | TBD         |
-| Gamma | sonnet 4.6| done        | Cycle 11: Input validation module for trace ingestion endpoints       | main   | —           |
+| Beta  | sonnet 4.6| idle        | Refactored app.py into routes/ package (done, Cycle 11)                | feat/beta-route-modularization | 7af0433     |
+| Gamma | sonnet 4.6| idle      | —                                                                     | —      | —           |
 
 ### Alpha — 3D Agent Network Performance Optimization
 
