@@ -593,7 +593,7 @@
           <div id="stat-spans" class="text-xs text-slate-500 mt-1">
             <div class="skeleton skeleton-text w-16 h-3"></div>
           </div>
-          <canvas id="sparkline-traces" class="mt-2 w-full" style="height:45px;display:block"></canvas>
+          <div class="mt-2" style="height:40px;position:relative;width:100%"><canvas id="sparkline-traces"></canvas></div>
         </div>
         <div id="stat-card-error" class="glass rounded-xl p-5 stat-glow transition-colors duration-500 stat-card-enter stat-card-errors">
           <div class="flex items-center justify-between mb-3">
@@ -608,7 +608,7 @@
           <div id="stat-error-count" class="text-xs text-slate-500 mt-1">
             <div class="skeleton skeleton-text w-24 h-3"></div>
           </div>
-          <canvas id="sparkline-errors" class="mt-2 w-full" style="height:45px;display:block"></canvas>
+          <div class="mt-2" style="height:40px;position:relative;width:100%"><canvas id="sparkline-errors"></canvas></div>
         </div>
         <div id="stat-card-latency" class="glass rounded-xl p-5 stat-glow transition-colors duration-500 stat-card-enter stat-card-latency">
           <div class="flex items-center justify-between mb-3">
@@ -621,7 +621,7 @@
             <div class="skeleton skeleton-text w-14"></div>
           </div>
           <div class="text-xs text-slate-500 mt-1">milliseconds</div>
-          <canvas id="sparkline-latency" class="mt-2 w-full" style="height:45px;display:block"></canvas>
+          <div class="mt-2" style="height:40px;position:relative;width:100%"><canvas id="sparkline-latency"></canvas></div>
         </div>
         <div id="stat-card-cost" class="glass rounded-xl p-5 stat-glow transition-colors duration-500 stat-card-enter stat-card-cost">
           <div class="flex items-center justify-between mb-3">
@@ -636,7 +636,7 @@
           <div id="stat-tokens" class="text-xs text-slate-500 mt-1">
             <div class="skeleton skeleton-text w-20 h-3"></div>
           </div>
-          <canvas id="sparkline-cost" class="mt-2 w-full" style="height:45px;display:block"></canvas>
+          <div class="mt-2" style="height:40px;position:relative;width:100%"><canvas id="sparkline-cost"></canvas></div>
         </div>
         <div class="glass stat-glow rounded-xl p-5 stat-card-enter stat-card-agents">
           <div class="flex items-center justify-between mb-3">
@@ -657,6 +657,20 @@
           <span class="text-[10px] text-slate-500" id="team-status-label">--</span>
         </div>
         <div id="agent-team-bar" class="flex gap-3 overflow-x-auto pb-2"></div>
+      </div>
+
+      <!-- Agent Cards Grid (from Agents tab) -->
+      <div class="mb-6">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-sm font-semibold text-white">Agent Details</h2>
+        </div>
+        <div id="overview-agents-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+      </div>
+
+      <!-- Agent Network Graph -->
+      <div class="glass rounded-xl p-4 mb-6">
+        <h3 class="text-xs font-medium text-slate-400 mb-2">Agent Network</h3>
+        <div id="overview-agent-graph" style="width:100%;height:300px;position:relative;background:rgba(15,23,42,0.3);border-radius:8px;"></div>
       </div>
 
       <!-- Summary Metrics Row -->
@@ -704,14 +718,6 @@
         <div style="height:200px;position:relative"><canvas id="chart-trend"></canvas></div>
       </div>
 
-      <!-- Mini Agent Network -->
-      <div class="glass rounded-xl p-4 mb-6">
-        <div class="flex items-center justify-between mb-3">
-          <h3 class="text-xs font-medium text-slate-400">Agent Network</h3>
-          <button onclick="switchView('agents')" class="text-[10px] text-indigo-400 hover:text-indigo-300">Full View &rarr;</button>
-        </div>
-        <div id="agent-graph-mini" style="width:100%;height:200px;position:relative;background:rgba(15,23,42,0.3);border-radius:8px;"></div>
-      </div>
 
       <!-- Live Agent Monitor -->
       <div class="glass rounded-xl p-4 mb-6">
@@ -1623,6 +1629,7 @@ function handleLiveTraceUpdate(traceData) {
     if (typeof loadAgentActivity === 'function') loadAgentActivity();
     if (typeof loadActivityTimeline === 'function') loadActivityTimeline();
     if (typeof loadTrendChart === 'function') loadTrendChart(_trendHours || 24);
+    if (typeof loadOverviewAgents === 'function') loadOverviewAgents();
   } else if (currentView === 'traces') {
     loadTraces();
   } else if (currentView === 'agents') {
@@ -1652,7 +1659,7 @@ function switchView(view) {
   if (tabBtn) { tabBtn.classList.remove('tab-inactive'); tabBtn.classList.add('tab-active'); }
 
   // Load data for the view
-  if (view === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); loadActivityTimeline(); loadTrendChart(_trendHours || 24); loadOverviewCharts(); loadAgentGraphMini(); }
+  if (view === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); loadActivityTimeline(); loadTrendChart(_trendHours || 24); loadOverviewCharts(); loadOverviewAgents(); loadOverviewGraph(); }
   else if (view === 'traces') { loadTraces(); }
   else if (view === 'cost') { loadCostData(); }
   else if (view === 'patterns') { loadAllPatterns(); }
@@ -2316,6 +2323,109 @@ async function loadAgentGraphMini() {
   } catch (e) { console.warn('Mini graph:', e); }
 }
 
+async function loadOverviewAgents() {
+  try {
+    const [summaryData, activityData] = await Promise.all([
+      apiFetch('/v1/agents/summary'),
+      apiFetch('/v1/agents/activity').catch(() => ({ agents: [] })),
+    ]);
+
+    if (!summaryData?.agents) return;
+    const agents = summaryData.agents.filter(a => a.agent !== 'unknown');
+    if (agents.length === 0) return;
+    const activityMap = {};
+    (activityData?.agents || []).forEach(a => { activityMap[a.agent] = a; });
+
+    const container = document.getElementById('overview-agents-grid');
+    if (!container) return;
+
+    container.innerHTML = agents.map(a => {
+      const p = getAgentProfile(a.agent);
+      const activity = activityMap[a.agent] || {};
+      const isActive = activity.status === 'active';
+      const tools = (activity.recent_tools || []).slice(0, 3);
+      const errPct = (a.error_rate * 100).toFixed(1);
+      const errColor = a.error_rate < 0.05 ? 'text-emerald-400' : a.error_rate < 0.20 ? 'text-yellow-400' : 'text-red-400';
+      const latency = a.avg_duration_ms >= 1000
+        ? (a.avg_duration_ms / 1000).toFixed(2) + 's'
+        : a.avg_duration_ms.toFixed(0) + 'ms';
+      const cost = a.total_cost_usd < 0.01
+        ? '$' + a.total_cost_usd.toFixed(6)
+        : '$' + a.total_cost_usd.toFixed(4);
+
+      // Mini activity bar: 24 dots
+      const activityDots = [];
+      for (let h = 0; h < 24; h++) {
+        const hasActivity = activity.hourly_counts ? (activity.hourly_counts[h] || 0) > 0 : (Math.random() < Math.min(0.7, (a.trace_count || 1) / 100));
+        const dotColor = hasActivity ? (isActive ? '#34d399' : '#6366f1') : '#1e293b';
+        activityDots.push(`<span style="display:inline-block;width:6px;height:14px;border-radius:2px;background:${dotColor};margin-right:1px;" title="Hour ${h}"></span>`);
+      }
+
+      return `
+        <div class="glass rounded-xl p-4 card-3d-hover cursor-pointer" onclick="filterTracesByAgent('${escHtml(a.agent)}')">
+          <div class="flex items-center gap-3 mb-3">
+            ${renderAgentAvatar(a.agent, 'md')}
+            <div class="min-w-0 flex-1">
+              <div class="text-sm font-semibold text-white truncate">${escHtml(p.name)}</div>
+              <div class="text-[10px] text-slate-500">${escHtml(p.role)}</div>
+            </div>
+            ${isActive ? '<span class="ml-auto w-2 h-2 rounded-full bg-emerald-500 pulse-dot"></span>' : '<span class="ml-auto w-2 h-2 rounded-full bg-slate-600"></span>'}
+          </div>
+          <div class="grid grid-cols-4 gap-2 text-center mb-3">
+            <div><div class="text-sm font-bold text-white">${a.trace_count}</div><div class="text-[9px] text-slate-500">Traces</div></div>
+            <div><div class="text-sm font-bold ${errColor}">${errPct}%</div><div class="text-[9px] text-slate-500">Errors</div></div>
+            <div><div class="text-sm font-bold text-white">${cost}</div><div class="text-[9px] text-slate-500">Cost</div></div>
+            <div><div class="text-sm font-bold text-white">${latency}</div><div class="text-[9px] text-slate-500">Avg</div></div>
+          </div>
+          <div class="mb-2">
+            <div style="display:flex;align-items:flex-end;height:16px;">${activityDots.join('')}</div>
+          </div>
+          ${tools.length > 0 ? `<div class="flex gap-1 flex-wrap">${tools.map(t => `<span class="px-1.5 py-0.5 text-[9px] rounded bg-indigo-500/10 text-indigo-300">${escHtml(t)}</span>`).join('')}</div>` : ''}
+        </div>`;
+    }).join('');
+  } catch (e) { console.warn('Overview agents:', e); }
+}
+
+async function loadOverviewGraph() {
+  try {
+    const data = await apiFetch('/v1/agents/network');
+    if (!data?.nodes?.length) return;
+    const container = document.getElementById('overview-agent-graph');
+    if (!container || container.clientWidth === 0) return;
+    container.innerHTML = '';
+
+    if (typeof cytoscape === 'undefined') return;
+
+    const elements = [];
+    data.nodes.forEach(n => {
+      const p = getAgentProfile(n.id);
+      elements.push({ data: { id: n.id, label: p.name || n.id, color: p.color || '#6366f1' } });
+    });
+    (data.edges || []).forEach(e => {
+      elements.push({ data: { source: e.source, target: e.target, label: 'x' + (e.count || 1) } });
+    });
+
+    cytoscape({
+      container,
+      elements,
+      style: [
+        { selector: 'node', style: {
+          'label': 'data(label)', 'background-color': 'data(color)',
+          'color': '#e2e8f0', 'font-size': '10px', 'text-valign': 'center',
+          'text-halign': 'center',
+          'width': 35, 'height': 35, 'border-width': 2, 'border-color': '#1e293b',
+        }},
+        { selector: 'edge', style: {
+          'width': 1.5, 'line-color': '#475569',
+          'target-arrow-color': '#6366f1', 'target-arrow-shape': 'triangle',
+          'curve-style': 'bezier', 'opacity': 0.5,
+        }}
+      ],
+      layout: { name: 'cose', animate: false, padding: 30 },
+    });
+  } catch (e) { console.warn('Overview graph:', e); }
+}
+
 async function loadOverviewCharts() {
   try {
     const summary = await apiFetch('/v1/agents/summary');
@@ -2594,6 +2704,12 @@ function animateCounter(element, targetValue, duration = 800, prefix = '', suffi
 function renderSparkline(canvasId, data, color) {
   const canvas = document.getElementById(canvasId);
   if (!canvas || !data || !data.length) return;
+  // Ensure parent has fixed dimensions to prevent Chart.js resize loops
+  const parent = canvas.parentElement;
+  if (parent) {
+    parent.style.height = '40px';
+    parent.style.position = 'relative';
+  }
   // Destroy previous chart on this canvas
   if (chartInstances[canvasId]) { chartInstances[canvasId].destroy(); delete chartInstances[canvasId]; }
   chartInstances[canvasId] = new Chart(canvas, {
@@ -2613,9 +2729,9 @@ function renderSparkline(canvasId, data, color) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      animation: false,
       plugins: { legend: { display: false }, tooltip: { enabled: false } },
       scales: { x: { display: false }, y: { display: false, beginAtZero: true } },
-      animation: { duration: 800 },
     }
   });
 }
@@ -4923,7 +5039,7 @@ function startAutoRefresh() {
   autoRefreshTimer = setInterval(async () => {
     const ok = await healthCheck();
     if (!ok) return;
-    if (currentView === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); loadActivityTimeline(); loadTrendChart(_trendHours || 24); loadOverviewCharts(); loadAgentGraphMini(); }
+    if (currentView === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); loadActivityTimeline(); loadTrendChart(_trendHours || 24); loadOverviewCharts(); loadOverviewAgents(); }
     else if (currentView === 'traces') { loadTraces(); }
   }, 15000);
 }
@@ -5406,7 +5522,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   loadActivityTimeline();
   loadTrendChart(24);
   loadOverviewCharts();
-  loadAgentGraphMini();
+  loadOverviewAgents();
+  loadOverviewGraph();
   startAutoRefresh();
 
   // Connect WebSocket for real-time updates
