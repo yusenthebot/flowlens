@@ -18,6 +18,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.2] — 2026-03-14
+
+Advanced alerting with budget controls and full-text search. 1025 → 1035 tests across 1 final development cycle.
+
+### Added
+
+#### Cycle 3 Features (2026-03-14)
+- **Budget alerts with cost_total metric**: New cumulative `cost_total` field for tracking total trace cost. Enables budget-based alerting and cost control workflows (commit 88c2582)
+- **AND compound conditions in alerting**: Extended alert condition engine to support AND operators (`&&` / `AND`) for sophisticated multi-condition logic. Example: "cost > $10 AND error_rate > 5%" (commit 88c2582)
+- **FTS5 full-text search**: New schema v6 migration with `spans_fts` virtual table for blazing-fast full-text search across span service names, span names, tags, and metadata. Uses SQLite FTS5 MATCH syntax (commit 7706c8f)
+- **FTS search LIKE fallback**: Graceful degradation for edge cases where FTS returns empty results (e.g., service_name with special characters). Automatically falls back to LIKE-based search without user intervention (commit a63dfb1)
+
+### Changed
+- Version bumped to 0.5.2
+- Database schema version: 5 → 6
+- Alert condition syntax extended to support AND operators for multi-condition scenarios
+
+### Technical Decisions
+- **FTS5 virtual table architecture**: Separate `spans_fts` table keeps index isolated, enables safe rollback, and maintains referential integrity via hidden docid column
+- **Fallback strategy**: Two-tier search approach (FTS MATCH → LIKE fallback) ensures search always returns results without user-facing failures
+- **Cost tracking**: Cumulative `cost_total` field computed from individual span costs, enabling budget-aware alerting separate from per-span analysis
+
+---
+
 ## [0.5.1] — 2026-03-14
 
 Configuration flexibility, offline capabilities, and agent observability. 966 → 1025 tests across 1 development cycle of features and enhancements.
@@ -118,9 +142,9 @@ Major release: plugin system, batch exporters, full CLI toolset, production hard
 - `examples/take_screenshots.py` — Playwright-based screenshot generation
 
 #### Test Coverage (Cycles 1–6)
-- 966 tests across 18 test files
+- 1035 tests across 19 test files
 - New test files: `test_context.py`, `test_dag_builder.py`, `test_decorators_advanced.py`, `test_exporters.py`, `test_plugins.py`, `test_storage_edge.py`, `test_new_features.py`
-- Edge cases: Unicode, large traces (500+ spans), concurrent writes, SQL injection attempts
+- Edge cases: Unicode, large traces (500+ spans), concurrent writes, SQL injection attempts, FTS5 schema migration
 
 #### Documentation
 - `docs/deployment.md` — Docker, manual install, env vars, nginx, production checklist
@@ -170,7 +194,20 @@ Initial public release of FlowLens — Agent Observability Platform.
 
 ---
 
-[Unreleased]: https://github.com/yusenthebot/flowlens/compare/v0.5.1...HEAD
+## Project Complete
+
+This changelog documents the evolution of FlowLens from initial release (v0.1.0) through three development cycles:
+
+- **Cycle 1** (2026-03-14): 5 critical bug fixes addressing WebSocket routing, thread safety, FK constraints, model cost accuracy, and HTTP timeout configurability. Grew test suite from 88 to 966 tests.
+- **Cycle 2** (2026-03-14): 3 major features adding runtime configurability of pattern thresholds, offline SQLite access via LocalCollector, and comprehensive agent observability dashboard. Grew tests from 966 to 1025.
+- **Cycle 3** (2026-03-14): 2 advanced features delivering budget-aware alerting with AND compound conditions and production-grade full-text search with FTS5. Grew tests from 1025 to 1035.
+
+**Total improvements**: 10 features/fixes across 3 cycles, 1035 comprehensive tests, schema versions 1→6, 4 version releases (0.1.0 → 0.5.2). The system is now production-ready with observability, cost control, offline capabilities, and advanced search.
+
+---
+
+[Unreleased]: https://github.com/yusenthebot/flowlens/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/yusenthebot/flowlens/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/yusenthebot/flowlens/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/yusenthebot/flowlens/compare/v0.1.0...v0.5.0
 [0.1.0]: https://github.com/yusenthebot/flowlens/releases/tag/v0.1.0
