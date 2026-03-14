@@ -398,6 +398,59 @@
       transition: 0s;
     }
 
+    /* ========== Traces summary bar ========== */
+    .traces-summary-bar {
+      display: flex; align-items: center; gap: 16px; padding: 10px 16px;
+      border-radius: 10px; margin-bottom: 12px; font-size: 12px;
+    }
+    .dark .traces-summary-bar { background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(255,255,255,0.06); }
+    html:not(.dark) .traces-summary-bar { background: rgba(255, 255, 255, 0.7); border: 1px solid #e8e6e1; }
+    .traces-summary-stat { display: flex; align-items: center; gap: 5px; }
+    .traces-summary-stat .stat-value { font-weight: 700; font-size: 14px; }
+    .traces-summary-stat .stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.6; }
+
+    /* Trace row — agent left border + error tint + duration bar */
+    .trace-row-agent-border { border-left: 3px solid transparent; }
+    .trace-row-error-bg { background: rgba(239, 68, 68, 0.04) !important; }
+    html:not(.dark) .trace-row-error-bg { background: rgba(239, 68, 68, 0.03) !important; }
+    .trace-row-error-bg:hover { background: rgba(239, 68, 68, 0.07) !important; }
+    .trace-mini-duration { height: 3px; border-radius: 2px; overflow: hidden; min-width: 48px; max-width: 80px; }
+    .dark .trace-mini-duration { background: rgba(255,255,255,0.06); }
+    html:not(.dark) .trace-mini-duration { background: rgba(0,0,0,0.06); }
+    .trace-mini-duration-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, #7c7aef, #9b8ec4); transition: width 0.3s ease; }
+
+    /* Agent filter pills for traces */
+    .agent-filter-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 9999px; font-size: 11px; font-weight: 500; cursor: pointer; transition: all 0.2s ease; border: 1px solid transparent; }
+    .agent-filter-pill:hover { transform: translateY(-1px); }
+    .agent-filter-pill.active { font-weight: 600; }
+    .dark .agent-filter-pill { background: rgba(255,255,255,0.05); color: #94a3b8; border-color: rgba(255,255,255,0.08); }
+    .dark .agent-filter-pill:hover { background: rgba(255,255,255,0.08); }
+    .dark .agent-filter-pill.active { background: rgba(99,102,241,0.15); color: #a5b4fc; border-color: rgba(99,102,241,0.3); }
+    html:not(.dark) .agent-filter-pill { background: rgba(0,0,0,0.04); color: #64748b; border-color: #e8e6e1; }
+    html:not(.dark) .agent-filter-pill:hover { background: rgba(0,0,0,0.06); }
+    html:not(.dark) .agent-filter-pill.active { background: rgba(99,102,241,0.08); color: #4f46e5; border-color: rgba(99,102,241,0.25); }
+
+    /* ========== Cost tab enhancements ========== */
+    .cost-summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .cost-summary-card { padding: 14px 16px; border-radius: 10px; text-align: center; }
+    .dark .cost-summary-card { background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(255,255,255,0.06); }
+    html:not(.dark) .cost-summary-card { background: rgba(255, 255, 255, 0.7); border: 1px solid #e8e6e1; }
+    .cost-summary-card .card-value { font-size: 20px; font-weight: 700; }
+    .cost-summary-card .card-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.6; margin-top: 2px; }
+
+    /* ========== Pattern card enhancements ========== */
+    .pattern-card-expandable .pattern-detail-section { max-height: 0; overflow: hidden; transition: max-height 0.3s ease, opacity 0.2s ease; opacity: 0; }
+    .pattern-card-expandable.expanded .pattern-detail-section { max-height: 400px; opacity: 1; }
+    .pattern-expand-chevron { transition: transform 0.2s ease; display: inline-block; }
+    .pattern-card-expandable.expanded .pattern-expand-chevron { transform: rotate(90deg); }
+    .pattern-severity-icon { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0; }
+    .pattern-severity-icon.sev-critical { background: rgba(239, 68, 68, 0.12); }
+    .pattern-severity-icon.sev-warning { background: rgba(245, 158, 11, 0.12); }
+    .pattern-severity-icon.sev-info { background: rgba(59, 130, 246, 0.12); }
+    .pattern-count-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; font-size: 10px; font-weight: 700; }
+    .dark .pattern-count-badge { background: rgba(255,255,255,0.08); color: #cbd5e1; }
+    html:not(.dark) .pattern-count-badge { background: rgba(0,0,0,0.06); color: #475569; }
+
     /* ========== Smooth scroll ========== */
     html { scroll-behavior: smooth; }
     .overflow-y-auto { scroll-behavior: smooth; }
@@ -669,6 +722,26 @@
 
     <!-- TRACES VIEW -->
     <div id="view-traces" class="view-panel hidden">
+      <!-- Traces Summary Bar -->
+      <div id="traces-summary-bar" class="traces-summary-bar hidden">
+        <div class="traces-summary-stat">
+          <span class="stat-value text-white" id="traces-summary-total">0</span>
+          <span class="stat-label text-slate-400">shown</span>
+        </div>
+        <div class="w-px h-5 bg-white/10"></div>
+        <div class="traces-summary-stat">
+          <span class="stat-value text-indigo-400" id="traces-summary-filtered">0</span>
+          <span class="stat-label text-slate-400">filtered</span>
+        </div>
+        <div class="w-px h-5 bg-white/10"></div>
+        <div class="traces-summary-stat">
+          <span class="stat-value text-red-400" id="traces-summary-errors">0</span>
+          <span class="stat-label text-slate-400">errors</span>
+        </div>
+        <div class="flex-1"></div>
+        <div id="traces-agent-pills" class="flex items-center gap-1.5 flex-wrap"></div>
+      </div>
+
       <!-- Filters -->
       <div class="flex flex-wrap gap-3 mb-4 filter-row">
         <!-- Search input -->
@@ -857,7 +930,22 @@
 
     <!-- COST VIEW -->
     <div id="view-cost" class="view-panel hidden">
+      <!-- Cost Summary Cards -->
+      <div id="cost-summary-cards" class="cost-summary-cards"></div>
+
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <!-- Cost Over Time Line Chart -->
+        <div class="glass rounded-xl p-5 lg:col-span-2">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-semibold text-white">Cost Over Time</h3>
+            <div class="flex gap-1">
+              <button onclick="loadCostTrends('hourly')" class="cost-trend-btn px-2.5 py-1 text-[10px] rounded bg-surface-100 text-slate-400 hover:text-white border border-white/10 hover:border-white/20 transition" data-granularity="hourly">Hourly</button>
+              <button onclick="loadCostTrends('daily')" class="cost-trend-btn px-2.5 py-1 text-[10px] rounded bg-indigo-500/20 text-indigo-300 font-medium border border-indigo-500/30 transition" data-granularity="daily">Daily</button>
+            </div>
+          </div>
+          <div class="h-64"><canvas id="chart-cost-trends"></canvas></div>
+        </div>
+
         <div class="glass rounded-xl p-5">
           <h3 class="text-sm font-semibold text-white mb-4">Cost by Service</h3>
           <div class="h-72"><canvas id="chart-cost-service"></canvas></div>
@@ -866,10 +954,18 @@
           <h3 class="text-sm font-semibold text-white mb-4">Cost by Span Kind</h3>
           <div class="h-72"><canvas id="chart-cost-kind"></canvas></div>
         </div>
-        <div class="glass rounded-xl p-5 lg:col-span-2">
+
+        <!-- Token Distribution Pie Chart -->
+        <div class="glass rounded-xl p-5">
+          <h3 class="text-sm font-semibold text-white mb-4">Token Distribution</h3>
+          <div class="h-72"><canvas id="chart-token-distribution"></canvas></div>
+        </div>
+
+        <div class="glass rounded-xl p-5">
           <h3 class="text-sm font-semibold text-white mb-4">Cost by Operation</h3>
           <div class="h-72"><canvas id="chart-cost-name"></canvas></div>
         </div>
+
         <div class="glass rounded-xl p-5 lg:col-span-2">
           <div class="flex items-center justify-between mb-4">
             <h3 class="text-sm font-semibold text-white">Cost by Agent</h3>
@@ -2408,8 +2504,19 @@ function renderTraceRow(trace, compact = false) {
   const _previewAttrs = !compact
     ? `onmouseenter="showTracePreview('${escHtml(trace.trace_id)}', event)" onmouseleave="hideTracePreview()"`
     : '';
+
+  // Agent border color
+  const agentProfile = agentName ? getAgentProfile(agentName) : null;
+  const borderStyle = agentProfile ? `border-left: 3px solid ${agentProfile.color}` : '';
+  const errorRowClass = hasErrors ? 'trace-row-error-bg' : '';
+
+  // Mini duration bar (proportion of max 10s)
+  const durationNum = trace.duration_ms || 0;
+  const durationPct = Math.min((durationNum / 10000) * 100, 100);
+  const durationBarColor = durationNum > 5000 ? '#ef4444' : durationNum > 2000 ? '#f59e0b' : '#7c7aef';
+
   return `
-    <div class="trace-row flex items-center gap-4 px-5 py-3.5 hover:bg-white/[0.02] cursor-pointer transition group" data-trace-id="${escHtml(trace.trace_id)}" onclick="openTrace('${escHtml(trace.trace_id)}')" ${_previewAttrs}>
+    <div class="trace-row flex items-center gap-4 px-5 py-3.5 hover:bg-white/[0.02] cursor-pointer transition group ${errorRowClass}" data-trace-id="${escHtml(trace.trace_id)}" data-agent="${escHtml(agentName || '')}" onclick="openTrace('${escHtml(trace.trace_id)}')" style="${borderStyle}" ${_previewAttrs}>
       ${!compact ? `<input type="checkbox" class="compare-checkbox ${isSelected ? 'checked' : ''} w-3.5 h-3.5 rounded bg-surface-100 border-white/10 text-indigo-500 focus:ring-indigo-500/30 flex-shrink-0" title="Select for comparison" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleCompare('${escHtml(trace.trace_id)}', this)" />` : ''}
       ${statusDot}
       <div class="flex-1 min-w-0">
@@ -2425,6 +2532,9 @@ function renderTraceRow(trace, compact = false) {
         </div>
       </div>
       <div class="flex items-center gap-6 text-xs text-slate-500 trace-row-details">
+        ${!compact ? `<div class="trace-mini-duration" title="${duration}ms">
+          <div class="trace-mini-duration-fill" style="width:${durationPct}%;background:${durationBarColor}"></div>
+        </div>` : ''}
         <div class="text-right">
           <div class="text-slate-400">${duration}ms</div>
           ${!compact ? `<div>$${cost}</div>` : ''}
@@ -2513,6 +2623,8 @@ async function loadRecentTraces() {
   }
 }
 
+let _tracesAgentFilter = null; // current agent filter for traces view
+
 async function loadTraces() {
   const service = document.getElementById('filter-service').value.trim() || null;
   const errorsOnly = document.getElementById('filter-errors').checked;
@@ -2527,6 +2639,30 @@ async function loadTraces() {
 
     // Client-side filtering for filters not supported by API
     traces = applyClientFilters(traces);
+
+    // Compute summary stats before agent filter
+    const totalCount = traces.length;
+    const errorCount = traces.filter(t => t.has_errors === true || t.has_errors === 1).length;
+
+    // Collect unique agents for filter pills
+    const agentSet = new Map();
+    traces.forEach(t => {
+      const agent = (t.tags || {}).agent;
+      if (agent) agentSet.set(agent, (agentSet.get(agent) || 0) + 1);
+    });
+    _renderTracesAgentPills(agentSet);
+
+    // Apply agent filter
+    if (_tracesAgentFilter) {
+      traces = traces.filter(t => (t.tags || {}).agent === _tracesAgentFilter);
+    }
+
+    // Update summary bar
+    const summaryBar = document.getElementById('traces-summary-bar');
+    summaryBar.classList.remove('hidden');
+    document.getElementById('traces-summary-total').textContent = traces.length;
+    document.getElementById('traces-summary-filtered').textContent = totalCount;
+    document.getElementById('traces-summary-errors').textContent = errorCount;
 
     const container = document.getElementById('traces-list');
     if (traces.length === 0) {
@@ -2546,6 +2682,23 @@ async function loadTraces() {
   } catch (err) {
     document.getElementById('traces-list').innerHTML = '<div class="p-8 text-center text-red-400/60 text-sm">Failed to load traces.</div>';
   }
+}
+
+function _renderTracesAgentPills(agentMap) {
+  const container = document.getElementById('traces-agent-pills');
+  if (!container) return;
+  if (agentMap.size === 0) { container.innerHTML = ''; return; }
+
+  let html = `<span class="agent-filter-pill ${!_tracesAgentFilter ? 'active' : ''}" onclick="_tracesAgentFilter = null; loadTraces();">All</span>`;
+  for (const [agent, count] of agentMap) {
+    const profile = getAgentProfile(agent);
+    const isActive = _tracesAgentFilter === agent;
+    html += `<span class="agent-filter-pill ${isActive ? 'active' : ''}" onclick="_tracesAgentFilter = '${escHtml(agent)}'; loadTraces();" style="${isActive ? 'border-color:' + profile.color + ';color:' + profile.color : ''}">
+      <span class="w-2 h-2 rounded-full flex-shrink-0" style="background:${profile.color}"></span>
+      ${escHtml(profile.name)} <span style="opacity:0.5">(${count})</span>
+    </span>`;
+  }
+  container.innerHTML = html;
 }
 
 /** Apply client-side filters (date range, token count, cost, span kind) */
@@ -2609,6 +2762,7 @@ function clearFilters() {
   document.getElementById('filter-cost-min').value = '';
   document.getElementById('filter-cost-max').value = '';
   document.querySelectorAll('.filter-kind').forEach(cb => cb.checked = false);
+  _tracesAgentFilter = null;
   traceOffset = 0;
   loadTraces();
 }
@@ -3660,21 +3814,218 @@ async function loadTrendChart(hours) {
 // =========================================================================
 async function loadCostData() {
   try {
-    const [byService, byKind, byName, agentSummary] = await Promise.all([
+    const [byService, byKind, byName, agentSummary, costTrends] = await Promise.all([
       apiFetch('/v1/cost/breakdown?group_by=service_name'),
       apiFetch('/v1/cost/breakdown?group_by=kind'),
       apiFetch('/v1/cost/breakdown?group_by=name'),
       apiFetch('/v1/agents/summary').catch(() => ({ agents: [] })),
+      apiFetch('/v1/cost/trends?granularity=daily&limit=30').catch(() => []),
     ]);
+
+    // Render cost summary cards
+    _renderCostSummaryCards(byService, byKind, costTrends);
+
+    // Render cost over time line chart
+    _renderCostTrendsChart(costTrends, 'daily');
 
     renderCostChart('chart-cost-service', byService, 'doughnut');
     renderCostChart('chart-cost-kind', byKind, 'doughnut');
     renderCostChart('chart-cost-name', byName, 'bar');
     renderAgentCostChart('chart-cost-agent', agentSummary.agents || []);
+
+    // Render token distribution pie chart
+    _renderTokenDistributionChart(byKind);
+
     updateRefreshTime();
   } catch (err) {
     console.error('Cost load error:', err);
   }
+}
+
+function _renderCostSummaryCards(byService, byKind, trends) {
+  const container = document.getElementById('cost-summary-cards');
+  if (!container) return;
+
+  const totalCost = (byService || []).reduce((s, d) => s + (d.total_cost_usd || 0), 0);
+  const totalTokens = (byService || []).reduce((s, d) => s + (d.total_tokens || 0), 0);
+  const totalTraces = (byService || []).reduce((s, d) => s + (d.trace_count || 0), 0);
+  const avgCostPerTrace = totalTraces > 0 ? totalCost / totalTraces : 0;
+
+  container.innerHTML = `
+    <div class="cost-summary-card">
+      <div class="card-value text-emerald-400">$${totalCost.toFixed(4)}</div>
+      <div class="card-label text-slate-400">Total Cost</div>
+    </div>
+    <div class="cost-summary-card">
+      <div class="card-value text-white">${totalTokens.toLocaleString()}</div>
+      <div class="card-label text-slate-400">Total Tokens</div>
+    </div>
+    <div class="cost-summary-card">
+      <div class="card-value text-indigo-400">${totalTraces.toLocaleString()}</div>
+      <div class="card-label text-slate-400">Traces</div>
+    </div>
+    <div class="cost-summary-card">
+      <div class="card-value text-amber-400">$${avgCostPerTrace.toFixed(6)}</div>
+      <div class="card-label text-slate-400">Avg Cost/Trace</div>
+    </div>
+  `;
+}
+
+function _renderCostTrendsChart(trends, granularity) {
+  const canvasId = 'chart-cost-trends';
+  if (chartInstances[canvasId]) { chartInstances[canvasId].destroy(); delete chartInstances[canvasId]; }
+
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || !trends || trends.length === 0) {
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#475569'; ctx.font = '14px Inter'; ctx.textAlign = 'center';
+      ctx.fillText('No cost trend data available', canvas.width / 2, canvas.height / 2);
+    }
+    return;
+  }
+
+  const labels = trends.map(t => {
+    const bucket = t.bucket || '';
+    if (granularity === 'hourly') {
+      const parts = bucket.split('T');
+      return parts.length > 1 ? parts[1].substring(0, 5) : bucket;
+    }
+    return bucket.substring(5); // MM-DD
+  });
+  const costs = trends.map(t => t.total_cost_usd || 0);
+  const tokens = trends.map(t => t.total_tokens || 0);
+
+  const ctx = canvas.getContext('2d');
+  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height || 256);
+  gradient.addColorStop(0, 'rgba(124, 122, 239, 0.25)');
+  gradient.addColorStop(1, 'rgba(124, 122, 239, 0.02)');
+
+  chartInstances[canvasId] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Cost (USD)',
+        data: costs,
+        borderColor: '#7c7aef',
+        backgroundColor: gradient,
+        fill: true,
+        tension: 0.3,
+        pointRadius: 3,
+        pointHoverRadius: 6,
+        pointBackgroundColor: '#7c7aef',
+        pointBorderColor: '#1e1b4b',
+        pointBorderWidth: 2,
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (item) => ` $${costs[item.dataIndex].toFixed(6)} | ${tokens[item.dataIndex].toLocaleString()} tokens`
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#64748b', font: { size: 10 }, maxRotation: 45 }, grid: { color: 'rgba(255,255,255,0.03)' } },
+        y: { ticks: { color: '#64748b', font: { size: 10 }, callback: v => '$' + v.toFixed(4) }, grid: { color: 'rgba(255,255,255,0.03)' } },
+      }
+    }
+  });
+}
+
+async function loadCostTrends(granularity) {
+  // Update button styles
+  document.querySelectorAll('.cost-trend-btn').forEach(btn => {
+    if (btn.dataset.granularity === granularity) {
+      btn.className = 'cost-trend-btn px-2.5 py-1 text-[10px] rounded bg-indigo-500/20 text-indigo-300 font-medium border border-indigo-500/30 transition';
+    } else {
+      btn.className = 'cost-trend-btn px-2.5 py-1 text-[10px] rounded bg-surface-100 text-slate-400 hover:text-white border border-white/10 hover:border-white/20 transition';
+    }
+  });
+
+  try {
+    const limit = granularity === 'hourly' ? 48 : 30;
+    const trends = await apiFetch(`/v1/cost/trends?granularity=${granularity}&limit=${limit}`);
+    _renderCostTrendsChart(trends, granularity);
+  } catch (err) {
+    console.error('Cost trends error:', err);
+  }
+}
+
+function _renderTokenDistributionChart(byKind) {
+  const canvasId = 'chart-token-distribution';
+  if (chartInstances[canvasId]) { chartInstances[canvasId].destroy(); delete chartInstances[canvasId]; }
+
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || !byKind || byKind.length === 0) {
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#475569'; ctx.font = '14px Inter'; ctx.textAlign = 'center';
+      ctx.fillText('No token data available', canvas.width / 2, canvas.height / 2);
+    }
+    return;
+  }
+
+  // Aggregate input vs output tokens
+  let totalInput = 0, totalOutput = 0;
+  byKind.forEach(d => {
+    totalInput += d.input_tokens || 0;
+    totalOutput += d.output_tokens || 0;
+  });
+
+  // If no separate input/output data, estimate from total tokens
+  if (totalInput === 0 && totalOutput === 0) {
+    const totalTokens = byKind.reduce((s, d) => s + (d.total_tokens || 0), 0);
+    totalInput = Math.round(totalTokens * 0.6);
+    totalOutput = totalTokens - totalInput;
+  }
+
+  if (totalInput === 0 && totalOutput === 0) {
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#475569'; ctx.font = '14px Inter'; ctx.textAlign = 'center';
+    ctx.fillText('No token data available', canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
+  chartInstances[canvasId] = new Chart(canvas.getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Input Tokens', 'Output Tokens'],
+      datasets: [{
+        data: [totalInput, totalOutput],
+        backgroundColor: ['#6366f1', '#10b981'],
+        borderWidth: 0,
+        hoverOffset: 8,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '60%',
+      plugins: {
+        legend: {
+          position: 'right',
+          labels: { color: '#94a3b8', font: { family: 'Inter', size: 11 }, padding: 12 },
+        },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const total = totalInput + totalOutput;
+              const pct = total > 0 ? ((ctx.parsed / total) * 100).toFixed(1) : 0;
+              return ` ${ctx.parsed.toLocaleString()} tokens (${pct}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
 }
 
 function renderAgentCostChart(canvasId, agents) {
@@ -3709,10 +4060,18 @@ function renderAgentCostChart(canvasId, agents) {
     'vr-lead': '#f59e0b', 'vr-scribe': '#6b7280', 'main': '#6366f1',
     'Explore': '#06b6d4'
   };
-  const barColors = labels.map(l => (agentColorMap[l] || '#9b8ec4') + 'aa');
+  // Create gradient fills per agent bar
+  const ctx2d = canvas.getContext('2d');
+  const barColors = labels.map(l => {
+    const baseColor = agentColorMap[l] || '#9b8ec4';
+    const grad = ctx2d.createLinearGradient(0, 0, canvas.width || 600, 0);
+    grad.addColorStop(0, baseColor + 'dd');
+    grad.addColorStop(1, baseColor + '44');
+    return grad;
+  });
   const borderColors = labels.map(l => agentColorMap[l] || '#9b8ec4');
 
-  chartInstances[canvasId] = new Chart(canvas.getContext('2d'), {
+  chartInstances[canvasId] = new Chart(ctx2d, {
     type: 'bar',
     data: {
       labels,
@@ -3722,7 +4081,7 @@ function renderAgentCostChart(canvasId, agents) {
         backgroundColor: barColors,
         borderColor: borderColors,
         borderWidth: 1,
-        borderRadius: 4,
+        borderRadius: 6,
       }]
     },
     options: {
@@ -3766,6 +4125,20 @@ function renderCostChart(canvasId, data, type) {
   const costs = data.map(d => d.total_cost_usd || 0);
   const tokens = data.map(d => d.total_tokens || 0);
 
+  // Create gradient for bar charts
+  let barBg = CHART_COLORS[0] + '80';
+  if (type === 'bar') {
+    const ctx = canvas.getContext('2d');
+    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height || 288);
+    gradient.addColorStop(0, CHART_COLORS[0] + 'cc');
+    gradient.addColorStop(1, CHART_COLORS[0] + '33');
+    barBg = gradient;
+  }
+
+  // Better doughnut colors with slight transparency for depth
+  const doughnutColors = CHART_COLORS.slice(0, labels.length).map(c => c + 'dd');
+  const doughnutBorders = CHART_COLORS.slice(0, labels.length);
+
   const chartConfig = {
     type,
     data: {
@@ -3773,14 +4146,11 @@ function renderCostChart(canvasId, data, type) {
       datasets: [{
         label: 'Cost (USD)',
         data: costs,
-        backgroundColor: type === 'doughnut'
-          ? CHART_COLORS.slice(0, labels.length)
-          : CHART_COLORS[0] + '80',
-        borderColor: type === 'doughnut'
-          ? CHART_COLORS.slice(0, labels.length)
-          : CHART_COLORS[0],
-        borderWidth: type === 'doughnut' ? 0 : 1,
-        borderRadius: type === 'bar' ? 4 : 0,
+        backgroundColor: type === 'doughnut' ? doughnutColors : barBg,
+        borderColor: type === 'doughnut' ? doughnutBorders : CHART_COLORS[0],
+        borderWidth: type === 'doughnut' ? 1 : 1,
+        borderRadius: type === 'bar' ? 6 : 0,
+        hoverOffset: type === 'doughnut' ? 8 : 0,
       }]
     },
     options: {
@@ -3826,6 +4196,8 @@ const SEVERITY_CONFIG = {
     badgeClass: 'bg-red-500/15 text-red-400 border border-red-500/30',
     icon: `<svg class="w-4 h-4 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><circle cx="12" cy="19" r="0.5" fill="currentColor"/></svg>`,
     dotColor: 'bg-red-500',
+    largeIcon: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" fill="rgba(239,68,68,0.15)"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 9l-6 6m0-6l6 6" stroke="#ef4444"/></svg>`,
+    iconBg: 'sev-critical',
   },
   warning: {
     color: 'amber',
@@ -3833,6 +4205,8 @@ const SEVERITY_CONFIG = {
     badgeClass: 'bg-amber-500/15 text-amber-400 border border-amber-500/30',
     icon: `<svg class="w-4 h-4 text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>`,
     dotColor: 'bg-amber-500',
+    largeIcon: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" fill="rgba(245,158,11,0.15)" stroke="#f59e0b" stroke-width="1.5"/><path d="M12 9v4m0 3h.01" stroke="#f59e0b" stroke-width="2" stroke-linecap="round"/></svg>`,
+    iconBg: 'sev-warning',
   },
   info: {
     color: 'blue',
@@ -3840,6 +4214,8 @@ const SEVERITY_CONFIG = {
     badgeClass: 'bg-blue-500/15 text-blue-400 border border-blue-500/30',
     icon: `<svg class="w-4 h-4 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`,
     dotColor: 'bg-blue-500',
+    largeIcon: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="rgba(59,130,246,0.15)" stroke="#3b82f6" stroke-width="1.5"/><path d="M12 16v-4m0-4h.01" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/></svg>`,
+    iconBg: 'sev-info',
   },
 };
 
@@ -3850,18 +4226,44 @@ function renderPatternCard(pattern, traceId) {
   const description = escHtml(pattern.description || '');
   const recommendation = escHtml(pattern.recommendation || '');
   const affectedCount = pattern.involved_spans ? pattern.involved_spans.length : 0;
+  const cardId = 'pattern-' + Math.random().toString(36).substring(2, 8);
+
+  // Build involved spans detail section
+  let spansDetailHtml = '';
+  if (pattern.involved_spans && pattern.involved_spans.length > 0) {
+    const spanItems = pattern.involved_spans.map(s => {
+      const spanName = typeof s === 'string' ? s : (s.name || s.span_id || 'unknown');
+      const spanRole = typeof s === 'object' ? (s.role || '') : '';
+      return `<div class="flex items-center gap-2 px-2 py-1.5 rounded bg-surface-100/50 text-[11px]">
+        <span class="w-1.5 h-1.5 rounded-full ${cfg.dotColor} flex-shrink-0"></span>
+        <span class="text-slate-300 font-mono truncate">${escHtml(spanName)}</span>
+        ${spanRole ? `<span class="text-slate-600">${escHtml(spanRole)}</span>` : ''}
+      </div>`;
+    }).join('');
+    spansDetailHtml = `
+      <div class="pattern-detail-section mt-3 pt-3 border-t border-white/5">
+        <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-2">Affected Spans</div>
+        <div class="space-y-1 max-h-48 overflow-y-auto">${spanItems}</div>
+        <button class="mt-2 text-[10px] text-indigo-400 hover:text-indigo-300 transition" onclick="event.stopPropagation(); openTrace('${escHtml(traceId)}')">View full trace --></button>
+      </div>`;
+  }
 
   return `
-    <div class="glass rounded-xl p-4 border border-white/5 ${cfg.cardClass} glass-hover cursor-pointer transition"
+    <div id="${cardId}" class="glass rounded-xl p-4 border border-white/5 ${cfg.cardClass} glass-hover cursor-pointer transition pattern-card-expandable"
          data-severity="${escHtml(sev)}"
-         onclick="openTrace('${escHtml(traceId)}')">
+         onclick="this.classList.toggle('expanded');">
       <div class="flex items-start gap-3 mb-2">
-        ${cfg.icon}
+        <div class="pattern-severity-icon ${cfg.iconBg}">
+          ${cfg.largeIcon}
+        </div>
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2 flex-wrap">
             <span class="text-xs font-bold text-white">${patternName}</span>
             <span class="px-1.5 py-0.5 text-[10px] font-semibold uppercase rounded ${cfg.badgeClass}">${escHtml(sev)}</span>
-            ${affectedCount > 0 ? `<span class="px-1.5 py-0.5 text-[10px] rounded bg-surface-100 text-slate-400 border border-white/10">${affectedCount} span${affectedCount > 1 ? 's' : ''}</span>` : ''}
+            ${affectedCount > 0 ? `<span class="pattern-count-badge">${affectedCount} span${affectedCount > 1 ? 's' : ''}</span>` : ''}
+            <span class="pattern-expand-chevron text-slate-600 ml-auto">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </span>
           </div>
           <p class="text-xs text-slate-400 mt-1 leading-relaxed">${description}</p>
         </div>
@@ -3871,6 +4273,7 @@ function renderPatternCard(pattern, traceId) {
         <div class="mt-2 p-2.5 rounded-lg bg-surface-100 border border-white/5 text-xs text-slate-500">
           <span class="text-slate-600 font-medium">Rec: </span>${recommendation}
         </div>` : ''}
+      ${spansDetailHtml}
     </div>
   `;
 }
