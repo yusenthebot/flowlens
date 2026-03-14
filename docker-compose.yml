@@ -1,0 +1,58 @@
+version: "3.9"
+
+services:
+  # ─── FlowLens Observability Server ─────────────────────────────────────────
+  flowlens-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: flowlens:latest
+    container_name: flowlens-server
+    ports:
+      - "8585:8585"
+    volumes:
+      # Persist the SQLite database across container restarts
+      - flowlens-data:/data
+    environment:
+      FLOWLENS_DB_PATH: /data/flowlens.db
+      FLOWLENS_HOST: "0.0.0.0"
+      FLOWLENS_PORT: "8585"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8585/health')",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+
+  # ─── Demo Agent (optional — comment out if not needed) ────────────────────
+  demo-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder   # reuse builder stage which has the source code
+    image: flowlens-demo:latest
+    container_name: flowlens-demo-agent
+    depends_on:
+      flowlens-server:
+        condition: service_healthy
+    environment:
+      # Point the demo agent at the server running in the other container
+      FLOWLENS_SERVER_URL: "http://flowlens-server:8585"
+    # Run the demo once and exit
+    command: ["python", "-m", "examples.demo_agent"]
+    profiles:
+      # Only start with: docker compose --profile demo up
+      - demo
+    restart: "no"
+
+volumes:
+  flowlens-data:
+    driver: local

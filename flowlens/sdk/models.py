@@ -103,9 +103,50 @@ class Span:
             self.status = SpanStatus.ERROR
             self.error_message = error
 
-    def add_event(self, name: str, **attrs: Any) -> None:
-        """添加事件"""
-        self.events.append(SpanEvent(name=name, attributes=attrs))
+    def add_event(self, name: str, attributes: Optional[dict[str, Any]] = None, **attrs: Any) -> None:
+        """Add a discrete event to this span.
+
+        Args:
+            name: Human-readable event name (e.g. "checkpoint:start").
+            attributes: Optional dict of event attributes.
+            **attrs: Additional attributes passed as keyword arguments.
+                     Merged with *attributes*; keyword arguments take precedence.
+        """
+        merged = dict(attributes or {})
+        merged.update(attrs)
+        self.events.append(SpanEvent(name=name, attributes=merged))
+
+    def set_attribute(self, key: str, value: Any) -> None:
+        """Set a single span attribute.
+
+        Convenience method equivalent to ``span.attributes[key] = value``.
+
+        Args:
+            key: Attribute key (conventionally namespaced, e.g. ``"gen_ai.model"``).
+            value: Attribute value (must be JSON-serialisable for export).
+        """
+        self.attributes[key] = value
+
+    def add_link(self, trace_id: str, span_id: str, attributes: Optional[dict[str, Any]] = None) -> None:
+        """Add a cross-trace link to another span.
+
+        Links are stored as span events with the name ``"span_link"`` and the
+        referenced ``trace_id`` / ``span_id`` recorded in the event attributes.
+        This follows the OpenTelemetry SpanLink convention while keeping the
+        data model simple.
+
+        Args:
+            trace_id: The trace ID of the linked span.
+            span_id: The span ID of the linked span.
+            attributes: Optional metadata to attach to the link.
+        """
+        link_attrs: dict[str, Any] = {
+            "link.trace_id": trace_id,
+            "link.span_id": span_id,
+        }
+        if attributes:
+            link_attrs.update(attributes)
+        self.events.append(SpanEvent(name="span_link", attributes=link_attrs))
 
     def set_token_usage(
         self,
@@ -230,45 +271,93 @@ class Trace:
 
 # ===== Cost estimation =====
 
-# 定价表 (USD per 1M tokens, 2026 主流模型)
+# Pricing table (USD per 1 M tokens, current 2026 models).
+# Tuple layout: (input_per_1m_usd, output_per_1m_usd)
+# Sources: Anthropic / OpenAI / Google / DeepSeek public pricing pages (2026-03).
 _MODEL_PRICING: dict[str, tuple[float, float]] = {
-    # (input_per_1m, output_per_1m)
+    # ---- Anthropic Claude 4 family ----
     "claude-opus-4-20250514": (15.0, 75.0),
+    "claude-opus-4": (15.0, 75.0),           # short alias
     "claude-sonnet-4-20250514": (3.0, 15.0),
+    "claude-sonnet-4": (3.0, 15.0),           # short alias
     "claude-haiku-4-20250514": (0.25, 1.25),
+    "claude-haiku-4": (0.25, 1.25),           # short alias
+    # ---- Anthropic Claude 3.x ----
     "claude-3.5-haiku": (0.8, 4.0),
-    "gpt-4o": (2.5, 10.0),
-    "gpt-4o-mini": (0.15, 0.6),
+    "claude-3.5-sonnet": (3.0, 15.0),
+    "claude-3-opus": (15.0, 75.0),
+    # ---- OpenAI GPT-4.1 family ----
     "gpt-4.1": (2.0, 8.0),
     "gpt-4.1-mini": (0.4, 1.6),
+    "gpt-4.1-nano": (0.1, 0.4),
+    # ---- OpenAI GPT-4o family ----
+    "gpt-4o": (2.5, 10.0),
+    "gpt-4o-mini": (0.15, 0.6),
+    # ---- OpenAI o-series ----
+    "o3": (10.0, 40.0),
+    "o3-mini": (1.1, 4.4),
+    "o4-mini": (1.1, 4.4),
+    # ---- Google Gemini 2.5 family ----
     "gemini-2.5-pro": (1.25, 10.0),
     "gemini-2.5-flash": (0.15, 0.6),
+    # ---- Google Gemini 2.0 family ----
+    "gemini-2.0-flash": (0.1, 0.4),
+    # ---- DeepSeek ----
     "deepseek-v3": (0.27, 1.1),
     "deepseek-r1": (0.55, 2.19),
+    # ---- Meta Llama ----
     "llama-3.1-70b": (0.99, 0.99),
     "llama-3.1-405b": (5.35, 16.05),
+    "llama-3.3-70b": (0.99, 0.99),
+    # ---- Mistral ----
     "mistral-large": (2.0, 6.0),
+    "mistral-small": (0.2, 0.6),
+    # ---- Cohere ----
     "command-r-plus": (3.0, 15.0),
+    "command-r": (0.5, 1.5),
 }
 
-# 模型最大上下文窗口 (tokens) — 用于 pattern detection
+# Model maximum context windows (tokens) — used for pattern detection.
 _MODEL_CONTEXT_WINDOWS: dict[str, int] = {
+    # Anthropic Claude 4
     "claude-opus-4-20250514": 200_000,
+    "claude-opus-4": 200_000,
     "claude-sonnet-4-20250514": 200_000,
+    "claude-sonnet-4": 200_000,
     "claude-haiku-4-20250514": 200_000,
+    "claude-haiku-4": 200_000,
+    # Anthropic Claude 3.x
     "claude-3.5-haiku": 200_000,
+    "claude-3.5-sonnet": 200_000,
+    "claude-3-opus": 200_000,
+    # OpenAI GPT-4.1
+    "gpt-4.1": 1_047_576,
+    "gpt-4.1-mini": 1_047_576,
+    "gpt-4.1-nano": 1_047_576,
+    # OpenAI GPT-4o
     "gpt-4o": 128_000,
     "gpt-4o-mini": 128_000,
-    "gpt-4.1": 8_192,
-    "gpt-4.1-mini": 8_192,
+    # OpenAI o-series
+    "o3": 200_000,
+    "o3-mini": 200_000,
+    "o4-mini": 200_000,
+    # Google Gemini
     "gemini-2.5-pro": 1_000_000,
     "gemini-2.5-flash": 1_000_000,
+    "gemini-2.0-flash": 1_000_000,
+    # DeepSeek
     "deepseek-v3": 64_000,
     "deepseek-r1": 64_000,
+    # Meta Llama
     "llama-3.1-70b": 131_072,
     "llama-3.1-405b": 131_072,
-    "mistral-large": 32_000,
+    "llama-3.3-70b": 131_072,
+    # Mistral
+    "mistral-large": 128_000,
+    "mistral-small": 128_000,
+    # Cohere
     "command-r-plus": 128_000,
+    "command-r": 128_000,
 }
 
 # 默认定价 (中等模型)

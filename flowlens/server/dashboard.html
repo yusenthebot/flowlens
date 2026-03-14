@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FlowLens — Agent Observability Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          colors: {
+            surface: { 50: '#1a1f35', 100: '#151929', 200: '#111525', 300: '#0d1020', 400: '#0a0d1a' },
+            brand: { 400: '#818cf8', 500: '#6366f1', 600: '#4f46e5' },
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    * { scrollbar-width: thin; scrollbar-color: #2a2f4f transparent; }
+    *::-webkit-scrollbar { width: 6px; height: 6px; }
+    *::-webkit-scrollbar-track { background: transparent; }
+    *::-webkit-scrollbar-thumb { background: #2a2f4f; border-radius: 3px; }
+    body { background: linear-gradient(145deg, #0a0d1a 0%, #0d1025 50%, #0a0d1a 100%); }
+    .glass { background: rgba(21, 25, 41, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.06); }
+    .glass-hover:hover { background: rgba(26, 31, 53, 0.85); border-color: rgba(255,255,255,0.1); }
+    .stat-glow { box-shadow: 0 0 30px -10px rgba(99, 102, 241, 0.15); }
+    .fade-in { animation: fadeIn 0.3s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
+    .span-bar { transition: all 0.2s ease; }
+    .span-bar:hover { filter: brightness(1.3); transform: scaleY(1.15); }
+    .tab-active { border-color: #6366f1; color: #e0e7ff; background: rgba(99, 102, 241, 0.08); }
+    .tab-inactive { border-color: transparent; color: #64748b; }
+    .tab-inactive:hover { color: #94a3b8; border-color: rgba(99, 102, 241, 0.3); }
+    .severity-critical { background: rgba(239, 68, 68, 0.12); border-color: rgba(239, 68, 68, 0.3); color: #fca5a5; }
+    .severity-warning { background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.3); color: #fcd34d; }
+    .severity-info { background: rgba(59, 130, 246, 0.12); border-color: rgba(59, 130, 246, 0.3); color: #93c5fd; }
+    #cy-container { width: 100%; height: 500px; }
+  </style>
+</head>
+<body class="dark min-h-screen font-sans text-slate-200 antialiased">
+
+  <!-- Header -->
+  <header class="sticky top-0 z-50 glass border-b border-white/5">
+    <div class="max-w-[1600px] mx-auto flex items-center justify-between px-6 py-3">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-lg font-semibold text-white tracking-tight">FlowLens</h1>
+          <p class="text-[10px] text-slate-500 -mt-0.5 tracking-wider uppercase">Agent Observability</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-4">
+        <div id="connection-status" class="flex items-center gap-2 text-xs text-slate-500">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 pulse-dot"></span>
+          <span>Connected</span>
+        </div>
+        <div class="text-xs text-slate-600" id="last-refresh">--</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <nav class="max-w-[1600px] mx-auto px-6 pt-4">
+    <div class="flex gap-1 border-b border-white/5">
+      <button onclick="switchView('overview')" data-tab="overview" class="tab-btn tab-active px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg">Overview</button>
+      <button onclick="switchView('traces')" data-tab="traces" class="tab-btn tab-inactive px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg">Traces</button>
+      <button onclick="switchView('cost')" data-tab="cost" class="tab-btn tab-inactive px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg">Cost Analysis</button>
+      <button onclick="switchView('patterns')" data-tab="patterns" class="tab-btn tab-inactive px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg">Patterns</button>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="max-w-[1600px] mx-auto px-6 py-6">
+
+    <!-- OVERVIEW VIEW -->
+    <div id="view-overview" class="view-panel fade-in">
+      <!-- Stats Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div class="glass rounded-xl p-5 stat-glow">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Traces</span>
+            <div class="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center">
+              <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7"/></svg>
+            </div>
+          </div>
+          <div id="stat-traces" class="text-2xl font-bold text-white">--</div>
+          <div id="stat-spans" class="text-xs text-slate-500 mt-1">-- spans</div>
+        </div>
+        <div class="glass rounded-xl p-5 stat-glow">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Error Rate</span>
+            <div class="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center">
+              <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+            </div>
+          </div>
+          <div id="stat-error-rate" class="text-2xl font-bold text-white">--</div>
+          <div id="stat-error-count" class="text-xs text-slate-500 mt-1">-- error traces</div>
+        </div>
+        <div class="glass rounded-xl p-5 stat-glow">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Avg Latency</span>
+            <div class="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
+              <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+          </div>
+          <div id="stat-latency" class="text-2xl font-bold text-white">--</div>
+          <div class="text-xs text-slate-500 mt-1">milliseconds</div>
+        </div>
+        <div class="glass rounded-xl p-5 stat-glow">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Cost</span>
+            <div class="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+          </div>
+          <div id="stat-cost" class="text-2xl font-bold text-white">--</div>
+          <div id="stat-tokens" class="text-xs text-slate-500 mt-1">-- tokens</div>
+        </div>
+      </div>
+
+      <!-- Recent Traces -->
+      <div class="glass rounded-xl overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-white/5">
+          <h2 class="text-sm font-semibold text-white">Recent Traces</h2>
+          <button onclick="switchView('traces')" class="text-xs text-indigo-400 hover:text-indigo-300 transition">View all</button>
+        </div>
+        <div id="recent-traces-list" class="divide-y divide-white/5">
+          <div class="p-8 text-center text-slate-600 text-sm">Loading...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TRACES VIEW -->
+    <div id="view-traces" class="view-panel hidden fade-in">
+      <!-- Filters -->
+      <div class="flex flex-wrap gap-3 mb-4">
+        <input id="filter-service" type="text" placeholder="Filter by service..."
+          class="bg-surface-100 border border-white/10 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 w-64 transition" />
+        <label class="flex items-center gap-2 text-sm text-slate-400 cursor-pointer select-none">
+          <input id="filter-errors" type="checkbox" class="rounded bg-surface-100 border-white/10 text-indigo-500 focus:ring-indigo-500/30" />
+          Errors only
+        </label>
+        <button onclick="loadTraces()" class="ml-auto px-3 py-2 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition">Refresh</button>
+      </div>
+      <!-- Trace List -->
+      <div class="glass rounded-xl overflow-hidden">
+        <div id="traces-list" class="divide-y divide-white/5">
+          <div class="p-8 text-center text-slate-600 text-sm">Loading...</div>
+        </div>
+      </div>
+      <!-- Pagination -->
+      <div class="flex items-center justify-between mt-4">
+        <button id="btn-prev" onclick="paginateTraces(-1)" class="px-3 py-1.5 text-xs text-slate-400 bg-surface-100 rounded-lg border border-white/10 hover:border-white/20 transition disabled:opacity-30" disabled>Previous</button>
+        <span id="page-info" class="text-xs text-slate-500">--</span>
+        <button id="btn-next" onclick="paginateTraces(1)" class="px-3 py-1.5 text-xs text-slate-400 bg-surface-100 rounded-lg border border-white/10 hover:border-white/20 transition disabled:opacity-30" disabled>Next</button>
+      </div>
+    </div>
+
+    <!-- TRACE DETAIL VIEW (shown when clicking a trace) -->
+    <div id="view-trace-detail" class="view-panel hidden fade-in">
+      <button onclick="backToTraces()" class="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-200 mb-4 transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        Back to traces
+      </button>
+      <!-- Trace Header -->
+      <div class="glass rounded-xl p-5 mb-4">
+        <div class="flex items-start justify-between">
+          <div>
+            <h2 id="detail-trace-id" class="text-lg font-semibold text-white font-mono">--</h2>
+            <div id="detail-trace-meta" class="flex flex-wrap gap-4 mt-2 text-xs text-slate-400"></div>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="showDetailTab('timeline')" data-dtab="timeline" class="dtab-btn tab-active px-3 py-1.5 text-xs font-medium border-b-2 rounded-t transition">Timeline</button>
+            <button onclick="showDetailTab('dag')" data-dtab="dag" class="dtab-btn tab-inactive px-3 py-1.5 text-xs font-medium border-b-2 rounded-t transition">Causal DAG</button>
+          </div>
+        </div>
+      </div>
+      <!-- Timeline Panel -->
+      <div id="detail-timeline" class="detail-panel">
+        <div class="glass rounded-xl overflow-hidden">
+          <div id="timeline-container" class="p-4">
+            <div class="text-center text-slate-600 text-sm py-8">Loading spans...</div>
+          </div>
+        </div>
+      </div>
+      <!-- DAG Panel -->
+      <div id="detail-dag" class="detail-panel hidden">
+        <div class="glass rounded-xl overflow-hidden">
+          <div id="cy-container"></div>
+        </div>
+        <div id="dag-patterns" class="mt-4"></div>
+      </div>
+      <!-- Span Detail Sidebar -->
+      <div id="span-detail-panel" class="hidden fixed right-0 top-0 h-full w-96 glass border-l border-white/10 z-50 overflow-y-auto shadow-2xl shadow-black/50 fade-in">
+        <div class="p-5">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-semibold text-white">Span Detail</h3>
+            <button onclick="closeSpanDetail()" class="text-slate-500 hover:text-slate-300 transition">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <div id="span-detail-content"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COST VIEW -->
+    <div id="view-cost" class="view-panel hidden fade-in">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="glass rounded-xl p-5">
+          <h3 class="text-sm font-semibold text-white mb-4">Cost by Service</h3>
+          <div class="h-72"><canvas id="chart-cost-service"></canvas></div>
+        </div>
+        <div class="glass rounded-xl p-5">
+          <h3 class="text-sm font-semibold text-white mb-4">Cost by Span Kind</h3>
+          <div class="h-72"><canvas id="chart-cost-kind"></canvas></div>
+        </div>
+        <div class="glass rounded-xl p-5 lg:col-span-2">
+          <h3 class="text-sm font-semibold text-white mb-4">Cost by Operation</h3>
+          <div class="h-72"><canvas id="chart-cost-name"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PATTERNS VIEW -->
+    <div id="view-patterns" class="view-panel hidden fade-in">
+      <div id="patterns-list">
+        <div class="p-8 text-center text-slate-600 text-sm">Select a trace to view detected patterns, or patterns will appear here from recent traces.</div>
+      </div>
+    </div>
+
+  </main>
+
+<script>
+// ========== State ==========
+const API_BASE = window.location.origin;
+let currentView = 'overview';
+let traceOffset = 0;
+const TRACE_LIMIT = 30;
+let currentTraceId = null;
+let currentTraceData = null;
+let cyInstance = null;
+let autoRefreshTimer = null;
+let chartInstances = {};
+let allPatterns = [];
+
+// ========== API Helpers ==========
+async function apiFetch(path, opts = {}) {
+  try {
+    const res = await fetch(`${API_BASE}${path}`, opts);
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`HTTP ${res.status}: ${text}`);
+    }
+    return await res.json();
+  } catch (err) {
+    console.error(`API error [${path}]:`, err);
+    throw err;
+  }
+}
+
+function updateRefreshTime() {
+  const el = document.getElementById('last-refresh');
+  el.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+}
+
+// ========== View Switching ==========
+function switchView(view) {
+  currentView = view;
+  document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('tab-active'); b.classList.add('tab-inactive'); });
+
+  const panel = document.getElementById(`view-${view}`);
+  if (panel) {
+    panel.classList.remove('hidden');
+    // Re-trigger fade-in
+    panel.classList.remove('fade-in');
+    void panel.offsetWidth;
+    panel.classList.add('fade-in');
+  }
+
+  const tabBtn = document.querySelector(`[data-tab="${view}"]`);
+  if (tabBtn) { tabBtn.classList.remove('tab-inactive'); tabBtn.classList.add('tab-active'); }
+
+  // Load data for the view
+  if (view === 'overview') { loadStats(); loadRecentTraces(); }
+  else if (view === 'traces') { loadTraces(); }
+  else if (view === 'cost') { loadCostData(); }
+  else if (view === 'patterns') { loadAllPatterns(); }
+}
+
+function showDetailTab(tab) {
+  document.querySelectorAll('.detail-panel').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.dtab-btn').forEach(b => { b.classList.remove('tab-active'); b.classList.add('tab-inactive'); });
+
+  const panel = document.getElementById(`detail-${tab}`);
+  if (panel) panel.classList.remove('hidden');
+
+  const btn = document.querySelector(`[data-dtab="${tab}"]`);
+  if (btn) { btn.classList.remove('tab-inactive'); btn.classList.add('tab-active'); }
+
+  if (tab === 'dag' && currentTraceId) loadDAG(currentTraceId);
+}
+
+function backToTraces() {
+  document.getElementById('view-trace-detail').classList.add('hidden');
+  closeSpanDetail();
+  if (currentView === 'overview') {
+    document.getElementById('view-overview').classList.remove('hidden');
+  } else {
+    document.getElementById('view-traces').classList.remove('hidden');
+  }
+}
+
+// ========== Stats ==========
+async function loadStats() {
+  try {
+    const stats = await apiFetch('/v1/stats');
+    document.getElementById('stat-traces').textContent = stats.total_traces.toLocaleString();
+    document.getElementById('stat-spans').textContent = `${(stats.total_spans || 0).toLocaleString()} spans`;
+
+    const errorRate = stats.total_traces > 0
+      ? ((stats.error_traces / stats.total_traces) * 100).toFixed(1) + '%'
+      : '0%';
+    document.getElementById('stat-error-rate').textContent = errorRate;
+    document.getElementById('stat-error-count').textContent = `${stats.error_traces} error traces`;
+
+    const latency = stats.avg_duration_ms > 0 ? stats.avg_duration_ms.toFixed(0) : '0';
+    document.getElementById('stat-latency').textContent = latency;
+
+    document.getElementById('stat-cost').textContent = '$' + (stats.total_cost || 0).toFixed(4);
+    document.getElementById('stat-tokens').textContent = `${(stats.total_tokens || 0).toLocaleString()} tokens`;
+
+    updateRefreshTime();
+  } catch (err) {
+    showConnectionError();
+  }
+}
+
+// ========== Traces ==========
+function renderTraceRow(trace, compact = false) {
+  const hasErrors = trace.has_errors === true || trace.has_errors === 1;
+  const statusDot = hasErrors
+    ? '<span class="w-2 h-2 rounded-full bg-red-500 flex-shrink-0"></span>'
+    : '<span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>';
+
+  const timeStr = trace.start_time > 0
+    ? new Date(trace.start_time * 1000).toLocaleString()
+    : '--';
+
+  const duration = (trace.duration_ms || 0).toFixed(0);
+  const cost = (trace.total_cost_usd || 0).toFixed(4);
+  const traceIdShort = (trace.trace_id || '').substring(0, 12);
+
+  return `
+    <div class="flex items-center gap-4 px-5 py-3.5 hover:bg-white/[0.02] cursor-pointer transition group" onclick="openTrace('${trace.trace_id}')">
+      ${statusDot}
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2">
+          <span class="text-sm font-medium text-slate-200 group-hover:text-white transition">${traceIdShort}...</span>
+          ${trace.service_name ? `<span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">${escHtml(trace.service_name)}</span>` : ''}
+          ${hasErrors ? `<span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-red-500/10 text-red-300 border border-red-500/20">${trace.error_count || 1} error${(trace.error_count || 1) > 1 ? 's' : ''}</span>` : ''}
+        </div>
+        ${!compact ? `<div class="text-xs text-slate-500 mt-0.5">${timeStr}</div>` : ''}
+      </div>
+      <div class="flex items-center gap-6 text-xs text-slate-500">
+        <div class="text-right">
+          <div class="text-slate-400">${duration}ms</div>
+          ${!compact ? `<div>${trace.span_count || 0} spans</div>` : ''}
+        </div>
+        <div class="text-right">
+          <div class="text-slate-400">$${cost}</div>
+          ${!compact ? `<div>${(trace.total_tokens || 0).toLocaleString()} tok</div>` : ''}
+        </div>
+        <svg class="w-4 h-4 text-slate-600 group-hover:text-slate-400 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      </div>
+    </div>
+  `;
+}
+
+async function loadRecentTraces() {
+  try {
+    const data = await apiFetch('/v1/traces?limit=8');
+    const container = document.getElementById('recent-traces-list');
+    if (!data.traces || data.traces.length === 0) {
+      container.innerHTML = '<div class="p-8 text-center text-slate-600 text-sm">No traces recorded yet. Send traces via the SDK to get started.</div>';
+      return;
+    }
+    container.innerHTML = data.traces.map(t => renderTraceRow(t, true)).join('');
+  } catch (err) {
+    document.getElementById('recent-traces-list').innerHTML = '<div class="p-8 text-center text-red-400/60 text-sm">Failed to load traces. Is the server running?</div>';
+  }
+}
+
+async function loadTraces() {
+  const service = document.getElementById('filter-service').value.trim() || null;
+  const errorsOnly = document.getElementById('filter-errors').checked;
+
+  let url = `/v1/traces?limit=${TRACE_LIMIT}&offset=${traceOffset}`;
+  if (service) url += `&service=${encodeURIComponent(service)}`;
+  if (errorsOnly) url += `&errors_only=true`;
+
+  try {
+    const data = await apiFetch(url);
+    const container = document.getElementById('traces-list');
+    if (!data.traces || data.traces.length === 0) {
+      container.innerHTML = '<div class="p-8 text-center text-slate-600 text-sm">No traces found.</div>';
+      document.getElementById('btn-prev').disabled = true;
+      document.getElementById('btn-next').disabled = true;
+      document.getElementById('page-info').textContent = 'No results';
+      return;
+    }
+    container.innerHTML = data.traces.map(t => renderTraceRow(t)).join('');
+
+    document.getElementById('btn-prev').disabled = traceOffset === 0;
+    document.getElementById('btn-next').disabled = data.traces.length < TRACE_LIMIT;
+    document.getElementById('page-info').textContent = `Showing ${traceOffset + 1}-${traceOffset + data.traces.length}`;
+    updateRefreshTime();
+  } catch (err) {
+    document.getElementById('traces-list').innerHTML = '<div class="p-8 text-center text-red-400/60 text-sm">Failed to load traces.</div>';
+  }
+}
+
+function paginateTraces(dir) {
+  traceOffset = Math.max(0, traceOffset + dir * TRACE_LIMIT);
+  loadTraces();
+}
+
+// ========== Trace Detail ==========
+async function openTrace(traceId) {
+  currentTraceId = traceId;
+  // Hide current view, show detail
+  document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
+  const detailPanel = document.getElementById('view-trace-detail');
+  detailPanel.classList.remove('hidden');
+  detailPanel.classList.remove('fade-in');
+  void detailPanel.offsetWidth;
+  detailPanel.classList.add('fade-in');
+
+  // Reset to timeline tab
+  showDetailTab('timeline');
+
+  try {
+    const data = await apiFetch(`/v1/traces/${traceId}`);
+    currentTraceData = data;
+    renderTraceDetail(data);
+  } catch (err) {
+    document.getElementById('timeline-container').innerHTML = `<div class="text-center text-red-400/60 text-sm py-8">Failed to load trace: ${escHtml(err.message)}</div>`;
+  }
+}
+
+function renderTraceDetail(data) {
+  document.getElementById('detail-trace-id').textContent = data.trace_id;
+
+  const hasErrors = data.has_errors === true || data.has_errors === 1;
+  const timeStr = data.start_time > 0 ? new Date(data.start_time * 1000).toLocaleString() : '--';
+  const meta = [
+    `<span>Service: <strong class="text-slate-200">${escHtml(data.service_name || 'unknown')}</strong></span>`,
+    `<span>Duration: <strong class="text-slate-200">${(data.duration_ms || 0).toFixed(0)}ms</strong></span>`,
+    `<span>Spans: <strong class="text-slate-200">${data.span_count || (data.spans || []).length}</strong></span>`,
+    `<span>Tokens: <strong class="text-slate-200">${(data.total_tokens || 0).toLocaleString()}</strong></span>`,
+    `<span>Cost: <strong class="text-slate-200">$${(data.total_cost_usd || 0).toFixed(4)}</strong></span>`,
+    `<span>Time: <strong class="text-slate-200">${timeStr}</strong></span>`,
+    hasErrors ? '<span class="text-red-400">Has Errors</span>' : '<span class="text-emerald-400">OK</span>',
+  ];
+  document.getElementById('detail-trace-meta').innerHTML = meta.join('');
+
+  renderTimeline(data.spans || []);
+}
+
+// ========== Timeline ==========
+const SPAN_KIND_COLORS = {
+  llm: { bg: 'bg-purple-500/20', bar: '#8b5cf6', text: 'text-purple-300', label: 'LLM' },
+  tool: { bg: 'bg-blue-500/20', bar: '#3b82f6', text: 'text-blue-300', label: 'Tool' },
+  agent: { bg: 'bg-emerald-500/20', bar: '#10b981', text: 'text-emerald-300', label: 'Agent' },
+  chain: { bg: 'bg-amber-500/20', bar: '#f59e0b', text: 'text-amber-300', label: 'Chain' },
+  retrieval: { bg: 'bg-cyan-500/20', bar: '#06b6d4', text: 'text-cyan-300', label: 'Retrieval' },
+  custom: { bg: 'bg-slate-500/20', bar: '#64748b', text: 'text-slate-300', label: 'Custom' },
+};
+
+function renderTimeline(spans) {
+  const container = document.getElementById('timeline-container');
+  if (!spans || spans.length === 0) {
+    container.innerHTML = '<div class="text-center text-slate-600 text-sm py-8">No spans in this trace.</div>';
+    return;
+  }
+
+  // Sort by start_time
+  spans.sort((a, b) => (a.start_time || 0) - (b.start_time || 0));
+
+  const minTime = Math.min(...spans.map(s => s.start_time || 0));
+  const maxTime = Math.max(...spans.map(s => s.end_time || s.start_time || 0));
+  const totalDuration = maxTime - minTime || 1;
+
+  // Build hierarchy
+  const childMap = {};
+  spans.forEach(s => {
+    if (s.parent_span_id) {
+      childMap[s.parent_span_id] = childMap[s.parent_span_id] || [];
+      childMap[s.parent_span_id].push(s);
+    }
+  });
+
+  // Flatten with indentation via DFS
+  const rootSpans = spans.filter(s => !s.parent_span_id || !spans.find(p => p.span_id === s.parent_span_id));
+  const flatList = [];
+  function dfs(span, depth) {
+    flatList.push({ span, depth });
+    (childMap[span.span_id] || []).forEach(c => dfs(c, depth + 1));
+  }
+  rootSpans.forEach(s => dfs(s, 0));
+
+  let html = '<div class="space-y-1">';
+
+  // Legend
+  html += '<div class="flex flex-wrap gap-3 mb-3 pb-3 border-b border-white/5">';
+  for (const [kind, cfg] of Object.entries(SPAN_KIND_COLORS)) {
+    html += `<div class="flex items-center gap-1.5 text-xs ${cfg.text}"><span class="w-3 h-1.5 rounded-full" style="background:${cfg.bar}"></span>${cfg.label}</div>`;
+  }
+  html += '</div>';
+
+  flatList.forEach(({ span, depth }) => {
+    const kind = (span.kind || 'custom').toLowerCase();
+    const cfg = SPAN_KIND_COLORS[kind] || SPAN_KIND_COLORS.custom;
+    const isError = span.status === 'error';
+
+    const spanStart = (span.start_time || 0) - minTime;
+    const spanDuration = ((span.end_time || span.start_time || 0) - (span.start_time || 0));
+    const leftPct = (spanStart / totalDuration) * 100;
+    const widthPct = Math.max((spanDuration / totalDuration) * 100, 0.5);
+    const durationMs = (span.duration_ms || spanDuration * 1000 || 0).toFixed(0);
+
+    const indent = depth * 20;
+
+    html += `
+      <div class="flex items-center gap-3 py-1.5 px-2 rounded-lg hover:bg-white/[0.02] cursor-pointer transition group" onclick="openSpanDetail('${span.span_id}')">
+        <div class="flex items-center gap-2 w-56 flex-shrink-0" style="padding-left:${indent}px">
+          ${depth > 0 ? '<span class="text-slate-700 text-xs">|_</span>' : ''}
+          <span class="px-1.5 py-0.5 text-[10px] font-medium rounded ${cfg.bg} ${cfg.text}">${cfg.label}</span>
+          <span class="text-xs text-slate-300 truncate group-hover:text-white transition">${escHtml(span.name)}</span>
+          ${isError ? '<span class="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0"></span>' : ''}
+        </div>
+        <div class="flex-1 relative h-5">
+          <div class="span-bar absolute top-1 h-3 rounded-sm cursor-pointer"
+               style="left:${leftPct}%;width:${widthPct}%;background:${isError ? '#ef4444' : cfg.bar};opacity:${isError ? 0.8 : 0.6}"></div>
+        </div>
+        <div class="text-xs text-slate-500 w-16 text-right flex-shrink-0">${durationMs}ms</div>
+      </div>
+    `;
+  });
+
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+// ========== Span Detail Panel ==========
+function openSpanDetail(spanId) {
+  if (!currentTraceData || !currentTraceData.spans) return;
+  const span = currentTraceData.spans.find(s => s.span_id === spanId);
+  if (!span) return;
+
+  const panel = document.getElementById('span-detail-panel');
+  panel.classList.remove('hidden');
+
+  const kind = (span.kind || 'custom').toLowerCase();
+  const cfg = SPAN_KIND_COLORS[kind] || SPAN_KIND_COLORS.custom;
+  const isError = span.status === 'error';
+
+  let html = '';
+
+  // Header
+  html += `<div class="mb-4">
+    <div class="flex items-center gap-2 mb-2">
+      <span class="px-2 py-0.5 text-xs font-medium rounded ${cfg.bg} ${cfg.text}">${cfg.label}</span>
+      ${isError ? '<span class="px-2 py-0.5 text-xs font-medium rounded bg-red-500/10 text-red-300 border border-red-500/20">ERROR</span>' : '<span class="px-2 py-0.5 text-xs font-medium rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">OK</span>'}
+    </div>
+    <h4 class="text-base font-semibold text-white">${escHtml(span.name)}</h4>
+    <div class="text-xs text-slate-500 font-mono mt-1">${span.span_id}</div>
+  </div>`;
+
+  // Timing
+  const startStr = span.start_time > 0 ? new Date(span.start_time * 1000).toLocaleTimeString() : '--';
+  const durationMs = (span.duration_ms || ((span.end_time - span.start_time) * 1000) || 0).toFixed(1);
+  html += `<div class="mb-4">
+    <h5 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Timing</h5>
+    <div class="space-y-1 text-xs">
+      <div class="flex justify-between"><span class="text-slate-500">Start</span><span class="text-slate-300">${startStr}</span></div>
+      <div class="flex justify-between"><span class="text-slate-500">Duration</span><span class="text-slate-300">${durationMs}ms</span></div>
+    </div>
+  </div>`;
+
+  // Parent
+  if (span.parent_span_id) {
+    html += `<div class="mb-4">
+      <h5 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Parent</h5>
+      <div class="text-xs font-mono text-slate-400">${span.parent_span_id}</div>
+    </div>`;
+  }
+
+  // Token Usage
+  const tu = span.token_usage;
+  if (tu) {
+    html += `<div class="mb-4">
+      <h5 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Token Usage</h5>
+      <div class="space-y-1 text-xs">
+        <div class="flex justify-between"><span class="text-slate-500">Input</span><span class="text-slate-300">${(tu.input_tokens || 0).toLocaleString()}</span></div>
+        <div class="flex justify-between"><span class="text-slate-500">Output</span><span class="text-slate-300">${(tu.output_tokens || 0).toLocaleString()}</span></div>
+        <div class="flex justify-between"><span class="text-slate-500">Cost</span><span class="text-emerald-300">$${(tu.total_cost_usd || 0).toFixed(6)}</span></div>
+      </div>
+    </div>`;
+  }
+
+  // Error
+  if (span.error || span.error_message) {
+    const errMsg = span.error ? (span.error.message || JSON.stringify(span.error)) : span.error_message;
+    html += `<div class="mb-4">
+      <h5 class="text-xs font-semibold text-red-400 uppercase tracking-wider mb-2">Error</h5>
+      <div class="p-3 rounded-lg bg-red-500/5 border border-red-500/20 text-xs text-red-300 font-mono break-all">${escHtml(errMsg)}</div>
+    </div>`;
+  }
+
+  // Attributes
+  const attrs = span.attributes || {};
+  if (Object.keys(attrs).length > 0) {
+    html += `<div class="mb-4">
+      <h5 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Attributes</h5>
+      <div class="space-y-1">`;
+    for (const [key, val] of Object.entries(attrs)) {
+      html += `<div class="flex justify-between text-xs gap-2">
+        <span class="text-slate-500 truncate">${escHtml(key)}</span>
+        <span class="text-slate-300 text-right break-all">${escHtml(String(val))}</span>
+      </div>`;
+    }
+    html += '</div></div>';
+  }
+
+  // Events
+  const events = span.events || [];
+  if (events.length > 0) {
+    html += `<div class="mb-4">
+      <h5 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Events (${events.length})</h5>
+      <div class="space-y-2">`;
+    events.forEach(ev => {
+      const evTime = ev.timestamp > 0 ? new Date(ev.timestamp * 1000).toLocaleTimeString() : '--';
+      html += `<div class="p-2 rounded bg-surface-100 border border-white/5">
+        <div class="flex justify-between text-xs mb-1"><span class="text-slate-300 font-medium">${escHtml(ev.name)}</span><span class="text-slate-600">${evTime}</span></div>
+        ${Object.keys(ev.attributes || {}).length > 0 ? `<pre class="text-[10px] text-slate-500 mt-1 overflow-x-auto">${escHtml(JSON.stringify(ev.attributes, null, 2))}</pre>` : ''}
+      </div>`;
+    });
+    html += '</div></div>';
+  }
+
+  document.getElementById('span-detail-content').innerHTML = html;
+}
+
+function closeSpanDetail() {
+  document.getElementById('span-detail-panel').classList.add('hidden');
+}
+
+// ========== Causal DAG ==========
+async function loadDAG(traceId) {
+  try {
+    const data = await apiFetch(`/v1/traces/${traceId}/dag`);
+    renderDAG(data);
+    renderDAGPatterns(data.patterns || []);
+  } catch (err) {
+    document.getElementById('cy-container').innerHTML = `<div class="flex items-center justify-center h-full text-slate-600 text-sm">Failed to load DAG: ${escHtml(err.message)}</div>`;
+  }
+}
+
+function renderDAG(dagData) {
+  if (cyInstance) { cyInstance.destroy(); cyInstance = null; }
+
+  const nodes = (dagData.nodes || []).map(n => {
+    const kindColors = {
+      llm: '#8b5cf6', tool: '#3b82f6', agent: '#10b981', chain: '#f59e0b',
+      retrieval: '#06b6d4', custom: '#64748b'
+    };
+    let bgColor = kindColors[n.kind] || '#64748b';
+    let borderColor = bgColor;
+    let borderWidth = 2;
+
+    if (n.status === 'error') {
+      if (n.error_role === 'root_cause') {
+        borderColor = '#ef4444';
+        bgColor = '#7f1d1d';
+        borderWidth = 4;
+      } else if (n.error_role === 'cascaded') {
+        borderColor = '#f59e0b';
+        bgColor = '#78350f';
+        borderWidth = 3;
+      }
+    }
+
+    return {
+      data: {
+        id: n.span_id,
+        label: n.name.length > 20 ? n.name.substring(0, 18) + '..' : n.name,
+        kind: n.kind,
+        status: n.status,
+        errorRole: n.error_role,
+        bgColor,
+        borderColor,
+        borderWidth,
+        duration: `${(n.duration_ms || 0).toFixed(0)}ms`,
+      }
+    };
+  });
+
+  const edges = (dagData.edges || []).map((e, i) => ({
+    data: {
+      id: `e${i}`,
+      source: e.source,
+      target: e.target,
+      relation: e.relation,
+      lineColor: e.relation === 'caused_by' ? '#ef4444' : '#f59e0b',
+    }
+  }));
+
+  // If no edges, build parent-child edges from spans
+  if (edges.length === 0 && currentTraceData && currentTraceData.spans) {
+    const spanIds = new Set(nodes.map(n => n.data.id));
+    currentTraceData.spans.forEach((s, i) => {
+      if (s.parent_span_id && spanIds.has(s.parent_span_id) && spanIds.has(s.span_id)) {
+        edges.push({
+          data: {
+            id: `pe${i}`,
+            source: s.parent_span_id,
+            target: s.span_id,
+            relation: 'parent_child',
+            lineColor: '#334155',
+          }
+        });
+      }
+    });
+  }
+
+  cyInstance = cytoscape({
+    container: document.getElementById('cy-container'),
+    elements: [...nodes, ...edges],
+    style: [
+      {
+        selector: 'node',
+        style: {
+          'background-color': 'data(bgColor)',
+          'border-color': 'data(borderColor)',
+          'border-width': 'data(borderWidth)',
+          'label': 'data(label)',
+          'color': '#e2e8f0',
+          'font-size': '10px',
+          'font-family': 'Inter, system-ui, sans-serif',
+          'text-valign': 'bottom',
+          'text-margin-y': 6,
+          'width': 35,
+          'height': 35,
+          'text-outline-color': '#0a0d1a',
+          'text-outline-width': 2,
+        }
+      },
+      {
+        selector: 'edge',
+        style: {
+          'line-color': 'data(lineColor)',
+          'target-arrow-color': 'data(lineColor)',
+          'target-arrow-shape': 'triangle',
+          'curve-style': 'bezier',
+          'width': 2,
+          'opacity': 0.7,
+          'arrow-scale': 0.8,
+        }
+      },
+      {
+        selector: 'edge[relation = "caused_by"]',
+        style: { 'line-style': 'solid', 'width': 3, 'opacity': 0.9 }
+      },
+      {
+        selector: 'edge[relation = "preceded_by"]',
+        style: { 'line-style': 'dashed' }
+      },
+    ],
+    layout: {
+      name: 'breadthfirst',
+      directed: true,
+      spacingFactor: 1.3,
+      padding: 30,
+    },
+    minZoom: 0.3,
+    maxZoom: 3,
+  });
+
+  cyInstance.on('tap', 'node', function(evt) {
+    openSpanDetail(evt.target.id());
+  });
+}
+
+function renderDAGPatterns(patterns) {
+  const container = document.getElementById('dag-patterns');
+  if (!patterns || patterns.length === 0) {
+    container.innerHTML = '<div class="glass rounded-xl p-4 text-sm text-slate-500">No patterns detected in this trace.</div>';
+    return;
+  }
+
+  let html = '<div class="space-y-2">';
+  patterns.forEach(p => {
+    const sevClass = `severity-${p.severity}`;
+    html += `
+      <div class="rounded-xl p-4 border ${sevClass}">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="px-2 py-0.5 text-[10px] font-bold uppercase rounded ${sevClass}">${p.severity}</span>
+          <span class="text-xs font-medium text-slate-300">${escHtml(p.pattern)}</span>
+        </div>
+        <p class="text-xs text-slate-400">${escHtml(p.description)}</p>
+      </div>
+    `;
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+// ========== Cost Analysis ==========
+async function loadCostData() {
+  try {
+    const [byService, byKind, byName] = await Promise.all([
+      apiFetch('/v1/cost/breakdown?group_by=service_name'),
+      apiFetch('/v1/cost/breakdown?group_by=kind'),
+      apiFetch('/v1/cost/breakdown?group_by=name'),
+    ]);
+
+    renderCostChart('chart-cost-service', byService, 'doughnut');
+    renderCostChart('chart-cost-kind', byKind, 'doughnut');
+    renderCostChart('chart-cost-name', byName, 'bar');
+    updateRefreshTime();
+  } catch (err) {
+    console.error('Cost load error:', err);
+  }
+}
+
+const CHART_COLORS = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#06b6d4', '#84cc16'];
+
+function renderCostChart(canvasId, data, type) {
+  if (chartInstances[canvasId]) { chartInstances[canvasId].destroy(); }
+
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || !data || data.length === 0) {
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#475569';
+      ctx.font = '14px Inter';
+      ctx.textAlign = 'center';
+      ctx.fillText('No cost data available', canvas.width / 2, canvas.height / 2);
+    }
+    return;
+  }
+
+  const labels = data.map(d => d.dimension || 'unknown');
+  const costs = data.map(d => d.total_cost_usd || 0);
+  const tokens = data.map(d => d.total_tokens || 0);
+
+  const chartConfig = {
+    type,
+    data: {
+      labels,
+      datasets: [{
+        label: 'Cost (USD)',
+        data: costs,
+        backgroundColor: type === 'doughnut'
+          ? CHART_COLORS.slice(0, labels.length)
+          : CHART_COLORS[0] + '80',
+        borderColor: type === 'doughnut'
+          ? CHART_COLORS.slice(0, labels.length)
+          : CHART_COLORS[0],
+        borderWidth: type === 'doughnut' ? 0 : 1,
+        borderRadius: type === 'bar' ? 4 : 0,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: type === 'doughnut',
+          position: 'right',
+          labels: { color: '#94a3b8', font: { family: 'Inter', size: 11 }, padding: 12 },
+        },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const idx = ctx.dataIndex;
+              return ` $${costs[idx].toFixed(6)} | ${tokens[idx].toLocaleString()} tokens`;
+            }
+          }
+        }
+      },
+      scales: type === 'bar' ? {
+        x: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.03)' } },
+        y: { ticks: { color: '#64748b', font: { size: 10 }, callback: v => '$' + v.toFixed(4) }, grid: { color: 'rgba(255,255,255,0.03)' } },
+      } : undefined,
+    }
+  };
+
+  chartInstances[canvasId] = new Chart(canvas.getContext('2d'), chartConfig);
+}
+
+// ========== Patterns ==========
+async function loadAllPatterns() {
+  const container = document.getElementById('patterns-list');
+
+  try {
+    // Load recent traces and check each for patterns
+    const tracesData = await apiFetch('/v1/traces?limit=20');
+    if (!tracesData.traces || tracesData.traces.length === 0) {
+      container.innerHTML = '<div class="glass rounded-xl p-8 text-center text-slate-600 text-sm">No traces available. Patterns are detected per-trace via the DAG analysis.</div>';
+      return;
+    }
+
+    // Only check traces with errors for patterns
+    const errorTraces = tracesData.traces.filter(t => t.has_errors === true || t.has_errors === 1);
+    if (errorTraces.length === 0) {
+      container.innerHTML = '<div class="glass rounded-xl p-8 text-center text-slate-500 text-sm">No error traces found. Anti-patterns are detected when traces contain errors.</div>';
+      return;
+    }
+
+    container.innerHTML = '<div class="glass rounded-xl p-8 text-center text-slate-500 text-sm">Analyzing traces for patterns...</div>';
+
+    let allPatternsHtml = '';
+    let patternCount = 0;
+
+    for (const trace of errorTraces.slice(0, 10)) {
+      try {
+        const dag = await apiFetch(`/v1/traces/${trace.trace_id}/dag`);
+        if (dag.patterns && dag.patterns.length > 0) {
+          dag.patterns.forEach(p => {
+            patternCount++;
+            const sevClass = `severity-${p.severity}`;
+            allPatternsHtml += `
+              <div class="rounded-xl p-4 border ${sevClass} glass-hover cursor-pointer transition" onclick="openTrace('${trace.trace_id}')">
+                <div class="flex items-center gap-2 mb-1.5">
+                  <span class="px-2 py-0.5 text-[10px] font-bold uppercase rounded ${sevClass}">${p.severity}</span>
+                  <span class="text-xs font-medium text-slate-300">${escHtml(p.pattern.replace(/_/g, ' '))}</span>
+                  <span class="ml-auto text-[10px] text-slate-600 font-mono">${trace.trace_id.substring(0, 10)}...</span>
+                </div>
+                <p class="text-xs text-slate-400">${escHtml(p.description)}</p>
+                ${p.involved_spans ? `<div class="text-[10px] text-slate-600 mt-1">${p.involved_spans.length} span(s) involved</div>` : ''}
+              </div>
+            `;
+          });
+        }
+      } catch (e) {
+        // Skip traces that fail DAG analysis
+      }
+    }
+
+    if (patternCount === 0) {
+      container.innerHTML = '<div class="glass rounded-xl p-8 text-center text-slate-500 text-sm">No anti-patterns detected in recent error traces.</div>';
+    } else {
+      container.innerHTML = `
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-sm font-semibold text-white">${patternCount} Pattern(s) Detected</h2>
+          <span class="text-xs text-slate-500">From ${errorTraces.length} error trace(s)</span>
+        </div>
+        <div class="space-y-2">${allPatternsHtml}</div>
+      `;
+    }
+  } catch (err) {
+    container.innerHTML = `<div class="glass rounded-xl p-8 text-center text-red-400/60 text-sm">Failed to load patterns: ${escHtml(err.message)}</div>`;
+  }
+}
+
+// ========== Connection Status ==========
+function showConnectionError() {
+  const el = document.getElementById('connection-status');
+  el.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-red-500"></span><span class="text-red-400">Disconnected</span>';
+}
+
+function showConnectionOk() {
+  const el = document.getElementById('connection-status');
+  el.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 pulse-dot"></span><span>Connected</span>';
+}
+
+async function healthCheck() {
+  try {
+    await apiFetch('/health');
+    showConnectionOk();
+    return true;
+  } catch {
+    showConnectionError();
+    return false;
+  }
+}
+
+// ========== Utilities ==========
+function escHtml(str) {
+  if (!str) return '';
+  const div = document.createElement('div');
+  div.textContent = String(str);
+  return div.innerHTML;
+}
+
+// ========== Auto-refresh ==========
+function startAutoRefresh() {
+  if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+  autoRefreshTimer = setInterval(async () => {
+    const ok = await healthCheck();
+    if (!ok) return;
+    if (currentView === 'overview') { loadStats(); loadRecentTraces(); }
+    else if (currentView === 'traces') { loadTraces(); }
+  }, 10000);
+}
+
+// ========== Init ==========
+document.addEventListener('DOMContentLoaded', async () => {
+  await healthCheck();
+  loadStats();
+  loadRecentTraces();
+  startAutoRefresh();
+
+  // Bind filter events
+  document.getElementById('filter-service').addEventListener('keyup', (e) => {
+    if (e.key === 'Enter') { traceOffset = 0; loadTraces(); }
+  });
+  document.getElementById('filter-errors').addEventListener('change', () => { traceOffset = 0; loadTraces(); });
+});
+</script>
+</body>
+</html>
