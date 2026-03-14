@@ -47,7 +47,7 @@ class TraceExporter(ABC):
 class ConsoleExporter(TraceExporter):
     """打印到控制台（开发调试用）"""
 
-    def __init__(self, colored: bool = True, verbose: bool = False):
+    def __init__(self, colored: bool = True, verbose: bool = False) -> None:
         self.colored = colored and sys.stdout.isatty()
         self.verbose = verbose
 
@@ -90,7 +90,7 @@ class ConsoleExporter(TraceExporter):
         for span in root_spans:
             self._print_span_node(span, children_map, depth=0)
 
-    def _print_span_node(self, span, children_map: dict, depth: int = 0) -> None:
+    def _print_span_node(self, span: "Span", children_map: dict, depth: int = 0) -> None:
         """递归打印单个 span 节点及其子节点"""
         # 缩进
         indent = "  " * depth
@@ -134,7 +134,7 @@ class JSONLExporter(TraceExporter):
     模式来源：OpenClaw 的 JSONL session 持久化
     """
 
-    def __init__(self, output_dir: str | Path = "./traces"):
+    def __init__(self, output_dir: str | Path = "./traces") -> None:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self._file_path = self.output_dir / "traces.jsonl"
@@ -154,7 +154,7 @@ class JSONLExporter(TraceExporter):
 class CallbackExporter(TraceExporter):
     """自定义回调导出器（用于测试）"""
 
-    def __init__(self, callback: Callable[[Trace], None]):
+    def __init__(self, callback: Callable[[Trace], None]) -> None:
         self._callback = callback
 
     def export(self, trace: Trace) -> None:
@@ -164,7 +164,7 @@ class CallbackExporter(TraceExporter):
 class HTTPExporter(TraceExporter):
     """POST 到 FlowLens Server"""
 
-    def __init__(self, endpoint: str = "http://localhost:8585/v1/traces/ingest"):
+    def __init__(self, endpoint: str = "http://localhost:8585/v1/traces/ingest") -> None:
         self.endpoint = endpoint
 
     def export(self, trace: Trace) -> None:

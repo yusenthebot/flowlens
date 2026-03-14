@@ -1,0 +1,24 @@
+# Include non-Python files for source distributions
+
+# Dashboard HTML served by the FlowLens server
+include flowlens/server/dashboard.html
+
+# Documentation
+include README.md
+include LICENSE
+include CHANGELOG.md
+include CONTRIBUTING.md
+
+# Example files
+recursive-include examples *.html *.py *.png *.json *.jsonl
+
+# Docs
+recursive-include docs *.md
+
+# Exclude build artifacts
+exclude .gitignore
+exclude .env
+prune dist
+prune build
+prune *.egg-info
+prune __pycache__

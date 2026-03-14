@@ -195,11 +195,15 @@
       .filter-row > * { width: 100% !important; }
       .trace-row-details { flex-direction: column; gap: 4px !important; }
       .span-label-col { width: 120px !important; min-width: 120px !important; }
-      #span-detail-panel { width: 100% !important; }
+      #span-detail-panel { width: 100% !important; left: 0; right: 0; }
       .dag-controls { flex-wrap: wrap; }
+      nav.max-w-\[1600px\] .flex { overflow-x: auto; padding-bottom: 2px; }
+      nav.max-w-\[1600px\] .tab-btn { white-space: nowrap; }
     }
     @media (max-width: 480px) {
       .stat-grid { grid-template-columns: 1fr !important; }
+      .header { padding-left: 1rem; padding-right: 1rem; }
+      main { padding-left: 1rem; padding-right: 1rem; }
     }
   </style>
 </head>
@@ -568,6 +572,38 @@
 
   </main>
 
+  <!-- Footer -->
+  <footer class="mt-8 border-t border-white/5 glass">
+    <div class="max-w-[1600px] mx-auto px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div class="flex items-center gap-2 text-xs text-slate-500">
+        <div class="w-5 h-5 rounded bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+          <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+          </svg>
+        </div>
+        <span class="font-medium text-slate-400">FlowLens v0.5.0</span>
+        <span class="text-slate-700">·</span>
+        <span>Powered by FlowLens Agent Observability</span>
+      </div>
+      <div class="flex items-center gap-4 text-xs text-slate-500">
+        <a href="https://github.com/yusenhan/flowlens" target="_blank" rel="noopener noreferrer"
+           class="flex items-center gap-1.5 hover:text-slate-300 transition-colors duration-200">
+          <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+            <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+          </svg>
+          GitHub
+        </a>
+        <a href="https://github.com/yusenhan/flowlens#readme" target="_blank" rel="noopener noreferrer"
+           class="flex items-center gap-1.5 hover:text-slate-300 transition-colors duration-200">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+          </svg>
+          Docs
+        </a>
+      </div>
+    </div>
+  </footer>
+
   <!-- Keyboard Shortcuts Modal -->
   <div id="shortcuts-modal" class="shortcuts-modal-overlay hidden" onclick="if(event.target===this)closeShortcutsModal()">
     <div class="shortcuts-modal glass rounded-2xl p-6 fade-in">
@@ -605,6 +641,8 @@
   </div>
 
 <script>
+/* FlowLens Dashboard — all functions scoped to this script block */
+'use strict';
 // =========================================================================
 // State
 // =========================================================================
@@ -735,25 +773,33 @@ function connectWebSocket() {
     }
   };
 
-  wsConnection.onclose = () => {
-    console.log('WebSocket disconnected');
+  wsConnection.onclose = (evt) => {
+    console.log('WebSocket disconnected, code:', evt.code);
     updateWsStatus('disconnected');
-    scheduleWsReconnect();
+    // Only schedule reconnect if not already pending
+    if (!wsReconnectTimer) {
+      scheduleWsReconnect();
+    }
   };
 
   wsConnection.onerror = (err) => {
     console.warn('WebSocket error:', err);
     updateWsStatus('error');
+    // onerror is followed by onclose in browsers; the onclose handler
+    // will trigger reconnect. No need to call scheduleWsReconnect here.
   };
 }
 
 function scheduleWsReconnect() {
-  if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
+  if (wsReconnectTimer) return; // already scheduled
   wsReconnectAttempts++;
   // Exponential backoff: 1s, 2s, 4s, 8s, ... max 30s
   const delay = Math.min(1000 * Math.pow(2, wsReconnectAttempts - 1), 30000);
   console.log(`WS reconnecting in ${delay}ms (attempt ${wsReconnectAttempts})`);
-  wsReconnectTimer = setTimeout(connectWebSocket, delay);
+  wsReconnectTimer = setTimeout(() => {
+    wsReconnectTimer = null;
+    connectWebSocket();
+  }, delay);
 }
 
 function updateWsStatus(state) {
@@ -957,7 +1003,36 @@ function renderTraceRow(trace, compact = false) {
 // =========================================================================
 // Empty State
 // =========================================================================
-function renderEmptyState(message, subMessage) {
+function renderEmptyState(message, subMessage, showGettingStarted) {
+  const gettingStarted = showGettingStarted ? `
+    <div class="mt-6 w-full max-w-lg text-left glass rounded-xl p-5 border border-indigo-500/10">
+      <h3 class="text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-3">Getting Started</h3>
+      <div class="space-y-3">
+        <div class="flex gap-3">
+          <span class="flex-shrink-0 w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-[10px] font-bold">1</span>
+          <div>
+            <p class="text-xs font-medium text-slate-300">Install FlowLens</p>
+            <code class="text-[11px] text-indigo-300 bg-surface-100 px-2 py-1 rounded mt-1 block font-mono">pip install flowlens</code>
+          </div>
+        </div>
+        <div class="flex gap-3">
+          <span class="flex-shrink-0 w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-[10px] font-bold">2</span>
+          <div>
+            <p class="text-xs font-medium text-slate-300">Instrument your agent</p>
+            <code class="text-[11px] text-indigo-300 bg-surface-100 px-2 py-1 rounded mt-1 block font-mono">from flowlens import tracer</code>
+          </div>
+        </div>
+        <div class="flex gap-3">
+          <span class="flex-shrink-0 w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-[10px] font-bold">3</span>
+          <div>
+            <p class="text-xs font-medium text-slate-300">Run your agent — traces appear here automatically</p>
+            <p class="text-[11px] text-slate-500 mt-1">See the <a href="https://github.com/yusenhan/flowlens#readme" target="_blank" class="text-indigo-400 hover:underline">docs</a> or <code class="font-mono text-indigo-300">examples/quickstart.py</code> to get started.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  ` : '';
+
   return `
     <div class="flex flex-col items-center justify-center py-16 px-8">
       <svg class="w-20 h-20 text-slate-700 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -965,6 +1040,7 @@ function renderEmptyState(message, subMessage) {
       </svg>
       <p class="text-sm text-slate-500 mb-1">${escHtml(message)}</p>
       <p class="text-xs text-slate-600">${escHtml(subMessage || '')}</p>
+      ${gettingStarted}
     </div>
   `;
 }
@@ -977,7 +1053,7 @@ async function loadRecentTraces() {
     const data = await apiFetch('/v1/traces?limit=8');
     const container = document.getElementById('recent-traces-list');
     if (!data.traces || data.traces.length === 0) {
-      container.innerHTML = renderEmptyState('No traces recorded yet', 'Send traces via the SDK to get started.');
+      container.innerHTML = renderEmptyState('No traces yet', 'Send traces via the SDK to get started.', true);
       return;
     }
     container.innerHTML = data.traces.map(t => renderTraceRow(t, true)).join('');

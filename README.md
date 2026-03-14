@@ -4,9 +4,10 @@
 </p>
 
 <p align="center">
+  <a href="https://pypi.org/project/flowlens/"><img src="https://img.shields.io/pypi/v/flowlens.svg" alt="PyPI version"></a>
+  <a href="https://pypi.org/project/flowlens/"><img src="https://img.shields.io/pypi/dm/flowlens.svg" alt="PyPI downloads"></a>
   <a href="https://github.com/niceyusen/flowlens/actions"><img src="https://img.shields.io/github/actions/workflow/status/niceyusen/flowlens/ci.yml?branch=main&label=CI" alt="CI Status"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+"></a>
-  <a href="https://pypi.org/project/flowlens/"><img src="https://img.shields.io/badge/version-0.1.0-green.svg" alt="Version 0.1.0"></a>
   <a href="https://github.com/niceyusen/flowlens/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://opentelemetry.io/"><img src="https://img.shields.io/badge/OpenTelemetry-compatible-blueviolet.svg" alt="OTEL Compatible"></a>
 </p>
