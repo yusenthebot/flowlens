@@ -17,7 +17,7 @@
   <img src="examples/dashboard_full.png" alt="FlowLens Dashboard" width="820">
 </p>
 
-> **Try it now:** Open [`examples/demo_dashboard.html`](examples/demo_dashboard.html) in your browser — no install needed.
+> **Try it now:** [**Live Interactive Dashboard**](https://yusenthebot.github.io/flowlens/demo_dashboard.html) · [**Product Tour**](https://yusenthebot.github.io/flowlens/demo_autoplay.html) — no install needed.
 
 ---
 
@@ -112,7 +112,7 @@ lens = FlowLens(service_name="my-agent", export_to="http",
 - **Cost analysis** — cost breakdown by model and service, cost trends over time
 - **Pattern alerts** — automatically detected anti-patterns with severity levels
 
-> Open [`examples/demo_dashboard.html`](examples/demo_dashboard.html) for an interactive preview with 10 embedded sample traces.
+> [**Open Live Dashboard Demo**](https://yusenthebot.github.io/flowlens/demo_dashboard.html) — interactive preview with 10 embedded sample traces, no install needed.
 
 ---
 
@@ -143,7 +143,8 @@ make demo                           # run all demos via Makefile
 | [`multi_agent.py`](examples/multi_agent.py) | Planner → Researcher → Writer → Reviewer with rejection/retry |
 | [`cost_optimizer.py`](examples/cost_optimizer.py) | Compare sonnet+haiku vs opus vs gpt-4o, cost bar charts |
 | [`live_dashboard.py`](examples/live_dashboard.py) | Generate traces, start server, open browser to dashboard |
-| [`demo_dashboard.html`](examples/demo_dashboard.html) | Standalone interactive dashboard (just open in browser) |
+| [`demo_dashboard.html`](https://yusenthebot.github.io/flowlens/demo_dashboard.html) | Interactive dashboard ([live demo](https://yusenthebot.github.io/flowlens/demo_dashboard.html)) |
+| [`demo_autoplay.html`](https://yusenthebot.github.io/flowlens/demo_autoplay.html) | Auto-playing product tour ([live demo](https://yusenthebot.github.io/flowlens/demo_autoplay.html)) |
 
 ---
 

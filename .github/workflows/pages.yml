@@ -1,0 +1,176 @@
+name: Deploy Demo to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'examples/**'
+      - 'docs/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build pages site
+        run: |
+          mkdir -p _site
+
+          # Copy demo HTML files
+          cp examples/demo_dashboard.html _site/
+          cp examples/demo_autoplay.html _site/
+
+          # Copy screenshots for embedding
+          cp examples/dashboard_full.png _site/
+          cp examples/screenshot_overview.png _site/
+          cp examples/screenshot_dag.png _site/
+          cp examples/screenshot_cost.png _site/
+          cp examples/screenshot_patterns.png _site/
+
+          # Create index page
+          cat > _site/index.html << 'HEREDOC'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>FlowLens — Live Demos</title>
+            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+            <style>
+              * { margin: 0; padding: 0; box-sizing: border-box; }
+              body {
+                font-family: 'Inter', system-ui, sans-serif;
+                background: linear-gradient(145deg, #fafaf8 0%, #f5f5f0 50%, #fafaf8 100%);
+                color: #2c2c2a;
+                min-height: 100vh;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                padding: 60px 20px;
+              }
+              .logo {
+                width: 56px; height: 56px; border-radius: 14px;
+                background: linear-gradient(135deg, #7c7aef, #9b8ec4);
+                display: flex; align-items: center; justify-content: center;
+                box-shadow: 0 4px 20px rgba(124, 122, 239, 0.2);
+                margin-bottom: 20px;
+              }
+              .logo svg { width: 32px; height: 32px; }
+              h1 { font-size: 2rem; font-weight: 700; margin-bottom: 8px; }
+              .tagline { color: #8a8a86; font-size: 1.05rem; margin-bottom: 48px; }
+              .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; max-width: 800px; width: 100%; }
+              @media (max-width: 640px) { .cards { grid-template-columns: 1fr; } }
+              .card {
+                background: #fff;
+                border: 1px solid #e8e6e1;
+                border-radius: 16px;
+                padding: 32px;
+                text-decoration: none;
+                color: inherit;
+                transition: all 0.2s ease;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+              }
+              .card:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+                border-color: #d0cec8;
+              }
+              .card-icon {
+                width: 44px; height: 44px; border-radius: 12px;
+                display: flex; align-items: center; justify-content: center;
+                margin-bottom: 16px; font-size: 22px;
+              }
+              .card-icon.dashboard { background: rgba(124,122,239,0.1); }
+              .card-icon.autoplay { background: rgba(107,158,122,0.1); }
+              .card h2 { font-size: 1.15rem; font-weight: 600; margin-bottom: 8px; }
+              .card p { color: #8a8a86; font-size: 0.9rem; line-height: 1.5; }
+              .badge {
+                display: inline-block;
+                margin-top: 12px;
+                padding: 4px 10px;
+                border-radius: 6px;
+                font-size: 0.75rem;
+                font-weight: 500;
+              }
+              .badge.interactive { background: rgba(124,122,239,0.1); color: #7c7aef; }
+              .badge.auto { background: rgba(107,158,122,0.1); color: #6b9e7a; }
+              .footer {
+                margin-top: 60px;
+                color: #b5b5b0;
+                font-size: 0.85rem;
+                text-align: center;
+              }
+              .footer a { color: #8a8a86; text-decoration: none; }
+              .footer a:hover { color: #2c2c2a; }
+              .screenshot {
+                margin-top: 48px;
+                max-width: 800px;
+                width: 100%;
+                border-radius: 12px;
+                overflow: hidden;
+                border: 1px solid #e8e6e1;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+              }
+              .screenshot img { width: 100%; display: block; }
+            </style>
+          </head>
+          <body>
+            <div class="logo">
+              <svg fill="none" stroke="white" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round">
+                <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+              </svg>
+            </div>
+            <h1>FlowLens</h1>
+            <p class="tagline">Agent Observability Platform — Live Demos</p>
+
+            <div class="cards">
+              <a href="demo_dashboard.html" class="card">
+                <div class="card-icon dashboard">📊</div>
+                <h2>Interactive Dashboard</h2>
+                <p>Explore 10 realistic AI agent traces. Full dashboard with DAG visualization, waterfall timeline, cost analysis, and pattern detection.</p>
+                <span class="badge interactive">Interactive</span>
+              </a>
+              <a href="demo_autoplay.html" class="card">
+                <div class="card-icon autoplay">▶️</div>
+                <h2>Product Tour</h2>
+                <p>Auto-playing 8-scene showcase. Watch code instrumentation, trace analysis, root cause detection, and cost optimization in action.</p>
+                <span class="badge auto">Auto-play</span>
+              </a>
+            </div>
+
+            <div class="screenshot">
+              <img src="dashboard_full.png" alt="FlowLens Dashboard Preview">
+            </div>
+
+            <div class="footer">
+              <p>FlowLens v0.5.0 · <a href="https://github.com/yusenthebot/flowlens">GitHub</a> · <a href="https://github.com/yusenthebot/flowlens#-quick-start">Get Started</a></p>
+            </div>
+          </body>
+          </html>
+          HEREDOC
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
