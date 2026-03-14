@@ -860,12 +860,16 @@ class TestAPI:
     # ------------------------------------------------------------------
 
     def test_agents_activity_empty_db(self, client):
-        """Returns empty list when no traces exist."""
+        """Returns all known agents even when no traces exist."""
         resp = client.get("/v1/agents/activity")
         assert resp.status_code == 200
         data = resp.json()
         assert "agents" in data
-        assert data["agents"] == []
+        # Should include all known agents from _AGENT_PROFILES, all idle
+        assert len(data["agents"]) >= 1
+        for agent in data["agents"]:
+            assert agent["status"] == "idle"
+            assert agent["trace_count_1h"] == 0
 
     def test_agents_activity_with_recent_traces(self, client):
         """Returns agent activity with recent traces in the last hour."""

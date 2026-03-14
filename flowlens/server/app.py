@@ -1471,6 +1471,17 @@ def create_app(db_path: str | None = None) -> FastAPI:
                 bucket["last_seen"] = start_time
                 bucket["latest_trace_id"] = trace.get("trace_id")
 
+        # Ensure ALL known agents from _AGENT_PROFILES are included
+        for known_agent in _AGENT_PROFILES:
+            if known_agent not in agent_buckets:
+                agent_buckets[known_agent] = {
+                    "agent": known_agent,
+                    "last_seen": 0.0,
+                    "trace_count_1h": 0,
+                    "all_tool_names": [],
+                    "latest_trace_id": None,
+                }
+
         # For each agent, fetch the most recent trace's spans to extract tool names
         result = []
         for agent_name, bucket in agent_buckets.items():
@@ -1506,15 +1517,15 @@ def create_app(db_path: str | None = None) -> FastAPI:
 
             result.append({
                 "agent": agent_name,
-                "last_seen": last_seen,
+                "last_seen": last_seen if last_seen > 0 else None,
                 "status": status,
                 "recent_tools": recent_tools,
                 "current_task": current_task,
                 "trace_count_1h": bucket["trace_count_1h"],
             })
 
-        # Sort: active agents first, then by last_seen descending
-        result.sort(key=lambda x: (0 if x["status"] == "active" else 1, -x["last_seen"]))
+        # Sort: active first, then by last_seen desc, then alphabetical
+        result.sort(key=lambda x: (0 if x["status"] == "active" else 1, -(x["last_seen"] or 0), x["agent"]))
         return JSONResponse({"agents": result})
 
     # -----------------------------------------------------------------------
