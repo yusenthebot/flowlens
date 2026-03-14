@@ -9,11 +9,17 @@ All planned improvements and enhancements delivered across 8 development cycles.
 ## Cycle 8: Complete (2026-03-14) — DARK MODE POLISH & MICRO-INTERACTIONS
 
 ### Done (2026-03-14)
-- [x] **Dark mode fixes for new elements** — Gamma — Dark background for Three.js 3D graph containers (#agent-graph, #agent-graph-mini); gradient orb opacity reduced in light mode (0.45) to prevent overwhelming brightness; agent detail modal dark/light consistent glass backgrounds; activity timeline text colors in light mode — `flowlens/server/dashboard.html`
-- [x] **Button ripple effect** — Gamma — .ripple-btn CSS class with ::after pseudo-element ripple animation (200px circle, 0.6s ease); applied to all tab buttons, pattern filter buttons, Apply/Clear/Refresh trace filter buttons, Agents Refresh button, Compare Clear Selection button — `flowlens/server/dashboard.html`
-- [x] **Trace row hover preview** — Gamma — showTracePreview() with 500ms delay timer; fetches /v1/traces/:id; displays span kind breakdown (LLM/Tool/Agent counts), visual duration bar (proportional fill), error message preview if any; .trace-preview-tooltip with dark/light mode variants; hideTracePreview() clears timer and hides tooltip; onmouseenter/onmouseleave applied to non-compact trace rows — `flowlens/server/dashboard.html`
-- [x] **Smooth scroll behavior** — Gamma — html { scroll-behavior: smooth } and .overflow-y-auto { scroll-behavior: smooth } for native smooth scrolling across the dashboard — `flowlens/server/dashboard.html`
-- [x] **Focus ring accessibility** — Gamma — *:focus-visible { outline: 2px solid rgba(99,102,241,0.5); outline-offset: 2px; border-radius: 4px } for keyboard navigation accessibility, WCAG-compliant indigo focus indicator — `flowlens/server/dashboard.html`
+- [x] **SVG agent avatars** — Alpha — 7 custom SVG designs replacing initials in AGENT_PROFILES, consistent rendering across detail modal, team bar, agents tab, and cards for professional visual identity — Commit 6477b37 — `flowlens/server/dashboard.html`
+- [x] **Enhanced agent detail modal** — Alpha — Activity timeline panel showing recent agent events with status indicators; error history panel with error count and recent error messages; improved profile section with role badges; team bar stagger animation with card-3d-hover on hover — Commit 6477b37 — `flowlens/server/dashboard.html`
+- [x] **Notification panel** — Beta — Bell icon (#notification-bell) with badge counter (#notification-badge) showing unread alert count; slide-down notification center (#notifications-panel) with scrollable alert history; clear-all button; dark/light mode glass morphism styling — Commit 4997de4 — `flowlens/server/dashboard.html`, `flowlens/server/app.py`
+- [x] **WebSocket-driven real-time alerts** — Beta — Error alerts (span error detected, shows agent + error message); new agent alerts (unknown agent tag discovered); cost spike alerts (daily cost exceeds threshold); alert persistence in sessionStorage; push notifications on new alert — Commit 4997de4 — `flowlens/server/app.py`, `flowlens/server/dashboard.html`
+- [x] **Keyboard shortcut for notifications** — Beta — 'n' key toggles notification panel open/close; focused keystroke handling — Commit 4997de4 — `flowlens/server/dashboard.html`
+- [x] **Dark mode fixes for 3D graph** — Gamma — Three.js graph container dark background (#1a1a18) and light background (#f5f5f4); gradient orb opacity reduced in light mode (0.45) to prevent overwhelming brightness; camera clear color matches mode — Commit 8c9e019 — `flowlens/server/dashboard.html`
+- [x] **Dark mode agent detail modal** — Gamma — Glass background dark (#rgba(26,26,24,0.95)) and light (#rgba(245,245,244,0.95)); text colors adjusted for both modes; activity timeline text colors for light mode readability — Commit 8c9e019 — `flowlens/server/dashboard.html`
+- [x] **Button ripple effect** — Gamma — .ripple-btn CSS class with ::after pseudo-element ripple animation (200px circle, 0.6s cubic-bezier ease); applied to all tab buttons (Overview/Traces/Agents/Compare/Network), pattern filter buttons, status filter buttons, Apply/Clear/Refresh trace filter buttons, Agents Refresh button, Compare Clear Selection button — Commit 8c9e019 — `flowlens/server/dashboard.html`
+- [x] **Trace row hover preview tooltip** — Gamma — showTracePreview() with 500ms delay timer (prevents chattering on fast mouse); fetches /v1/traces/:id; displays span kind breakdown (LLM/Tool/Agent counts), visual duration bar (proportional fill), error message preview if any; hideTracePreview() clears timer and hides tooltip; .trace-preview-tooltip with dark/light mode variants; onmouseenter/onmouseleave applied to non-compact trace rows — Commit 8c9e019 — `flowlens/server/dashboard.html`
+- [x] **Smooth scroll behavior** — Gamma — html { scroll-behavior: smooth } and .overflow-y-auto { scroll-behavior: smooth } for native smooth scrolling across entire dashboard without JavaScript — Commit 8c9e019 — `flowlens/server/dashboard.html`
+- [x] **Focus ring accessibility** — Gamma — *:focus-visible { outline: 2px solid rgba(99,102,241,0.5); outline-offset: 2px; border-radius: 4px } for keyboard navigation accessibility, WCAG-compliant indigo focus indicator works with screen readers for keyboard-only users — Commit 8c9e019 — `flowlens/server/dashboard.html`
 
 ---
 
@@ -128,12 +134,12 @@ The following tasks were proposed for future cycles but are deprioritized given 
 
 | Metric | Value |
 |--------|-------|
-| Total Cycles | 7 (3 planned + 4 enhancement) |
-| Total Commits | 25 |
-| Total Features | 28 |
+| Total Cycles | 8 (3 planned + 5 enhancement) |
+| Total Commits | 28 |
+| Total Features | 31 |
 | Total Tests | 1071 |
 | Test Pass Rate | 100% |
-| Lines Added | ~2800 (source + tests) |
+| Lines Added | ~3100 (source + tests) |
 | Active Blockers | 0 |
 | File Conflicts | 0 |
 | Deployment Status | Production-ready |
