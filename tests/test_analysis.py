@@ -1116,6 +1116,125 @@ class TestCorrelator:
         assert "my_tool" in report.recurring_failures[0].affected_span_names
 
 
+class TestConfigurablePatternThresholds:
+    """Tests that custom threshold values change detection behavior."""
+
+    def test_retry_threshold_2_detects_storm_that_5_would_not(self):
+        """With threshold=2, 3 calls trigger a storm; threshold=5 would not."""
+        from flowlens.analysis.patterns import _detect_retry_storm
+
+        spans = []
+        for i in range(3):
+            s = Span(span_id=f"s{i}", name="api_call", kind=SpanKind.TOOL,
+                     start_time=float(i))
+            s.finish()
+            spans.append(s)
+
+        trace = _make_trace(*spans)
+
+        # Default threshold=5: 3 calls should NOT be flagged
+        patterns_default = _detect_retry_storm(trace, threshold=5)
+        assert len(patterns_default) == 0
+
+        # Custom threshold=2: 3 calls SHOULD be flagged
+        patterns_custom = _detect_retry_storm(trace, threshold=2)
+        assert len(patterns_custom) == 1
+        assert patterns_custom[0].pattern_type == PatternType.RETRY_STORM
+
+    def test_loop_repeat_2_detects_loop_that_3_would_not(self):
+        """With max_repeat=2, a 2-cycle loop triggers; max_repeat=3 would not."""
+        from flowlens.analysis.patterns import _detect_infinite_loop
+
+        # Sequence: A B A B — that's 2 repeats of [A, B]
+        tool_names = ["tool_a", "tool_b", "tool_a", "tool_b"]
+        spans = []
+        for i, name in enumerate(tool_names):
+            s = Span(span_id=f"s{i}", name=name, kind=SpanKind.TOOL,
+                     start_time=float(i))
+            s.finish()
+            spans.append(s)
+
+        trace = _make_trace(*spans)
+
+        # Default max_repeat=3: 2 repeats should NOT trigger
+        patterns_default = _detect_infinite_loop(trace, max_repeat=3)
+        assert len(patterns_default) == 0
+
+        # Custom max_repeat=2: 2 repeats SHOULD trigger
+        patterns_custom = _detect_infinite_loop(trace, max_repeat=2)
+        assert len(patterns_custom) == 1
+        assert patterns_custom[0].pattern_type == PatternType.INFINITE_LOOP
+
+    def test_context_ratio_0_5_detects_overflow_that_0_9_would_not(self):
+        """With threshold_ratio=0.5, 60% usage triggers; 0.9 would not."""
+        from flowlens.analysis.patterns import _detect_context_overflow
+
+        # 120,000 tokens out of 200,000 = 60% usage
+        s = Span(span_id="s1", name="llm_call", kind=SpanKind.LLM)
+        s.set_token_usage(input_tokens=100_000, output_tokens=20_000,
+                          model="claude-sonnet-4")
+        s.finish()
+
+        trace = _make_trace(s)
+
+        # Default ratio=0.9: 60% should NOT trigger
+        patterns_default = _detect_context_overflow(trace, threshold_ratio=0.9)
+        assert len(patterns_default) == 0
+
+        # Custom ratio=0.5: 60% SHOULD trigger
+        patterns_custom = _detect_context_overflow(trace, threshold_ratio=0.5)
+        assert len(patterns_custom) == 1
+        assert patterns_custom[0].pattern_type == PatternType.CONTEXT_OVERFLOW
+
+    def test_token_waste_ratio_5_detects_waste_that_10_would_not(self):
+        """With ratio_threshold=5, ratio of 7 triggers; threshold=10 would not."""
+        from flowlens.analysis.patterns import _detect_token_waste
+
+        # 700 input, 100 output → ratio 7.0
+        s = Span(span_id="s1", name="llm_call", kind=SpanKind.LLM)
+        s.set_token_usage(input_tokens=700, output_tokens=100, model="gpt-4o")
+        s.finish()
+
+        trace = _make_trace(s)
+
+        # Default ratio=10: 7.0 should NOT trigger
+        patterns_default = _detect_token_waste(trace, ratio_threshold=10.0)
+        assert len(patterns_default) == 0
+
+        # Custom ratio=5: 7.0 SHOULD trigger
+        patterns_custom = _detect_token_waste(trace, ratio_threshold=5.0)
+        assert len(patterns_custom) == 1
+        assert patterns_custom[0].pattern_type == PatternType.TOKEN_WASTE
+
+    def test_slow_tool_multiplier_2_detects_tool_that_3_would_not(self):
+        """With multiplier=2, a 2.5x slow tool triggers; multiplier=3 would not."""
+        from flowlens.analysis.patterns import _detect_slow_tool
+
+        # Two fast tools at 100ms each, one at 250ms (2.5x average)
+        fast1 = Span(span_id="s1", name="api", kind=SpanKind.TOOL, start_time=0.0)
+        fast1.finish()
+        fast1.end_time = 0.1  # 100ms
+
+        fast2 = Span(span_id="s2", name="api", kind=SpanKind.TOOL, start_time=0.2)
+        fast2.finish()
+        fast2.end_time = 0.3  # 100ms
+
+        slow = Span(span_id="s3", name="api", kind=SpanKind.TOOL, start_time=0.4)
+        slow.finish()
+        slow.end_time = 0.65  # 250ms = 2.5x average of 100ms
+
+        trace = _make_trace(fast1, fast2, slow)
+
+        # Default multiplier=3: 2.5x should NOT trigger
+        patterns_default = _detect_slow_tool(trace, slow_tool_multiplier=3.0)
+        assert len(patterns_default) == 0
+
+        # Custom multiplier=2: 2.5x SHOULD trigger
+        patterns_custom = _detect_slow_tool(trace, slow_tool_multiplier=2.0)
+        assert len(patterns_custom) == 1
+        assert patterns_custom[0].pattern_type == PatternType.SLOW_TOOL
+
+
 if __name__ == "__main__":
     # Run with pytest
     pass

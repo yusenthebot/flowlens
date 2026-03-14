@@ -14,6 +14,7 @@ from __future__ import annotations
 from collections import Counter
 from ..sdk.models import Span, SpanKind, SpanStatus, Trace
 from .models import DetectedPattern, PatternType, CausalDAG
+from ..config import settings
 
 
 # 模型 context window 大小
@@ -54,9 +55,10 @@ def detect_patterns(trace: Trace, dag: CausalDAG) -> list[DetectedPattern]:
 
 
 def _detect_retry_storm(
-    trace: Trace, threshold: int = 5
+    trace: Trace, threshold: int | None = None
 ) -> list[DetectedPattern]:
     """检测重试风暴：同名 tool 在短时间内被调用过多次"""
+    threshold = threshold if threshold is not None else settings.pattern_retry_threshold
     tool_spans = [s for s in trace.spans if s.kind == SpanKind.TOOL]
     name_counts = Counter(s.name for s in tool_spans)
 
@@ -87,12 +89,13 @@ def _detect_retry_storm(
 
 
 def _detect_infinite_loop(
-    trace: Trace, max_repeat: int = 3
+    trace: Trace, max_repeat: int | None = None
 ) -> list[DetectedPattern]:
     """
     检测循环：Agent 在同一组 tool 间反复调用
     例如：A → B → A → B → A → B 表示 [A,B] 循环了 3 次
     """
+    max_repeat = max_repeat if max_repeat is not None else settings.pattern_loop_repeat
     tool_sequence = [
         s.name for s in sorted(trace.spans, key=lambda s: s.start_time)
         if s.kind == SpanKind.TOOL
@@ -138,9 +141,10 @@ def _detect_infinite_loop(
 
 
 def _detect_context_overflow(
-    trace: Trace, threshold_ratio: float = 0.9
+    trace: Trace, threshold_ratio: float | None = None
 ) -> list[DetectedPattern]:
     """检测 context window 接近上限"""
+    threshold_ratio = threshold_ratio if threshold_ratio is not None else settings.pattern_context_ratio
     llm_spans = [s for s in trace.spans if s.kind == SpanKind.LLM]
     patterns = []
 
@@ -301,10 +305,13 @@ def _detect_hallucination_cascade(
     return patterns
 
 
-def _detect_cost_spike(trace: Trace) -> list[DetectedPattern]:
+def _detect_cost_spike(
+    trace: Trace, cost_spike_ratio: float | None = None
+) -> list[DetectedPattern]:
     """
     检测成本尖峰：单次 LLM 调用消耗超过总 tokens 的 50%
     """
+    cost_spike_ratio = cost_spike_ratio if cost_spike_ratio is not None else settings.pattern_cost_spike_ratio
     total_tokens = trace.total_tokens
     if total_tokens == 0:
         return []
@@ -313,7 +320,7 @@ def _detect_cost_spike(trace: Trace) -> list[DetectedPattern]:
     llm_spans = [s for s in trace.spans if s.kind == SpanKind.LLM and s.token_usage]
 
     for span in llm_spans:
-        if span.token_usage.total_tokens > total_tokens * 0.5:
+        if span.token_usage.total_tokens > total_tokens * cost_spike_ratio:
             cost_pct = (span.token_usage.total_tokens / total_tokens) * 100
             patterns.append(DetectedPattern(
                 pattern_type=PatternType.COST_SPIKE,
@@ -336,10 +343,13 @@ def _detect_cost_spike(trace: Trace) -> list[DetectedPattern]:
     return patterns
 
 
-def _detect_slow_tool(trace: Trace) -> list[DetectedPattern]:
+def _detect_slow_tool(
+    trace: Trace, slow_tool_multiplier: float | None = None
+) -> list[DetectedPattern]:
     """
     检测慢速工具：tool 耗时超过中位数的 3 倍或显著超过同名工具的平均耗时
     """
+    slow_tool_multiplier = slow_tool_multiplier if slow_tool_multiplier is not None else settings.pattern_slow_tool_multiplier
     tool_spans = [s for s in trace.spans if s.kind == SpanKind.TOOL]
     if len(tool_spans) < 2:
         return []
@@ -362,7 +372,7 @@ def _detect_slow_tool(trace: Trace) -> list[DetectedPattern]:
             continue
 
         avg_duration = sum(other_durations) / len(other_durations)
-        threshold = avg_duration * 3
+        threshold = avg_duration * slow_tool_multiplier
 
         if span.duration_ms > threshold:
             slowness_factor = span.duration_ms / avg_duration
@@ -386,7 +396,7 @@ def _detect_slow_tool(trace: Trace) -> list[DetectedPattern]:
 
 
 def _detect_token_waste(
-    trace: Trace, ratio_threshold: float = 10.0
+    trace: Trace, ratio_threshold: float | None = None
 ) -> list[DetectedPattern]:
     """
     Detect token waste: LLM calls that consumed many input tokens but produced
@@ -403,6 +413,7 @@ def _detect_token_waste(
     Returns:
         List of :class:`DetectedPattern` instances, one per offending span.
     """
+    ratio_threshold = ratio_threshold if ratio_threshold is not None else settings.pattern_token_waste_ratio
     patterns: list[DetectedPattern] = []
 
     for span in trace.spans:

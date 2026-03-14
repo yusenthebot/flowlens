@@ -35,6 +35,18 @@ def _env_int(key: str, default: int) -> int:
         ) from exc
 
 
+def _env_float(key: str, default: float) -> float:
+    raw = os.environ.get(key)
+    if raw is None:
+        return default
+    try:
+        return float(raw)
+    except ValueError as exc:
+        raise ValueError(
+            f"Environment variable {key!r} must be a float, got {raw!r}"
+        ) from exc
+
+
 def _env_list(key: str, default: str) -> list[str]:
     """Read a comma-separated environment variable as a list of strings."""
     raw = os.environ.get(key, default)
@@ -70,6 +82,26 @@ class FlowLensConfig:
 
     # Maximum number of traces to keep in database
     max_traces: int = field(default_factory=lambda: _env_int("FLOWLENS_MAX_TRACES", 100000))
+
+    # Pattern detection thresholds
+    pattern_retry_threshold: int = field(
+        default_factory=lambda: _env_int("FLOWLENS_PATTERN_RETRY_THRESHOLD", 5)
+    )
+    pattern_loop_repeat: int = field(
+        default_factory=lambda: _env_int("FLOWLENS_PATTERN_LOOP_REPEAT", 3)
+    )
+    pattern_context_ratio: float = field(
+        default_factory=lambda: _env_float("FLOWLENS_PATTERN_CONTEXT_RATIO", 0.9)
+    )
+    pattern_cost_spike_ratio: float = field(
+        default_factory=lambda: _env_float("FLOWLENS_PATTERN_COST_SPIKE_RATIO", 0.5)
+    )
+    pattern_slow_tool_multiplier: float = field(
+        default_factory=lambda: _env_float("FLOWLENS_PATTERN_SLOW_TOOL_MULT", 3.0)
+    )
+    pattern_token_waste_ratio: float = field(
+        default_factory=lambda: _env_float("FLOWLENS_PATTERN_TOKEN_WASTE_RATIO", 10.0)
+    )
 
     def __post_init__(self) -> None:
         valid_log_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}

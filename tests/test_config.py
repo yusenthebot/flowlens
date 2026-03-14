@@ -23,6 +23,12 @@ def _cfg(**overrides: str) -> FlowLensConfig:
         "log_level": "FLOWLENS_LOG_LEVEL",
         "cors_origins": "FLOWLENS_CORS_ORIGINS",
         "rate_limit": "FLOWLENS_RATE_LIMIT",
+        "pattern_retry_threshold": "FLOWLENS_PATTERN_RETRY_THRESHOLD",
+        "pattern_loop_repeat": "FLOWLENS_PATTERN_LOOP_REPEAT",
+        "pattern_context_ratio": "FLOWLENS_PATTERN_CONTEXT_RATIO",
+        "pattern_cost_spike_ratio": "FLOWLENS_PATTERN_COST_SPIKE_RATIO",
+        "pattern_slow_tool_multiplier": "FLOWLENS_PATTERN_SLOW_TOOL_MULT",
+        "pattern_token_waste_ratio": "FLOWLENS_PATTERN_TOKEN_WASTE_RATIO",
     }
 
     for attr, env_key in env_keys.items():
@@ -172,3 +178,81 @@ class TestModuleSingleton:
         assert hasattr(settings, "log_level")
         assert hasattr(settings, "cors_origins")
         assert hasattr(settings, "rate_limit")
+
+
+# ---------------------------------------------------------------------------
+# Pattern detection threshold defaults
+# ---------------------------------------------------------------------------
+
+class TestPatternThresholdDefaults:
+    def test_default_pattern_retry_threshold(self):
+        cfg = _cfg()
+        assert cfg.pattern_retry_threshold == 5
+
+    def test_default_pattern_loop_repeat(self):
+        cfg = _cfg()
+        assert cfg.pattern_loop_repeat == 3
+
+    def test_default_pattern_context_ratio(self):
+        cfg = _cfg()
+        assert cfg.pattern_context_ratio == 0.9
+
+    def test_default_pattern_cost_spike_ratio(self):
+        cfg = _cfg()
+        assert cfg.pattern_cost_spike_ratio == 0.5
+
+    def test_default_pattern_slow_tool_multiplier(self):
+        cfg = _cfg()
+        assert cfg.pattern_slow_tool_multiplier == 3.0
+
+    def test_default_pattern_token_waste_ratio(self):
+        cfg = _cfg()
+        assert cfg.pattern_token_waste_ratio == 10.0
+
+
+# ---------------------------------------------------------------------------
+# Pattern detection threshold env var overrides
+# ---------------------------------------------------------------------------
+
+class TestPatternThresholdEnvOverrides:
+    def test_override_pattern_retry_threshold(self):
+        cfg = _cfg(pattern_retry_threshold="2")
+        assert cfg.pattern_retry_threshold == 2
+
+    def test_override_pattern_loop_repeat(self):
+        cfg = _cfg(pattern_loop_repeat="5")
+        assert cfg.pattern_loop_repeat == 5
+
+    def test_override_pattern_context_ratio(self):
+        cfg = _cfg(pattern_context_ratio="0.75")
+        assert cfg.pattern_context_ratio == 0.75
+
+    def test_override_pattern_cost_spike_ratio(self):
+        cfg = _cfg(pattern_cost_spike_ratio="0.3")
+        assert cfg.pattern_cost_spike_ratio == 0.3
+
+    def test_override_pattern_slow_tool_multiplier(self):
+        cfg = _cfg(pattern_slow_tool_multiplier="5.0")
+        assert cfg.pattern_slow_tool_multiplier == 5.0
+
+    def test_override_pattern_token_waste_ratio(self):
+        cfg = _cfg(pattern_token_waste_ratio="20.0")
+        assert cfg.pattern_token_waste_ratio == 20.0
+
+    def test_invalid_pattern_retry_threshold_raises(self):
+        import os
+        os.environ["FLOWLENS_PATTERN_RETRY_THRESHOLD"] = "not-a-number"
+        try:
+            with pytest.raises(ValueError, match="FLOWLENS_PATTERN_RETRY_THRESHOLD"):
+                FlowLensConfig()
+        finally:
+            os.environ.pop("FLOWLENS_PATTERN_RETRY_THRESHOLD", None)
+
+    def test_invalid_pattern_context_ratio_raises(self):
+        import os
+        os.environ["FLOWLENS_PATTERN_CONTEXT_RATIO"] = "not-a-float"
+        try:
+            with pytest.raises(ValueError, match="FLOWLENS_PATTERN_CONTEXT_RATIO"):
+                FlowLensConfig()
+        finally:
+            os.environ.pop("FLOWLENS_PATTERN_CONTEXT_RATIO", None)
