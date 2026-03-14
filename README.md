@@ -31,7 +31,7 @@ It traces every LLM call, tool execution, and decision point — then builds **c
 | **15+ Anti-Pattern Detectors** | Retry storms, infinite loops, context overflow, timeout cascades, token waste, cold start penalty, and more — all configurable via env vars |
 | **Zero-Intrusion Tracing** | Decorators instrument any Python agent without touching business logic |
 | **Auto-Instrumentation** | One call patches Anthropic, OpenAI, and LangChain automatically |
-| **3D Agent Network Visualization** | Three.js WebGL 3D graph with glowing agent spheres, drag rotation, hover highlights, and a mini overview preview |
+| **3D Agent Network Visualization** | Lightweight SVG-based agent network with animated particles and glow effects (Three.js fallback for advanced 3D, lazy-loaded). Drag to rotate, hover to highlight, click for details. Includes mini preview on Overview tab |
 | **Real-time Agent Team Monitoring** | WebSocket live feed of agent activity with status tracking and timeline |
 | **Agent Avatar System** | SVG icons per agent with unique color identities from AGENT_PROFILES |
 | **Cost Attribution** | Token + cost breakdown by model, tool, or service (16+ models priced) |
@@ -43,6 +43,7 @@ It traces every LLM call, tool execution, and decision point — then builds **c
 | **Multiple Exporters** | Console, HTTP, OTLP, CSV, JSONL, Local — with batch and gzip support |
 | **CLI Tools** | 8 commands: `serve`, `analyze`, `export`, `import`, `stats`, `health`, `demo`, `version` |
 | **Configurable Pattern Thresholds** | Override any detector threshold via environment variables |
+| **Trace Ingest Validation** | Validates incoming traces for data integrity: detects span cycles (self-refs, bidirectional), orphan references, size limits. Three validation levels (strict/warning/informational) for gradual adoption |
 
 ---
 
