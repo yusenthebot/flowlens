@@ -670,7 +670,7 @@
       <!-- Agent Network Graph -->
       <div class="glass rounded-xl p-4 mb-6">
         <h3 class="text-xs font-medium text-slate-400 mb-2">Agent Network</h3>
-        <div id="overview-agent-graph" style="width:100%;height:350px;position:relative;background:#0f172a;border-radius:12px;overflow:hidden;"></div>
+        <div id="overview-agent-graph" style="width:100%;height:400px;position:relative;background:#fafaf8;border-radius:12px;overflow:hidden;border:1px solid #e8e6e1;"></div>
       </div>
 
       <!-- Summary Metrics Row -->
@@ -2421,24 +2421,38 @@ async function loadOverviewGraph() {
     const width = container.clientWidth;
     const height = container.clientHeight || 350;
 
-    // Scene setup
+    // Scene setup — WHITE background
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0f172a);
+    scene.background = new THREE.Color(0xfafaf8);
+    scene.fog = new THREE.Fog(0xfafaf8, 12, 25);
 
-    const camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 100);
-    camera.position.set(0, 2, 8);
+    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
+    camera.position.set(0, 3, 10);
     camera.lookAt(0, 0, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
     container.appendChild(renderer.domElement);
 
-    // Lights
-    scene.add(new THREE.AmbientLight(0x404060, 0.6));
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    dirLight.position.set(5, 5, 5);
+    // Rich lighting for white background
+    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+    dirLight.position.set(5, 8, 5);
+    dirLight.castShadow = true;
     scene.add(dirLight);
+    const fillLight = new THREE.DirectionalLight(0x6366f1, 0.3);
+    fillLight.position.set(-5, 3, -5);
+    scene.add(fillLight);
+    // Subtle ground plane for shadow/depth
+    const groundGeo = new THREE.PlaneGeometry(30, 30);
+    const groundMat = new THREE.MeshStandardMaterial({ color: 0xf0f0ec, transparent: true, opacity: 0.4 });
+    const ground = new THREE.Mesh(groundGeo, groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -2;
+    ground.receiveShadow = true;
+    scene.add(ground);
 
     // Group for rotation
     const group = new THREE.Group();
@@ -2469,57 +2483,89 @@ async function loadOverviewGraph() {
       const size = normalizeSize(node.size || 0.3);
       const isActive = node.status === 'active';
 
-      const geometry = new THREE.SphereGeometry(size * 0.3, 32, 32);
+      const sphereRadius = size * 0.35;
+      const geometry = new THREE.SphereGeometry(sphereRadius, 48, 48);
       const material = new THREE.MeshPhongMaterial({
         color: color,
         emissive: color,
-        emissiveIntensity: isActive ? 0.3 : 0.05,
-        shininess: 100,
-        specular: new THREE.Color(0x444466),
+        emissiveIntensity: isActive ? 0.15 : 0.02,
+        shininess: 200,
+        specular: new THREE.Color(0xffffff),
         transparent: true,
-        opacity: isActive ? 1.0 : 0.7,
+        opacity: isActive ? 0.95 : 0.6,
       });
 
       const mesh = new THREE.Mesh(geometry, material);
       mesh.position.set(x, y, z);
-      mesh.userData = { agentName: node.id, profile, isActive, baseEmissive: isActive ? 0.3 : 0.05 };
+      mesh.castShadow = true;
+      mesh.userData = { agentName: node.id, profile, isActive, baseEmissive: isActive ? 0.15 : 0.02 };
       group.add(mesh);
       spheres[node.id] = mesh;
 
+      // Add orbital ring around each sphere
+      const ringGeo = new THREE.RingGeometry(sphereRadius * 1.4, sphereRadius * 1.5, 64);
+      const ringMat = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: isActive ? 0.4 : 0.15, side: THREE.DoubleSide });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.position.copy(mesh.position);
+      ring.rotation.x = Math.PI / 2 + (Math.random() - 0.5) * 0.5;
+      ring.rotation.z = (Math.random() - 0.5) * 0.5;
+      ring.userData = { orbitSpeed: 0.005 + Math.random() * 0.01 };
+      group.add(ring);
+      mesh.userData.ring = ring;
+
       // HTML label
       const label = document.createElement('div');
-      label.style.cssText = 'position:absolute;color:#e2e8f0;font-size:11px;font-weight:600;pointer-events:none;text-shadow:0 1px 4px rgba(0,0,0,0.9);white-space:nowrap;transform:translateX(-50%);z-index:10;';
+      label.style.cssText = 'position:absolute;color:#1e293b;font-size:11px;font-weight:600;pointer-events:none;text-shadow:0 1px 2px rgba(255,255,255,0.8);white-space:nowrap;transform:translateX(-50%);z-index:10;';
       label.textContent = profile.name || node.id;
       container.appendChild(label);
       allLabels.push({ element: label, mesh });
     });
 
-    // Draw edges
+    // Draw edges as curved tubes with animated flow
+    const edgeMeshes = [];
     edges.forEach(edge => {
       const src = spheres[edge.source];
       const tgt = spheres[edge.target];
       if (!src || !tgt) return;
 
-      const points = [src.position.clone(), tgt.position.clone()];
-      const geometry = new THREE.BufferGeometry().setFromPoints(points);
-      const material = new THREE.LineBasicMaterial({
-        color: 0x6366f1,
+      // Create curved path via midpoint lifted above
+      const start = src.position.clone();
+      const end = tgt.position.clone();
+      const mid = start.clone().add(end).multiplyScalar(0.5);
+      mid.y += 1.0 + Math.random() * 0.5; // Arc upward
+      const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
+      const tubeGeo = new THREE.TubeGeometry(curve, 24, 0.02 + (edge.count || 1) * 0.005, 8, false);
+      const tubeMat = new THREE.MeshPhongMaterial({
+        color: new THREE.Color(getAgentProfile(edge.source).color || '#6366f1'),
+        emissive: new THREE.Color(getAgentProfile(edge.source).color || '#6366f1'),
+        emissiveIntensity: 0.1,
         transparent: true,
-        opacity: 0.3 + Math.min((edge.count || 1) * 0.05, 0.4),
+        opacity: 0.4 + Math.min((edge.count || 1) * 0.08, 0.5),
+        shininess: 50,
       });
-      group.add(new THREE.Line(geometry, material));
+      const tube = new THREE.Mesh(tubeGeo, tubeMat);
+      group.add(tube);
+      edgeMeshes.push(tube);
+
+      // Add small flowing sphere along the curve
+      const flowGeo = new THREE.SphereGeometry(0.04, 8, 8);
+      const flowMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(getAgentProfile(edge.source).color || '#6366f1') });
+      const flowDot = new THREE.Mesh(flowGeo, flowMat);
+      flowDot.userData = { curve, speed: 0.002 + Math.random() * 0.003, t: Math.random() };
+      group.add(flowDot);
+      edgeMeshes.push(flowDot);
     });
 
-    // Floating particles background
+    // Floating particles — subtle for white background
     const particleGeom = new THREE.BufferGeometry();
-    const particlePositions = new Float32Array(150 * 3);
-    for (let i = 0; i < 150; i++) {
-      particlePositions[i * 3] = (Math.random() - 0.5) * 20;
-      particlePositions[i * 3 + 1] = (Math.random() - 0.5) * 20;
-      particlePositions[i * 3 + 2] = (Math.random() - 0.5) * 20;
+    const particlePositions = new Float32Array(200 * 3);
+    for (let i = 0; i < 200; i++) {
+      particlePositions[i * 3] = (Math.random() - 0.5) * 25;
+      particlePositions[i * 3 + 1] = (Math.random() - 0.5) * 25;
+      particlePositions[i * 3 + 2] = (Math.random() - 0.5) * 25;
     }
     particleGeom.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
-    const particleMat = new THREE.PointsMaterial({ color: 0x6366f1, size: 0.03, transparent: true, opacity: 0.2 });
+    const particleMat = new THREE.PointsMaterial({ color: 0x9ca3af, size: 0.04, transparent: true, opacity: 0.15 });
     const particles = new THREE.Points(particleGeom, particleMat);
     scene.add(particles);
 
@@ -2566,11 +2612,23 @@ async function loadOverviewGraph() {
       if (autoRotate) group.rotation.y += 0.002;
       particles.rotation.y += 0.0003;
 
-      // Pulse active agents
+      // Pulse active agents + rotate rings + animate flow dots
       const time = Date.now() * 0.001;
       Object.values(spheres).forEach(mesh => {
         if (mesh.userData.isActive) {
-          mesh.material.emissiveIntensity = 0.2 + Math.sin(time * 2) * 0.15;
+          mesh.material.emissiveIntensity = 0.1 + Math.sin(time * 2) * 0.1;
+        }
+        // Rotate orbital rings
+        if (mesh.userData.ring) {
+          mesh.userData.ring.rotation.z += mesh.userData.ring.userData.orbitSpeed;
+        }
+      });
+      // Animate flow dots along curves
+      edgeMeshes.forEach(m => {
+        if (m.userData.curve) {
+          m.userData.t = (m.userData.t + m.userData.speed) % 1;
+          const pt = m.userData.curve.getPointAt(m.userData.t);
+          m.position.copy(pt);
         }
       });
 
@@ -2588,6 +2646,32 @@ async function loadOverviewGraph() {
         hoveredMesh = intersects[0].object;
         hoveredMesh.scale.setScalar(1.3);
         renderer.domElement.style.cursor = 'pointer';
+        // Show tooltip
+        const ud = hoveredMesh.userData;
+        let tip = container.querySelector('.three-tooltip');
+        if (!tip) {
+          tip = document.createElement('div');
+          tip.className = 'three-tooltip';
+          tip.style.cssText = 'position:absolute;background:white;border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;font-size:11px;pointer-events:none;z-index:20;box-shadow:0 4px 12px rgba(0,0,0,0.1);color:#1e293b;min-width:120px;';
+          container.appendChild(tip);
+        }
+        const node = nodes.find(n => n.id === ud.agentName);
+        tip.innerHTML = `<div style="font-weight:700;color:${ud.profile.color}">${ud.profile.name}</div><div style="color:#64748b;font-size:10px">${ud.profile.role}</div><div style="margin-top:4px;font-size:10px">Traces: ${node?.trace_count || '?'} · Cost: $${(node?.cost || 0).toFixed(2)}</div><div style="font-size:9px;color:#94a3b8;margin-top:2px">Click to filter traces</div>`;
+        tip.style.display = 'block';
+      }
+      // Position tooltip near mouse
+      if (hoveredMesh) {
+        const tip = container.querySelector('.three-tooltip');
+        if (tip) {
+          const rect = renderer.domElement.getBoundingClientRect();
+          const mx = prevMouse.x - rect.left + 15;
+          const my = prevMouse.y - rect.top - 10;
+          tip.style.left = Math.min(mx, width - 150) + 'px';
+          tip.style.top = Math.min(my, height - 60) + 'px';
+        }
+      } else {
+        const tip = container.querySelector('.three-tooltip');
+        if (tip) tip.style.display = 'none';
       }
 
       // Update label positions
