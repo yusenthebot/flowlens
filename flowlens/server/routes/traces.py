@@ -39,6 +39,7 @@ from ..utils import (
     _reconstruct_trace,
 )
 from ..storage import TraceStore
+from ..validation import validate_trace as _validate_trace
 from ...analysis.dag_builder import build_causal_dag
 from ...analysis.patterns import detect_patterns
 from ...analysis.smart_advisor import SmartAdvisor as _SmartAdvisor
@@ -139,8 +140,14 @@ def create_traces_router(
                 f"spans list exceeds maximum allowed size of {_MAX_SPANS_PER_INGEST}",
             )
 
+        payload = req.model_dump()
+
+        # Structural validation: orphan refs, duplicate span_ids, cycle detection
+        is_valid, validation_error = _validate_trace(payload, require_spans=False)
+        if not is_valid:
+            raise HTTPException(422, f"Trace validation failed: {validation_error}")
+
         try:
-            payload = req.model_dump()
             store.save_trace(payload)
             # Periodically check if cleanup is needed (~1% of ingests)
             # to prevent database from growing unbounded
@@ -227,6 +234,11 @@ def create_traces_router(
                         continue
                     try:
                         trace_data = json.loads(line)
+                        is_valid, val_err = _validate_trace(trace_data, require_spans=False)
+                        if not is_valid:
+                            logger.debug("Import: skipping invalid trace: %s", val_err)
+                            errors += 1
+                            continue
                         store.save_trace(trace_data)
                         count += 1
                     except Exception as e:
