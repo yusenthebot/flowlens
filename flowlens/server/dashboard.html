@@ -19,8 +19,19 @@
   <script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script>if(typeof Chart==='undefined'){var s=document.createElement('script');s.src='/static/chart.min.js';document.head.appendChild(s);}</script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-  <script>if(typeof THREE==='undefined'){var s=document.createElement('script');s.src='/static/three.min.js';document.head.appendChild(s);}</script>
+  <!-- Three.js loaded lazily when Agents tab is opened -->
+  <script>
+    function loadThreeJS() {
+      if (typeof THREE !== 'undefined') return Promise.resolve();
+      return new Promise(resolve => {
+        var s = document.createElement('script');
+        s.src = '/static/three.min.js';
+        s.onload = resolve;
+        s.onerror = () => { s.src = 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js'; s.onload = resolve; };
+        document.head.appendChild(s);
+      });
+    }
+  </script>
   <!-- 3d-force-graph removed: overview graph now uses SVG -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -1654,7 +1665,7 @@ function switchView(view) {
   if (tabBtn) { tabBtn.classList.remove('tab-inactive'); tabBtn.classList.add('tab-active'); }
 
   // Load data for the view
-  if (view === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); loadActivityTimeline(); loadTrendChart(_trendHours || 24); loadOverviewCharts(); loadOverviewAgents(); loadOverviewGraph(); }
+  if (view === 'overview') { loadStats(); loadRecentTraces(); setTimeout(() => { loadAgentActivity(); loadOverviewAgents(); }, 300); }
   else if (view === 'traces') { loadTraces(); }
   else if (view === 'cost') { loadCostData(); }
   else if (view === 'patterns') { loadAllPatterns(); }
@@ -5614,14 +5625,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Health check + initial data load
   await healthCheck();
+  // Critical: load immediately (above the fold)
   loadStats();
   loadRecentTraces();
-  loadAgentActivity();
-  loadActivityTimeline();
-  loadTrendChart(24);
-  loadOverviewCharts();
-  loadOverviewAgents();
-  loadOverviewGraph();
+  // Deferred: load after 500ms (below the fold)
+  setTimeout(() => {
+    loadAgentActivity();
+    loadOverviewAgents();
+  }, 500);
+  // Lazy: load after 1.5s (charts, graph — expensive)
+  setTimeout(() => {
+    loadActivityTimeline();
+    loadTrendChart(24);
+    loadOverviewCharts();
+  }, 1500);
+  // Very lazy: load after 3s (SVG graph — heaviest)
+  setTimeout(() => {
+    loadOverviewGraph();
+  }, 3000);
   startAutoRefresh();
 
   // Connect WebSocket for real-time updates
