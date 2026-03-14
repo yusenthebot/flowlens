@@ -47,15 +47,15 @@
     *, *::before, *::after { transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease; }
 
     /* ========== Dark theme — warm dark gray ========== */
-    .dark * { scrollbar-width: thin; scrollbar-color: #3a3a36 transparent; }
+    .dark * { scrollbar-width: thin; scrollbar-color: #1e1b4b transparent; }
     .dark *::-webkit-scrollbar { width: 6px; height: 6px; }
     .dark *::-webkit-scrollbar-track { background: transparent; }
-    .dark *::-webkit-scrollbar-thumb { background: #3a3a36; border-radius: 3px; }
-    .dark body { background: linear-gradient(145deg, #2a2a28 0%, #252523 50%, #2a2a28 100%); }
-    .dark .glass { background: rgba(50, 50, 46, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.06); }
-    .dark .glass-hover:hover { background: rgba(58, 58, 54, 0.85); border-color: rgba(255,255,255,0.1); }
-    .dark .stat-glow { box-shadow: 0 0 30px -10px rgba(124, 122, 239, 0.12); }
-    .dark .waterfall-tooltip { background: rgba(42, 42, 40, 0.95); border: 1px solid rgba(255,255,255,0.1); color: #e2e0db; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+    .dark *::-webkit-scrollbar-thumb { background: #1e1b4b; border-radius: 3px; }
+    .dark body { background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 25%, #0f172a 50%, #1a1a2e 75%, #0f172a 100%); background-size: 400% 400%; animation: gradientShift 30s ease infinite; }
+    .dark .glass { background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 4px 30px rgba(0,0,0,0.15); }
+    .dark .glass-hover:hover { background: rgba(30, 27, 75, 0.7); border-color: rgba(255,255,255,0.12); }
+    .dark .stat-glow { box-shadow: 0 0 40px -10px rgba(124, 122, 239, 0.18); }
+    .dark .waterfall-tooltip { background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(255,255,255,0.1); color: #e2e0db; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
 
     /* ========== Light theme — warm off-white ========== */
     html:not(.dark) * { scrollbar-width: thin; scrollbar-color: #d5d5d0 transparent; }
@@ -158,6 +158,33 @@
       50% { transform: translate(-20px, 15px) scale(0.95); }
       75% { transform: translate(15px, 25px) scale(1.05); }
     }
+    @keyframes gradientShift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    /* Activity feed enhancements */
+    .activity-event-row { transition: background-color 0.15s ease; }
+    .activity-event-row.activity-error { background: rgba(239, 68, 68, 0.06); }
+    html:not(.dark) .activity-event-row.activity-error { background: rgba(239, 68, 68, 0.04); }
+    .activity-pill { display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 9999px; font-size: 9px; font-weight: 600; letter-spacing: 0.03em; }
+    .activity-pill-llm { background: rgba(139, 92, 246, 0.15); color: #a78bfa; }
+    .activity-pill-tool { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+    .activity-pill-agent { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+    .activity-pill-default { background: rgba(148, 163, 184, 0.15); color: #94a3b8; }
+    html:not(.dark) .activity-pill-llm { background: rgba(139, 92, 246, 0.1); color: #7c3aed; }
+    html:not(.dark) .activity-pill-tool { background: rgba(59, 130, 246, 0.1); color: #2563eb; }
+    html:not(.dark) .activity-pill-agent { background: rgba(16, 185, 129, 0.1); color: #059669; }
+    html:not(.dark) .activity-pill-default { background: rgba(148, 163, 184, 0.1); color: #64748b; }
+    .activity-duration-bar { height: 3px; border-radius: 2px; background: rgba(99, 102, 241, 0.12); overflow: hidden; margin-top: 4px; }
+    .activity-duration-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, #7c7aef, #9b8ec4); transition: width 0.4s ease; }
+
+    /* Agent graph CSS fallback */
+    .agent-grid-fallback { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; padding: 24px; }
+    .agent-fallback-card { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 16px; border-radius: 12px; min-width: 100px; cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+    .agent-fallback-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(99, 102, 241, 0.15); }
+    .agent-fallback-dot { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; }
 
     /* Skeleton loading animation */
     @keyframes shimmer {
@@ -294,7 +321,7 @@
 
     /* ========== Dark mode contrast fixes for new elements ========== */
     /* Agent team bar cards in dark mode */
-    .dark #agent-team-bar .glass { background: rgba(42, 42, 38, 0.8); }
+    .dark #agent-team-bar .glass { background: rgba(15, 23, 42, 0.7); }
     /* Activity timeline in dark mode */
     .dark #activity-timeline { background: transparent; }
     .dark #activity-timeline .activity-event-row { border-color: rgba(255,255,255,0.04); }
@@ -330,8 +357,8 @@
 
     /* ========== Cycle 8: Dark mode polish for new elements ========== */
     /* Three.js 3D graph container background */
-    .dark #agent-graph { background: #252523; }
-    .dark #agent-graph-mini { background: #252523; }
+    .dark #agent-graph { background: #0f172a; }
+    .dark #agent-graph-mini { background: #0f172a; }
     html:not(.dark) #agent-graph { background: #fafaf8; }
     html:not(.dark) #agent-graph-mini { background: #fafaf8; }
 
@@ -489,9 +516,9 @@
     <!-- OVERVIEW VIEW -->
     <div id="view-overview" class="view-panel view-enter">
       <div class="relative overflow-hidden">
-        <div class="gradient-orb" style="width:400px;height:400px;top:-100px;right:-100px;background:radial-gradient(circle,rgba(99,102,241,0.08),transparent 70%);animation:orbFloat 20s ease-in-out infinite;"></div>
-        <div class="gradient-orb" style="width:300px;height:300px;bottom:-50px;left:-50px;background:radial-gradient(circle,rgba(139,92,246,0.06),transparent 70%);animation:orbFloat 25s ease-in-out infinite reverse;"></div>
-        <div class="gradient-orb" style="width:250px;height:250px;top:50%;right:30%;background:radial-gradient(circle,rgba(99,102,241,0.04),transparent 70%);animation:orbFloat 30s ease-in-out infinite 5s;"></div>
+        <div class="gradient-orb" style="width:400px;height:400px;top:-100px;right:-100px;background:radial-gradient(circle,rgba(99,102,241,0.15),transparent 70%);animation:orbFloat 20s ease-in-out infinite;"></div>
+        <div class="gradient-orb" style="width:300px;height:300px;bottom:-50px;left:-50px;background:radial-gradient(circle,rgba(139,92,246,0.12),transparent 70%);animation:orbFloat 25s ease-in-out infinite reverse;"></div>
+        <div class="gradient-orb" style="width:250px;height:250px;top:50%;right:30%;background:radial-gradient(circle,rgba(99,102,241,0.08),transparent 70%);animation:orbFloat 30s ease-in-out infinite 5s;"></div>
       <!-- Stats Cards -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6 stat-grid relative z-10">
         <div class="glass rounded-xl p-5 stat-glow stat-card-enter">
@@ -507,6 +534,7 @@
           <div id="stat-spans" class="text-xs text-slate-500 mt-1">
             <div class="skeleton skeleton-text w-16 h-3"></div>
           </div>
+          <canvas id="sparkline-traces" class="mt-2 w-full" style="height:36px"></canvas>
         </div>
         <div id="stat-card-error" class="glass rounded-xl p-5 stat-glow transition-colors duration-500 stat-card-enter">
           <div class="flex items-center justify-between mb-3">
@@ -521,6 +549,7 @@
           <div id="stat-error-count" class="text-xs text-slate-500 mt-1">
             <div class="skeleton skeleton-text w-24 h-3"></div>
           </div>
+          <canvas id="sparkline-errors" class="mt-2 w-full" style="height:36px"></canvas>
         </div>
         <div id="stat-card-latency" class="glass rounded-xl p-5 stat-glow transition-colors duration-500 stat-card-enter">
           <div class="flex items-center justify-between mb-3">
@@ -533,6 +562,7 @@
             <div class="skeleton skeleton-text w-14"></div>
           </div>
           <div class="text-xs text-slate-500 mt-1">milliseconds</div>
+          <canvas id="sparkline-latency" class="mt-2 w-full" style="height:36px"></canvas>
         </div>
         <div id="stat-card-cost" class="glass rounded-xl p-5 stat-glow transition-colors duration-500 stat-card-enter">
           <div class="flex items-center justify-between mb-3">
@@ -547,6 +577,7 @@
           <div id="stat-tokens" class="text-xs text-slate-500 mt-1">
             <div class="skeleton skeleton-text w-20 h-3"></div>
           </div>
+          <canvas id="sparkline-cost" class="mt-2 w-full" style="height:36px"></canvas>
         </div>
         <div class="glass stat-glow rounded-xl p-5 stat-card-enter">
           <div class="flex items-center justify-between mb-3">
@@ -816,9 +847,12 @@
           <h3 class="text-sm font-semibold text-white mb-4">Cost by Operation</h3>
           <div class="h-72"><canvas id="chart-cost-name"></canvas></div>
         </div>
-        <div class="glass rounded-xl p-4 lg:col-span-2">
-          <h3 class="text-xs font-medium text-slate-400 mb-3">Cost by Agent</h3>
-          <canvas id="chart-cost-agent" height="200"></canvas>
+        <div class="glass rounded-xl p-5 lg:col-span-2">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-semibold text-white">Cost by Agent</h3>
+            <span id="cost-agent-summary" class="text-xs text-slate-500"></span>
+          </div>
+          <div style="height:220px"><canvas id="chart-cost-agent"></canvas></div>
         </div>
       </div>
     </div>
@@ -1644,7 +1678,7 @@ function _buildThreeScene(container, data, opts) {
   if (typeof THREE === 'undefined') return null;
   opts = Object.assign({ showLabels: true, autoRotate: true, miniMode: false }, opts);
 
-  const bgColor = isDarkTheme ? 0x2a2a28 : 0xfafaf8;
+  const bgColor = isDarkTheme ? 0x0f172a : 0xfafaf8;
   const cw = container.clientWidth || 600;
   const ch = container.clientHeight || 350;
 
@@ -1875,11 +1909,49 @@ function _loadAgentGraphCytoscape(data) {
   _agentCyInstance.on('tap', 'node', evt => { filterTracesByAgent(evt.target.id()); });
 }
 
+function _renderAgentGridFallback(containerId, agents) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = '';
+  const grid = document.createElement('div');
+  grid.className = 'agent-grid-fallback';
+  (agents || []).forEach(n => {
+    const p = getAgentProfile(n.id || n.agent);
+    const card = document.createElement('div');
+    card.className = 'agent-fallback-card glass';
+    card.onclick = () => openAgentDetailModal(n.id || n.agent);
+    const statusDot = (n.status === 'active')
+      ? '<span class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 pulse-dot border border-black/20"></span>'
+      : '';
+    card.innerHTML = `
+      <div class="agent-fallback-dot relative" style="background:${p.color}22;border:2px solid ${p.color}">
+        <span style="color:${p.color}">${p.icon || p.name.charAt(0)}</span>
+        ${statusDot}
+      </div>
+      <span class="text-xs font-semibold text-white">${escHtml(p.name || n.id)}</span>
+      <span class="text-[9px] text-slate-500">${escHtml(p.role || '')}</span>
+      ${n.trace_count ? `<span class="text-[9px] text-slate-600">${n.trace_count} traces</span>` : ''}
+    `;
+    grid.appendChild(card);
+  });
+  container.appendChild(grid);
+}
+
 async function loadAgentGraph() {
   try {
     const data = await apiFetch('/v1/agents/relationships');
-    if (!data.nodes || data.nodes.length === 0) return;
     _agentRelData = data;
+
+    if (!data.nodes || data.nodes.length === 0) {
+      // Fallback: try agent summary for at least showing agent cards
+      try {
+        const summary = await apiFetch('/v1/agents/summary');
+        if (summary.agents && summary.agents.length > 0) {
+          _renderAgentGridFallback('agent-graph', summary.agents.map(a => ({ id: a.agent, trace_count: a.trace_count, status: 'active' })));
+        }
+      } catch (_) {}
+      return;
+    }
 
     if (typeof THREE !== 'undefined') {
       const container = document.getElementById('agent-graph');
@@ -1888,10 +1960,21 @@ async function loadAgentGraph() {
       container.innerHTML = '';
       container.style.height = '350px';
       _three3D = _buildThreeScene(container, data, { showLabels: true, autoRotate: true, miniMode: false });
-    } else {
+    } else if (typeof cytoscape !== 'undefined') {
       _loadAgentGraphCytoscape(data);
+    } else {
+      // Pure CSS fallback
+      _renderAgentGridFallback('agent-graph', data.nodes);
     }
-  } catch (e) { /* silently fail */ }
+  } catch (e) {
+    // On error, try showing agent summary as grid fallback
+    try {
+      const summary = await apiFetch('/v1/agents/summary');
+      if (summary.agents && summary.agents.length > 0) {
+        _renderAgentGridFallback('agent-graph', summary.agents.map(a => ({ id: a.agent, trace_count: a.trace_count, status: 'active' })));
+      }
+    } catch (_) {}
+  }
 }
 
 async function loadAgentGraphMini() {
@@ -2103,6 +2186,56 @@ function animateCounter(element, targetValue, duration = 800, prefix = '', suffi
 }
 
 // =========================================================================
+// Sparkline Helper
+// =========================================================================
+function renderSparkline(canvasId, data, color) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || !data || !data.length) return;
+  // Destroy previous chart on this canvas
+  if (chartInstances[canvasId]) { chartInstances[canvasId].destroy(); delete chartInstances[canvasId]; }
+  chartInstances[canvasId] = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels: data.map((_, i) => i),
+      datasets: [{
+        data: data,
+        borderColor: color,
+        backgroundColor: color + '20',
+        fill: true,
+        tension: 0.4,
+        pointRadius: 0,
+        borderWidth: 1.5,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      scales: { x: { display: false }, y: { display: false, beginAtZero: true } },
+      animation: { duration: 800 },
+    }
+  });
+}
+
+async function loadSparklines() {
+  try {
+    const data = await apiFetch('/v1/stats/trends?hours=24&bucket_minutes=60');
+    const buckets = data.buckets || [];
+    if (buckets.length === 0) return;
+
+    const traceCounts = buckets.map(b => b.traces || b.trace_count || 0);
+    const errorCounts = buckets.map(b => b.errors || b.error_count || 0);
+    const latencies = buckets.map(b => b.avg_duration_ms || 0);
+    const costs = buckets.map(b => b.total_cost || 0);
+
+    renderSparkline('sparkline-traces', traceCounts, '#6366f1');
+    renderSparkline('sparkline-errors', errorCounts, '#ef4444');
+    renderSparkline('sparkline-latency', latencies, '#f59e0b');
+    renderSparkline('sparkline-cost', costs, '#10b981');
+  } catch (e) { /* sparklines are non-critical */ }
+}
+
+// =========================================================================
 // Stats
 // =========================================================================
 async function loadStats() {
@@ -2146,6 +2279,9 @@ async function loadStats() {
     }
 
     updateRefreshTime();
+
+    // Load sparklines in stat cards (non-blocking)
+    loadSparklines();
   } catch (err) {
     updateWsStatus('error');
   }
@@ -3261,6 +3397,9 @@ async function loadActivityTimeline() {
       'Explore': '#06b6d4'
     };
 
+    // Compute max duration for relative progress bars
+    const maxDuration = data.events.reduce((max, e) => Math.max(max, e.duration_ms || 0), 1);
+
     container.innerHTML = data.events.map(e => {
       const color = colors[e.agent] || '#9ca3af';
       const isError = e.status === 'error';
@@ -3268,23 +3407,34 @@ async function loadActivityTimeline() {
         ? '<span class="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0"></span>'
         : '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0"></span>';
       const dur = e.duration_ms ? `${Math.round(e.duration_ms)}ms` : '';
+      const durPct = e.duration_ms ? Math.max(4, (e.duration_ms / maxDuration) * 100) : 0;
       const timeAgo = typeof formatTimeAgo === 'function' ? formatTimeAgo(e.timestamp) : '--';
       const errorText = isError && e.error ? `<div class="text-[9px] text-red-400 truncate mt-0.5">${escHtml(e.error.substring(0, 80))}</div>` : '';
+      const errorClass = isError ? ' activity-error' : '';
+
+      // Determine pill style based on tool/kind
+      const toolLower = (e.tool || '').toLowerCase();
+      let pillClass = 'activity-pill-default';
+      if (toolLower.includes('llm') || toolLower.includes('chat') || toolLower.includes('completion') || toolLower.includes('gpt') || toolLower.includes('claude')) pillClass = 'activity-pill-llm';
+      else if (toolLower.includes('tool') || toolLower.includes('bash') || toolLower.includes('read') || toolLower.includes('write') || toolLower.includes('grep') || toolLower.includes('glob') || toolLower.includes('edit')) pillClass = 'activity-pill-tool';
+      else if (toolLower.includes('agent') || toolLower.includes('spawn') || toolLower.includes('delegate')) pillClass = 'activity-pill-agent';
+
+      const durationBar = durPct > 0 ? `<div class="activity-duration-bar"><div class="activity-duration-fill" style="width:${durPct}%"></div></div>` : '';
 
       return `
-        <div class="flex items-start gap-2.5 px-4 py-2.5 hover:bg-white/[0.02] transition cursor-pointer" onclick="openTrace('${escHtml(e.trace_id || '')}')">
-          <div class="w-0.5 h-full min-h-[24px] rounded-full flex-shrink-0 mt-1" style="background:${color}"></div>
+        <div class="activity-event-row flex items-start gap-2.5 px-4 py-2.5 hover:bg-white/[0.02] transition cursor-pointer${errorClass}" style="border-left:3px solid ${color}" onclick="openTrace('${escHtml(e.trace_id || '')}')">
           <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-1.5">
+            <div class="flex items-center gap-1.5 flex-wrap">
               ${statusIcon}
               <span class="text-[10px] font-medium" style="color:${color}">${escHtml(e.agent)}</span>
-              <span class="text-[10px] text-slate-500">→</span>
-              <span class="text-[10px] text-slate-300">${escHtml(e.tool)}</span>
-              ${dur ? `<span class="text-[10px] text-slate-600 ml-auto">${dur}</span>` : ''}
+              <span class="text-[10px] text-slate-500">&rarr;</span>
+              <span class="activity-pill ${pillClass}">${escHtml(e.tool)}</span>
+              ${dur ? `<span class="text-[10px] text-slate-600 ml-auto font-mono">${dur}</span>` : ''}
             </div>
             ${errorText}
+            ${durationBar}
           </div>
-          <span class="text-[9px] text-slate-600 flex-shrink-0">${timeAgo}</span>
+          <span class="text-[9px] text-slate-600 flex-shrink-0 mt-0.5">${timeAgo}</span>
         </div>`;
     }).join('');
   } catch (e) { /* silently fail */ }
@@ -3452,9 +3602,10 @@ async function loadCostData() {
 }
 
 function renderAgentCostChart(canvasId, agents) {
-  if (chartInstances[canvasId]) { chartInstances[canvasId].destroy(); }
+  if (chartInstances[canvasId]) { chartInstances[canvasId].destroy(); delete chartInstances[canvasId]; }
 
   const canvas = document.getElementById(canvasId);
+  const summaryEl = document.getElementById('cost-agent-summary');
   if (!canvas || !agents || agents.length === 0) {
     if (canvas) {
       const ctx = canvas.getContext('2d');
@@ -3463,8 +3614,13 @@ function renderAgentCostChart(canvasId, agents) {
       ctx.textAlign = 'center';
       ctx.fillText('No agent cost data available', canvas.width / 2, canvas.height / 2);
     }
+    if (summaryEl) summaryEl.textContent = '';
     return;
   }
+
+  // Update summary label
+  const totalAgentCost = agents.reduce((s, a) => s + (a.total_cost_usd || 0), 0);
+  if (summaryEl) summaryEl.textContent = `${agents.length} agents | $${totalAgentCost.toFixed(4)} total`;
 
   // Sort agents by cost descending
   const sorted = [...agents].sort((a, b) => (b.total_cost_usd || 0) - (a.total_cost_usd || 0));
