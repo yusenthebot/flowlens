@@ -124,6 +124,15 @@
     .stat-card-enter:nth-child(4) { animation-delay: 240ms; }
     .stat-card-enter:nth-child(5) { animation-delay: 320ms; }
 
+    /* Stagger slide-in-from-left animation for agent team bar */
+    @keyframes slideInLeft {
+      from { opacity: 0; transform: translateX(-20px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    .agent-team-card {
+      animation: slideInLeft 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
     /* 3D hover tilt for agent cards */
     .card-3d-hover {
       transition: transform 0.3s ease, box-shadow 0.3s ease;
@@ -344,6 +353,13 @@
           <span id="ws-label">Connecting...</span>
         </div>
         <div class="text-xs text-slate-600" id="last-refresh">--</div>
+        <!-- Notification bell -->
+        <button onclick="toggleNotificationPanel()" class="relative p-1.5 rounded-lg hover:bg-white/5 transition" title="Notifications">
+          <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+          </svg>
+          <span id="notification-badge" class="hidden absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">0</span>
+        </button>
         <!-- Theme toggle -->
         <button onclick="toggleTheme()" class="theme-toggle" title="Toggle light/dark theme" aria-label="Toggle theme">
           <div class="theme-toggle-knob"></div>
@@ -842,9 +858,24 @@
           <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">?</kbd><span class="text-slate-300">Show shortcuts</span></div>
           <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">r</kbd><span class="text-slate-300">Refresh data</span></div>
           <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">t</kbd><span class="text-slate-300">Toggle theme</span></div>
+          <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">n</kbd><span class="text-slate-300">Notifications</span></div>
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- Notification slide-out panel -->
+  <div id="notification-panel" class="hidden fixed right-0 top-0 h-full w-80 glass border-l border-white/10 z-50 overflow-y-auto shadow-2xl fade-in">
+    <div class="flex items-center justify-between p-4 border-b border-white/5">
+      <h3 class="text-sm font-semibold text-white">Notifications</h3>
+      <div class="flex items-center gap-2">
+        <button onclick="clearNotifications()" class="text-xs text-slate-500 hover:text-slate-300">Clear all</button>
+        <button onclick="toggleNotificationPanel()" class="text-slate-500 hover:text-white">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+    <div id="notification-list" class="divide-y divide-white/5"></div>
   </div>
 
 <script>
@@ -927,7 +958,85 @@ let wsReconnectAttempts = 0;
 let compareSelection = []; // For trace comparison (max 2)
 let isDarkTheme = document.documentElement.classList.contains('dark');
 let dagLoaded = false; // Lazy load flag for DAG
+let knownAgents = new Set(); // For new-agent detection in notifications
 let virtualScrollState = { traces: [], renderedStart: 0, renderedEnd: 0, rowHeight: 56, containerHeight: 600 };
+
+// =========================================================================
+// Notification System
+// =========================================================================
+let notifications = [];
+
+function toggleNotificationPanel() {
+  const panel = document.getElementById('notification-panel');
+  panel.classList.toggle('hidden');
+  if (!panel.classList.contains('hidden')) {
+    renderNotifications();
+  }
+}
+
+function addNotification(type, title, message, traceId = null) {
+  notifications.unshift({
+    id: Date.now(),
+    type,  // 'error', 'warning', 'info', 'success'
+    title,
+    message,
+    traceId,
+    timestamp: Date.now() / 1000,
+    read: false,
+  });
+  // Keep max 50
+  if (notifications.length > 50) notifications = notifications.slice(0, 50);
+  updateNotificationBadge();
+}
+
+function updateNotificationBadge() {
+  const unread = notifications.filter(n => !n.read).length;
+  const badge = document.getElementById('notification-badge');
+  if (unread > 0) {
+    badge.textContent = unread > 9 ? '9+' : unread;
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+}
+
+function clearNotifications() {
+  notifications = [];
+  updateNotificationBadge();
+  renderNotifications();
+}
+
+function renderNotifications() {
+  const list = document.getElementById('notification-list');
+  if (!list) return;
+  // Mark all as read when panel is opened
+  notifications.forEach(n => { n.read = true; });
+  updateNotificationBadge();
+  if (notifications.length === 0) {
+    list.innerHTML = '<div class="p-6 text-center text-xs text-slate-500">No notifications</div>';
+    return;
+  }
+  const typeConfig = {
+    error:   { dot: 'bg-red-500',    icon: '!', label: 'Error' },
+    warning: { dot: 'bg-amber-400',  icon: '!', label: 'Warning' },
+    info:    { dot: 'bg-indigo-400', icon: 'i', label: 'Info' },
+    success: { dot: 'bg-emerald-500',icon: '✓', label: 'Success' },
+  };
+  list.innerHTML = notifications.map(n => {
+    const cfg = typeConfig[n.type] || typeConfig.info;
+    const timeAgo = formatTimeAgo(n.timestamp);
+    const clickAttr = n.traceId ? `onclick="openTrace('${escHtml(n.traceId)}');toggleNotificationPanel();" style="cursor:pointer"` : '';
+    return `
+      <div class="flex gap-3 p-3 hover:bg-white/5 transition" ${clickAttr}>
+        <div class="flex-shrink-0 w-2 h-2 rounded-full ${cfg.dot} mt-1.5"></div>
+        <div class="min-w-0 flex-1">
+          <div class="text-xs font-semibold text-white">${escHtml(n.title)}</div>
+          <div class="text-[11px] text-slate-400 mt-0.5 break-words">${escHtml(n.message)}</div>
+          <div class="text-[10px] text-slate-600 mt-1">${timeAgo}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
 
 // =========================================================================
 // API Helpers
@@ -1163,6 +1272,37 @@ function handleLiveTraceUpdate(traceData) {
   // Toast for new trace (existing showToast signature: message, type, duration)
   showToast(`New trace from ${traceData.service_name || 'agent'}`, 'info', 3000);
 
+  // --- Notification hooks ---
+  const agentName = traceData.service_name || 'unknown';
+  const traceId = traceData.trace_id || null;
+
+  // Error trace notification
+  if (traceData.has_errors) {
+    addNotification('error', 'Error trace detected',
+      `Agent: ${agentName} — trace ${traceId ? traceId.substring(0, 12) + '...' : 'unknown'}`,
+      traceId);
+  }
+
+  // New agent detected notification
+  if (agentName && agentName !== 'unknown' && !knownAgents.has(agentName)) {
+    if (knownAgents.size > 0) {
+      // Only fire when knownAgents is already seeded (not on first-ever load)
+      addNotification('info', 'New agent detected',
+        `Agent "${agentName}" is reporting for the first time.`,
+        traceId);
+    }
+    knownAgents.add(agentName);
+  }
+
+  // Cost spike notification (single trace > $0.10)
+  const traceCost = traceData.total_cost || traceData.cost || 0;
+  if (traceCost > 0.10) {
+    addNotification('warning', 'Cost spike detected',
+      `Agent: ${agentName} — $${traceCost.toFixed(4)} in single trace`,
+      traceId);
+  }
+  // --- End notification hooks ---
+
   // Full refresh based on current view
   if (currentView === 'overview') {
     loadStats();
@@ -1223,14 +1363,15 @@ async function loadAgentActivity() {
     const activeCount = data.agents.filter(a => a.status === 'active').length;
     label.textContent = `${activeCount} active / ${data.agents.length} total`;
 
-    bar.innerHTML = data.agents.map(a => {
+    bar.innerHTML = data.agents.map((a, idx) => {
       const p = getAgentProfile(a.agent);
       const isActive = a.status === 'active';
       const borderClass = isActive ? 'border-emerald-500/40 shadow-emerald-500/10 shadow-lg' : 'border-white/5';
       const tools = (a.recent_tools || []).slice(0, 3).join(', ') || 'idle';
       const timeAgo = formatTimeAgo(a.last_seen);
+      const delay = idx * 80;
       return `
-        <div class="glass rounded-xl p-3 min-w-[160px] border ${borderClass} cursor-pointer hover:border-indigo-500/30 transition flex-shrink-0 card-3d-hover" onclick="filterTracesByAgent('${escHtml(a.agent)}')">
+        <div class="glass rounded-xl p-3 min-w-[160px] border ${borderClass} cursor-pointer hover:border-indigo-500/30 transition flex-shrink-0 card-3d-hover agent-team-card" style="animation-delay:${delay}ms" onclick="filterTracesByAgent('${escHtml(a.agent)}')">
           <div class="flex items-center gap-2.5 mb-2">
             ${renderAgentAvatar(a.agent, 'md')}
             <div class="min-w-0">
@@ -1291,8 +1432,7 @@ async function loadAgentData() {
       const opsLastHour = activity ? activity.trace_count_1h : 0;
 
       const p = getAgentProfile(a.agent);
-      const initial = (p.name || a.agent)[0].toUpperCase();
-      const avatarHtml = `<div class="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style="background:${p.color || '#6366f1'}">${initial}</div>`;
+      const avatarHtml = renderAgentAvatar(a.agent, 'lg');
       // Store agent data for modal access
       const agentDataEncoded = escHtml(JSON.stringify({ agent: a.agent, trace_count: a.trace_count, error_rate: a.error_rate, avg_duration_ms: a.avg_duration_ms, total_cost_usd: a.total_cost_usd, total_spans: a.total_spans }));
       return `<div class="glass rounded-xl p-5 cursor-pointer hover:border-indigo-500/40 border border-transparent transition card-3d-hover" onclick="openAgentDetailModal('${escHtml(a.agent)}', ${JSON.stringify(agentDataEncoded)})">
@@ -3571,6 +3711,13 @@ async function healthCheck() {
 // =========================================================================
 function setupKeyboardNavigation() {
   document.addEventListener('keydown', (e) => {
+    // Close notification panel on Escape
+    const notifPanel = document.getElementById('notification-panel');
+    if (e.key === 'Escape' && notifPanel && !notifPanel.classList.contains('hidden')) {
+      notifPanel.classList.add('hidden');
+      return;
+    }
+
     // Close shortcuts modal on Escape
     const shortcutsModal = document.getElementById('shortcuts-modal');
     if (e.key === 'Escape' && !shortcutsModal.classList.contains('hidden')) {
@@ -3605,6 +3752,12 @@ function setupKeyboardNavigation() {
     // "r" to refresh
     if (e.key === 'r' && !isInputFocused()) {
       refreshCurrentView();
+      return;
+    }
+
+    // "n" to toggle notification panel
+    if (e.key === 'n' && !isInputFocused()) {
+      toggleNotificationPanel();
       return;
     }
 
