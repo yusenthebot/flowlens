@@ -21,7 +21,9 @@ Endpoints:
 - GET    /v1/agents/summary         — agent-level trace statistics
 - GET    /v1/agents/activity        — real-time per-agent activity (last hour)
 - GET    /v1/agents/profiles        — profile info for all known agents
+- GET    /v1/agents/relationships   — agent spawn relationship graph (nodes + edges)
 - GET    /v1/activity/stream        — recent activity events across all agents
+- GET    /v1/export/report          — summary activity report (last N hours)
 - GET    /health                    — health check
 - WS     /ws/traces                 — real-time trace stream
 """
@@ -1558,6 +1560,183 @@ def create_app(db_path: str | None = None) -> FastAPI:
                 })
 
         return JSONResponse({"agents": result})
+
+    # -----------------------------------------------------------------------
+    # Agent spawn relationships
+    # -----------------------------------------------------------------------
+
+    @app.get("/v1/agents/relationships")
+    async def agents_relationships() -> JSONResponse:
+        """Return agent spawn relationships for visualization.
+
+        Analyzes spans where tool_name contains 'Agent' or 'spawn' to build
+        a parent-child graph of which agents spawned which others.
+
+        Span naming conventions recognized:
+        - ``subagent/<child>``        — span name emitted by SDK subagent hook
+        - ``<parent>/spawn/<child>``  — explicit spawn span with parent prefix
+        - ``<parent>/Agent/<input>``  — Agent tool call (subagent_type parsed
+                                       from attributes.tool.input or span name)
+        """
+        try:
+            traces = store.list_traces(limit=500)
+        except Exception:
+            logger.exception("Failed to list traces for agent relationships")
+            raise HTTPException(500, "Failed to retrieve traces")
+
+        relationships: dict[str, int] = {}  # "parent->child": count
+
+        for trace_meta in traces:
+            # Extract the agent that owns this trace (default "main")
+            tags = trace_meta.get("tags") or {}
+            if isinstance(tags, str):
+                try:
+                    tags = json.loads(tags)
+                except Exception:
+                    tags = {}
+            trace_agent: str = tags.get("agent") or "main"
+
+            full = store.get_trace(trace_meta["trace_id"])
+            if not full:
+                continue
+
+            for span in full.get("spans", []):
+                name: str = span.get("name", "")
+                name_lower = name.lower()
+                attrs: dict[str, Any] = span.get("attributes") or {}
+
+                # Pattern 1: "subagent/<child>" — subagent lifecycle span
+                if name_lower.startswith("subagent/"):
+                    child = name[len("subagent/"):]
+                    if child:
+                        key = f"{trace_agent}->{child}"
+                        relationships[key] = relationships.get(key, 0) + 1
+                    continue
+
+                # Pattern 2: "spawn" anywhere in the name
+                if "spawn" in name_lower:
+                    parts = [p for p in name.split("/") if p]
+                    if len(parts) >= 2:
+                        parent = parts[0]
+                        child = parts[-1]
+                        if parent != child:
+                            key = f"{parent}->{child}"
+                            relationships[key] = relationships.get(key, 0) + 1
+                    continue
+
+                # Pattern 3: "<parent>/Agent/<something>" — Agent tool call
+                if "Agent" in name and "/" in name:
+                    parts = name.split("/")
+                    if len(parts) >= 2:
+                        parent = parts[0]
+                        # Try to resolve the spawned agent type from attributes
+                        tool_input = attrs.get("tool.input") or attrs.get("input") or ""
+                        if isinstance(tool_input, dict):
+                            child = tool_input.get("subagent_type") or tool_input.get("agent") or ""
+                        elif isinstance(tool_input, str):
+                            # Simple heuristic: look for subagent_type key in JSON-ish string
+                            import re as _re
+                            m = _re.search(r'"subagent_type"\s*:\s*"([^"]+)"', tool_input)
+                            child = m.group(1) if m else ""
+                        else:
+                            child = ""
+                        if not child:
+                            # Fall back to last path component
+                            child = parts[-1]
+                        if parent and child and parent != child:
+                            key = f"{parent}->{child}"
+                            relationships[key] = relationships.get(key, 0) + 1
+
+        # Build graph structure
+        agents: set[str] = set()
+        edges: list[dict[str, Any]] = []
+        for rel, count in relationships.items():
+            src, tgt = rel.split("->", 1)
+            agents.add(src)
+            agents.add(tgt)
+            edges.append({"source": src, "target": tgt, "count": count})
+
+        nodes = [{"id": a, "label": a} for a in sorted(agents)]
+        edges.sort(key=lambda e: (-e["count"], e["source"], e["target"]))
+        return JSONResponse({"nodes": nodes, "edges": edges})
+
+    # -----------------------------------------------------------------------
+    # Export report
+    # -----------------------------------------------------------------------
+
+    @app.get("/v1/export/report")
+    async def export_report(hours: int = Query(24, ge=1, le=720)) -> JSONResponse:
+        """Generate a comprehensive report of agent activity.
+
+        Returns a structured report suitable for display or export to PDF/markdown.
+
+        Query parameters:
+        - ``hours`` (int, 1-720, default 24): time window to include in the report.
+        """
+        now = time.time()
+        start = now - hours * 3600
+
+        try:
+            traces = store.get_traces_by_time_range(start=start, end=now)
+        except Exception:
+            logger.exception("Failed to retrieve traces for report")
+            raise HTTPException(500, "Failed to retrieve traces for report")
+
+        # Aggregate top-level stats
+        total_traces = len(traces)
+        total_errors = sum(1 for t in traces if t.get("has_errors"))
+        total_cost = sum(t.get("total_cost_usd") or 0 for t in traces)
+        total_spans = sum(t.get("span_count") or 0 for t in traces)
+
+        # Per-agent stats
+        agent_stats: dict[str, dict[str, Any]] = {}
+        for t in traces:
+            tags = t.get("tags") or {}
+            if isinstance(tags, str):
+                try:
+                    tags = json.loads(tags)
+                except Exception:
+                    tags = {}
+            agent: str = tags.get("agent") or "unknown"
+            if agent not in agent_stats:
+                agent_stats[agent] = {
+                    "traces": 0,
+                    "errors": 0,
+                    "cost": 0.0,
+                    "total_duration_ms": 0.0,
+                    "spans": 0,
+                }
+            bucket = agent_stats[agent]
+            bucket["traces"] += 1
+            if t.get("has_errors"):
+                bucket["errors"] += 1
+            bucket["cost"] += t.get("total_cost_usd") or 0
+            bucket["total_duration_ms"] += t.get("duration_ms") or 0
+            bucket["spans"] += t.get("span_count") or 0
+
+        # Round floats for readability
+        for bucket in agent_stats.values():
+            bucket["cost"] = round(bucket["cost"], 6)
+            bucket["avg_duration_ms"] = (
+                round(bucket["total_duration_ms"] / bucket["traces"], 2)
+                if bucket["traces"] else 0.0
+            )
+            del bucket["total_duration_ms"]
+
+        return JSONResponse({
+            "report": {
+                "period_hours": hours,
+                "generated_at": now,
+                "summary": {
+                    "total_traces": total_traces,
+                    "total_errors": total_errors,
+                    "error_rate": round(total_errors / max(1, total_traces), 4),
+                    "total_cost_usd": round(total_cost, 4),
+                    "total_spans": total_spans,
+                },
+                "agents": agent_stats,
+            }
+        })
 
     # -----------------------------------------------------------------------
     # Activity stream

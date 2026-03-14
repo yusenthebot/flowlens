@@ -1140,3 +1140,249 @@ class TestAPI:
         beta = breakdown["agent-beta"]
         assert beta["traces"] == 1
         assert beta["errors"] == 1
+
+    # ------------------------------------------------------------------
+    # New: GET /v1/agents/relationships
+    # ------------------------------------------------------------------
+
+    def _make_spawn_trace(self, trace_id: str, spans: list, tags=None, start_time: float = 1000.0):
+        """Build a trace dict with custom spans for relationship tests."""
+        return {
+            "trace_id": trace_id,
+            "service_name": "spawn-test",
+            "start_time": start_time,
+            "end_time": start_time + 1.0,
+            "duration_ms": 1000.0,
+            "span_count": len(spans),
+            "total_tokens": 0,
+            "total_cost_usd": 0.0,
+            "has_errors": False,
+            "error_count": 0,
+            "metadata": {},
+            "tags": tags or {},
+            "spans": spans,
+        }
+
+    def _make_span(self, span_id, trace_id, name, kind="tool", attributes=None):
+        return {
+            "span_id": span_id,
+            "trace_id": trace_id,
+            "parent_span_id": None,
+            "name": name,
+            "kind": kind,
+            "status": "ok",
+            "start_time": 1000.0,
+            "end_time": 1001.0,
+            "duration_ms": 1000.0,
+            "attributes": attributes or {},
+            "events": [],
+        }
+
+    def test_agents_relationships_empty(self, client):
+        """Returns empty nodes and edges when no spawn spans exist."""
+        r = client.get("/v1/agents/relationships")
+        assert r.status_code == 200
+        data = r.json()
+        assert "nodes" in data
+        assert "edges" in data
+        assert data["nodes"] == []
+        assert data["edges"] == []
+
+    def test_agents_relationships_subagent_pattern(self, client):
+        """Detects subagent/<child> naming pattern."""
+        trace = self._make_spawn_trace(
+            "rel-sub-1",
+            spans=[self._make_span("s1", "rel-sub-1", "subagent/vr-alpha")],
+            tags={"agent": "main"},
+        )
+        r = client.post("/v1/traces/ingest", json=trace)
+        assert r.status_code == 201
+
+        r = client.get("/v1/agents/relationships")
+        assert r.status_code == 200
+        data = r.json()
+
+        edges = data["edges"]
+        assert len(edges) >= 1
+        edge = edges[0]
+        assert edge["source"] == "main"
+        assert edge["target"] == "vr-alpha"
+        assert edge["count"] >= 1
+
+        node_ids = {n["id"] for n in data["nodes"]}
+        assert "main" in node_ids
+        assert "vr-alpha" in node_ids
+
+    def test_agents_relationships_spawn_in_name_pattern(self, client):
+        """Detects '<parent>/spawn/<child>' naming pattern."""
+        trace = self._make_spawn_trace(
+            "rel-spawn-1",
+            spans=[self._make_span("s2", "rel-spawn-1", "orchestrator/spawn/worker")],
+            tags={"agent": "orchestrator"},
+        )
+        client.post("/v1/traces/ingest", json=trace)
+
+        r = client.get("/v1/agents/relationships")
+        assert r.status_code == 200
+        edges = r.json()["edges"]
+        found = [e for e in edges if e["source"] == "orchestrator" and e["target"] == "worker"]
+        assert len(found) >= 1
+
+    def test_agents_relationships_agent_tool_pattern(self, client):
+        """Detects '<parent>/Agent/<something>' naming pattern."""
+        trace = self._make_spawn_trace(
+            "rel-agent-1",
+            spans=[self._make_span(
+                "s3", "rel-agent-1", "main/Agent/run",
+                attributes={"tool.input": '{"subagent_type": "vr-beta", "task": "test"}'},
+            )],
+            tags={"agent": "main"},
+        )
+        client.post("/v1/traces/ingest", json=trace)
+
+        r = client.get("/v1/agents/relationships")
+        assert r.status_code == 200
+        edges = r.json()["edges"]
+        found = [e for e in edges if e["source"] == "main" and e["target"] == "vr-beta"]
+        assert len(found) >= 1
+
+    def test_agents_relationships_count_accumulates(self, client):
+        """Multiple spans with the same relationship increment the count."""
+        for i in range(3):
+            trace = self._make_spawn_trace(
+                f"rel-count-{i}",
+                spans=[self._make_span(f"sc-{i}", f"rel-count-{i}", "subagent/worker")],
+                tags={"agent": "boss"},
+                start_time=1000.0 + i,
+            )
+            client.post("/v1/traces/ingest", json=trace)
+
+        r = client.get("/v1/agents/relationships")
+        assert r.status_code == 200
+        edges = r.json()["edges"]
+        boss_worker = [e for e in edges if e["source"] == "boss" and e["target"] == "worker"]
+        assert len(boss_worker) == 1
+        assert boss_worker[0]["count"] == 3
+
+    def test_agents_relationships_response_shape(self, client):
+        """Response always has 'nodes' list and 'edges' list."""
+        r = client.get("/v1/agents/relationships")
+        assert r.status_code == 200
+        data = r.json()
+        assert isinstance(data["nodes"], list)
+        assert isinstance(data["edges"], list)
+
+    # ------------------------------------------------------------------
+    # New: GET /v1/export/report
+    # ------------------------------------------------------------------
+
+    def test_export_report_empty(self, client):
+        """Returns a valid report structure with zeros when no traces exist."""
+        r = client.get("/v1/export/report")
+        assert r.status_code == 200
+        data = r.json()
+        assert "report" in data
+        report = data["report"]
+        assert report["period_hours"] == 24
+        assert "generated_at" in report
+        assert "summary" in report
+        assert "agents" in report
+        summary = report["summary"]
+        assert summary["total_traces"] == 0
+        assert summary["total_errors"] == 0
+        assert summary["error_rate"] == 0.0
+        assert summary["total_cost_usd"] == 0.0
+        assert summary["total_spans"] == 0
+
+    def test_export_report_includes_recent_traces(self, client):
+        """Only traces within the requested time window are included."""
+        now = time.time()
+        # Ingest a trace with start_time within the last 24 hours
+        trace = _make_trace_data(
+            "report-recent", has_errors=False,
+            service_name="rep-svc",
+            start_time=now - 3600,  # 1 hour ago
+            tags={"agent": "report-agent"},
+        )
+        client.post("/v1/traces/ingest", json=trace)
+
+        r = client.get("/v1/export/report?hours=24")
+        assert r.status_code == 200
+        report = r.json()["report"]
+        assert report["summary"]["total_traces"] >= 1
+
+    def test_export_report_excludes_old_traces(self, client):
+        """Traces outside the window are not counted."""
+        # All traces from test isolation use start_time around 1000.0 (epoch)
+        # A 1-hour window from now() will not include them.
+        self._ingest(client, "report-old-1", start_time=1000.0)
+        self._ingest(client, "report-old-2", start_time=2000.0)
+
+        r = client.get("/v1/export/report?hours=1")
+        assert r.status_code == 200
+        report = r.json()["report"]
+        # These old traces fall outside the 1-hour window
+        assert report["summary"]["total_traces"] == 0
+
+    def test_export_report_per_agent_stats(self, client):
+        """Per-agent breakdown is populated correctly."""
+        now = time.time()
+        client.post("/v1/traces/ingest", json=_make_trace_data(
+            "rep-a1", tags={"agent": "alpha"}, start_time=now - 100
+        ))
+        client.post("/v1/traces/ingest", json=_make_trace_data(
+            "rep-a2", tags={"agent": "alpha"}, has_errors=True, start_time=now - 90
+        ))
+        client.post("/v1/traces/ingest", json=_make_trace_data(
+            "rep-b1", tags={"agent": "beta"}, start_time=now - 80
+        ))
+
+        r = client.get("/v1/export/report?hours=1")
+        assert r.status_code == 200
+        agents = r.json()["report"]["agents"]
+
+        assert "alpha" in agents
+        assert agents["alpha"]["traces"] == 2
+        assert agents["alpha"]["errors"] == 1
+        assert agents["alpha"]["cost"] >= 0.0
+        assert "avg_duration_ms" in agents["alpha"]
+        assert "spans" in agents["alpha"]
+
+        assert "beta" in agents
+        assert agents["beta"]["traces"] == 1
+        assert agents["beta"]["errors"] == 0
+
+    def test_export_report_error_rate(self, client):
+        """Error rate is calculated correctly."""
+        now = time.time()
+        client.post("/v1/traces/ingest", json=_make_trace_data(
+            "err-rate-1", has_errors=True, start_time=now - 50
+        ))
+        client.post("/v1/traces/ingest", json=_make_trace_data(
+            "err-rate-2", has_errors=False, start_time=now - 40
+        ))
+        client.post("/v1/traces/ingest", json=_make_trace_data(
+            "err-rate-3", has_errors=False, start_time=now - 30
+        ))
+
+        r = client.get("/v1/export/report?hours=1")
+        assert r.status_code == 200
+        summary = r.json()["report"]["summary"]
+        assert summary["total_traces"] >= 3
+        assert summary["total_errors"] >= 1
+        # error_rate = errors / total
+        assert abs(summary["error_rate"] - summary["total_errors"] / summary["total_traces"]) < 0.001
+
+    def test_export_report_hours_parameter(self, client):
+        """Custom hours parameter is reflected in the report."""
+        r = client.get("/v1/export/report?hours=48")
+        assert r.status_code == 200
+        assert r.json()["report"]["period_hours"] == 48
+
+    def test_export_report_hours_validation(self, client):
+        """hours must be between 1 and 720."""
+        r = client.get("/v1/export/report?hours=0")
+        assert r.status_code == 422
+
+        r = client.get("/v1/export/report?hours=721")
+        assert r.status_code == 422
