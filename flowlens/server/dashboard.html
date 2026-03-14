@@ -175,6 +175,20 @@
     .compare-diff-better { background: rgba(16, 185, 129, 0.08); }
     .compare-diff-worse { background: rgba(239, 68, 68, 0.08); }
 
+    /* Trend chart active button */
+    .trend-btn.active { background: rgba(99, 102, 241, 0.2) !important; color: #a5b4fc !important; border: 1px solid rgba(99, 102, 241, 0.3); }
+
+    /* Pattern card left border accent */
+    .pattern-card-critical { border-left: 3px solid #ef4444; background: rgba(239, 68, 68, 0.05); }
+    .pattern-card-warning  { border-left: 3px solid #f59e0b; background: rgba(245, 158, 11, 0.05); }
+    .pattern-card-info     { border-left: 3px solid #3b82f6; background: rgba(59, 130, 246, 0.05); }
+    html:not(.dark) .pattern-card-critical { background: rgba(239, 68, 68, 0.04); }
+    html:not(.dark) .pattern-card-warning  { background: rgba(245, 158, 11, 0.04); }
+    html:not(.dark) .pattern-card-info     { background: rgba(59, 130, 246, 0.04); }
+
+    /* Pattern filter active button */
+    .pattern-filter-btn.active { background: rgba(99, 102, 241, 0.2) !important; color: #a5b4fc !important; border-color: rgba(99, 102, 241, 0.3) !important; }
+
     /* Compare checkbox */
     .compare-checkbox { opacity: 0; transition: opacity 0.15s ease; }
     .trace-row:hover .compare-checkbox { opacity: 1; }
@@ -350,6 +364,19 @@
           <span class="text-[10px] text-slate-500" id="team-status-label">--</span>
         </div>
         <div id="agent-team-bar" class="flex gap-3 overflow-x-auto pb-2"></div>
+      </div>
+
+      <!-- Trace Volume Trend -->
+      <div class="glass rounded-xl p-4 mb-6">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-sm font-semibold text-white">Activity Trend</h2>
+          <div class="flex gap-2">
+            <button onclick="loadTrendChart(6)" class="trend-btn px-2 py-1 text-[10px] rounded bg-surface-100 text-slate-400 hover:text-white transition">6h</button>
+            <button onclick="loadTrendChart(24)" class="trend-btn px-2 py-1 text-[10px] rounded bg-indigo-500/20 text-indigo-300">24h</button>
+            <button onclick="loadTrendChart(168)" class="trend-btn px-2 py-1 text-[10px] rounded bg-surface-100 text-slate-400 hover:text-white transition">7d</button>
+          </div>
+        </div>
+        <canvas id="chart-trend" height="120"></canvas>
       </div>
 
       <!-- Activity Timeline + Recent Traces (side by side) -->
@@ -593,6 +620,15 @@
 
     <!-- PATTERNS VIEW -->
     <div id="view-patterns" class="view-panel hidden">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-semibold text-white">Detected Patterns</h2>
+        <div class="flex gap-2">
+          <button class="pattern-filter-btn px-2.5 py-1 text-[10px] rounded bg-indigo-500/20 text-indigo-300 font-medium border border-indigo-500/30 transition" onclick="filterPatterns('all')">All</button>
+          <button class="pattern-filter-btn px-2.5 py-1 text-[10px] rounded bg-surface-100 text-slate-400 hover:text-white border border-white/10 hover:border-white/20 transition" onclick="filterPatterns('critical')">Critical</button>
+          <button class="pattern-filter-btn px-2.5 py-1 text-[10px] rounded bg-surface-100 text-slate-400 hover:text-white border border-white/10 hover:border-white/20 transition" onclick="filterPatterns('warning')">Warning</button>
+          <button class="pattern-filter-btn px-2.5 py-1 text-[10px] rounded bg-surface-100 text-slate-400 hover:text-white border border-white/10 hover:border-white/20 transition" onclick="filterPatterns('info')">Info</button>
+        </div>
+      </div>
       <div id="patterns-list">
         <div class="p-8 text-center text-slate-600 text-sm">Select a trace to view detected patterns, or patterns will appear here from recent traces.</div>
       </div>
@@ -1015,6 +1051,7 @@ function handleLiveTraceUpdate(traceData) {
     loadRecentTraces();
     if (typeof loadAgentActivity === 'function') loadAgentActivity();
     if (typeof loadActivityTimeline === 'function') loadActivityTimeline();
+    if (typeof loadTrendChart === 'function') loadTrendChart(_trendHours || 24);
   } else if (currentView === 'traces') {
     loadTraces();
   } else if (currentView === 'agents') {
@@ -1044,7 +1081,7 @@ function switchView(view) {
   if (tabBtn) { tabBtn.classList.remove('tab-inactive'); tabBtn.classList.add('tab-active'); }
 
   // Load data for the view
-  if (view === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); loadActivityTimeline(); }
+  if (view === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); loadActivityTimeline(); loadTrendChart(_trendHours || 24); }
   else if (view === 'traces') { loadTraces(); }
   else if (view === 'cost') { loadCostData(); }
   else if (view === 'patterns') { loadAllPatterns(); }
@@ -1541,10 +1578,27 @@ async function openTrace(traceId) {
 }
 
 function renderTraceDetail(data) {
-  document.getElementById('detail-trace-id').textContent = data.trace_id;
-
   const hasErrors = data.has_errors === true || data.has_errors === 1;
   const timeStr = data.start_time > 0 ? new Date(data.start_time * 1000).toLocaleString() : '--';
+
+  // Derive agent name and project name from tags/metadata
+  const tags = data.tags || {};
+  const meta = data.metadata || {};
+  const agentName = tags.agent || null;
+  const projectName = tags.project || meta.project || (meta.cwd ? meta.cwd.split('/').pop() : null);
+
+  // Update trace ID with agent avatar if available
+  const traceIdEl = document.getElementById('detail-trace-id');
+  if (agentName) {
+    const profile = getAgentProfile(agentName);
+    traceIdEl.innerHTML = `
+      <span class="flex items-center gap-2">
+        ${renderAgentAvatar(agentName, 'md')}
+        <span class="font-mono text-sm text-slate-400">${escHtml(data.trace_id)}</span>
+      </span>`;
+  } else {
+    traceIdEl.textContent = data.trace_id;
+  }
 
   // Token usage breakdown per span kind
   const tokenByKind = {};
@@ -1576,16 +1630,61 @@ function renderTraceDetail(data) {
     tokenBreakdownHtml += '</div>';
   }
 
-  const meta = [
-    `<span>Service: <strong class="text-slate-200">${escHtml(data.service_name || 'unknown')}</strong></span>`,
-    `<span>Duration: <strong class="text-slate-200">${formatDuration(data.duration_ms || 0)}</strong></span>`,
-    `<span>Spans: <strong class="text-slate-200">${data.span_count || (data.spans || []).length}</strong></span>`,
-    `<span>Tokens: <strong class="text-slate-200">${(data.total_tokens || 0).toLocaleString()}</strong></span>`,
-    `<span>Cost: <strong class="text-slate-200">$${(data.total_cost_usd || 0).toFixed(4)}</strong></span>`,
-    `<span>Time: <strong class="text-slate-200">${timeStr}</strong></span>`,
-    hasErrors ? '<span class="text-red-400">Has Errors</span>' : '<span class="text-emerald-400">OK</span>',
+  // Build header meta: agent info, project, large duration+cost, error badge
+  const durationMs = data.duration_ms || 0;
+  const costUsd = data.total_cost_usd || 0;
+  const errorCount = data.error_count || 0;
+
+  let agentHeaderHtml = '';
+  if (agentName) {
+    const profile = getAgentProfile(agentName);
+    agentHeaderHtml = `
+      <div class="flex items-center gap-2 mb-2">
+        ${renderAgentAvatar(agentName, 'lg')}
+        <div>
+          <div class="text-sm font-semibold" style="color:${profile.color}">${escHtml(profile.name)}</div>
+          <div class="text-[10px] text-slate-500">${escHtml(profile.role)}</div>
+        </div>
+        ${projectName ? `<span class="ml-2 px-2 py-0.5 text-[10px] font-medium rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">${escHtml(projectName)}</span>` : ''}
+      </div>`;
+  } else if (projectName) {
+    agentHeaderHtml = `<div class="mb-2"><span class="px-2 py-0.5 text-[10px] font-medium rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">${escHtml(projectName)}</span></div>`;
+  }
+
+  const metaItems = [
+    `<div class="flex flex-col items-center p-3 rounded-lg bg-surface-100/50 border border-white/5">
+      <span class="text-2xl font-bold text-white tabular-nums">${formatDuration(durationMs)}</span>
+      <span class="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wider">Duration</span>
+    </div>`,
+    `<div class="flex flex-col items-center p-3 rounded-lg bg-surface-100/50 border border-white/5">
+      <span class="text-2xl font-bold text-emerald-400 tabular-nums">$${costUsd.toFixed(4)}</span>
+      <span class="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wider">Cost</span>
+    </div>`,
+    `<div class="flex flex-col items-center p-3 rounded-lg bg-surface-100/50 border border-white/5">
+      <span class="text-2xl font-bold text-white tabular-nums">${data.span_count || (data.spans || []).length}</span>
+      <span class="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wider">Spans</span>
+    </div>`,
+    hasErrors ? `<div class="flex flex-col items-center p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+      <span class="text-2xl font-bold text-red-400 tabular-nums">${errorCount}</span>
+      <span class="text-[10px] text-red-400 mt-0.5 uppercase tracking-wider">Errors</span>
+    </div>` : `<div class="flex flex-col items-center p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+      <span class="text-2xl font-bold text-emerald-400 tabular-nums">OK</span>
+      <span class="text-[10px] text-emerald-400 mt-0.5 uppercase tracking-wider">Status</span>
+    </div>`,
   ];
-  document.getElementById('detail-trace-meta').innerHTML = meta.join('') + tokenBreakdownHtml;
+
+  const secondaryMeta = [
+    `<span class="text-xs text-slate-500">Service: <strong class="text-slate-300">${escHtml(data.service_name || 'unknown')}</strong></span>`,
+    `<span class="text-xs text-slate-500">Tokens: <strong class="text-slate-300">${(data.total_tokens || 0).toLocaleString()}</strong></span>`,
+    `<span class="text-xs text-slate-500">Time: <strong class="text-slate-300">${timeStr}</strong></span>`,
+  ];
+
+  document.getElementById('detail-trace-meta').innerHTML = `
+    ${agentHeaderHtml}
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3 w-full">${metaItems.join('')}</div>
+    <div class="flex flex-wrap gap-4">${secondaryMeta.join('')}</div>
+    ${tokenBreakdownHtml}
+  `;
 
   renderWaterfallTimeline(data.spans || []);
 }
@@ -2248,6 +2347,139 @@ async function loadActivityTimeline() {
 }
 
 // =========================================================================
+// Trace Volume Trend Chart
+// =========================================================================
+let _trendHours = 24; // Currently active window
+
+async function loadTrendChart(hours) {
+  _trendHours = hours;
+
+  // Update button active states
+  document.querySelectorAll('.trend-btn').forEach(btn => {
+    btn.classList.remove('active');
+    // Reset to inactive styling
+    btn.className = 'trend-btn px-2 py-1 text-[10px] rounded bg-surface-100 text-slate-400 hover:text-white transition';
+  });
+  // Find and activate the clicked button
+  document.querySelectorAll('.trend-btn').forEach(btn => {
+    if (btn.getAttribute('onclick') === `loadTrendChart(${hours})`) {
+      btn.className = 'trend-btn px-2 py-1 text-[10px] rounded bg-indigo-500/20 text-indigo-300 active';
+    }
+  });
+
+  const bucketMinutes = hours <= 6 ? 10 : hours <= 24 ? 60 : 360;
+  let data;
+  try {
+    data = await apiFetch(`/v1/stats/trends?hours=${hours}&bucket_minutes=${bucketMinutes}`);
+  } catch (err) {
+    console.warn('Trend chart: API not available, using empty data');
+    data = { buckets: [] };
+  }
+
+  const buckets = data.buckets || [];
+
+  // Format time labels
+  function formatTrendLabel(ts) {
+    const d = new Date(ts * 1000);
+    if (hours <= 24) {
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    }
+    return d.toLocaleDateString([], { weekday: 'short' });
+  }
+
+  const labels = buckets.map(b => formatTrendLabel(b.timestamp || b.bucket_start || 0));
+  const traceCounts = buckets.map(b => b.traces || b.trace_count || 0);
+  const errorCounts = buckets.map(b => b.errors || b.error_count || 0);
+
+  // Destroy existing chart if present
+  if (chartInstances['chart-trend']) {
+    chartInstances['chart-trend'].destroy();
+    delete chartInstances['chart-trend'];
+  }
+
+  const canvas = document.getElementById('chart-trend');
+  if (!canvas) return;
+
+  const isDark = document.documentElement.classList.contains('dark');
+  const gridColor = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)';
+  const tickColor = isDark ? '#64748b' : '#94a3b8';
+
+  chartInstances['chart-trend'] = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Traces',
+          data: traceCounts,
+          borderColor: '#6366f1',
+          backgroundColor: 'rgba(99, 102, 241, 0.12)',
+          fill: true,
+          tension: 0.4,
+          pointRadius: 2,
+          pointHoverRadius: 5,
+          borderWidth: 2,
+        },
+        {
+          label: 'Errors',
+          data: errorCounts,
+          borderColor: '#ef4444',
+          backgroundColor: 'transparent',
+          fill: false,
+          tension: 0.4,
+          borderDash: [5, 4],
+          pointRadius: 2,
+          pointHoverRadius: 5,
+          borderWidth: 1.5,
+        },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top',
+          align: 'end',
+          labels: {
+            color: tickColor,
+            font: { family: 'Inter', size: 10 },
+            boxWidth: 24,
+            padding: 8,
+            usePointStyle: true,
+            pointStyleWidth: 8,
+          }
+        },
+        tooltip: {
+          backgroundColor: isDark ? 'rgba(42,42,40,0.95)' : 'rgba(255,255,255,0.97)',
+          borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#e8e6e1',
+          borderWidth: 1,
+          titleColor: isDark ? '#e2e0db' : '#2c2c2a',
+          bodyColor: isDark ? '#94a3b8' : '#64748b',
+          titleFont: { family: 'Inter', size: 11 },
+          bodyFont: { family: 'Inter', size: 11 },
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: tickColor, font: { size: 10 }, maxTicksLimit: 8 },
+          grid: { color: gridColor },
+          border: { color: gridColor },
+        },
+        y: {
+          ticks: { color: tickColor, font: { size: 10 }, stepSize: 1, precision: 0 },
+          grid: { color: gridColor },
+          border: { color: gridColor },
+          beginAtZero: true,
+        }
+      }
+    }
+  });
+}
+
+// =========================================================================
 // Cost Analysis
 // =========================================================================
 async function loadCostData() {
@@ -2400,8 +2632,123 @@ function renderCostChart(canvasId, data, type) {
 // =========================================================================
 // Patterns
 // =========================================================================
+
+// Accumulated patterns (with trace context) for client-side filtering
+let _allPatternsData = [];
+let _activePatternFilter = 'all';
+
+const SEVERITY_CONFIG = {
+  critical: {
+    color: 'red',
+    cardClass: 'pattern-card-critical',
+    badgeClass: 'bg-red-500/15 text-red-400 border border-red-500/30',
+    icon: `<svg class="w-4 h-4 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><circle cx="12" cy="19" r="0.5" fill="currentColor"/></svg>`,
+    dotColor: 'bg-red-500',
+  },
+  warning: {
+    color: 'amber',
+    cardClass: 'pattern-card-warning',
+    badgeClass: 'bg-amber-500/15 text-amber-400 border border-amber-500/30',
+    icon: `<svg class="w-4 h-4 text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>`,
+    dotColor: 'bg-amber-500',
+  },
+  info: {
+    color: 'blue',
+    cardClass: 'pattern-card-info',
+    badgeClass: 'bg-blue-500/15 text-blue-400 border border-blue-500/30',
+    icon: `<svg class="w-4 h-4 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`,
+    dotColor: 'bg-blue-500',
+  },
+};
+
+function renderPatternCard(pattern, traceId) {
+  const sev = (pattern.severity || 'info').toLowerCase();
+  const cfg = SEVERITY_CONFIG[sev] || SEVERITY_CONFIG.info;
+  const patternName = escHtml((pattern.pattern || 'Unknown').replace(/_/g, ' '));
+  const description = escHtml(pattern.description || '');
+  const recommendation = escHtml(pattern.recommendation || '');
+  const affectedCount = pattern.involved_spans ? pattern.involved_spans.length : 0;
+
+  return `
+    <div class="glass rounded-xl p-4 border border-white/5 ${cfg.cardClass} glass-hover cursor-pointer transition"
+         data-severity="${escHtml(sev)}"
+         onclick="openTrace('${escHtml(traceId)}')">
+      <div class="flex items-start gap-3 mb-2">
+        ${cfg.icon}
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-xs font-bold text-white">${patternName}</span>
+            <span class="px-1.5 py-0.5 text-[10px] font-semibold uppercase rounded ${cfg.badgeClass}">${escHtml(sev)}</span>
+            ${affectedCount > 0 ? `<span class="px-1.5 py-0.5 text-[10px] rounded bg-surface-100 text-slate-400 border border-white/10">${affectedCount} span${affectedCount > 1 ? 's' : ''}</span>` : ''}
+          </div>
+          <p class="text-xs text-slate-400 mt-1 leading-relaxed">${description}</p>
+        </div>
+        <span class="text-[10px] text-slate-600 font-mono flex-shrink-0">${traceId.substring(0, 8)}...</span>
+      </div>
+      ${recommendation ? `
+        <div class="mt-2 p-2.5 rounded-lg bg-surface-100 border border-white/5 text-xs text-slate-500">
+          <span class="text-slate-600 font-medium">Rec: </span>${recommendation}
+        </div>` : ''}
+    </div>
+  `;
+}
+
+function filterPatterns(severity) {
+  _activePatternFilter = severity;
+
+  // Update filter button active states
+  document.querySelectorAll('.pattern-filter-btn').forEach(btn => {
+    const btnSev = btn.getAttribute('onclick').match(/'([^']+)'/)?.[1];
+    if (btnSev === severity) {
+      btn.className = 'pattern-filter-btn px-2.5 py-1 text-[10px] rounded bg-indigo-500/20 text-indigo-300 font-medium border border-indigo-500/30 transition active';
+    } else {
+      btn.className = 'pattern-filter-btn px-2.5 py-1 text-[10px] rounded bg-surface-100 text-slate-400 hover:text-white border border-white/10 hover:border-white/20 transition';
+    }
+  });
+
+  // Re-render with filter
+  _renderFilteredPatterns();
+}
+
+function _renderFilteredPatterns() {
+  const container = document.getElementById('patterns-list');
+  if (!container) return;
+
+  const filtered = _activePatternFilter === 'all'
+    ? _allPatternsData
+    : _allPatternsData.filter(item => (item.pattern.severity || 'info').toLowerCase() === _activePatternFilter);
+
+  if (filtered.length === 0) {
+    const msg = _activePatternFilter === 'all'
+      ? 'No anti-patterns detected'
+      : `No ${_activePatternFilter} patterns detected`;
+    const sub = _activePatternFilter === 'all'
+      ? 'Checked recent error traces — all clear.'
+      : 'Try a different severity filter.';
+    // Preserve count header
+    const headerHtml = `
+      <div class="flex items-center justify-between mb-4">
+        <span class="text-xs text-slate-500">${_allPatternsData.length} total pattern(s) across all severities</span>
+      </div>`;
+    container.innerHTML = headerHtml + renderEmptyState(msg, sub);
+    return;
+  }
+
+  const totalCount = _allPatternsData.length;
+  const visibleCount = filtered.length;
+  container.innerHTML = `
+    <div class="flex items-center justify-between mb-4">
+      <span class="text-xs text-slate-500">${visibleCount} of ${totalCount} pattern(s) shown</span>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      ${filtered.map(item => renderPatternCard(item.pattern, item.traceId)).join('')}
+    </div>
+  `;
+}
+
 async function loadAllPatterns() {
   const container = document.getElementById('patterns-list');
+  _allPatternsData = [];
 
   try {
     const tracesData = await apiFetch('/v1/traces?limit=20');
@@ -2434,27 +2781,12 @@ async function loadAllPatterns() {
       </div>
     `;
 
-    let allPatternsHtml = '';
-    let patternCount = 0;
-
     for (const trace of errorTraces.slice(0, 10)) {
       try {
         const dag = await apiFetch(`/v1/traces/${trace.trace_id}/dag`);
         if (dag.patterns && dag.patterns.length > 0) {
           dag.patterns.forEach(p => {
-            patternCount++;
-            const sevClass = `severity-${p.severity}`;
-            allPatternsHtml += `
-              <div class="rounded-xl p-4 border ${sevClass} glass-hover cursor-pointer transition" onclick="openTrace('${trace.trace_id}')">
-                <div class="flex items-center gap-2 mb-1.5">
-                  <span class="px-2 py-0.5 text-[10px] font-bold uppercase rounded ${sevClass}">${p.severity}</span>
-                  <span class="text-xs font-medium text-slate-300">${escHtml(p.pattern.replace(/_/g, ' '))}</span>
-                  <span class="ml-auto text-[10px] text-slate-600 font-mono">${trace.trace_id.substring(0, 10)}...</span>
-                </div>
-                <p class="text-xs text-slate-400">${escHtml(p.description)}</p>
-                ${p.involved_spans ? `<div class="text-[10px] text-slate-600 mt-1">${p.involved_spans.length} span(s) involved</div>` : ''}
-              </div>
-            `;
+            _allPatternsData.push({ pattern: p, traceId: trace.trace_id });
           });
         }
       } catch (e) {
@@ -2462,16 +2794,20 @@ async function loadAllPatterns() {
       }
     }
 
-    if (patternCount === 0) {
+    if (_allPatternsData.length === 0) {
       container.innerHTML = renderEmptyState('No anti-patterns detected', 'Checked recent error traces — all clear.');
     } else {
-      container.innerHTML = `
-        <div class="flex items-center justify-between mb-4">
-          <h2 class="text-sm font-semibold text-white">${patternCount} Pattern(s) Detected</h2>
-          <span class="text-xs text-slate-500">From ${errorTraces.length} error trace(s)</span>
-        </div>
-        <div class="space-y-2">${allPatternsHtml}</div>
-      `;
+      // Reset filter to 'all' when reloading
+      _activePatternFilter = 'all';
+      document.querySelectorAll('.pattern-filter-btn').forEach(btn => {
+        const btnSev = btn.getAttribute('onclick').match(/'([^']+)'/)?.[1];
+        if (btnSev === 'all') {
+          btn.className = 'pattern-filter-btn px-2.5 py-1 text-[10px] rounded bg-indigo-500/20 text-indigo-300 font-medium border border-indigo-500/30 transition active';
+        } else {
+          btn.className = 'pattern-filter-btn px-2.5 py-1 text-[10px] rounded bg-surface-100 text-slate-400 hover:text-white border border-white/10 hover:border-white/20 transition';
+        }
+      });
+      _renderFilteredPatterns();
     }
   } catch (err) {
     container.innerHTML = `<div class="glass rounded-xl p-8 text-center text-red-400/60 text-sm">Failed to load patterns: ${escHtml(err.message)}</div>`;
@@ -2643,7 +2979,7 @@ function setupKeyboardNavigation() {
 }
 
 function refreshCurrentView() {
-  if (currentView === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); loadActivityTimeline(); }
+  if (currentView === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); loadActivityTimeline(); loadTrendChart(_trendHours || 24); }
   else if (currentView === 'traces') { loadTraces(); }
   else if (currentView === 'cost') { loadCostData(); }
   else if (currentView === 'patterns') { loadAllPatterns(); }
@@ -2720,7 +3056,7 @@ function startAutoRefresh() {
   autoRefreshTimer = setInterval(async () => {
     const ok = await healthCheck();
     if (!ok) return;
-    if (currentView === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); loadActivityTimeline(); }
+    if (currentView === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); loadActivityTimeline(); loadTrendChart(_trendHours || 24); }
     else if (currentView === 'traces') { loadTraces(); }
   }, 15000);
 }
@@ -2979,6 +3315,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   loadRecentTraces();
   loadAgentActivity();
   loadActivityTimeline();
+  loadTrendChart(24);
   startAutoRefresh();
 
   // Connect WebSocket for real-time updates
