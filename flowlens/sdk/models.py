@@ -19,8 +19,9 @@ class SpanKind(Enum):
     AGENT = "agent"         # Agent 主循环
     LLM = "llm"             # LLM 调用
     TOOL = "tool"           # Tool/Skill 执行
-    CHAIN = "chain"         # 多步链
+    CHAIN = "chain"         # 多步链 / LangChain chains
     RETRIEVAL = "retrieval"  # RAG 检索
+    EMBEDDING = "embedding"  # Embedding 操作
     CUSTOM = "custom"       # 用户自定义
 
 

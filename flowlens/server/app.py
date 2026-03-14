@@ -10,6 +10,7 @@ Endpoints:
 - GET    /v1/traces/{id}            — trace detail
 - GET    /v1/traces/{id}/dag        — causal DAG for a trace
 - DELETE /v1/traces/{id}            — delete a trace
+- POST   /v1/traces/batch-delete    — delete multiple traces by ID list
 - POST   /v1/traces/cleanup         — delete traces older than N days
 - GET    /v1/cost/breakdown         — cost attribution
 - GET    /v1/cost/trends            — cost over time (daily/hourly)
@@ -23,6 +24,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import time
 from collections import defaultdict
@@ -119,6 +121,16 @@ class TraceIngestRequest(BaseModel):
         if v and ("\x00" in v or ".." in v):
             raise ValueError("service_name contains disallowed sequences")
         return v
+
+
+class BatchDeleteRequest(BaseModel):
+    """Payload for POST /v1/traces/batch-delete."""
+    trace_ids: list[str] = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="List of trace IDs to delete (max 100 per request)",
+    )
 
 
 class CleanupRequest(BaseModel):
@@ -291,6 +303,29 @@ def create_app(db_path: str | None = None) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # -----------------------------------------------------------------------
+    # API key authentication (optional, disabled by default)
+    # -----------------------------------------------------------------------
+
+    # Read the API key once at app-creation time so we don't call os.getenv
+    # on every request.
+    _api_key: str | None = os.environ.get("FLOWLENS_API_KEY") or None
+
+    # Paths that are always accessible even when auth is enabled.
+    _NO_AUTH_PATHS: frozenset[str] = frozenset({"/", "/dashboard"})
+
+    @app.middleware("http")
+    async def api_key_auth(request: Request, call_next):  # type: ignore[no-untyped-def]
+        if _api_key is not None and request.url.path not in _NO_AUTH_PATHS:
+            provided = request.headers.get("X-API-Key")
+            if provided != _api_key:
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Unauthorized: invalid or missing API key"},
+                    headers={"WWW-Authenticate": "ApiKey"},
+                )
+        return await call_next(request)
 
     # -----------------------------------------------------------------------
     # Middleware — security headers + request logging + rate-limit
@@ -542,6 +577,27 @@ def create_app(db_path: str | None = None) -> FastAPI:
         return TraceListResponse(
             traces=traces, total=len(traces), limit=limit, offset=offset
         )
+
+    @app.post("/v1/traces/batch-delete", status_code=200)
+    async def batch_delete_traces(req: BatchDeleteRequest) -> dict[str, Any]:
+        """
+        Delete multiple traces at once.
+
+        Accepts a JSON body ``{"trace_ids": ["id1", "id2", ...]}``.
+        Returns the count of traces actually deleted (IDs that did not exist
+        are silently ignored).
+        """
+        # Sanitise each trace ID
+        sanitised: list[str] = []
+        for tid in req.trace_ids:
+            sanitised.append(_sanitize_id(tid, "trace_id"))
+
+        try:
+            deleted = store.batch_delete_traces(sanitised)
+        except Exception:
+            logger.exception("Batch delete failed")
+            raise HTTPException(500, "Batch delete operation failed")
+        return {"deleted": deleted, "requested": len(sanitised)}
 
     @app.post("/v1/traces/cleanup", status_code=200)
     async def cleanup_traces(req: CleanupRequest) -> dict[str, Any]:

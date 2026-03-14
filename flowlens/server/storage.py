@@ -406,6 +406,33 @@ class TraceStore:
             logger.debug("Deleted trace %s", trace_id[:12])
         return deleted
 
+    def batch_delete_traces(self, trace_ids: list[str]) -> int:
+        """
+        Delete multiple traces (and their spans) in a single transaction.
+
+        Returns the number of traces actually deleted (may be less than
+        ``len(trace_ids)`` if some IDs did not exist).
+        """
+        if not trace_ids:
+            return 0
+        conn = self._pool.primary
+        # SQLite has a default SQLITE_MAX_VARIABLE_NUMBER of 999 per statement.
+        # Chunk large lists to stay safely within that limit.
+        _CHUNK = 900
+        total_deleted = 0
+        for i in range(0, len(trace_ids), _CHUNK):
+            chunk = trace_ids[i : i + _CHUNK]
+            placeholders = ",".join("?" * len(chunk))
+            cursor = conn.execute(
+                f"DELETE FROM traces WHERE trace_id IN ({placeholders})", chunk
+            )
+            total_deleted += cursor.rowcount
+        conn.commit()
+        if total_deleted:
+            self._cache.invalidate_all()
+            logger.debug("Batch-deleted %d traces", total_deleted)
+        return total_deleted
+
     def cleanup_old_traces(self, days: int = 30) -> int:
         """
         Delete all traces whose created_at timestamp is older than *days* days.

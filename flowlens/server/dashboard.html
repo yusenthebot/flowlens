@@ -25,21 +25,68 @@
         }
       }
     }
+    // Apply saved theme preference immediately to prevent flash
+    if (localStorage.getItem('flowlens-theme') === 'light') {
+      document.documentElement.classList.remove('dark');
+    } else {
+      document.documentElement.classList.add('dark');
+    }
   </script>
   <style>
-    * { scrollbar-width: thin; scrollbar-color: #2a2f4f transparent; }
-    *::-webkit-scrollbar { width: 6px; height: 6px; }
-    *::-webkit-scrollbar-track { background: transparent; }
-    *::-webkit-scrollbar-thumb { background: #2a2f4f; border-radius: 3px; }
-    body { background: linear-gradient(145deg, #0a0d1a 0%, #0d1025 50%, #0a0d1a 100%); }
-    .glass { background: rgba(21, 25, 41, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.06); }
-    .glass-hover:hover { background: rgba(26, 31, 53, 0.85); border-color: rgba(255,255,255,0.1); }
-    .stat-glow { box-shadow: 0 0 30px -10px rgba(99, 102, 241, 0.15); }
+    /* ========== Theme transitions ========== */
+    *, *::before, *::after { transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease; }
+
+    /* ========== Dark theme (default) ========== */
+    .dark * { scrollbar-width: thin; scrollbar-color: #2a2f4f transparent; }
+    .dark *::-webkit-scrollbar { width: 6px; height: 6px; }
+    .dark *::-webkit-scrollbar-track { background: transparent; }
+    .dark *::-webkit-scrollbar-thumb { background: #2a2f4f; border-radius: 3px; }
+    .dark body { background: linear-gradient(145deg, #0a0d1a 0%, #0d1025 50%, #0a0d1a 100%); }
+    .dark .glass { background: rgba(21, 25, 41, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.06); }
+    .dark .glass-hover:hover { background: rgba(26, 31, 53, 0.85); border-color: rgba(255,255,255,0.1); }
+    .dark .stat-glow { box-shadow: 0 0 30px -10px rgba(99, 102, 241, 0.15); }
+    .dark .waterfall-tooltip { background: rgba(15, 18, 32, 0.95); border: 1px solid rgba(255,255,255,0.1); color: #e2e8f0; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+
+    /* ========== Light theme ========== */
+    html:not(.dark) * { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+    html:not(.dark) *::-webkit-scrollbar { width: 6px; height: 6px; }
+    html:not(.dark) *::-webkit-scrollbar-track { background: transparent; }
+    html:not(.dark) *::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    html:not(.dark) body { background: linear-gradient(145deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%); color: #1e293b; }
+    html:not(.dark) .glass { background: rgba(255, 255, 255, 0.75); backdrop-filter: blur(12px); border: 1px solid rgba(0,0,0,0.08); }
+    html:not(.dark) .glass-hover:hover { background: rgba(255, 255, 255, 0.9); border-color: rgba(0,0,0,0.12); }
+    html:not(.dark) .stat-glow { box-shadow: 0 0 30px -10px rgba(99, 102, 241, 0.1); }
+    html:not(.dark) .waterfall-tooltip { background: rgba(255, 255, 255, 0.95); border: 1px solid rgba(0,0,0,0.1); color: #1e293b; box-shadow: 0 8px 32px rgba(0,0,0,0.12); }
+
+    /* Light theme text overrides */
+    html:not(.dark) .text-white { color: #0f172a !important; }
+    html:not(.dark) .text-slate-200 { color: #334155 !important; }
+    html:not(.dark) .text-slate-300 { color: #475569 !important; }
+    html:not(.dark) .text-slate-400 { color: #64748b !important; }
+    html:not(.dark) .text-slate-500 { color: #94a3b8 !important; }
+    html:not(.dark) .text-slate-600 { color: #94a3b8 !important; }
+    html:not(.dark) .text-slate-700 { color: #cbd5e1 !important; }
+    html:not(.dark) .bg-surface-100, html:not(.dark) .bg-surface-200 { background-color: #f1f5f9 !important; }
+    html:not(.dark) .border-white\/5, html:not(.dark) .border-white\/10 { border-color: rgba(0,0,0,0.08) !important; }
+    html:not(.dark) .divide-white\/5 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(0,0,0,0.06) !important; }
+    html:not(.dark) .hover\:bg-white\/\[0\.02\]:hover { background: rgba(0,0,0,0.03) !important; }
+    html:not(.dark) .trace-row-selected { background: rgba(99, 102, 241, 0.06) !important; border-left: 2px solid #6366f1; }
+    html:not(.dark) .skeleton { background: linear-gradient(90deg, rgba(0,0,0,0.04) 25%, rgba(0,0,0,0.08) 50%, rgba(0,0,0,0.04) 75%); background-size: 200% 100%; animation: shimmer 1.5s ease-in-out infinite; }
+    html:not(.dark) .tab-active { border-color: #6366f1; color: #4338ca !important; background: rgba(99, 102, 241, 0.06); }
+    html:not(.dark) .tab-inactive { border-color: transparent; color: #94a3b8 !important; }
+    html:not(.dark) .tab-inactive:hover { color: #64748b !important; border-color: rgba(99, 102, 241, 0.3); }
+    html:not(.dark) .filter-input { background-color: #f8fafc !important; border-color: rgba(0,0,0,0.12) !important; color: #334155 !important; }
+    html:not(.dark) .severity-critical { background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.2); color: #dc2626; }
+    html:not(.dark) .severity-warning { background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.2); color: #d97706; }
+    html:not(.dark) .severity-info { background: rgba(59, 130, 246, 0.08); border-color: rgba(59, 130, 246, 0.2); color: #2563eb; }
+    html:not(.dark) kbd { background: #e2e8f0 !important; border-color: rgba(0,0,0,0.12) !important; color: #64748b !important; }
+
+    /* ========== Shared styles ========== */
     .fade-in { animation: fadeIn 0.3s ease-out; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
     .pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
-    .span-bar { transition: all 0.2s ease; cursor: pointer; }
+    .span-bar { transition: all 0.2s ease !important; cursor: pointer; }
     .span-bar:hover { filter: brightness(1.3); transform: scaleY(1.2); }
     .tab-active { border-color: #6366f1; color: #e0e7ff; background: rgba(99, 102, 241, 0.08); }
     .tab-inactive { border-color: transparent; color: #64748b; }
@@ -85,16 +132,12 @@
     .waterfall-tooltip {
       position: absolute;
       z-index: 100;
-      background: rgba(15, 18, 32, 0.95);
       backdrop-filter: blur(12px);
-      border: 1px solid rgba(255,255,255,0.1);
       border-radius: 8px;
       padding: 10px 14px;
       font-size: 12px;
-      color: #e2e8f0;
       pointer-events: none;
       white-space: nowrap;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
     }
 
     /* DAG edge animation for error paths */
@@ -107,6 +150,43 @@
 
     /* Trace row keyboard selection */
     .trace-row-selected { background: rgba(99, 102, 241, 0.08) !important; border-left: 2px solid #6366f1; }
+
+    /* Collapsible section */
+    .collapsible-header { cursor: pointer; user-select: none; }
+    .collapsible-header:hover { opacity: 0.8; }
+    .collapsible-content { overflow: hidden; transition: max-height 0.3s ease, opacity 0.2s ease; }
+    .collapsible-content.collapsed { max-height: 0 !important; opacity: 0; }
+    .collapsible-chevron { transition: transform 0.2s ease; }
+    .collapsible-chevron.rotated { transform: rotate(90deg); }
+
+    /* Span tree indentation lines */
+    .span-tree-line { border-left: 1px solid rgba(255,255,255,0.08); }
+    html:not(.dark) .span-tree-line { border-left: 1px solid rgba(0,0,0,0.08); }
+
+    /* Comparison highlight */
+    .compare-diff-better { background: rgba(16, 185, 129, 0.08); }
+    .compare-diff-worse { background: rgba(239, 68, 68, 0.08); }
+
+    /* Compare checkbox */
+    .compare-checkbox { opacity: 0; transition: opacity 0.15s ease; }
+    .trace-row:hover .compare-checkbox { opacity: 1; }
+    .compare-checkbox.checked { opacity: 1; }
+
+    /* Keyboard shortcuts modal */
+    .shortcuts-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 200; display: flex; align-items: center; justify-content: center; }
+    .shortcuts-modal { max-width: 480px; width: 90%; max-height: 80vh; overflow-y: auto; }
+
+    /* Virtual scroll container */
+    .virtual-scroll-container { overflow-y: auto; position: relative; }
+    .virtual-scroll-spacer { width: 100%; }
+
+    /* Theme toggle button */
+    .theme-toggle { position: relative; width: 44px; height: 24px; border-radius: 12px; cursor: pointer; transition: background-color 0.3s ease; }
+    .dark .theme-toggle { background: #1e293b; border: 1px solid rgba(255,255,255,0.1); }
+    html:not(.dark) .theme-toggle { background: #e2e8f0; border: 1px solid rgba(0,0,0,0.1); }
+    .theme-toggle-knob { position: absolute; top: 2px; width: 18px; height: 18px; border-radius: 50%; transition: left 0.3s ease, background-color 0.3s ease; }
+    .dark .theme-toggle-knob { left: 2px; background: #f1f5f9; }
+    html:not(.dark) .theme-toggle-knob { left: 22px; background: #f59e0b; }
 
     /* Mobile responsiveness */
     @media (max-width: 768px) {
@@ -148,10 +228,16 @@
           <span id="ws-label">Connecting...</span>
         </div>
         <div class="text-xs text-slate-600" id="last-refresh">--</div>
-        <!-- Keyboard shortcut hint -->
-        <div class="hidden sm:flex items-center gap-1 text-[10px] text-slate-600">
-          <kbd class="px-1 py-0.5 rounded bg-surface-100 border border-white/10 font-mono">/</kbd>
-          <span>Search</span>
+        <!-- Theme toggle -->
+        <button onclick="toggleTheme()" class="theme-toggle" title="Toggle light/dark theme" aria-label="Toggle theme">
+          <div class="theme-toggle-knob"></div>
+        </button>
+        <!-- Keyboard shortcut hints -->
+        <div class="hidden sm:flex items-center gap-2 text-[10px] text-slate-600">
+          <span class="flex items-center gap-1">
+            <kbd class="px-1 py-0.5 rounded bg-surface-100 border border-white/10 font-mono">?</kbd>
+            <span>Help</span>
+          </span>
         </div>
       </div>
     </div>
@@ -164,6 +250,10 @@
       <button onclick="switchView('traces')" data-tab="traces" class="tab-btn tab-inactive px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg">Traces</button>
       <button onclick="switchView('cost')" data-tab="cost" class="tab-btn tab-inactive px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg">Cost Analysis</button>
       <button onclick="switchView('patterns')" data-tab="patterns" class="tab-btn tab-inactive px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg">Patterns</button>
+      <button onclick="switchView('compare')" data-tab="compare" class="tab-btn tab-inactive px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg">
+        Compare
+        <span id="compare-badge" class="hidden ml-1 px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-indigo-500 text-white">0</span>
+      </button>
     </div>
   </nav>
 
@@ -261,14 +351,14 @@
         <!-- Span kind filter checkboxes -->
         <div class="flex items-center gap-2 flex-wrap">
           <span class="text-xs text-slate-500 mr-1">Kind:</span>
-          <label class="flex items-center gap-1 text-xs text-purple-300 cursor-pointer select-none hover:text-purple-200">
-            <input type="checkbox" class="filter-kind rounded bg-surface-100 border-white/10 text-purple-500 focus:ring-purple-500/30" value="llm" /> LLM
-          </label>
-          <label class="flex items-center gap-1 text-xs text-blue-300 cursor-pointer select-none hover:text-blue-200">
-            <input type="checkbox" class="filter-kind rounded bg-surface-100 border-white/10 text-blue-500 focus:ring-blue-500/30" value="tool" /> Tool
+          <label class="flex items-center gap-1 text-xs text-indigo-300 cursor-pointer select-none hover:text-indigo-200">
+            <input type="checkbox" class="filter-kind rounded bg-surface-100 border-white/10 text-indigo-500 focus:ring-indigo-500/30" value="llm" /> LLM
           </label>
           <label class="flex items-center gap-1 text-xs text-emerald-300 cursor-pointer select-none hover:text-emerald-200">
-            <input type="checkbox" class="filter-kind rounded bg-surface-100 border-white/10 text-emerald-500 focus:ring-emerald-500/30" value="agent" /> Agent
+            <input type="checkbox" class="filter-kind rounded bg-surface-100 border-white/10 text-emerald-500 focus:ring-emerald-500/30" value="tool" /> Tool
+          </label>
+          <label class="flex items-center gap-1 text-xs text-violet-300 cursor-pointer select-none hover:text-violet-200">
+            <input type="checkbox" class="filter-kind rounded bg-surface-100 border-white/10 text-violet-500 focus:ring-violet-500/30" value="agent" /> Agent
           </label>
           <label class="flex items-center gap-1 text-xs text-amber-300 cursor-pointer select-none hover:text-amber-200">
             <input type="checkbox" class="filter-kind rounded bg-surface-100 border-white/10 text-amber-500 focus:ring-amber-500/30" value="chain" /> Chain
@@ -406,9 +496,9 @@
           <div class="absolute bottom-3 left-3 z-10 glass rounded-lg p-2.5 text-[10px]">
             <div class="font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">Legend</div>
             <div class="space-y-1">
-              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full" style="background:#8b5cf6"></span><span class="text-slate-400">LLM</span></div>
-              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full" style="background:#3b82f6"></span><span class="text-slate-400">Tool</span></div>
-              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full" style="background:#10b981"></span><span class="text-slate-400">Agent</span></div>
+              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full" style="background:#6366f1"></span><span class="text-slate-400">LLM</span></div>
+              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full" style="background:#10b981"></span><span class="text-slate-400">Tool</span></div>
+              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full" style="background:#8b5cf6"></span><span class="text-slate-400">Agent</span></div>
               <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full" style="background:#f59e0b"></span><span class="text-slate-400">Chain</span></div>
               <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full" style="background:#06b6d4"></span><span class="text-slate-400">Retrieval</span></div>
               <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm border-2 border-red-500" style="background:#7f1d1d"></span><span class="text-slate-400">Root Cause</span></div>
@@ -460,7 +550,59 @@
       </div>
     </div>
 
+    <!-- COMPARE VIEW -->
+    <div id="view-compare" class="view-panel hidden">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-semibold text-white">Trace Comparison</h2>
+        <button onclick="clearComparison()" class="px-3 py-1.5 text-xs font-medium text-slate-400 bg-surface-100 rounded-lg border border-white/10 hover:border-white/20 hover:text-slate-200 transition">Clear Selection</button>
+      </div>
+      <div id="compare-instructions" class="glass rounded-xl p-8 text-center">
+        <svg class="w-16 h-16 text-slate-700 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/>
+        </svg>
+        <p class="text-sm text-slate-400 mb-2">Select 2 traces to compare</p>
+        <p class="text-xs text-slate-600">Use the checkboxes in the Traces view to select traces for side-by-side comparison.</p>
+      </div>
+      <div id="compare-content" class="hidden"></div>
+    </div>
+
   </main>
+
+  <!-- Keyboard Shortcuts Modal -->
+  <div id="shortcuts-modal" class="shortcuts-modal-overlay hidden" onclick="if(event.target===this)closeShortcutsModal()">
+    <div class="shortcuts-modal glass rounded-2xl p-6 fade-in">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-base font-semibold text-white">Keyboard Shortcuts</h3>
+        <button onclick="closeShortcutsModal()" class="text-slate-500 hover:text-slate-300 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="space-y-3">
+        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Navigation</div>
+        <div class="grid grid-cols-2 gap-2">
+          <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">j</kbd><span class="text-slate-300">Next trace</span></div>
+          <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">k</kbd><span class="text-slate-300">Previous trace</span></div>
+          <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">Enter</kbd><span class="text-slate-300">Open selected trace</span></div>
+          <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">Esc</kbd><span class="text-slate-300">Close / Go back</span></div>
+        </div>
+        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider pt-2">Views</div>
+        <div class="grid grid-cols-2 gap-2">
+          <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">1</kbd><span class="text-slate-300">Overview</span></div>
+          <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">2</kbd><span class="text-slate-300">Traces</span></div>
+          <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">3</kbd><span class="text-slate-300">Cost Analysis</span></div>
+          <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">4</kbd><span class="text-slate-300">Patterns</span></div>
+          <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">5</kbd><span class="text-slate-300">Compare</span></div>
+        </div>
+        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider pt-2">Actions</div>
+        <div class="grid grid-cols-2 gap-2">
+          <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">/</kbd><span class="text-slate-300">Focus search</span></div>
+          <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">?</kbd><span class="text-slate-300">Show shortcuts</span></div>
+          <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">r</kbd><span class="text-slate-300">Refresh data</span></div>
+          <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">t</kbd><span class="text-slate-300">Toggle theme</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
 
 <script>
 // =========================================================================
@@ -480,6 +622,10 @@ let selectedTraceIndex = -1; // For keyboard navigation
 let wsConnection = null;
 let wsReconnectTimer = null;
 let wsReconnectAttempts = 0;
+let compareSelection = []; // For trace comparison (max 2)
+let isDarkTheme = document.documentElement.classList.contains('dark');
+let dagLoaded = false; // Lazy load flag for DAG
+let virtualScrollState = { traces: [], renderedStart: 0, renderedEnd: 0, rowHeight: 56, containerHeight: 600 };
 
 // =========================================================================
 // API Helpers
@@ -706,6 +852,7 @@ function switchView(view) {
   else if (view === 'traces') { loadTraces(); }
   else if (view === 'cost') { loadCostData(); }
   else if (view === 'patterns') { loadAllPatterns(); }
+  else if (view === 'compare') { renderCompareView(); }
 }
 
 function showDetailTab(tab) {
@@ -779,8 +926,10 @@ function renderTraceRow(trace, compact = false) {
   const cost = (trace.total_cost_usd || 0).toFixed(4);
   const traceIdShort = (trace.trace_id || '').substring(0, 12);
 
+  const isSelected = compareSelection.includes(trace.trace_id);
   return `
     <div class="trace-row flex items-center gap-4 px-5 py-3.5 hover:bg-white/[0.02] cursor-pointer transition group" data-trace-id="${escHtml(trace.trace_id)}" onclick="openTrace('${escHtml(trace.trace_id)}')">
+      ${!compact ? `<input type="checkbox" class="compare-checkbox ${isSelected ? 'checked' : ''} w-3.5 h-3.5 rounded bg-surface-100 border-white/10 text-indigo-500 focus:ring-indigo-500/30 flex-shrink-0" title="Select for comparison" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleCompare('${escHtml(trace.trace_id)}', this)" />` : ''}
       ${statusDot}
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2 flex-wrap">
@@ -860,7 +1009,7 @@ async function loadTraces() {
       document.getElementById('page-info').textContent = 'No results';
       return;
     }
-    container.innerHTML = traces.map(t => renderTraceRow(t)).join('');
+    renderVirtualizedTraces(traces, 'traces-list');
 
     document.getElementById('btn-prev').disabled = traceOffset === 0;
     document.getElementById('btn-next').disabled = data.traces.length < TRACE_LIMIT;
@@ -972,6 +1121,37 @@ function renderTraceDetail(data) {
 
   const hasErrors = data.has_errors === true || data.has_errors === 1;
   const timeStr = data.start_time > 0 ? new Date(data.start_time * 1000).toLocaleString() : '--';
+
+  // Token usage breakdown per span kind
+  const tokenByKind = {};
+  (data.spans || []).forEach(s => {
+    const kind = (s.kind || 'custom').toLowerCase();
+    if (!tokenByKind[kind]) tokenByKind[kind] = { input: 0, output: 0, cost: 0 };
+    if (s.token_usage) {
+      tokenByKind[kind].input += s.token_usage.input_tokens || 0;
+      tokenByKind[kind].output += s.token_usage.output_tokens || 0;
+      tokenByKind[kind].cost += s.token_usage.total_cost_usd || 0;
+    }
+  });
+
+  let tokenBreakdownHtml = '';
+  const hasTokens = Object.values(tokenByKind).some(v => v.input > 0 || v.output > 0);
+  if (hasTokens) {
+    tokenBreakdownHtml = '<div class="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">';
+    for (const [kind, usage] of Object.entries(tokenByKind)) {
+      if (usage.input === 0 && usage.output === 0) continue;
+      const cfg = SPAN_KIND_COLORS[kind] || SPAN_KIND_COLORS.custom;
+      tokenBreakdownHtml += `
+        <div class="p-2 rounded-lg ${cfg.bg} text-xs">
+          <div class="font-medium ${cfg.text} mb-1">${cfg.label}</div>
+          <div class="text-slate-400">In: ${usage.input.toLocaleString()}</div>
+          <div class="text-slate-400">Out: ${usage.output.toLocaleString()}</div>
+          <div class="text-emerald-400">$${usage.cost.toFixed(4)}</div>
+        </div>`;
+    }
+    tokenBreakdownHtml += '</div>';
+  }
+
   const meta = [
     `<span>Service: <strong class="text-slate-200">${escHtml(data.service_name || 'unknown')}</strong></span>`,
     `<span>Duration: <strong class="text-slate-200">${formatDuration(data.duration_ms || 0)}</strong></span>`,
@@ -981,7 +1161,7 @@ function renderTraceDetail(data) {
     `<span>Time: <strong class="text-slate-200">${timeStr}</strong></span>`,
     hasErrors ? '<span class="text-red-400">Has Errors</span>' : '<span class="text-emerald-400">OK</span>',
   ];
-  document.getElementById('detail-trace-meta').innerHTML = meta.join('');
+  document.getElementById('detail-trace-meta').innerHTML = meta.join('') + tokenBreakdownHtml;
 
   renderWaterfallTimeline(data.spans || []);
 }
@@ -990,9 +1170,9 @@ function renderTraceDetail(data) {
 // Timeline — Waterfall Chart
 // =========================================================================
 const SPAN_KIND_COLORS = {
-  llm:       { bg: 'bg-purple-500/20', bar: '#8b5cf6', text: 'text-purple-300', label: 'LLM' },
-  tool:      { bg: 'bg-blue-500/20',   bar: '#3b82f6', text: 'text-blue-300',   label: 'Tool' },
-  agent:     { bg: 'bg-emerald-500/20', bar: '#10b981', text: 'text-emerald-300', label: 'Agent' },
+  llm:       { bg: 'bg-indigo-500/20', bar: '#6366f1', text: 'text-indigo-300', label: 'LLM' },
+  tool:      { bg: 'bg-emerald-500/20', bar: '#10b981', text: 'text-emerald-300', label: 'Tool' },
+  agent:     { bg: 'bg-violet-500/20', bar: '#8b5cf6', text: 'text-violet-300', label: 'Agent' },
   chain:     { bg: 'bg-amber-500/20',   bar: '#f59e0b', text: 'text-amber-300',  label: 'Chain' },
   retrieval: { bg: 'bg-cyan-500/20',    bar: '#06b6d4', text: 'text-cyan-300',   label: 'Retrieval' },
   custom:    { bg: 'bg-slate-500/20',   bar: '#64748b', text: 'text-slate-300',  label: 'Custom' },
@@ -1054,6 +1234,12 @@ function renderWaterfallTimeline(spans) {
   }
   gridHtml += '</div>';
 
+  // Track which spans have children for collapse toggle
+  const hasChildren = {};
+  spans.forEach(s => {
+    if (s.parent_span_id) hasChildren[s.parent_span_id] = true;
+  });
+
   let rowsHtml = '';
   flatList.forEach(({ span, depth }, idx) => {
     const kind = (span.kind || 'custom').toLowerCase();
@@ -1067,16 +1253,21 @@ function renderWaterfallTimeline(spans) {
     const durationMs = span.duration_ms || spanDuration * 1000 || 0;
     const durationStr = formatDuration(durationMs);
 
-    const indent = depth * 16;
+    const indent = depth * 20;
     const barColor = isError ? '#ef4444' : cfg.bar;
     const barOpacity = isError ? 0.85 : 0.7;
+    const barBorder = isError ? '2px solid #f87171' : 'none';
 
     // Build tooltip data attributes
-    const tokens = span.token_usage ? (span.token_usage.total_tokens || span.token_usage.input_tokens + span.token_usage.output_tokens || 0) : 0;
+    const tokens = span.token_usage ? (span.token_usage.total_tokens || (span.token_usage.input_tokens || 0) + (span.token_usage.output_tokens || 0) || 0) : 0;
     const cost = span.token_usage ? (span.token_usage.total_cost_usd || 0) : 0;
+    const canCollapse = hasChildren[span.span_id];
 
     rowsHtml += `
       <div class="flex items-center gap-0 py-1 px-2 rounded-lg hover:bg-white/[0.03] cursor-pointer transition group waterfall-row"
+           data-span-id="${span.span_id}"
+           data-parent-span-id="${span.parent_span_id || ''}"
+           data-depth="${depth}"
            onclick="openSpanDetail('${span.span_id}')"
            data-span-name="${escHtml(span.name)}"
            data-span-kind="${cfg.label}"
@@ -1086,17 +1277,17 @@ function renderWaterfallTimeline(spans) {
            data-span-cost="${cost.toFixed(6)}"
            onmouseenter="showWaterfallTooltip(event, this)"
            onmouseleave="hideWaterfallTooltip()">
-        <!-- Label column -->
-        <div class="span-label-col flex items-center gap-1.5 w-[220px] min-w-[220px] flex-shrink-0" style="padding-left:${indent}px">
-          ${depth > 0 ? `<svg class="w-3 h-3 text-slate-700 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>` : ''}
+        <!-- Label column with tree indentation -->
+        <div class="span-label-col flex items-center gap-1 w-[220px] min-w-[220px] flex-shrink-0" style="padding-left:${indent}px">
+          ${canCollapse ? `<button class="collapsible-chevron rotated w-4 h-4 flex items-center justify-center text-slate-600 hover:text-slate-400 flex-shrink-0 transition" onclick="event.stopPropagation(); toggleSpanChildren('${span.span_id}', this)" title="Collapse/Expand"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg></button>` : (depth > 0 ? '<span class="w-4 flex-shrink-0"></span>' : '')}
           <span class="px-1.5 py-0.5 text-[10px] font-medium rounded flex-shrink-0 ${cfg.bg} ${cfg.text}">${cfg.label}</span>
           <span class="text-xs text-slate-300 truncate group-hover:text-white transition">${escHtml(span.name)}</span>
-          ${isError ? '<span class="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0"></span>' : ''}
+          ${isError ? '<span class="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" title="Error"></span>' : ''}
         </div>
         <!-- Bar column -->
         <div class="flex-1 relative h-7 min-w-0">
           <div class="span-bar absolute top-1 h-5 rounded flex items-center overflow-hidden"
-               style="left:${leftPct}%;width:${widthPct}%;background:${barColor};opacity:${barOpacity}">
+               style="left:${leftPct}%;width:${widthPct}%;background:${barColor};opacity:${barOpacity};border:${barBorder}">
             ${widthPct > 8 ? `<span class="px-1.5 text-[10px] font-medium text-white/90 whitespace-nowrap">${durationStr}</span>` : ''}
           </div>
           ${widthPct <= 8 ? `<span class="absolute top-1.5 text-[10px] text-slate-500 whitespace-nowrap" style="left:${leftPct + widthPct + 0.5}%">${durationStr}</span>` : ''}
@@ -1192,79 +1383,109 @@ function openSpanDetail(spanId) {
       ${isError ? '<span class="px-2 py-0.5 text-xs font-medium rounded bg-red-500/10 text-red-300 border border-red-500/20">ERROR</span>' : '<span class="px-2 py-0.5 text-xs font-medium rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">OK</span>'}
     </div>
     <h4 class="text-base font-semibold text-white">${escHtml(span.name)}</h4>
-    <div class="text-xs text-slate-500 font-mono mt-1">${span.span_id}</div>
+    <div class="flex items-center gap-1 mt-1">
+      <span class="text-xs text-slate-500 font-mono">${span.span_id}</span>
+      <button onclick="navigator.clipboard.writeText('${span.span_id}');showToast('Span ID copied','success',1500)" class="p-0.5 rounded hover:bg-white/5 text-slate-600 hover:text-slate-400 transition" title="Copy span ID">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+      </button>
+    </div>
   </div>`;
 
-  // Timing
+  // Timing — collapsible
   const startStr = span.start_time > 0 ? new Date(span.start_time * 1000).toLocaleTimeString() : '--';
   const durationMs = span.duration_ms || ((span.end_time - span.start_time) * 1000) || 0;
-  html += `<div class="mb-4">
-    <h5 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Timing</h5>
+  html += renderCollapsibleSection('Timing', `
     <div class="space-y-1 text-xs">
       <div class="flex justify-between"><span class="text-slate-500">Start</span><span class="text-slate-300">${startStr}</span></div>
       <div class="flex justify-between"><span class="text-slate-500">Duration</span><span class="text-slate-300">${formatDuration(durationMs)}</span></div>
     </div>
-  </div>`;
+  `, true);
 
   // Parent
   if (span.parent_span_id) {
-    html += `<div class="mb-4">
-      <h5 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Parent</h5>
-      <div class="text-xs font-mono text-slate-400 cursor-pointer hover:text-indigo-300 transition" onclick="openSpanDetail('${span.parent_span_id}')">${span.parent_span_id}</div>
-    </div>`;
+    const parentSpan = currentTraceData.spans.find(s => s.span_id === span.parent_span_id);
+    html += renderCollapsibleSection('Parent', `
+      <div class="text-xs font-mono text-indigo-400 cursor-pointer hover:text-indigo-300 transition" onclick="openSpanDetail('${span.parent_span_id}')">
+        ${parentSpan ? escHtml(parentSpan.name) + ' — ' : ''}${span.parent_span_id}
+      </div>
+    `, true);
   }
 
-  // Token Usage
+  // Children
+  const children = currentTraceData.spans.filter(s => s.parent_span_id === span.span_id);
+  if (children.length > 0) {
+    let childrenHtml = '<div class="space-y-1">';
+    children.forEach(child => {
+      const childKind = (child.kind || 'custom').toLowerCase();
+      const childCfg = SPAN_KIND_COLORS[childKind] || SPAN_KIND_COLORS.custom;
+      const childErr = child.status === 'error';
+      childrenHtml += `
+        <div class="flex items-center gap-2 text-xs cursor-pointer hover:bg-white/[0.03] p-1 rounded transition" onclick="openSpanDetail('${child.span_id}')">
+          <span class="px-1 py-0.5 text-[9px] font-medium rounded ${childCfg.bg} ${childCfg.text}">${childCfg.label}</span>
+          <span class="text-slate-300 truncate">${escHtml(child.name)}</span>
+          ${childErr ? '<span class="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0"></span>' : ''}
+          <span class="text-slate-600 ml-auto text-[10px] tabular-nums">${formatDuration(child.duration_ms || 0)}</span>
+        </div>`;
+    });
+    childrenHtml += '</div>';
+    html += renderCollapsibleSection(`Children (${children.length})`, childrenHtml, true);
+  }
+
+  // Token Usage — with visual breakdown
   const tu = span.token_usage;
   if (tu) {
-    html += `<div class="mb-4">
-      <h5 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Token Usage</h5>
-      <div class="space-y-1 text-xs">
+    const totalTok = (tu.input_tokens || 0) + (tu.output_tokens || 0);
+    const inputPct = totalTok > 0 ? ((tu.input_tokens || 0) / totalTok * 100).toFixed(0) : 0;
+    const outputPct = totalTok > 0 ? ((tu.output_tokens || 0) / totalTok * 100).toFixed(0) : 0;
+    html += renderCollapsibleSection('Token Usage', `
+      <div class="space-y-2 text-xs">
         <div class="flex justify-between"><span class="text-slate-500">Input</span><span class="text-slate-300">${(tu.input_tokens || 0).toLocaleString()}</span></div>
         <div class="flex justify-between"><span class="text-slate-500">Output</span><span class="text-slate-300">${(tu.output_tokens || 0).toLocaleString()}</span></div>
-        <div class="flex justify-between"><span class="text-slate-500">Cost</span><span class="text-emerald-300">$${(tu.total_cost_usd || 0).toFixed(6)}</span></div>
+        ${totalTok > 0 ? `<div class="flex h-2 rounded-full overflow-hidden bg-surface-200 mt-1">
+          <div class="bg-blue-500/60" style="width:${inputPct}%" title="Input ${inputPct}%"></div>
+          <div class="bg-emerald-500/60" style="width:${outputPct}%" title="Output ${outputPct}%"></div>
+        </div>
+        <div class="flex justify-between text-[10px] text-slate-600"><span>Input ${inputPct}%</span><span>Output ${outputPct}%</span></div>` : ''}
+        <div class="flex justify-between border-t border-white/5 pt-1"><span class="text-slate-500">Cost</span><span class="text-emerald-300">$${(tu.total_cost_usd || 0).toFixed(6)}</span></div>
       </div>
-    </div>`;
+    `, true);
   }
 
-  // Error
+  // Error — collapsible, always open
   if (span.error || span.error_message) {
     const errMsg = span.error ? (span.error.message || JSON.stringify(span.error)) : span.error_message;
-    html += `<div class="mb-4">
-      <h5 class="text-xs font-semibold text-red-400 uppercase tracking-wider mb-2">Error</h5>
+    html += renderCollapsibleSection('Error', `
       <div class="p-3 rounded-lg bg-red-500/5 border border-red-500/20 text-xs text-red-300 font-mono break-all">${escHtml(errMsg)}</div>
-    </div>`;
+    `, true, 'text-red-400');
   }
 
-  // Attributes
+  // Attributes — collapsible
   const attrs = span.attributes || {};
   if (Object.keys(attrs).length > 0) {
-    html += `<div class="mb-4">
-      <h5 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Attributes</h5>
-      <div class="space-y-1">`;
+    let attrHtml = '<div class="space-y-1">';
     for (const [key, val] of Object.entries(attrs)) {
-      html += `<div class="flex justify-between text-xs gap-2">
+      attrHtml += `<div class="flex justify-between text-xs gap-2">
         <span class="text-slate-500 truncate">${escHtml(key)}</span>
         <span class="text-slate-300 text-right break-all">${escHtml(String(val))}</span>
       </div>`;
     }
-    html += '</div></div>';
+    attrHtml += '</div>';
+    html += renderCollapsibleSection(`Attributes (${Object.keys(attrs).length})`, attrHtml, false);
   }
 
-  // Events
+  // Events — collapsible
   const events = span.events || [];
   if (events.length > 0) {
-    html += `<div class="mb-4">
-      <h5 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Events (${events.length})</h5>
-      <div class="space-y-2">`;
+    let eventsHtml = '<div class="space-y-2">';
     events.forEach(ev => {
       const evTime = ev.timestamp > 0 ? new Date(ev.timestamp * 1000).toLocaleTimeString() : '--';
-      html += `<div class="p-2 rounded bg-surface-100 border border-white/5">
+      eventsHtml += `<div class="p-2 rounded bg-surface-100 border border-white/5">
         <div class="flex justify-between text-xs mb-1"><span class="text-slate-300 font-medium">${escHtml(ev.name)}</span><span class="text-slate-600">${evTime}</span></div>
         ${Object.keys(ev.attributes || {}).length > 0 ? `<pre class="text-[10px] text-slate-500 mt-1 overflow-x-auto">${escHtml(JSON.stringify(ev.attributes, null, 2))}</pre>` : ''}
       </div>`;
     });
-    html += '</div></div>';
+    eventsHtml += '</div>';
+    html += renderCollapsibleSection(`Events (${events.length})`, eventsHtml, false);
   }
 
   document.getElementById('span-detail-content').innerHTML = html;
@@ -1278,12 +1499,32 @@ function closeSpanDetail() {
 // Causal DAG — with dagre layout, animated edges, zoom controls, legend
 // =========================================================================
 async function loadDAG(traceId) {
+  // Show skeleton loading state
+  const cyContainer = document.getElementById('cy-container');
+  cyContainer.innerHTML = `
+    <div class="flex items-center justify-center h-full">
+      <div class="text-center">
+        <div class="skeleton w-48 h-4 mb-3 mx-auto"></div>
+        <div class="skeleton w-32 h-3 mx-auto"></div>
+        <div class="mt-6 flex gap-4 justify-center">
+          <div class="skeleton w-10 h-10 rounded-full"></div>
+          <div class="skeleton w-10 h-10 rounded-full"></div>
+          <div class="skeleton w-10 h-10 rounded-full"></div>
+        </div>
+        <div class="mt-4 flex gap-2 justify-center">
+          <div class="skeleton w-20 h-1 rounded"></div>
+          <div class="skeleton w-20 h-1 rounded"></div>
+        </div>
+      </div>
+    </div>`;
+
   try {
     const data = await apiFetch(`/v1/traces/${traceId}/dag`);
+    dagLoaded = true;
     renderDAG(data);
     renderDAGPatterns(data.patterns || []);
   } catch (err) {
-    document.getElementById('cy-container').innerHTML = `<div class="flex items-center justify-center h-full text-slate-600 text-sm">Failed to load DAG: ${escHtml(err.message)}</div>`;
+    cyContainer.innerHTML = `<div class="flex items-center justify-center h-full text-slate-600 text-sm">Failed to load DAG: ${escHtml(err.message)}</div>`;
   }
 }
 
@@ -1291,7 +1532,7 @@ function renderDAG(dagData) {
   if (cyInstance) { cyInstance.destroy(); cyInstance = null; }
 
   const kindColors = {
-    llm: '#8b5cf6', tool: '#3b82f6', agent: '#10b981', chain: '#f59e0b',
+    llm: '#6366f1', tool: '#10b981', agent: '#8b5cf6', chain: '#f59e0b',
     retrieval: '#06b6d4', custom: '#64748b'
   };
 
@@ -1777,6 +2018,20 @@ async function healthCheck() {
 // =========================================================================
 function setupKeyboardNavigation() {
   document.addEventListener('keydown', (e) => {
+    // Close shortcuts modal on Escape
+    const shortcutsModal = document.getElementById('shortcuts-modal');
+    if (e.key === 'Escape' && !shortcutsModal.classList.contains('hidden')) {
+      closeShortcutsModal();
+      return;
+    }
+
+    // "?" to show shortcuts help — only when not in input
+    if (e.key === '?' && !isInputFocused()) {
+      e.preventDefault();
+      openShortcutsModal();
+      return;
+    }
+
     // "/" to focus search — only when not already in an input
     if (e.key === '/' && !isInputFocused()) {
       e.preventDefault();
@@ -1786,6 +2041,27 @@ function setupKeyboardNavigation() {
         setTimeout(() => searchInput.focus(), 100);
       }
       return;
+    }
+
+    // "t" to toggle theme
+    if (e.key === 't' && !isInputFocused()) {
+      toggleTheme();
+      return;
+    }
+
+    // "r" to refresh
+    if (e.key === 'r' && !isInputFocused()) {
+      refreshCurrentView();
+      return;
+    }
+
+    // Number keys for view switching
+    if (!isInputFocused()) {
+      const viewMap = { '1': 'overview', '2': 'traces', '3': 'cost', '4': 'patterns', '5': 'compare' };
+      if (viewMap[e.key]) {
+        switchView(viewMap[e.key]);
+        return;
+      }
     }
 
     // Escape to go back or close panels
@@ -1802,17 +2078,17 @@ function setupKeyboardNavigation() {
       }
     }
 
-    // Arrow keys for trace list navigation
+    // j/k and Arrow keys for trace list navigation
     if (currentView === 'traces' || currentView === 'overview') {
       const listId = currentView === 'traces' ? 'traces-list' : 'recent-traces-list';
       const rows = document.querySelectorAll(`#${listId} .trace-row`);
       if (rows.length === 0) return;
 
-      if (e.key === 'ArrowDown' && !isInputFocused()) {
+      if ((e.key === 'j' || e.key === 'ArrowDown') && !isInputFocused()) {
         e.preventDefault();
         selectedTraceIndex = Math.min(selectedTraceIndex + 1, rows.length - 1);
         highlightTraceRow(rows);
-      } else if (e.key === 'ArrowUp' && !isInputFocused()) {
+      } else if ((e.key === 'k' || e.key === 'ArrowUp') && !isInputFocused()) {
         e.preventDefault();
         selectedTraceIndex = Math.max(selectedTraceIndex - 1, 0);
         highlightTraceRow(rows);
@@ -1823,6 +2099,61 @@ function setupKeyboardNavigation() {
       }
     }
   });
+}
+
+function refreshCurrentView() {
+  if (currentView === 'overview') { loadStats(); loadRecentTraces(); }
+  else if (currentView === 'traces') { loadTraces(); }
+  else if (currentView === 'cost') { loadCostData(); }
+  else if (currentView === 'patterns') { loadAllPatterns(); }
+  showToast('Refreshed', 'success', 1500);
+}
+
+// =========================================================================
+// Theme Toggle
+// =========================================================================
+function toggleTheme() {
+  isDarkTheme = !isDarkTheme;
+  if (isDarkTheme) {
+    document.documentElement.classList.add('dark');
+    document.body.classList.add('dark');
+    localStorage.setItem('flowlens-theme', 'dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+    document.body.classList.remove('dark');
+    localStorage.setItem('flowlens-theme', 'light');
+  }
+  // Update chart colors if charts exist
+  updateChartTheme();
+}
+
+function updateChartTheme() {
+  const textColor = isDarkTheme ? '#94a3b8' : '#64748b';
+  const gridColor = isDarkTheme ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.06)';
+  for (const [id, chart] of Object.entries(chartInstances)) {
+    if (chart && chart.options) {
+      if (chart.options.plugins && chart.options.plugins.legend && chart.options.plugins.legend.labels) {
+        chart.options.plugins.legend.labels.color = textColor;
+      }
+      if (chart.options.scales) {
+        for (const axis of Object.values(chart.options.scales)) {
+          if (axis.ticks) axis.ticks.color = textColor;
+          if (axis.grid) axis.grid.color = gridColor;
+        }
+      }
+      chart.update();
+    }
+  }
+}
+
+// =========================================================================
+// Shortcuts Modal
+// =========================================================================
+function openShortcutsModal() {
+  document.getElementById('shortcuts-modal').classList.remove('hidden');
+}
+function closeShortcutsModal() {
+  document.getElementById('shortcuts-modal').classList.add('hidden');
 }
 
 function isInputFocused() {
@@ -1854,9 +2185,250 @@ function startAutoRefresh() {
 }
 
 // =========================================================================
+// Collapsible Sections Helper
+// =========================================================================
+function renderCollapsibleSection(title, content, startOpen = true, titleColor = 'text-slate-400') {
+  const id = 'section-' + title.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase() + '-' + Math.random().toString(36).substr(2, 4);
+  return `<div class="mb-3">
+    <div class="collapsible-header flex items-center gap-1.5 mb-2" onclick="toggleCollapsible('${id}', this)">
+      <svg class="collapsible-chevron w-3 h-3 ${titleColor} ${startOpen ? 'rotated' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      <h5 class="text-xs font-semibold ${titleColor} uppercase tracking-wider">${title}</h5>
+    </div>
+    <div id="${id}" class="collapsible-content ${startOpen ? '' : 'collapsed'}" style="max-height:${startOpen ? '2000px' : '0'}">
+      ${content}
+    </div>
+  </div>`;
+}
+
+function toggleCollapsible(id, headerEl) {
+  const content = document.getElementById(id);
+  const chevron = headerEl.querySelector('.collapsible-chevron');
+  if (content.classList.contains('collapsed')) {
+    content.classList.remove('collapsed');
+    content.style.maxHeight = content.scrollHeight + 'px';
+    chevron.classList.add('rotated');
+  } else {
+    content.style.maxHeight = '0';
+    content.classList.add('collapsed');
+    chevron.classList.remove('rotated');
+  }
+}
+
+// =========================================================================
+// Span Tree Collapse/Expand
+// =========================================================================
+function toggleSpanChildren(spanId, btn) {
+  const rows = document.querySelectorAll('.waterfall-row');
+  const isCollapsing = btn.classList.contains('rotated');
+
+  btn.classList.toggle('rotated');
+
+  // Find all descendant spans
+  const descendants = new Set();
+  function findDescendants(parentId) {
+    rows.forEach(row => {
+      if (row.dataset.parentSpanId === parentId) {
+        descendants.add(row.dataset.spanId);
+        findDescendants(row.dataset.spanId);
+      }
+    });
+  }
+  findDescendants(spanId);
+
+  rows.forEach(row => {
+    if (descendants.has(row.dataset.spanId)) {
+      row.style.display = isCollapsing ? 'none' : 'flex';
+      // Also reset child collapse buttons when expanding
+      if (!isCollapsing) {
+        const childBtn = row.querySelector('.collapsible-chevron');
+        if (childBtn) childBtn.classList.add('rotated');
+      }
+    }
+  });
+}
+
+// =========================================================================
+// Trace Comparison
+// =========================================================================
+function toggleCompare(traceId, checkbox) {
+  const idx = compareSelection.indexOf(traceId);
+  if (idx >= 0) {
+    compareSelection.splice(idx, 1);
+    checkbox.classList.remove('checked');
+  } else {
+    if (compareSelection.length >= 2) {
+      showToast('Maximum 2 traces can be compared. Deselect one first.', 'warning');
+      checkbox.checked = false;
+      return;
+    }
+    compareSelection.push(traceId);
+    checkbox.classList.add('checked');
+  }
+  updateCompareBadge();
+}
+
+function updateCompareBadge() {
+  const badge = document.getElementById('compare-badge');
+  if (compareSelection.length > 0) {
+    badge.classList.remove('hidden');
+    badge.textContent = compareSelection.length;
+  } else {
+    badge.classList.add('hidden');
+  }
+}
+
+function clearComparison() {
+  compareSelection = [];
+  updateCompareBadge();
+  document.querySelectorAll('.compare-checkbox').forEach(cb => {
+    cb.checked = false;
+    cb.classList.remove('checked');
+  });
+  renderCompareView();
+}
+
+async function renderCompareView() {
+  const instructions = document.getElementById('compare-instructions');
+  const content = document.getElementById('compare-content');
+
+  if (compareSelection.length < 2) {
+    instructions.classList.remove('hidden');
+    content.classList.add('hidden');
+    return;
+  }
+
+  instructions.classList.add('hidden');
+  content.classList.remove('hidden');
+  content.innerHTML = '<div class="text-center text-sm text-slate-500 py-8">Loading traces for comparison...</div>';
+
+  try {
+    const [trace1, trace2] = await Promise.all([
+      apiFetch(`/v1/traces/${compareSelection[0]}`),
+      apiFetch(`/v1/traces/${compareSelection[1]}`),
+    ]);
+
+    let html = '<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">';
+
+    // Side-by-side headers
+    [trace1, trace2].forEach((t, i) => {
+      const hasErrors = t.has_errors === true || t.has_errors === 1;
+      html += `
+        <div class="glass rounded-xl p-4">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="text-xs font-mono text-slate-400">${t.trace_id.substring(0, 16)}...</span>
+            ${hasErrors ? '<span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-red-500/10 text-red-300 border border-red-500/20">Error</span>' : '<span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">OK</span>'}
+            <button onclick="openTrace('${t.trace_id}')" class="ml-auto text-xs text-indigo-400 hover:text-indigo-300">View</button>
+          </div>
+          <div class="space-y-2 text-xs">
+            <div class="flex justify-between"><span class="text-slate-500">Service</span><span class="text-slate-300">${escHtml(t.service_name || 'unknown')}</span></div>
+            <div class="flex justify-between"><span class="text-slate-500">Duration</span><span class="text-slate-300">${formatDuration(t.duration_ms || 0)}</span></div>
+            <div class="flex justify-between"><span class="text-slate-500">Spans</span><span class="text-slate-300">${t.span_count || (t.spans || []).length}</span></div>
+            <div class="flex justify-between"><span class="text-slate-500">Tokens</span><span class="text-slate-300">${(t.total_tokens || 0).toLocaleString()}</span></div>
+            <div class="flex justify-between"><span class="text-slate-500">Cost</span><span class="text-slate-300">$${(t.total_cost_usd || 0).toFixed(4)}</span></div>
+          </div>
+        </div>`;
+    });
+
+    html += '</div>';
+
+    // Comparison table with diffs
+    html += '<div class="glass rounded-xl p-4 mt-4"><h3 class="text-sm font-semibold text-white mb-3">Differences</h3>';
+    html += '<div class="space-y-2">';
+
+    const comparisons = [
+      { label: 'Duration', v1: trace1.duration_ms || 0, v2: trace2.duration_ms || 0, fmt: v => formatDuration(v), lowerBetter: true },
+      { label: 'Span Count', v1: trace1.span_count || (trace1.spans || []).length, v2: trace2.span_count || (trace2.spans || []).length, fmt: v => v.toString(), lowerBetter: null },
+      { label: 'Total Tokens', v1: trace1.total_tokens || 0, v2: trace2.total_tokens || 0, fmt: v => v.toLocaleString(), lowerBetter: true },
+      { label: 'Cost', v1: trace1.total_cost_usd || 0, v2: trace2.total_cost_usd || 0, fmt: v => '$' + v.toFixed(4), lowerBetter: true },
+      { label: 'Errors', v1: trace1.has_errors ? 1 : 0, v2: trace2.has_errors ? 1 : 0, fmt: v => v ? 'Yes' : 'No', lowerBetter: true },
+    ];
+
+    comparisons.forEach(c => {
+      const diff = c.v2 - c.v1;
+      const pct = c.v1 > 0 ? ((diff / c.v1) * 100).toFixed(1) : (diff > 0 ? '+100' : '0');
+      let diffClass = '';
+      let diffLabel = '';
+      if (c.lowerBetter !== null && diff !== 0) {
+        const isBetter = c.lowerBetter ? diff < 0 : diff > 0;
+        diffClass = isBetter ? 'compare-diff-better' : 'compare-diff-worse';
+        diffLabel = `<span class="text-[10px] ${isBetter ? 'text-emerald-400' : 'text-red-400'}">${diff > 0 ? '+' : ''}${pct}%</span>`;
+      }
+
+      html += `<div class="flex items-center gap-3 text-xs p-2 rounded ${diffClass}">
+        <span class="text-slate-500 w-28 flex-shrink-0">${c.label}</span>
+        <span class="text-slate-300 flex-1 text-center">${c.fmt(c.v1)}</span>
+        <span class="text-slate-600 flex-shrink-0">vs</span>
+        <span class="text-slate-300 flex-1 text-center">${c.fmt(c.v2)}</span>
+        <span class="w-16 text-right">${diffLabel}</span>
+      </div>`;
+    });
+
+    html += '</div></div>';
+    content.innerHTML = html;
+  } catch (err) {
+    content.innerHTML = `<div class="glass rounded-xl p-8 text-center text-red-400/60 text-sm">Failed to load traces: ${escHtml(err.message)}</div>`;
+  }
+}
+
+// =========================================================================
+// Virtualized Trace List
+// =========================================================================
+function renderVirtualizedTraces(traces, containerId) {
+  const container = document.getElementById(containerId);
+  if (!traces || traces.length === 0) {
+    container.innerHTML = renderEmptyState('No traces found', 'Try adjusting your filters.');
+    return;
+  }
+
+  // For small lists, render normally
+  if (traces.length <= 50) {
+    container.innerHTML = traces.map(t => renderTraceRow(t)).join('');
+    return;
+  }
+
+  // For large lists, use virtual scrolling
+  const rowHeight = 56;
+  const totalHeight = traces.length * rowHeight;
+  const visibleCount = Math.ceil(600 / rowHeight) + 4; // buffer
+
+  container.innerHTML = `<div class="virtual-scroll-container" style="height:600px" id="vs-${containerId}"><div class="virtual-scroll-spacer" style="height:${totalHeight}px;position:relative" id="vs-spacer-${containerId}"></div></div>`;
+
+  const scrollContainer = document.getElementById(`vs-${containerId}`);
+  const spacer = document.getElementById(`vs-spacer-${containerId}`);
+
+  function renderVisibleRows() {
+    const scrollTop = scrollContainer.scrollTop;
+    const startIdx = Math.max(0, Math.floor(scrollTop / rowHeight) - 2);
+    const endIdx = Math.min(traces.length, startIdx + visibleCount);
+
+    let html = '';
+    for (let i = startIdx; i < endIdx; i++) {
+      const top = i * rowHeight;
+      html += `<div style="position:absolute;top:${top}px;left:0;right:0;height:${rowHeight}px">${renderTraceRow(traces[i])}</div>`;
+    }
+    spacer.innerHTML = html;
+  }
+
+  scrollContainer.addEventListener('scroll', renderVisibleRows);
+  renderVisibleRows();
+}
+
+// =========================================================================
 // Init
 // =========================================================================
 document.addEventListener('DOMContentLoaded', async () => {
+  // Apply saved theme
+  const savedTheme = localStorage.getItem('flowlens-theme');
+  if (savedTheme === 'light') {
+    document.documentElement.classList.remove('dark');
+    document.body.classList.remove('dark');
+    isDarkTheme = false;
+  } else {
+    document.documentElement.classList.add('dark');
+    document.body.classList.add('dark');
+    isDarkTheme = true;
+  }
+
   // Setup keyboard navigation
   setupKeyboardNavigation();
 

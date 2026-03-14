@@ -294,3 +294,441 @@ class TestAutoInstrumentNoInstance:
 
         result = await _wrap_async_llm_call(fn, (), {}, "model", "openai", "test")
         assert result == "async_result"
+
+
+# ---------------------------------------------------------------------------
+# OpenAI patching — legacy ChatCompletion API (sync)
+# ---------------------------------------------------------------------------
+
+class TestOpenAILegacyPatch:
+    def test_patch_openai_legacy_create_skipped_gracefully(self):
+        """If openai.ChatCompletion does not exist, no exception is raised."""
+        import types, sys
+        fake_openai = types.ModuleType("openai")
+        # Expose OpenAI / AsyncOpenAI stubs so attribute access doesn't blow up
+        fake_openai.OpenAI = type("OpenAI", (), {
+            "chat": type("chat", (), {
+                "completions": type("completions", (), {"create": lambda *a, **kw: None})()
+            })()
+        })
+        fake_openai.AsyncOpenAI = type("AsyncOpenAI", (), {
+            "chat": type("chat", (), {
+                "completions": type("completions", (), {"create": lambda *a, **kw: None})()
+            })()
+        })
+        # No ChatCompletion attr  → legacy patch must be silently skipped
+        with patch.dict(sys.modules, {"openai": fake_openai}):
+            ai_module._patched.discard("openai")
+            auto_instrument(["openai"])
+        assert "openai" in ai_module._patched
+
+    def test_patch_openai_legacy_create_patched(self):
+        """If openai.ChatCompletion.create exists it is wrapped."""
+        import types, sys
+        call_log: list[dict] = []
+
+        def original_create(*args, **kwargs):
+            call_log.append({"args": args, "kwargs": kwargs})
+            return {"usage": {"prompt_tokens": 5, "completion_tokens": 3}}
+
+        fake_chat_completion = type("ChatCompletion", (), {"create": staticmethod(original_create)})
+        fake_openai = types.ModuleType("openai")
+        fake_openai.OpenAI = type("OpenAI", (), {
+            "chat": type("chat", (), {
+                "completions": type("completions", (), {"create": lambda *a, **kw: None})()
+            })()
+        })
+        fake_openai.AsyncOpenAI = type("AsyncOpenAI", (), {
+            "chat": type("chat", (), {
+                "completions": type("completions", (), {"create": lambda *a, **kw: None})()
+            })()
+        })
+        fake_openai.ChatCompletion = fake_chat_completion
+
+        with patch.dict(sys.modules, {"openai": fake_openai}):
+            ai_module._patched.discard("openai")
+            auto_instrument(["openai"])
+
+        # The attribute should have been replaced with our wrapper
+        assert fake_chat_completion.create is not original_create
+
+
+# ---------------------------------------------------------------------------
+# OpenAI sync streaming
+# ---------------------------------------------------------------------------
+
+class TestOpenAISyncStreaming:
+    def test_wrap_sync_stream_yields_chunks(self, captured_traces):
+        """_wrap_sync_stream_call yields all chunks and creates an LLM span."""
+        from flowlens.sdk.auto_instrument import _wrap_sync_stream_call
+        from flowlens.sdk.context import TraceContext
+        from flowlens.sdk.tracer import FlowLens as FL
+
+        lens = FL.get_instance()
+        trace = lens.start_trace()
+
+        # Simulate OpenAI-style streaming chunks
+        class FakeUsage:
+            prompt_tokens = 10
+            completion_tokens = 5
+
+        class FakeDelta:
+            content = "hello"
+
+        class FakeChoice:
+            delta = FakeDelta()
+
+        class FakeChunk:
+            choices = [FakeChoice()]
+            usage = None
+
+        last_chunk = MagicMock()
+        last_chunk.choices = []
+        last_chunk.usage = FakeUsage()
+
+        def fake_stream(*args, **kwargs):
+            yield FakeChunk()
+            yield last_chunk
+
+        with TraceContext(trace):
+            chunks = list(
+                _wrap_sync_stream_call(
+                    fake_stream,
+                    args=(),
+                    kwargs={"model": "gpt-4.1", "stream": True},
+                    model="gpt-4.1",
+                    system="openai",
+                    span_name="openai.chat.completions.create",
+                )
+            )
+
+        lens.end_trace(trace)
+        assert len(chunks) == 2
+        llm_spans = [s for s in captured_traces[0].spans if s.kind == SpanKind.LLM]
+        assert len(llm_spans) == 1
+        assert llm_spans[0].status == SpanStatus.OK
+        assert llm_spans[0].attributes.get("gen_ai.streaming") is True
+
+    def test_wrap_sync_stream_error_recorded(self, captured_traces):
+        """Errors inside streaming generators are captured in the span."""
+        from flowlens.sdk.auto_instrument import _wrap_sync_stream_call
+        from flowlens.sdk.context import TraceContext
+        from flowlens.sdk.tracer import FlowLens as FL
+
+        lens = FL.get_instance()
+        trace = lens.start_trace()
+
+        def bad_stream(*args, **kwargs):
+            yield MagicMock(choices=[], usage=None)
+            raise ConnectionError("stream broken")
+
+        with TraceContext(trace):
+            gen = _wrap_sync_stream_call(
+                bad_stream, args=(), kwargs={"stream": True},
+                model="gpt-4.1", system="openai", span_name="test.stream",
+            )
+            with pytest.raises(ConnectionError, match="stream broken"):
+                list(gen)
+
+        lens.end_trace(trace)
+        llm_spans = [s for s in captured_traces[0].spans if s.kind == SpanKind.LLM]
+        assert llm_spans[0].status == SpanStatus.ERROR
+
+
+# ---------------------------------------------------------------------------
+# OpenAI async streaming
+# ---------------------------------------------------------------------------
+
+class TestOpenAIAsyncStreaming:
+    @pytest.mark.asyncio
+    async def test_wrap_async_stream_yields_chunks(self, captured_traces):
+        from flowlens.sdk.auto_instrument import _wrap_async_stream_call
+        from flowlens.sdk.context import TraceContext
+        from flowlens.sdk.tracer import FlowLens as FL
+
+        lens = FL.get_instance()
+        trace = lens.start_trace()
+
+        class FakeDelta:
+            content = "world"
+
+        class FakeChoice:
+            delta = FakeDelta()
+
+        class FakeChunk:
+            choices = [FakeChoice()]
+            usage = None
+
+        async def fake_async_stream(*args, **kwargs):
+            yield FakeChunk()
+            yield FakeChunk()
+
+        with TraceContext(trace):
+            chunks = []
+            async for chunk in _wrap_async_stream_call(
+                fake_async_stream,
+                args=(),
+                kwargs={"model": "gpt-4.1", "stream": True},
+                model="gpt-4.1",
+                system="openai",
+                span_name="openai.chat.completions.create",
+            ):
+                chunks.append(chunk)
+
+        lens.end_trace(trace)
+        assert len(chunks) == 2
+        llm_spans = [s for s in captured_traces[0].spans if s.kind == SpanKind.LLM]
+        assert llm_spans[0].status == SpanStatus.OK
+        assert llm_spans[0].attributes.get("gen_ai.streaming") is True
+        # Output text should have been accumulated
+        assert "gen_ai.response.text" in llm_spans[0].attributes
+
+
+# ---------------------------------------------------------------------------
+# LangChain Chain.__call__ and AgentExecutor._call patching
+# ---------------------------------------------------------------------------
+
+class TestLangChainChainPatching:
+    def test_patch_langchain_chain_call_graceful_without_langchain(self):
+        """If langchain is not installed, no exception is raised."""
+        import sys
+        with patch.dict(sys.modules, {"langchain": None, "langchain_core": None,
+                                       "langchain.chains": None, "langchain.chains.base": None,
+                                       "langchain_core.language_models": None,
+                                       "langchain_core.language_models.base": None}):
+            ai_module._patched.discard("langchain")
+            # Should silently skip, not raise
+            auto_instrument(["langchain"])
+
+    def test_wrap_sync_chain_call_creates_chain_span(self, captured_traces):
+        """_wrap_sync_chain_call creates a CHAIN span with inputs/outputs."""
+        from flowlens.sdk.auto_instrument import _wrap_sync_chain_call
+        from flowlens.sdk.context import TraceContext
+        from flowlens.sdk.tracer import FlowLens as FL
+
+        lens = FL.get_instance()
+        trace = lens.start_trace()
+
+        def fake_chain_fn(self, inputs, **kwargs):
+            return {"output": "the answer", "input": inputs.get("input", "")}
+
+        class FakeChain:
+            chain_type = "StuffDocumentsChain"
+
+        fake_self = FakeChain()
+        inputs = {"input": "What is the capital of France?"}
+
+        with TraceContext(trace):
+            result = _wrap_sync_chain_call(
+                fake_chain_fn,
+                args=(fake_self, inputs),
+                kwargs={},
+                chain_name="StuffDocumentsChain",
+                span_name="langchain.chain.StuffDocumentsChain",
+            )
+
+        lens.end_trace(trace)
+        assert result["output"] == "the answer"
+        chain_spans = [s for s in captured_traces[0].spans if s.kind == SpanKind.CHAIN]
+        assert len(chain_spans) == 1
+        assert chain_spans[0].name == "langchain.chain.StuffDocumentsChain"
+        assert chain_spans[0].status == SpanStatus.OK
+        assert "chain.inputs" in chain_spans[0].attributes
+        assert "chain.outputs" in chain_spans[0].attributes
+        assert chain_spans[0].attributes["chain.name"] == "StuffDocumentsChain"
+
+    def test_wrap_sync_chain_call_error_recorded(self, captured_traces):
+        """Errors in chain calls are captured in the span."""
+        from flowlens.sdk.auto_instrument import _wrap_sync_chain_call
+        from flowlens.sdk.context import TraceContext
+        from flowlens.sdk.tracer import FlowLens as FL
+
+        lens = FL.get_instance()
+        trace = lens.start_trace()
+
+        def failing_chain(self, inputs, **kwargs):
+            raise ValueError("chain failed")
+
+        with TraceContext(trace):
+            with pytest.raises(ValueError, match="chain failed"):
+                _wrap_sync_chain_call(
+                    failing_chain,
+                    args=(object(), {"input": "test"}),
+                    kwargs={},
+                    chain_name="FailingChain",
+                    span_name="langchain.chain.FailingChain",
+                )
+
+        lens.end_trace(trace)
+        chain_spans = [s for s in captured_traces[0].spans if s.kind == SpanKind.CHAIN]
+        assert chain_spans[0].status == SpanStatus.ERROR
+        assert chain_spans[0].error_type == "ValueError"
+
+    def test_wrap_sync_chain_call_passthrough_without_instance(self):
+        """Without a FlowLens instance, chain calls pass through unchanged."""
+        from flowlens.sdk.auto_instrument import _wrap_sync_chain_call
+
+        FlowLens._instance = None
+
+        def simple_chain(self, inputs):
+            return {"result": "ok"}
+
+        result = _wrap_sync_chain_call(
+            simple_chain,
+            args=(object(), {"q": "hello"}),
+            kwargs={},
+            chain_name="SimpleChain",
+            span_name="langchain.chain.SimpleChain",
+        )
+        assert result == {"result": "ok"}
+
+
+# ---------------------------------------------------------------------------
+# SpanKind.EMBEDDING and SpanKind.CHAIN exposed in models
+# ---------------------------------------------------------------------------
+
+class TestSpanKindExtensions:
+    def test_span_kind_embedding_exists(self):
+        from flowlens.sdk.models import SpanKind
+        assert SpanKind.EMBEDDING.value == "embedding"
+
+    def test_span_kind_chain_exists(self):
+        from flowlens.sdk.models import SpanKind
+        assert SpanKind.CHAIN.value == "chain"
+
+    def test_span_kind_embedding_exported_from_top_level(self):
+        from flowlens import SpanKind
+        assert SpanKind.EMBEDDING.value == "embedding"
+
+
+# ---------------------------------------------------------------------------
+# trace_embedding decorator
+# ---------------------------------------------------------------------------
+
+class TestTraceEmbeddingDecorator:
+    def test_trace_embedding_sync(self, captured_traces):
+        """@trace_embedding creates an EMBEDDING span for sync functions."""
+        from flowlens.sdk.decorators import trace_embedding
+        from flowlens.sdk.context import TraceContext
+        from flowlens.sdk.tracer import FlowLens as FL
+
+        lens = FL.get_instance()
+        trace = lens.start_trace()
+
+        # Simulate an OpenAI-style embedding response
+        class FakeEmbeddingData:
+            embedding = [0.1, 0.2, 0.3, 0.4]
+
+        class FakeUsage:
+            total_tokens = 8
+
+        class FakeEmbeddingResponse:
+            data = [FakeEmbeddingData()]
+            usage = FakeUsage()
+
+        @trace_embedding(model="text-embedding-3-small")
+        def embed(texts):
+            return FakeEmbeddingResponse()
+
+        with TraceContext(trace):
+            result = embed(["hello world"])
+
+        lens.end_trace(trace)
+        assert isinstance(result, FakeEmbeddingResponse)
+        emb_spans = [s for s in captured_traces[0].spans if s.kind == SpanKind.EMBEDDING]
+        assert len(emb_spans) == 1
+        span = emb_spans[0]
+        assert span.status == SpanStatus.OK
+        assert span.attributes["embedding.model"] == "text-embedding-3-small"
+        assert span.attributes["embedding.dimension"] == 4
+        assert span.attributes["embedding.input_count"] == 1
+        assert span.attributes["embedding.token_count"] == 8
+
+    @pytest.mark.asyncio
+    async def test_trace_embedding_async(self, captured_traces):
+        """@trace_embedding creates an EMBEDDING span for async functions."""
+        from flowlens.sdk.decorators import trace_embedding
+        from flowlens.sdk.context import TraceContext
+        from flowlens.sdk.tracer import FlowLens as FL
+
+        lens = FL.get_instance()
+        trace = lens.start_trace()
+
+        class FakeEmbeddingData:
+            embedding = [0.5, 0.6, 0.7]
+
+        class FakeUsage:
+            total_tokens = 4
+
+        class FakeEmbeddingResponse:
+            data = [FakeEmbeddingData(), FakeEmbeddingData()]
+            usage = FakeUsage()
+
+        @trace_embedding(model="text-embedding-ada-002")
+        async def embed_async(texts):
+            return FakeEmbeddingResponse()
+
+        with TraceContext(trace):
+            result = await embed_async(["foo", "bar"])
+
+        lens.end_trace(trace)
+        emb_spans = [s for s in captured_traces[0].spans if s.kind == SpanKind.EMBEDDING]
+        assert len(emb_spans) == 1
+        span = emb_spans[0]
+        assert span.status == SpanStatus.OK
+        assert span.attributes["embedding.model"] == "text-embedding-ada-002"
+        assert span.attributes["embedding.input_count"] == 2
+        assert span.attributes["embedding.dimension"] == 3
+        assert span.attributes["embedding.token_count"] == 4
+
+    def test_trace_embedding_error_captured(self, captured_traces):
+        """Errors inside @trace_embedding are captured in the span."""
+        from flowlens.sdk.decorators import trace_embedding
+        from flowlens.sdk.context import TraceContext
+        from flowlens.sdk.tracer import FlowLens as FL
+
+        lens = FL.get_instance()
+        trace = lens.start_trace()
+
+        @trace_embedding(model="text-embedding-3-small")
+        def embed_fail(texts):
+            raise RuntimeError("embedding API down")
+
+        with TraceContext(trace):
+            with pytest.raises(RuntimeError, match="embedding API down"):
+                embed_fail(["test"])
+
+        lens.end_trace(trace)
+        emb_spans = [s for s in captured_traces[0].spans if s.kind == SpanKind.EMBEDDING]
+        assert emb_spans[0].status == SpanStatus.ERROR
+        assert emb_spans[0].error_type == "RuntimeError"
+
+    def test_trace_embedding_exported_from_top_level(self):
+        """trace_embedding is importable from the flowlens package."""
+        from flowlens import trace_embedding
+        assert callable(trace_embedding)
+
+    def test_trace_embedding_dict_response(self, captured_traces):
+        """trace_embedding handles dict-style embedding responses."""
+        from flowlens.sdk.decorators import trace_embedding
+        from flowlens.sdk.context import TraceContext
+        from flowlens.sdk.tracer import FlowLens as FL
+
+        lens = FL.get_instance()
+        trace = lens.start_trace()
+
+        @trace_embedding(model="custom-embed")
+        def embed_dict(texts):
+            return {
+                "data": [{"embedding": [0.1, 0.2, 0.3, 0.4, 0.5]}],
+                "usage": {"total_tokens": 6},
+            }
+
+        with TraceContext(trace):
+            embed_dict(["hello"])
+
+        lens.end_trace(trace)
+        emb_spans = [s for s in captured_traces[0].spans if s.kind == SpanKind.EMBEDDING]
+        span = emb_spans[0]
+        assert span.attributes["embedding.dimension"] == 5
+        assert span.attributes["embedding.token_count"] == 6

@@ -624,7 +624,157 @@ def trace_retrieval(
     return decorator
 
 
+def trace_embedding(
+    model: str = "",
+    name: Optional[str] = None,
+    **attrs: Any,
+) -> Callable:
+    """Decorate an embedding API call.
+
+    Creates a span of kind EMBEDDING and captures:
+    - ``embedding.model``: the model name
+    - ``embedding.token_count``: total tokens used (from response usage if available)
+    - ``embedding.dimension``: vector dimension (from the first embedding in the response)
+    - ``embedding.input_count``: number of inputs embedded
+
+    Args:
+        model: Embedding model name (e.g. "text-embedding-3-small").
+        name: Span name override; defaults to the decorated function name.
+        **attrs: Extra span attributes forwarded verbatim.
+
+    Example (sync)::
+
+        @trace_embedding(model="text-embedding-3-small")
+        def embed(texts: list[str]):
+            return openai_client.embeddings.create(
+                model="text-embedding-3-small", input=texts
+            )
+
+    Example (async)::
+
+        @trace_embedding(model="text-embedding-3-small")
+        async def embed_async(texts: list[str]):
+            return await async_client.embeddings.create(
+                model="text-embedding-3-small", input=texts
+            )
+    """
+
+    def decorator(func: Callable) -> Callable:
+        span_name = name or func.__name__
+
+        @functools.wraps(func)
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+            lens = FlowLens.get_instance()
+            if not lens:
+                return await func(*args, **kwargs)
+
+            span_attrs: dict[str, Any] = {"embedding.model": model}
+            span_attrs.update(attrs or {})
+            span = lens.start_span(span_name, kind=SpanKind.EMBEDDING, attributes=span_attrs)
+
+            with SpanContext(span):
+                try:
+                    result = await func(*args, **kwargs)
+                    _extract_embedding_info(span, result, model)
+                    span.finish(status=SpanStatus.OK)
+                    return result
+                except Exception as e:
+                    span.finish(status=SpanStatus.ERROR, error=str(e))
+                    span.error_type = type(e).__name__
+                    raise
+
+        @functools.wraps(func)
+        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
+            lens = FlowLens.get_instance()
+            if not lens:
+                return func(*args, **kwargs)
+
+            span_attrs: dict[str, Any] = {"embedding.model": model}
+            span_attrs.update(attrs or {})
+            span = lens.start_span(span_name, kind=SpanKind.EMBEDDING, attributes=span_attrs)
+
+            with SpanContext(span):
+                try:
+                    result = func(*args, **kwargs)
+                    _extract_embedding_info(span, result, model)
+                    span.finish(status=SpanStatus.OK)
+                    return result
+                except Exception as e:
+                    span.finish(status=SpanStatus.ERROR, error=str(e))
+                    span.error_type = type(e).__name__
+                    raise
+
+        if inspect.iscoroutinefunction(func):
+            return async_wrapper
+        return sync_wrapper
+
+    return decorator
+
+
 # ===== Helper functions =====
+
+
+def _extract_embedding_info(span: Any, result: Any, model: str) -> None:
+    """Extract embedding metadata from an API response and attach it to the span.
+
+    Supports:
+    - OpenAI Embeddings SDK object: ``result.data`` list with ``embedding`` vectors,
+      ``result.usage.total_tokens`` / ``prompt_tokens``.
+    - Dict response: ``result["data"]`` / ``result["usage"]``.
+    - Any object with ``embeddings`` attribute (generic fallback).
+
+    Sets the following span attributes when available:
+    - ``embedding.token_count``: total tokens used
+    - ``embedding.dimension``: vector dimension (length of first embedding)
+    - ``embedding.input_count``: number of embeddings in the response
+    """
+    try:
+        # OpenAI SDK EmbeddingCreateResponse
+        data_list = None
+        usage = None
+
+        if hasattr(result, "data") and hasattr(result, "usage"):
+            data_list = result.data
+            usage = result.usage
+        elif isinstance(result, dict):
+            data_list = result.get("data")
+            usage = result.get("usage")
+        elif hasattr(result, "embeddings"):
+            # Some providers return .embeddings directly
+            data_list = result.embeddings
+
+        # Token count from usage
+        if usage is not None:
+            total_tokens = (
+                getattr(usage, "total_tokens", 0)
+                or getattr(usage, "prompt_tokens", 0)
+                or (usage.get("total_tokens", 0) if isinstance(usage, dict) else 0)
+                or (usage.get("prompt_tokens", 0) if isinstance(usage, dict) else 0)
+            )
+            if total_tokens:
+                span.attributes["embedding.token_count"] = total_tokens
+
+        # Input count and vector dimension
+        if data_list is not None:
+            try:
+                count = len(data_list)
+                span.attributes["embedding.input_count"] = count
+                if count > 0:
+                    first = data_list[0]
+                    vector = (
+                        getattr(first, "embedding", None)
+                        or (first.get("embedding") if isinstance(first, dict) else None)
+                        or (first if isinstance(first, (list, tuple)) else None)
+                    )
+                    if vector is not None:
+                        span.attributes["embedding.dimension"] = len(vector)
+            except (TypeError, IndexError):
+                pass
+
+        span.attributes["embedding.model"] = model
+
+    except Exception as exc:
+        logger.debug(f"[FlowLens] Could not extract embedding info: {exc}")
 
 
 def _extract_llm_usage(span: Span, result: Any, model: str) -> None:

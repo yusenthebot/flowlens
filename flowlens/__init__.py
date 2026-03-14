@@ -30,6 +30,7 @@ from flowlens.sdk.decorators import (
     trace_llm_stream,
     trace_chain,
     trace_retrieval,
+    trace_embedding,
 )
 from flowlens.sdk.context import (
     get_baggage,
@@ -37,7 +38,7 @@ from flowlens.sdk.context import (
     get_baggage_item,
     set_baggage_item,
 )
-from flowlens.sdk.models import SpanEvent
+from flowlens.sdk.models import SpanEvent, SpanKind
 from flowlens.sdk.auto_instrument import auto_instrument
 from flowlens.sdk.exporters import OTLPExporter
 
@@ -49,6 +50,7 @@ __all__ = [
     "trace_llm_stream",
     "trace_chain",
     "trace_retrieval",
+    "trace_embedding",
     "get_current_trace",
     "get_current_span",
     "get_baggage",
@@ -57,5 +59,6 @@ __all__ = [
     "set_baggage_item",
     "auto_instrument",
     "SpanEvent",
+    "SpanKind",
     "OTLPExporter",
 ]
