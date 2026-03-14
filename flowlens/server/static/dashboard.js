@@ -250,12 +250,21 @@ function switchView(view) {
   if (tabBtn) { tabBtn.classList.remove('tab-inactive'); tabBtn.classList.add('tab-active'); }
 
   // Load data for the view
-  if (view === 'overview') { loadStats(); loadRecentTraces(); setTimeout(() => { loadAgentActivity(); loadOverviewAgents(); }, 300); }
+  if (view === 'overview') {
+    loadStats();
+    loadRecentTraces();
+    setTimeout(() => { loadAgentActivity(); loadOverviewAgents(); }, 300);
+    setTimeout(() => { loadActivityTimeline(); loadTrendChart(_trendHours || 24); loadOverviewCharts(); }, 600);
+    setTimeout(() => { loadOverviewGraph(); }, 1200);
+  }
   else if (view === 'traces') { loadTraces(); }
   else if (view === 'cost') { loadCostData(); }
   else if (view === 'patterns') { loadAllPatterns(); }
   else if (view === 'compare') { renderCompareView(); }
   else if (view === 'agents') { loadAgentData(); }
+
+  // Persist current view to sessionStorage
+  try { sessionStorage.setItem('flowlens-view', view); } catch (_) {}
 }
 
 // =========================================================================
@@ -631,6 +640,7 @@ function showDetailTab(tab) {
 function backToTraces() {
   document.getElementById('view-trace-detail').classList.add('hidden');
   closeSpanDetail();
+  try { sessionStorage.removeItem('flowlens-trace-id'); } catch (_) {}
   if (currentView === 'overview') {
     document.getElementById('view-overview').classList.remove('hidden');
   } else {
@@ -1042,6 +1052,7 @@ function paginateTraces(dir) {
 // =========================================================================
 async function openTrace(traceId) {
   currentTraceId = traceId;
+  try { sessionStorage.setItem('flowlens-trace-id', traceId || ''); } catch (_) {}
   // Hide current view, show detail
   document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
   const detailPanel = document.getElementById('view-trace-detail');
@@ -2270,7 +2281,16 @@ function setupKeyboardNavigation() {
 }
 
 function refreshCurrentView() {
-  if (currentView === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); loadActivityTimeline(); loadTrendChart(_trendHours || 24);  }
+  if (currentView === 'overview') {
+    loadStats();
+    loadRecentTraces();
+    loadAgentActivity();
+    loadOverviewAgents();
+    loadActivityTimeline();
+    loadTrendChart(_trendHours || 24);
+    loadOverviewCharts();
+    loadOverviewGraph();
+  }
   else if (currentView === 'traces') { loadTraces(); }
   else if (currentView === 'cost') { loadCostData(); }
   else if (currentView === 'patterns') { loadAllPatterns(); }
@@ -2805,6 +2825,55 @@ function _positionTracePreview(event) {
 }
 
 // =========================================================================
+// Session State Persistence
+// =========================================================================
+function saveScrollState() {
+  try {
+    const mainEl = document.querySelector('main');
+    if (mainEl) sessionStorage.setItem('flowlens-scroll', mainEl.scrollTop);
+  } catch (_) {}
+}
+
+function saveSearchQuery() {
+  try {
+    const el = document.getElementById('filter-service');
+    if (el) sessionStorage.setItem('flowlens-search', el.value || '');
+  } catch (_) {}
+}
+
+function restoreState() {
+  try {
+    // Restore search query
+    const savedSearch = sessionStorage.getItem('flowlens-search');
+    if (savedSearch) {
+      const el = document.getElementById('filter-service');
+      if (el) el.value = savedSearch;
+    }
+    // Restore scroll position (deferred to after render)
+    const savedScroll = sessionStorage.getItem('flowlens-scroll');
+    if (savedScroll) {
+      setTimeout(() => {
+        const mainEl = document.querySelector('main');
+        if (mainEl) mainEl.scrollTop = parseInt(savedScroll, 10) || 0;
+      }, 1000);
+    }
+    // Restore selected trace ID (re-open detail if trace was being viewed)
+    const savedTraceId = sessionStorage.getItem('flowlens-trace-id');
+    if (savedTraceId) {
+      currentTraceId = savedTraceId;
+      // Re-open the trace detail after a short delay (allow initial load to complete)
+      setTimeout(() => { if (currentTraceId) openTrace(currentTraceId); }, 1500);
+    }
+    // Restore current view (navigate to the last active tab)
+    const savedView = sessionStorage.getItem('flowlens-view');
+    if (savedView && savedView !== 'overview' && !savedTraceId) {
+      // Defer until after initial load completes so the switchView data loads run after API is ready
+      setTimeout(() => switchView(savedView), 400);
+    }
+  } catch (_) {}
+}
+
+// =========================================================================
 // Init
 // =========================================================================
 document.addEventListener('DOMContentLoaded', async () => {
@@ -2819,6 +2888,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.body.classList.remove('dark');
     isDarkTheme = false;
   }
+
+  // Restore persisted session state (search query, scroll position)
+  restoreState();
 
   // Setup keyboard navigation
   setupKeyboardNavigation();
@@ -2850,9 +2922,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Bind filter events
   document.getElementById('filter-service').addEventListener('keyup', (e) => {
+    saveSearchQuery();
     if (e.key === 'Enter') { traceOffset = 0; loadTraces(); }
   });
   document.getElementById('filter-errors').addEventListener('change', () => { traceOffset = 0; loadTraces(); });
+
+  // Persist scroll position on scroll
+  const mainEl = document.querySelector('main');
+  if (mainEl) {
+    mainEl.addEventListener('scroll', () => {
+      try { sessionStorage.setItem('flowlens-scroll', mainEl.scrollTop); } catch (_) {}
+    }, { passive: true });
+  }
 
   // Register dagre layout for Cytoscape if both libs loaded
   if (typeof cytoscape !== 'undefined' && typeof cytoscapeDagre !== 'undefined') {
