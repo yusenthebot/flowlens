@@ -20,7 +20,7 @@ Usage:
         ...
 """
 
-__version__ = "0.5.0"
+__version__ = "1.0.0"
 
 from flowlens.sdk.tracer import FlowLens, get_current_trace, get_current_span
 from flowlens.sdk.decorators import (

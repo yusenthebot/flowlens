@@ -3,1224 +3,1053 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FlowLens — Product Demo</title>
+  <title>FlowLens — Agent Observability Platform</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%236366f1'/%3E%3Cstop offset='100%25' stop-color='%238b5cf6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='6' fill='url(%23g)'/%3E%3Cpath d='M8 22V14a2 2 0 014 0v8m4 0V10a2 2 0 014 0v12' stroke='white' stroke-width='2.5' stroke-linecap='round' fill='none'/%3E%3C/svg%3E">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
   <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['Inter', 'system-ui', 'sans-serif'],
-            mono: ['JetBrains Mono', 'monospace']
+    if (typeof tailwind === 'undefined') {
+      const s = document.createElement('style');
+      s.textContent = '/* Tailwind fallback — minimal reset */';
+      document.head.appendChild(s);
+    }
+    if (typeof tailwind !== 'undefined') {
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'system-ui', 'sans-serif'],
+              mono: ['JetBrains Mono', 'monospace']
+            }
           }
         }
-      }
+      };
     }
   </script>
+
   <style>
-    body {
-      font-family: 'Inter', system-ui, sans-serif;
-      background: linear-gradient(145deg, #fafaf8 0%, #f5f5f0 50%, #fafaf8 100%);
-      color: #2c2c2a;
-      margin: 0;
+    *, *::before, *::after { box-sizing: border-box; }
+
+    :root {
+      --c-bg:        #0a0b14;
+      --c-surface:   #111222;
+      --c-border:    rgba(99,102,241,0.18);
+      --c-indigo:    #6366f1;
+      --c-violet:    #8b5cf6;
+      --c-cyan:      #22d3ee;
+      --c-emerald:   #10b981;
+      --c-amber:     #f59e0b;
+      --c-rose:      #f43f5e;
+      --c-text:      #e2e8f0;
+      --c-muted:     #94a3b8;
+    }
+
+    html, body {
+      margin: 0; padding: 0;
+      width: 100%; height: 100%;
       overflow: hidden;
-      height: 100vh;
+      background: var(--c-bg);
+      font-family: 'Inter', system-ui, sans-serif;
+      color: var(--c-text);
+    }
+
+    /* ── Mesh background ─────────────────────────────────────────── */
+    .mesh-bg {
+      position: fixed; inset: 0; z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 20% 10%, rgba(99,102,241,0.14) 0%, transparent 70%),
+        radial-gradient(ellipse 60% 50% at 80% 80%, rgba(139,92,246,0.12) 0%, transparent 70%),
+        radial-gradient(ellipse 50% 40% at 60% 30%, rgba(34,211,238,0.06) 0%, transparent 60%),
+        var(--c-bg);
+      animation: meshShift 14s ease-in-out infinite alternate;
+    }
+    @keyframes meshShift {
+      0%   { background-position: 0% 0%; }
+      100% { background-position: 100% 100%; }
+    }
+
+    /* ── Progress bar ────────────────────────────────────────────── */
+    #progress-bar {
+      position: fixed; top: 0; left: 0;
+      height: 3px; width: 0%;
+      background: linear-gradient(90deg, var(--c-indigo), var(--c-cyan));
+      z-index: 100;
+      transition: width linear;
+      box-shadow: 0 0 8px rgba(99,102,241,0.7);
+    }
+
+    /* ── Scene container ─────────────────────────────────────────── */
+    #tour {
+      position: relative; z-index: 1;
+      width: 100%; height: 100vh;
+      overflow: hidden;
     }
 
     .scene {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 3rem 2rem 5rem;
       opacity: 0;
-      transform: translateY(20px);
-      transition: opacity 0.5s ease, transform 0.5s ease;
+      transform: translateX(60px);
+      transition: opacity 0.55s cubic-bezier(.4,0,.2,1),
+                  transform 0.55s cubic-bezier(.4,0,.2,1);
       pointer-events: none;
-      padding: 2rem;
     }
     .scene.active {
-      opacity: 1;
-      transform: translateY(0);
+      opacity: 1; transform: translateX(0);
       pointer-events: auto;
     }
-
-    /* Progress bar at top */
-    #progress-bar {
-      position: fixed;
-      top: 0;
-      left: 0;
-      height: 3px;
-      background: linear-gradient(90deg, #9b8ec4, #7c7aef);
-      transition: width 0.3s ease;
-      z-index: 100;
+    .scene.exit {
+      opacity: 0; transform: translateX(-60px);
     }
 
-    /* Scene dots */
-    .scene-dots {
-      position: fixed;
-      bottom: 1.5rem;
-      left: 50%;
+    /* ── Scene dot nav ───────────────────────────────────────────── */
+    #dots {
+      position: fixed; bottom: 1.6rem; left: 50%;
       transform: translateX(-50%);
-      display: flex;
-      gap: 0.5rem;
-      z-index: 100;
+      display: flex; gap: 0.55rem; z-index: 100;
     }
-    .scene-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #dddbd5;
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: rgba(148,163,184,0.35);
       cursor: pointer;
-      transition: all 0.3s ease;
+      transition: background 0.3s, transform 0.3s;
     }
-    .scene-dot.active {
-      background: #9b8ec4;
-      transform: scale(1.3);
-    }
-    .scene-dot:hover {
-      background: #b5a8d8;
+    .dot.active {
+      background: var(--c-indigo);
+      transform: scale(1.4);
+      box-shadow: 0 0 6px var(--c-indigo);
     }
 
-    /* Pause indicator */
-    #pause-indicator {
-      position: fixed;
-      top: 1rem;
-      right: 1rem;
-      background: rgba(255,255,255,0.9);
-      border: 1px solid #e8e6e1;
-      border-radius: 8px;
-      padding: 0.4rem 0.8rem;
-      font-size: 0.75rem;
-      color: #8a8a86;
-      opacity: 0;
-      transition: opacity 0.3s ease;
-      z-index: 100;
-      backdrop-filter: blur(8px);
+    /* ── Pause indicator ─────────────────────────────────────────── */
+    #pause-badge {
+      position: fixed; top: 1rem; right: 1.2rem;
+      background: rgba(99,102,241,0.2);
+      border: 1px solid var(--c-border);
+      border-radius: 6px; padding: 4px 10px;
+      font-size: 0.72rem; color: var(--c-muted);
+      z-index: 100; opacity: 0;
+      transition: opacity 0.3s;
+      user-select: none;
     }
-    #pause-indicator.visible { opacity: 1; }
+    #pause-badge.visible { opacity: 1; }
 
-    /* Code editor styling */
-    .code-editor {
-      background: #1e1e1e;
-      border-radius: 12px;
-      overflow: hidden;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.15);
-      max-width: 720px;
-      width: 100%;
+    /* ── Shared card ─────────────────────────────────────────────── */
+    .card {
+      background: rgba(17,18,34,0.7);
+      border: 1px solid var(--c-border);
+      border-radius: 14px;
+      backdrop-filter: blur(12px);
+      padding: 1.4rem 1.6rem;
     }
-    .code-titlebar {
-      background: #2d2d2d;
-      padding: 0.75rem 1rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-    .code-dot { width: 10px; height: 10px; border-radius: 50%; }
-    .code-content {
-      padding: 1.25rem 1.5rem;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.85rem;
-      line-height: 1.7;
-      color: #d4d4d4;
-      min-height: 220px;
-    }
-    .code-content .kw { color: #c586c0; }
-    .code-content .fn { color: #dcdcaa; }
-    .code-content .str { color: #6b9e7a; }
-    .code-content .dec { color: #9b8ec4; }
-    .code-content .com { color: #6a9955; }
-    .code-content .imp { color: #9cdcfe; }
-    .code-cursor {
-      display: inline-block;
-      width: 2px;
-      height: 1.1em;
-      background: #d4d4d4;
-      animation: blink 1s step-end infinite;
-      vertical-align: text-bottom;
-    }
-    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 
-    /* Console styling */
-    .console-panel {
-      background: #0d1117;
-      border-radius: 12px;
-      overflow: hidden;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.15);
-      max-width: 780px;
-      width: 100%;
+    /* ── Scene 1: Welcome ────────────────────────────────────────── */
+    .logo-ring {
+      width: 96px; height: 96px;
+      border-radius: 50%;
+      background: conic-gradient(
+        from 0deg,
+        var(--c-indigo), var(--c-violet), var(--c-cyan),
+        var(--c-indigo)
+      );
+      animation: spinRing 4s linear infinite;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 32px rgba(99,102,241,0.5);
     }
-    .console-titlebar {
-      background: #161b22;
-      padding: 0.75rem 1rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.75rem;
-      color: #8b949e;
+    .logo-inner {
+      width: 80px; height: 80px; border-radius: 50%;
+      background: var(--c-bg);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2rem;
     }
-    .console-content {
-      padding: 1.25rem 1.5rem;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.8rem;
-      line-height: 2;
-      color: #c9d1d9;
-      min-height: 180px;
+    @keyframes spinRing {
+      to { transform: rotate(360deg); }
     }
-    .trace-line {
-      opacity: 0;
-      transform: translateX(-10px);
-      transition: opacity 0.4s ease, transform 0.4s ease;
+    .gradient-title {
+      background: linear-gradient(135deg, #818cf8, #c084fc, #22d3ee);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
     }
-    .trace-line.visible {
-      opacity: 1;
-      transform: translateX(0);
-    }
-    .status-ok { color: #6b9e7a; }
-    .status-err { color: #c47070; }
-    .trace-id { color: #7a9eb5; }
-    .trace-dim { color: #484f58; }
 
-    /* Dashboard cards */
+    /* ── Scene 2: Stats cards ────────────────────────────────────── */
     .stat-card {
-      background: rgba(255,255,255,0.9);
-      border: 1px solid #e8e6e1;
+      background: rgba(17,18,34,0.85);
+      border: 1px solid var(--c-border);
       border-radius: 12px;
-      padding: 1.25rem;
+      padding: 1.1rem 1.4rem;
+      min-width: 140px;
       text-align: center;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
     }
-    .stat-value {
-      font-size: 1.8rem;
-      font-weight: 700;
-      color: #2c2c2a;
-    }
-    .stat-label {
-      font-size: 0.75rem;
-      color: #8a8a86;
-      margin-top: 0.25rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
+    .stat-number {
+      font-size: 2rem; font-weight: 700;
+      background: linear-gradient(135deg, var(--c-indigo), var(--c-cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
     }
 
-    /* Waterfall spans */
-    .waterfall-container {
-      max-width: 700px;
-      width: 100%;
+    /* ── Scene 3: Agent avatars ──────────────────────────────────── */
+    .agent-avatar {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 0.5rem;
     }
-    .span-row {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      margin-bottom: 0.6rem;
-      opacity: 0;
-      transform: translateX(-30px);
-      transition: opacity 0.5s ease, transform 0.5s ease;
+    .avatar-ring {
+      width: 64px; height: 64px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem;
+      border: 2px solid transparent;
+      animation: avatarPulse 2.5s ease-in-out infinite;
     }
-    .span-row.visible {
-      opacity: 1;
-      transform: translateX(0);
+    @keyframes avatarPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(99,102,241,0); }
+      50%       { box-shadow: 0 0 0 6px rgba(99,102,241,0.25); }
     }
-    .span-label {
-      width: 140px;
-      text-align: right;
-      font-size: 0.8rem;
-      font-weight: 500;
-      flex-shrink: 0;
+    .status-dot {
+      width: 9px; height: 9px; border-radius: 50%;
+      display: inline-block; margin-right: 5px;
     }
-    .span-track {
-      flex: 1;
-      height: 28px;
-      background: #f5f5f0;
-      border-radius: 6px;
+
+    /* ── Scene 4: Network graph ──────────────────────────────────── */
+    #network-canvas {
       position: relative;
-      overflow: hidden;
+      width: 380px; height: 280px;
     }
-    .span-bar {
-      height: 100%;
-      border-radius: 6px;
+    .net-node {
       position: absolute;
-      left: 0;
-      top: 0;
-      width: 0;
-      transition: width 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-      display: flex;
-      align-items: center;
-      padding-left: 0.5rem;
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.65rem; font-weight: 600;
+      border: 2px solid;
+      animation: nodePulse 3s ease-in-out infinite;
+      z-index: 2;
     }
-    .span-bar.animated { /* width set by JS */ }
-    .span-duration {
-      font-size: 0.7rem;
-      font-weight: 500;
-      color: rgba(255,255,255,0.9);
-      opacity: 0;
-      transition: opacity 0.3s ease 0.6s;
-      white-space: nowrap;
+    @keyframes nodePulse {
+      0%, 100% { transform: scale(1); }
+      50%       { transform: scale(1.08); }
     }
-    .span-row.visible .span-duration { opacity: 1; }
+    .net-line {
+      position: absolute;
+      height: 2px;
+      transform-origin: left center;
+      z-index: 1;
+      opacity: 0.45;
+    }
 
-    /* DAG nodes */
-    .dag-container {
+    /* ── Scene 5: Timeline ───────────────────────────────────────── */
+    .tl-entry {
+      display: flex; align-items: flex-start;
+      gap: 0.8rem; padding: 0.55rem 0;
+      border-bottom: 1px solid rgba(99,102,241,0.08);
+      animation: slideIn 0.4s ease backwards;
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(12px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+    .tl-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      margin-top: 4px; flex-shrink: 0;
+    }
+
+    /* ── Scene 6: DAG ────────────────────────────────────────────── */
+    #dag-canvas {
       position: relative;
-      max-width: 650px;
-      width: 100%;
-      height: 320px;
+      width: 420px; height: 260px;
     }
     .dag-node {
       position: absolute;
-      background: rgba(255,255,255,0.95);
-      border: 2px solid #e8e6e1;
-      border-radius: 10px;
-      padding: 0.5rem 1rem;
-      font-size: 0.8rem;
-      font-weight: 500;
-      opacity: 0;
-      transform: scale(0.5);
-      transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.3s ease, box-shadow 0.3s ease;
+      padding: 0.35rem 0.9rem;
+      border-radius: 20px;
+      font-size: 0.72rem; font-weight: 600;
+      border: 2px solid;
+      white-space: nowrap;
+      z-index: 2;
     }
-    .dag-node.visible {
-      opacity: 1;
-      transform: scale(1);
+    .dag-node.root-cause {
+      animation: rootPulse 1.6s ease-in-out infinite;
     }
-    .dag-node.error {
-      border-color: #c47070;
-      background: rgba(196, 112, 112, 0.08);
+    @keyframes rootPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(244,63,94,0); }
+      50%       { box-shadow: 0 0 0 8px rgba(244,63,94,0.3); }
     }
-    .dag-node.error.glow {
-      box-shadow: 0 0 20px rgba(196, 112, 112, 0.3);
-    }
-    .dag-node.dimmed {
-      opacity: 0.3 !important;
-    }
-    .dag-edge {
+    .dag-arrow {
       position: absolute;
-      background: #dddbd5;
-      transition: opacity 0.4s ease;
-    }
-    .dag-edge.error-edge {
-      background: #c47070;
-    }
-    .root-cause-label {
-      position: absolute;
-      background: #c47070;
-      color: white;
-      font-size: 0.65rem;
-      font-weight: 600;
-      padding: 0.2rem 0.6rem;
-      border-radius: 4px;
-      opacity: 0;
-      transform: translateY(5px);
-      transition: opacity 0.4s ease, transform 0.4s ease;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    .root-cause-label.visible {
-      opacity: 1;
-      transform: translateY(0);
-    }
-    .root-cause-panel {
-      position: absolute;
-      background: rgba(255,255,255,0.95);
-      border: 1px solid #e8e6e1;
-      border-left: 3px solid #c47070;
-      border-radius: 8px;
-      padding: 0.75rem 1rem;
-      font-size: 0.8rem;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.06);
-      opacity: 0;
-      transform: translateX(20px);
-      transition: opacity 0.5s ease, transform 0.5s ease;
-    }
-    .root-cause-panel.visible {
-      opacity: 1;
-      transform: translateX(0);
+      height: 2px;
+      transform-origin: left center;
+      z-index: 1;
     }
 
-    /* Alert cards */
-    .alert-card {
-      background: rgba(255,255,255,0.95);
-      border: 1px solid #e8e6e1;
-      border-radius: 10px;
-      padding: 1rem 1.25rem;
-      max-width: 420px;
-      width: 100%;
-      opacity: 0;
-      transform: translateX(40px);
-      transition: opacity 0.5s ease, transform 0.5s ease;
-      display: flex;
-      align-items: flex-start;
-      gap: 0.75rem;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    /* ── Scene 7: Cost bars ──────────────────────────────────────── */
+    .cost-bar-wrap {
+      display: flex; align-items: center; gap: 0.8rem;
+      margin: 0.4rem 0;
     }
-    .alert-card.visible {
-      opacity: 1;
-      transform: translateX(0);
-    }
-    .alert-icon {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1rem;
-      flex-shrink: 0;
-    }
-    .alert-warning { background: rgba(196, 154, 92, 0.12); border-color: rgba(196, 154, 92, 0.25); }
-    .alert-critical { background: rgba(196, 112, 112, 0.12); border-color: rgba(196, 112, 112, 0.25); }
-
-    /* Cost bars */
-    .cost-bar-track {
-      height: 32px;
-      background: #f5f5f0;
-      border-radius: 8px;
-      overflow: hidden;
-      position: relative;
+    .cost-bar-bg {
+      flex: 1; height: 16px;
+      background: rgba(99,102,241,0.12);
+      border-radius: 8px; overflow: hidden;
     }
     .cost-bar-fill {
-      height: 100%;
-      border-radius: 8px;
-      width: 0;
-      transition: width 1s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-      display: flex;
-      align-items: center;
-      padding-left: 0.75rem;
+      height: 100%; border-radius: 8px;
+      transition: width 1.2s cubic-bezier(.4,0,.2,1);
     }
-    .savings-highlight {
-      background: linear-gradient(90deg, rgba(107, 158, 122, 0.1), rgba(107, 158, 122, 0.05));
-      border: 1px solid rgba(107, 158, 122, 0.3);
+
+    /* ── Scene 8: Get started ────────────────────────────────────── */
+    .code-block {
+      background: rgba(0,0,0,0.55);
+      border: 1px solid rgba(99,102,241,0.25);
       border-radius: 10px;
-      padding: 1rem 1.5rem;
-      opacity: 0;
-      transform: scale(0.95);
-      transition: opacity 0.5s ease, transform 0.5s ease;
-    }
-    .savings-highlight.visible {
-      opacity: 1;
-      transform: scale(1);
-    }
-
-    /* Get started */
-    .cta-block {
-      background: rgba(255,255,255,0.9);
-      border: 1px solid #e8e6e1;
-      border-radius: 12px;
-      padding: 1.5rem 2rem;
-      text-align: center;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.04);
-    }
-    .install-cmd {
-      background: #1e1e1e;
-      color: #d4d4d4;
+      padding: 1rem 1.4rem;
       font-family: 'JetBrains Mono', monospace;
-      font-size: 0.9rem;
-      padding: 0.75rem 1.5rem;
-      border-radius: 8px;
-      display: inline-block;
-      user-select: all;
+      font-size: 0.8rem;
+      line-height: 1.7;
     }
-    .cta-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-      padding: 0.5rem 1.25rem;
-      border-radius: 8px;
-      font-size: 0.85rem;
-      font-weight: 500;
-      transition: all 0.2s ease;
-      text-decoration: none;
-    }
-    .cta-primary {
-      background: linear-gradient(135deg, #9b8ec4, #7c7aef);
-      color: white;
-    }
-    .cta-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(124, 122, 239, 0.3); }
-    .cta-secondary {
-      background: #f5f5f0;
-      color: #2c2c2a;
-      border: 1px solid #e8e6e1;
-    }
-    .cta-secondary:hover { background: #edede8; }
+    .kw  { color: #c084fc; }
+    .fn  { color: #60a5fa; }
+    .str { color: #34d399; }
+    .cm  { color: #64748b; }
 
-    kbd {
-      background: #edede8;
-      border: 1px solid #e8e6e1;
-      border-radius: 4px;
-      padding: 0.15rem 0.4rem;
-      font-size: 0.7rem;
-      color: #8a8a86;
-      font-family: 'Inter', sans-serif;
-    }
-
-    /* Chart canvas containers */
-    .chart-box {
-      background: rgba(255,255,255,0.9);
-      border: 1px solid #e8e6e1;
-      border-radius: 12px;
-      padding: 1rem;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
-    }
-
-    /* Donut container for cost scene */
-    .donut-wrap {
-      width: 160px;
-      height: 160px;
+    /* ── Responsive tweaks ───────────────────────────────────────── */
+    @media (max-width: 640px) {
+      .scene { padding: 2rem 1rem 5rem; }
+      #network-canvas { width: 300px; height: 220px; }
+      #dag-canvas { width: 300px; height: 200px; }
     }
   </style>
 </head>
 <body>
-  <!-- Progress bar -->
-  <div id="progress-bar"></div>
 
-  <!-- Pause indicator -->
-  <div id="pause-indicator">
-    <span id="pause-text">PAUSED</span> &mdash; <kbd>Space</kbd> to resume
-  </div>
+<div class="mesh-bg"></div>
+<div id="progress-bar"></div>
+<div id="pause-badge">PAUSED — press Space to resume</div>
 
-  <!-- Scene header badge (persistent) -->
-  <div style="position:fixed;top:1rem;left:1rem;z-index:100;display:flex;align-items:center;gap:0.5rem;">
-    <svg width="24" height="24" viewBox="0 0 32 32"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#6366f1"/><stop offset="100%" stop-color="#8b5cf6"/></linearGradient></defs><rect width="32" height="32" rx="6" fill="url(#lg)"/><path d="M8 22V14a2 2 0 014 0v8m4 0V10a2 2 0 014 0v12" stroke="white" stroke-width="2.5" stroke-linecap="round" fill="none"/></svg>
-    <span style="font-weight:600;font-size:0.9rem;color:#2c2c2a;">FlowLens</span>
-  </div>
+<div id="tour">
 
-  <!-- SCENE 0: Title -->
-  <!-- Merged into scene flow as opening -->
-
-  <!-- SCENE 1: Instrument Your Agent -->
-  <div class="scene" id="scene-0">
-    <div style="margin-bottom:1.5rem;text-align:center;">
-      <span style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:#9b8ec4;">Step 1</span>
-      <h2 style="font-size:1.6rem;font-weight:700;margin:0.25rem 0;">Instrument Your Agent</h2>
-      <p style="color:#8a8a86;font-size:0.85rem;">Just add decorators. Zero config.</p>
-    </div>
-    <div class="code-editor">
-      <div class="code-titlebar">
-        <div class="code-dot" style="background:#ff5f57;"></div>
-        <div class="code-dot" style="background:#ffbd2e;"></div>
-        <div class="code-dot" style="background:#28c840;"></div>
-        <span style="margin-left:0.5rem;font-size:0.75rem;color:#8a8a86;font-family:'JetBrains Mono',monospace;">agent.py</span>
-      </div>
-      <div class="code-content" id="code-output"></div>
-    </div>
-  </div>
-
-  <!-- SCENE 2: Watch Traces Appear -->
-  <div class="scene" id="scene-1">
-    <div style="margin-bottom:1.5rem;text-align:center;">
-      <span style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:#7a9eb5;">Step 2</span>
-      <h2 style="font-size:1.6rem;font-weight:700;margin:0.25rem 0;">Watch Traces Appear</h2>
-      <p style="color:#8a8a86;font-size:0.85rem;">Every agent run is captured automatically.</p>
-    </div>
-    <div class="console-panel">
-      <div class="console-titlebar">
-        <span style="color:#6b9e7a;">&#9679;</span> flowlens server &mdash; localhost:6100
-      </div>
-      <div class="console-content" id="console-output"></div>
-      <div style="height:3px;background:#161b22;overflow:hidden;">
-        <div id="console-progress" style="height:100%;width:0;background:linear-gradient(90deg,#6b9e7a,#7a9eb5);transition:width 6s linear;"></div>
+  <!-- ══════════════════════════════════════════════════════════
+       Scene 1: Welcome
+  ══════════════════════════════════════════════════════════ -->
+  <section class="scene" id="scene-0">
+    <div class="logo-ring mb-6">
+      <div class="logo-inner">
+        <svg width="44" height="44" viewBox="0 0 32 32" fill="none">
+          <path d="M8 22V14a2 2 0 014 0v8m4 0V10a2 2 0 014 0v12"
+                stroke="url(#lg1)" stroke-width="2.8" stroke-linecap="round"/>
+          <defs>
+            <linearGradient id="lg1" x1="8" y1="10" x2="24" y2="22" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#6366f1"/>
+              <stop offset="1" stop-color="#22d3ee"/>
+            </linearGradient>
+          </defs>
+        </svg>
       </div>
     </div>
-  </div>
 
-  <!-- SCENE 3: Explore the Dashboard -->
-  <div class="scene" id="scene-2">
-    <div style="margin-bottom:1.5rem;text-align:center;">
-      <span style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:#6b9e7a;">Step 3</span>
-      <h2 style="font-size:1.6rem;font-weight:700;margin:0.25rem 0;">Explore the Dashboard</h2>
-      <p style="color:#8a8a86;font-size:0.85rem;">Real-time metrics at a glance.</p>
+    <h1 class="text-5xl font-extrabold text-center gradient-title mb-4" style="line-height:1.15">
+      FlowLens
+    </h1>
+    <p class="text-xl font-semibold text-center mb-3" style="color:#c4b5fd">
+      Agent Observability Platform
+    </p>
+    <p class="text-lg text-center" style="color:var(--c-muted); max-width:520px">
+      See <em style="color:var(--c-cyan)">why</em> your AI agents fail,
+      not just <em>that</em> they fail.
+    </p>
+
+    <div class="flex gap-3 mt-8 flex-wrap justify-center">
+      <span style="background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);
+                   border-radius:20px;padding:5px 14px;font-size:0.78rem;color:#a5b4fc">
+        OpenTelemetry-native
+      </span>
+      <span style="background:rgba(34,211,238,0.1);border:1px solid rgba(34,211,238,0.25);
+                   border-radius:20px;padding:5px 14px;font-size:0.78rem;color:#67e8f9">
+        Zero-config setup
+      </span>
+      <span style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);
+                   border-radius:20px;padding:5px 14px;font-size:0.78rem;color:#6ee7b7">
+        v1.0.0 — 1071 tests
+      </span>
     </div>
-    <div style="max-width:720px;width:100%;">
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.75rem;margin-bottom:1rem;">
-        <div class="stat-card"><div class="stat-value" data-target="1247" data-prefix="">0</div><div class="stat-label">Traces</div></div>
-        <div class="stat-card"><div class="stat-value" data-target="98.2" data-prefix="" data-suffix="%" data-decimals="1">0</div><div class="stat-label">Success Rate</div></div>
-        <div class="stat-card"><div class="stat-value" data-target="2.4" data-prefix="" data-suffix="s" data-decimals="1">0</div><div class="stat-label">Avg Latency</div></div>
-        <div class="stat-card"><div class="stat-value" data-target="12.80" data-prefix="$" data-decimals="2">0</div><div class="stat-label">Total Cost</div></div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════
+       Scene 2: Overview Dashboard
+  ══════════════════════════════════════════════════════════ -->
+  <section class="scene" id="scene-1">
+    <h2 class="text-3xl font-bold gradient-title mb-1 text-center">Overview Dashboard</h2>
+    <p class="mb-6 text-center" style="color:var(--c-muted)">Real-time metrics at a glance</p>
+
+    <div class="flex gap-4 flex-wrap justify-center mb-6">
+      <div class="stat-card">
+        <div class="stat-number" id="cnt-spans">0</div>
+        <div style="font-size:0.75rem;color:var(--c-muted);margin-top:4px">Total Spans</div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
-        <div class="chart-box"><canvas id="chart-latency" height="140"></canvas></div>
-        <div class="chart-box"><canvas id="chart-volume" height="140"></canvas></div>
+      <div class="stat-card">
+        <div class="stat-number" id="cnt-agents">0</div>
+        <div style="font-size:0.75rem;color:var(--c-muted);margin-top:4px">Active Agents</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="cnt-errors">0</div>
+        <div style="font-size:0.75rem;color:var(--c-muted);margin-top:4px">Errors Caught</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="cnt-cost">$0</div>
+        <div style="font-size:0.75rem;color:var(--c-muted);margin-top:4px">Total Cost</div>
       </div>
     </div>
-  </div>
 
-  <!-- SCENE 4: Trace Every Step -->
-  <div class="scene" id="scene-3">
-    <div style="margin-bottom:1.5rem;text-align:center;">
-      <span style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:#9b8ec4;">Step 4</span>
-      <h2 style="font-size:1.6rem;font-weight:700;margin:0.25rem 0;">Trace Every Step</h2>
-      <p style="color:#8a8a86;font-size:0.85rem;">Waterfall view of your agent pipeline.</p>
+    <!-- Mini bar chart mock -->
+    <div class="card" style="width:440px;max-width:100%">
+      <div style="font-size:0.72rem;color:var(--c-muted);margin-bottom:0.7rem">
+        Spans per minute — last 10 min
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:6px;height:60px">
+        <div class="bar-col" style="flex:1;background:rgba(99,102,241,0.6);border-radius:3px 3px 0 0;height:40%;transition:height 0.8s"></div>
+        <div class="bar-col" style="flex:1;background:rgba(99,102,241,0.6);border-radius:3px 3px 0 0;height:65%"></div>
+        <div class="bar-col" style="flex:1;background:rgba(99,102,241,0.6);border-radius:3px 3px 0 0;height:50%"></div>
+        <div class="bar-col" style="flex:1;background:rgba(99,102,241,0.6);border-radius:3px 3px 0 0;height:80%"></div>
+        <div class="bar-col" style="flex:1;background:rgba(99,102,241,0.6);border-radius:3px 3px 0 0;height:55%"></div>
+        <div class="bar-col" style="flex:1;background:rgba(99,102,241,0.6);border-radius:3px 3px 0 0;height:90%"></div>
+        <div class="bar-col" style="flex:1;background:rgba(139,92,246,0.75);border-radius:3px 3px 0 0;height:70%"></div>
+        <div class="bar-col" style="flex:1;background:rgba(139,92,246,0.75);border-radius:3px 3px 0 0;height:85%"></div>
+        <div class="bar-col" style="flex:1;background:rgba(34,211,238,0.7);border-radius:3px 3px 0 0;height:75%"></div>
+        <div class="bar-col" style="flex:1;background:rgba(34,211,238,0.85);border-radius:3px 3px 0 0;height:100%"></div>
+      </div>
     </div>
-    <div class="waterfall-container" id="waterfall">
-      <!-- Populated by JS -->
-    </div>
-  </div>
+  </section>
 
-  <!-- SCENE 5: Find Root Causes -->
-  <div class="scene" id="scene-4">
-    <div style="margin-bottom:1.5rem;text-align:center;">
-      <span style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:#c47070;">Step 5</span>
-      <h2 style="font-size:1.6rem;font-weight:700;margin:0.25rem 0;">Find Root Causes</h2>
-      <p style="color:#8a8a86;font-size:0.85rem;">Causal analysis pinpoints the problem.</p>
-    </div>
-    <div class="dag-container" id="dag-container">
-      <!-- Populated by JS -->
-    </div>
-  </div>
+  <!-- ══════════════════════════════════════════════════════════
+       Scene 3: Agent Team Monitoring
+  ══════════════════════════════════════════════════════════ -->
+  <section class="scene" id="scene-2">
+    <h2 class="text-3xl font-bold gradient-title mb-1 text-center">Agent Team Monitoring</h2>
+    <p class="mb-6 text-center" style="color:var(--c-muted)">Every agent gets a unique identity</p>
 
-  <!-- SCENE 6: Detect Anti-Patterns -->
-  <div class="scene" id="scene-5">
-    <div style="margin-bottom:1.5rem;text-align:center;">
-      <span style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:#c49a5c;">Step 6</span>
-      <h2 style="font-size:1.6rem;font-weight:700;margin:0.25rem 0;">Detect Anti-Patterns</h2>
-      <p style="color:#8a8a86;font-size:0.85rem;">Automated checks catch common pitfalls.</p>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:0.75rem;max-width:460px;width:100;" id="alerts-container"></div>
-  </div>
+    <div class="card" style="width:560px;max-width:100%">
+      <div style="display:flex;gap:1.4rem;flex-wrap:wrap;justify-content:center;padding:0.5rem 0">
 
-  <!-- SCENE 7: Optimize Costs -->
-  <div class="scene" id="scene-6">
-    <div style="margin-bottom:1.5rem;text-align:center;">
-      <span style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:#6b9e7a;">Step 7</span>
-      <h2 style="font-size:1.6rem;font-weight:700;margin:0.25rem 0;">Optimize Costs</h2>
-      <p style="color:#8a8a86;font-size:0.85rem;">Know exactly what you're spending.</p>
-    </div>
-    <div style="max-width:520px;width:100%;">
-      <div style="display:flex;gap:1.5rem;align-items:center;">
-        <div style="flex:1;">
-          <div style="margin-bottom:1rem;">
-            <div style="display:flex;justify-content:space-between;font-size:0.8rem;margin-bottom:0.35rem;"><span style="font-weight:500;">Sonnet 4</span><span style="color:#8a8a86;" id="cost-sonnet-label">$0.003/trace</span></div>
-            <div class="cost-bar-track"><div class="cost-bar-fill" id="cost-bar-sonnet" style="background:linear-gradient(90deg,#6b9e7a,#8bc49b);"></div></div>
+        <div class="agent-avatar">
+          <div class="avatar-ring" style="background:rgba(99,102,241,0.18);border-color:var(--c-indigo)">
+            <svg width="32" height="32" viewBox="0 0 40 40">
+              <circle cx="20" cy="15" r="9" fill="#6366f1" opacity="0.85"/>
+              <ellipse cx="20" cy="34" rx="13" ry="7" fill="#6366f1" opacity="0.55"/>
+            </svg>
           </div>
-          <div style="margin-bottom:1.25rem;">
-            <div style="display:flex;justify-content:space-between;font-size:0.8rem;margin-bottom:0.35rem;"><span style="font-weight:500;">Opus 4</span><span style="color:#8a8a86;" id="cost-opus-label">$0.048/trace</span></div>
-            <div class="cost-bar-track"><div class="cost-bar-fill" id="cost-bar-opus" style="background:linear-gradient(90deg,#c49a5c,#d9b87a);"></div></div>
-          </div>
-          <div class="savings-highlight" id="savings-box">
-            <div style="font-size:1.4rem;font-weight:700;color:#6b9e7a;" id="savings-value">$0</div>
-            <div style="font-size:0.75rem;color:#8a8a86;">estimated monthly savings</div>
-          </div>
+          <div style="font-size:0.7rem;font-weight:600;color:var(--c-text)">Orchestrator</div>
+          <div style="font-size:0.62rem;color:var(--c-muted)">coordinator</div>
+          <div style="font-size:0.62rem"><span class="status-dot" style="background:#10b981"></span>active</div>
         </div>
-        <div class="donut-wrap">
-          <canvas id="chart-donut"></canvas>
+
+        <div class="agent-avatar">
+          <div class="avatar-ring" style="background:rgba(34,211,238,0.15);border-color:var(--c-cyan)">
+            <svg width="32" height="32" viewBox="0 0 40 40">
+              <rect x="8" y="8" width="24" height="24" rx="4" fill="#22d3ee" opacity="0.8"/>
+              <rect x="14" y="18" width="12" height="2" fill="white" opacity="0.9"/>
+              <rect x="14" y="22" width="8" height="2" fill="white" opacity="0.6"/>
+            </svg>
+          </div>
+          <div style="font-size:0.7rem;font-weight:600;color:var(--c-text)">Researcher</div>
+          <div style="font-size:0.62rem;color:var(--c-muted)">retrieval</div>
+          <div style="font-size:0.62rem"><span class="status-dot" style="background:#10b981"></span>active</div>
+        </div>
+
+        <div class="agent-avatar">
+          <div class="avatar-ring" style="background:rgba(245,158,11,0.15);border-color:var(--c-amber)">
+            <svg width="32" height="32" viewBox="0 0 40 40">
+              <polygon points="20,6 34,30 6,30" fill="#f59e0b" opacity="0.8"/>
+              <rect x="19" y="17" width="2" height="8" fill="white" opacity="0.9"/>
+              <circle cx="20" cy="27" r="1.5" fill="white" opacity="0.9"/>
+            </svg>
+          </div>
+          <div style="font-size:0.7rem;font-weight:600;color:var(--c-text)">Validator</div>
+          <div style="font-size:0.62rem;color:var(--c-muted)">quality-gate</div>
+          <div style="font-size:0.62rem"><span class="status-dot" style="background:#f59e0b"></span>busy</div>
+        </div>
+
+        <div class="agent-avatar">
+          <div class="avatar-ring" style="background:rgba(16,185,129,0.15);border-color:var(--c-emerald)">
+            <svg width="32" height="32" viewBox="0 0 40 40">
+              <circle cx="20" cy="20" r="12" fill="none" stroke="#10b981" stroke-width="3" opacity="0.8"/>
+              <path d="M14 20l4 4 8-8" stroke="#10b981" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div style="font-size:0.7rem;font-weight:600;color:var(--c-text)">Writer</div>
+          <div style="font-size:0.62rem;color:var(--c-muted)">generation</div>
+          <div style="font-size:0.62rem"><span class="status-dot" style="background:#10b981"></span>active</div>
+        </div>
+
+        <div class="agent-avatar">
+          <div class="avatar-ring" style="background:rgba(244,63,94,0.15);border-color:var(--c-rose)">
+            <svg width="32" height="32" viewBox="0 0 40 40">
+              <circle cx="20" cy="20" r="11" fill="#f43f5e" opacity="0.7"/>
+              <line x1="14" y1="14" x2="26" y2="26" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+              <line x1="26" y1="14" x2="14" y2="26" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div style="font-size:0.7rem;font-weight:600;color:var(--c-text)">Critic</div>
+          <div style="font-size:0.62rem;color:var(--c-muted)">evaluation</div>
+          <div style="font-size:0.62rem"><span class="status-dot" style="background:#ef4444"></span>error</div>
+        </div>
+
+      </div>
+    </div>
+    <p class="mt-4 text-center" style="font-size:0.8rem;color:var(--c-muted)">
+      Spawn hierarchies, roles, and live status — all tracked automatically
+    </p>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════
+       Scene 4: 3D Agent Network
+  ══════════════════════════════════════════════════════════ -->
+  <section class="scene" id="scene-3">
+    <h2 class="text-3xl font-bold gradient-title mb-1 text-center">3D Agent Network</h2>
+    <p class="mb-5 text-center" style="color:var(--c-muted)">Visualize agent relationships and spawn hierarchies</p>
+
+    <div id="network-canvas">
+      <!-- Lines drawn by JS -->
+      <!-- Nodes -->
+      <div class="net-node" id="nn-0"
+           style="left:165px;top:10px;background:rgba(99,102,241,0.2);
+                  border-color:var(--c-indigo);color:#a5b4fc;
+                  animation-delay:0s">
+        Orch
+      </div>
+      <div class="net-node" id="nn-1"
+           style="left:50px;top:100px;background:rgba(34,211,238,0.15);
+                  border-color:var(--c-cyan);color:#67e8f9;
+                  animation-delay:0.4s">
+        Res
+      </div>
+      <div class="net-node" id="nn-2"
+           style="left:280px;top:100px;background:rgba(245,158,11,0.15);
+                  border-color:var(--c-amber);color:#fcd34d;
+                  animation-delay:0.8s">
+        Val
+      </div>
+      <div class="net-node" id="nn-3"
+           style="left:50px;top:200px;background:rgba(16,185,129,0.15);
+                  border-color:var(--c-emerald);color:#6ee7b7;
+                  animation-delay:1.2s">
+        Write
+      </div>
+      <div class="net-node" id="nn-4"
+           style="left:280px;top:200px;background:rgba(244,63,94,0.15);
+                  border-color:var(--c-rose);color:#fda4af;
+                  animation-delay:1.6s">
+        Critic
+      </div>
+    </div>
+
+    <p class="mt-3 text-center" style="font-size:0.8rem;color:var(--c-muted)">
+      Edges represent spawn / call relationships — updated live
+    </p>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════
+       Scene 5: Activity Timeline
+  ══════════════════════════════════════════════════════════ -->
+  <section class="scene" id="scene-4">
+    <h2 class="text-3xl font-bold gradient-title mb-1 text-center">Activity Timeline</h2>
+    <p class="mb-5 text-center" style="color:var(--c-muted)">Real-time feed of every tool call across all agents</p>
+
+    <div class="card" style="width:520px;max-width:100%;max-height:320px;overflow:hidden">
+      <div id="timeline-feed">
+        <div class="tl-entry" style="animation-delay:0.05s">
+          <div class="tl-dot" style="background:#6366f1"></div>
+          <div style="flex:1">
+            <span style="font-size:0.72rem;color:#a5b4fc;font-weight:600">Orchestrator</span>
+            <span style="font-size:0.7rem;color:var(--c-muted);margin-left:6px">spawn_agent("Researcher")</span>
+          </div>
+          <div style="font-size:0.65rem;color:var(--c-muted)">0ms</div>
+        </div>
+        <div class="tl-entry" style="animation-delay:0.15s">
+          <div class="tl-dot" style="background:#22d3ee"></div>
+          <div style="flex:1">
+            <span style="font-size:0.72rem;color:#67e8f9;font-weight:600">Researcher</span>
+            <span style="font-size:0.7rem;color:var(--c-muted);margin-left:6px">web_search("latest AI safety papers")</span>
+          </div>
+          <div style="font-size:0.65rem;color:var(--c-muted)">42ms</div>
+        </div>
+        <div class="tl-entry" style="animation-delay:0.25s">
+          <div class="tl-dot" style="background:#22d3ee"></div>
+          <div style="flex:1">
+            <span style="font-size:0.72rem;color:#67e8f9;font-weight:600">Researcher</span>
+            <span style="font-size:0.7rem;color:var(--c-muted);margin-left:6px">llm_call("claude-sonnet-4-5", 1240 tokens)</span>
+          </div>
+          <div style="font-size:0.65rem;color:var(--c-muted)">287ms</div>
+        </div>
+        <div class="tl-entry" style="animation-delay:0.35s">
+          <div class="tl-dot" style="background:#6366f1"></div>
+          <div style="flex:1">
+            <span style="font-size:0.72rem;color:#a5b4fc;font-weight:600">Orchestrator</span>
+            <span style="font-size:0.7rem;color:var(--c-muted);margin-left:6px">spawn_agent("Validator")</span>
+          </div>
+          <div style="font-size:0.65rem;color:var(--c-muted)">430ms</div>
+        </div>
+        <div class="tl-entry" style="animation-delay:0.45s">
+          <div class="tl-dot" style="background:#f59e0b"></div>
+          <div style="flex:1">
+            <span style="font-size:0.72rem;color:#fcd34d;font-weight:600">Validator</span>
+            <span style="font-size:0.7rem;color:var(--c-muted);margin-left:6px">schema_check(result) — passed</span>
+          </div>
+          <div style="font-size:0.65rem;color:var(--c-muted)">618ms</div>
+        </div>
+        <div class="tl-entry" style="animation-delay:0.55s">
+          <div class="tl-dot" style="background:#f43f5e"></div>
+          <div style="flex:1">
+            <span style="font-size:0.72rem;color:#fda4af;font-weight:600">Critic</span>
+            <span style="font-size:0.7rem;color:var(--c-muted);margin-left:6px">
+              <span style="color:#f43f5e">ERROR</span> rate_limit_exceeded (429)
+            </span>
+          </div>
+          <div style="font-size:0.65rem;color:var(--c-muted)">794ms</div>
+        </div>
+        <div class="tl-entry" style="animation-delay:0.65s">
+          <div class="tl-dot" style="background:#10b981"></div>
+          <div style="flex:1">
+            <span style="font-size:0.72rem;color:#6ee7b7;font-weight:600">Writer</span>
+            <span style="font-size:0.7rem;color:var(--c-muted);margin-left:6px">generate_report(format="markdown")</span>
+          </div>
+          <div style="font-size:0.65rem;color:var(--c-muted)">1.2s</div>
         </div>
       </div>
     </div>
-  </div>
+  </section>
 
-  <!-- SCENE 8: Get Started -->
-  <div class="scene" id="scene-7">
-    <div style="text-align:center;margin-bottom:2rem;">
-      <svg width="48" height="48" viewBox="0 0 32 32" style="margin-bottom:0.75rem;"><defs><linearGradient id="lg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#6366f1"/><stop offset="100%" stop-color="#8b5cf6"/></linearGradient></defs><rect width="32" height="32" rx="6" fill="url(#lg2)"/><path d="M8 22V14a2 2 0 014 0v8m4 0V10a2 2 0 014 0v12" stroke="white" stroke-width="2.5" stroke-linecap="round" fill="none"/></svg>
-      <h2 style="font-size:1.8rem;font-weight:700;margin:0.25rem 0;">Get Started in Seconds</h2>
-      <p style="color:#8a8a86;font-size:0.9rem;">Agent observability, made simple.</p>
-    </div>
-    <div class="cta-block" style="max-width:480px;width:100%;">
-      <div class="install-cmd" style="margin-bottom:1.25rem;">pip install flowlens</div>
-      <div style="display:flex;gap:0.75rem;justify-content:center;flex-wrap:wrap;margin-bottom:1.25rem;">
-        <a href="https://github.com/yusenthebot/flowlens" class="cta-link cta-primary">GitHub</a>
-        <a href="#" class="cta-link cta-secondary">Documentation</a>
-        <a href="demo_dashboard.html" class="cta-link cta-secondary">Interactive Demo</a>
+  <!-- ══════════════════════════════════════════════════════════
+       Scene 6: Causal Error Analysis
+  ══════════════════════════════════════════════════════════ -->
+  <section class="scene" id="scene-5">
+    <h2 class="text-3xl font-bold gradient-title mb-1 text-center">Causal Error Analysis</h2>
+    <p class="mb-5 text-center" style="color:var(--c-muted)">Distinguish root causes from cascaded failures</p>
+
+    <div id="dag-canvas">
+      <!-- Arrows rendered by JS -->
+      <!-- Root cause -->
+      <div class="dag-node root-cause"
+           style="left:155px;top:8px;
+                  background:rgba(244,63,94,0.2);
+                  border-color:var(--c-rose);
+                  color:#fda4af">
+        rate_limit (429)
       </div>
-      <div style="font-size:0.75rem;color:#b5b5b0;display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;">
-        <span><kbd>R</kbd> Replay</span>
-        <span><kbd>Space</kbd> Play / Pause</span>
-        <span><kbd>&larr;</kbd> <kbd>&rarr;</kbd> Navigate</span>
+      <!-- Cascades -->
+      <div class="dag-node"
+           style="left:50px;top:90px;
+                  background:rgba(245,158,11,0.15);
+                  border-color:var(--c-amber);
+                  color:#fcd34d">
+        Critic timeout
+      </div>
+      <div class="dag-node"
+           style="left:250px;top:90px;
+                  background:rgba(245,158,11,0.15);
+                  border-color:var(--c-amber);
+                  color:#fcd34d">
+        retry storm
+      </div>
+      <div class="dag-node"
+           style="left:50px;top:175px;
+                  background:rgba(99,102,241,0.12);
+                  border-color:rgba(99,102,241,0.4);
+                  color:#a5b4fc">
+        Writer skipped
+      </div>
+      <div class="dag-node"
+           style="left:240px;top:175px;
+                  background:rgba(99,102,241,0.12);
+                  border-color:rgba(99,102,241,0.4);
+                  color:#a5b4fc">
+        cost spike
       </div>
     </div>
-  </div>
 
-  <!-- Scene dots -->
-  <div class="scene-dots" id="scene-dots"></div>
+    <div class="card mt-3" style="max-width:420px;padding:0.7rem 1rem">
+      <div style="font-size:0.75rem;color:var(--c-muted)">
+        <span style="color:#fda4af;font-weight:600">Root cause:</span>
+        rate_limit_exceeded on Critic at t=794ms —
+        <span style="color:#6ee7b7">3 downstream failures suppressed</span>
+      </div>
+    </div>
+  </section>
 
-  <script>
-  // ─── CONFIG ────────────────────────────────────────────────────
-  const SCENE_DURATIONS = [5000, 8000, 8000, 8000, 8000, 6000, 6000, Infinity]; // ms per scene
-  const TOTAL_SCENES = 8;
+  <!-- ══════════════════════════════════════════════════════════
+       Scene 7: Cost Intelligence
+  ══════════════════════════════════════════════════════════ -->
+  <section class="scene" id="scene-6">
+    <h2 class="text-3xl font-bold gradient-title mb-1 text-center">Cost Intelligence</h2>
+    <p class="mb-5 text-center" style="color:var(--c-muted)">Track spend per agent, model, and operation</p>
 
-  let currentScene = -1;
-  let paused = false;
-  let sceneTimer = null;
-  let sceneStartTime = 0;
-  let sceneRemaining = 0;
-  let chartLatency = null;
-  let chartVolume = null;
-  let chartDonut = null;
+    <div class="card" style="width:440px;max-width:100%">
+      <div style="font-size:0.72rem;color:var(--c-muted);margin-bottom:0.8rem">Cost breakdown by agent — current session</div>
 
-  // ─── INIT DOTS ─────────────────────────────────────────────────
-  const dotsEl = document.getElementById('scene-dots');
-  for (let i = 0; i < TOTAL_SCENES; i++) {
-    const d = document.createElement('div');
-    d.className = 'scene-dot';
-    d.addEventListener('click', () => goToScene(i));
-    dotsEl.appendChild(d);
+      <div class="cost-bar-wrap">
+        <div style="font-size:0.72rem;width:90px;text-align:right;color:#a5b4fc">Orchestrator</div>
+        <div class="cost-bar-bg">
+          <div class="cost-bar-fill" data-width="65"
+               style="width:0%;background:linear-gradient(90deg,var(--c-indigo),var(--c-violet))"></div>
+        </div>
+        <div style="font-size:0.72rem;color:var(--c-muted);width:40px">$0.042</div>
+      </div>
+      <div class="cost-bar-wrap">
+        <div style="font-size:0.72rem;width:90px;text-align:right;color:#67e8f9">Researcher</div>
+        <div class="cost-bar-bg">
+          <div class="cost-bar-fill" data-width="100"
+               style="width:0%;background:linear-gradient(90deg,var(--c-cyan),#06b6d4)"></div>
+        </div>
+        <div style="font-size:0.72rem;color:var(--c-muted);width:40px">$0.065</div>
+      </div>
+      <div class="cost-bar-wrap">
+        <div style="font-size:0.72rem;width:90px;text-align:right;color:#fcd34d">Validator</div>
+        <div class="cost-bar-bg">
+          <div class="cost-bar-fill" data-width="28"
+               style="width:0%;background:linear-gradient(90deg,var(--c-amber),#d97706)"></div>
+        </div>
+        <div style="font-size:0.72rem;color:var(--c-muted);width:40px">$0.018</div>
+      </div>
+      <div class="cost-bar-wrap">
+        <div style="font-size:0.72rem;width:90px;text-align:right;color:#6ee7b7">Writer</div>
+        <div class="cost-bar-bg">
+          <div class="cost-bar-fill" data-width="55"
+               style="width:0%;background:linear-gradient(90deg,var(--c-emerald),#059669)"></div>
+        </div>
+        <div style="font-size:0.72rem;color:var(--c-muted);width:40px">$0.036</div>
+      </div>
+      <div class="cost-bar-wrap">
+        <div style="font-size:0.72rem;width:90px;text-align:right;color:#fda4af">Critic</div>
+        <div class="cost-bar-bg">
+          <div class="cost-bar-fill" data-width="18"
+               style="width:0%;background:linear-gradient(90deg,var(--c-rose),#e11d48)"></div>
+        </div>
+        <div style="font-size:0.72rem;color:var(--c-muted);width:40px">$0.012</div>
+      </div>
+
+      <div style="border-top:1px solid var(--c-border);margin-top:0.8rem;padding-top:0.6rem;
+                  display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:0.72rem;color:var(--c-muted)">Total session cost</span>
+        <span style="font-size:1rem;font-weight:700;
+                     background:linear-gradient(135deg,var(--c-indigo),var(--c-cyan));
+                     -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+                     background-clip:text">$0.173</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════
+       Scene 8: Get Started
+  ══════════════════════════════════════════════════════════ -->
+  <section class="scene" id="scene-7">
+    <h2 class="text-3xl font-bold gradient-title mb-1 text-center">Get Started in Seconds</h2>
+    <p class="mb-5 text-center" style="color:var(--c-muted)">
+      1071 tests. Production ready. v1.0.0
+    </p>
+
+    <div style="width:500px;max-width:100%;display:flex;flex-direction:column;gap:0.9rem">
+      <div class="code-block">
+        <span style="color:var(--c-muted)"># Install</span><br>
+        <span style="color:var(--c-emerald)">pip install flowlens</span>
+      </div>
+
+      <div class="code-block">
+        <span class="kw">from</span> <span class="fn">flowlens</span> <span class="kw">import</span> FlowLens, trace_agent, trace_llm<br>
+        <br>
+        lens = FlowLens(<span class="str">service_name=</span><span class="str">"my-agent"</span>)<br>
+        <br>
+        <span class="kw">@</span><span class="fn">trace_agent</span>(<span class="str">name=</span><span class="str">"planner"</span>)<br>
+        <span class="kw">async def</span> <span class="fn">plan</span>(task: str):<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="cm"># FlowLens captures every LLM call,</span><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="cm"># tool use, cost, and error automatically</span><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return await</span> <span class="fn">think</span>(task)
+      </div>
+
+      <div style="display:flex;gap:0.8rem;justify-content:center;flex-wrap:wrap">
+        <a href="https://github.com/niceyusen/flowlens"
+           target="_blank"
+           style="display:inline-flex;align-items:center;gap:6px;
+                  background:rgba(99,102,241,0.18);
+                  border:1px solid rgba(99,102,241,0.35);
+                  color:#a5b4fc;border-radius:8px;
+                  padding:8px 18px;font-size:0.8rem;font-weight:600;
+                  text-decoration:none;transition:background 0.2s">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385
+                     .6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41
+                     -.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23
+                     1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605
+                     -2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225
+                     -.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405
+                     c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225
+                     0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22
+                     0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12
+                     c0-6.63-5.37-12-12-12z"/>
+          </svg>
+          GitHub
+        </a>
+        <a href="https://github.com/niceyusen/flowlens/blob/main/docs/"
+           target="_blank"
+           style="display:inline-flex;align-items:center;gap:6px;
+                  background:rgba(34,211,238,0.12);
+                  border:1px solid rgba(34,211,238,0.3);
+                  color:#67e8f9;border-radius:8px;
+                  padding:8px 18px;font-size:0.8rem;font-weight:600;
+                  text-decoration:none;transition:background 0.2s">
+          Docs
+        </a>
+      </div>
+    </div>
+  </section>
+
+</div><!-- #tour -->
+
+<!-- Scene dots -->
+<div id="dots"></div>
+
+<script>
+// ── Constants ──────────────────────────────────────────────────────
+const TOTAL_SCENES = 8;
+const SCENE_DURATION = 5000; // ms
+let current = 0;
+let paused = false;
+let startTime = null;
+let animFrame = null;
+let enterTime = 0;
+
+// ── Build dots ─────────────────────────────────────────────────────
+const dotsEl = document.getElementById('dots');
+for (let i = 0; i < TOTAL_SCENES; i++) {
+  const d = document.createElement('div');
+  d.className = 'dot' + (i === 0 ? ' active' : '');
+  d.addEventListener('click', () => jumpTo(i));
+  dotsEl.appendChild(d);
+}
+
+function getDots() { return dotsEl.querySelectorAll('.dot'); }
+
+// ── Progress bar ───────────────────────────────────────────────────
+const progressBar = document.getElementById('progress-bar');
+function setProgress(frac) {
+  progressBar.style.transition = 'none';
+  progressBar.style.width = (frac * 100) + '%';
+}
+
+// ── Scene activation ───────────────────────────────────────────────
+function activateScene(idx) {
+  document.querySelectorAll('.scene').forEach((s, i) => {
+    s.classList.remove('active', 'exit');
+    if (i < idx) s.classList.add('exit');
+  });
+  const el = document.getElementById('scene-' + idx);
+  if (el) el.classList.add('active');
+
+  getDots().forEach((d, i) => d.classList.toggle('active', i === idx));
+
+  onSceneEnter(idx);
+}
+
+function jumpTo(idx) {
+  current = idx;
+  setProgress(0);
+  enterTime = performance.now();
+  activateScene(idx);
+}
+
+// ── Scene-specific enter hooks ─────────────────────────────────────
+function onSceneEnter(idx) {
+  if (idx === 1) runCounters();
+  if (idx === 3) drawNetwork();
+  if (idx === 5) drawDAG();
+  if (idx === 6) animateCostBars();
+}
+
+// Scene 2 — animated counters
+function runCounters() {
+  animateCount('cnt-spans',  0, 4827,  1800);
+  animateCount('cnt-agents', 0, 12,    900);
+  animateCount('cnt-errors', 0, 37,    1200);
+  animateCountDollar('cnt-cost', 0, 2.41, 1600);
+}
+function animateCount(id, from, to, dur) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const start = performance.now();
+  function step(now) {
+    const t = Math.min((now - start) / dur, 1);
+    const ease = 1 - Math.pow(1 - t, 3);
+    el.textContent = Math.round(from + (to - from) * ease).toLocaleString();
+    if (t < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+function animateCountDollar(id, from, to, dur) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const start = performance.now();
+  function step(now) {
+    const t = Math.min((now - start) / dur, 1);
+    const ease = 1 - Math.pow(1 - t, 3);
+    el.textContent = '$' + (from + (to - from) * ease).toFixed(2);
+    if (t < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+// Scene 4 — draw network lines with SVG overlay
+function drawNetwork() {
+  const canvas = document.getElementById('network-canvas');
+  if (!canvas) return;
+
+  // Remove old SVG if redrawn
+  const old = canvas.querySelector('svg.net-svg');
+  if (old) old.remove();
+
+  const W = canvas.offsetWidth || 380;
+  const H = canvas.offsetHeight || 280;
+
+  // Node positions (center of each .net-node, 48px wide)
+  const nodes = [
+    { id: 'nn-0', x: 165+24, y: 10+24 },
+    { id: 'nn-1', x:  50+24, y:100+24 },
+    { id: 'nn-2', x: 280+24, y:100+24 },
+    { id: 'nn-3', x:  50+24, y:200+24 },
+    { id: 'nn-4', x: 280+24, y:200+24 },
+  ];
+  const edges = [[0,1],[0,2],[1,3],[2,4],[1,4]];
+  const colors = ['rgba(99,102,241,0.55)','rgba(34,211,238,0.45)',
+                  'rgba(245,158,11,0.45)','rgba(16,185,129,0.45)',
+                  'rgba(244,63,94,0.35)'];
+
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('width', W);
+  svg.setAttribute('height', H);
+  svg.classList.add('net-svg');
+  svg.style.cssText = 'position:absolute;inset:0;pointer-events:none;';
+
+  edges.forEach(([a, b], i) => {
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', nodes[a].x);
+    line.setAttribute('y1', nodes[a].y);
+    line.setAttribute('x2', nodes[b].x);
+    line.setAttribute('y2', nodes[b].y);
+    line.setAttribute('stroke', colors[i % colors.length]);
+    line.setAttribute('stroke-width', '2');
+    line.setAttribute('stroke-dasharray', '5 4');
+    svg.appendChild(line);
+
+    // Animate dash offset
+    line.style.strokeDashoffset = '0';
+    let offset = 0;
+    (function animate() {
+      offset -= 0.4;
+      line.setAttribute('stroke-dashoffset', offset);
+      requestAnimationFrame(animate);
+    })();
+  });
+
+  canvas.insertBefore(svg, canvas.firstChild);
+}
+
+// Scene 6 — draw DAG arrows
+function drawDAG() {
+  const canvas = document.getElementById('dag-canvas');
+  if (!canvas) return;
+
+  const old = canvas.querySelector('svg.dag-svg');
+  if (old) old.remove();
+
+  const W = canvas.offsetWidth || 420;
+  const H = canvas.offsetHeight || 260;
+
+  // [from-center-x, from-center-y, to-center-x, to-center-y]
+  const arrows = [
+    [194, 28,  90, 90],
+    [194, 28, 310, 90],
+    [ 90, 110,  90, 175],
+    [310, 110, 310, 175],
+  ];
+
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('width', W);
+  svg.setAttribute('height', H);
+  svg.classList.add('dag-svg');
+  svg.style.cssText = 'position:absolute;inset:0;pointer-events:none;';
+
+  // Arrow marker
+  const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+  const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+  marker.setAttribute('id', 'arrowhead');
+  marker.setAttribute('markerWidth', '8');
+  marker.setAttribute('markerHeight', '6');
+  marker.setAttribute('refX', '7');
+  marker.setAttribute('refY', '3');
+  marker.setAttribute('orient', 'auto');
+  const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+  poly.setAttribute('points', '0 0, 8 3, 0 6');
+  poly.setAttribute('fill', 'rgba(244,63,94,0.6)');
+  marker.appendChild(poly);
+  defs.appendChild(marker);
+  svg.appendChild(defs);
+
+  arrows.forEach(([x1,y1,x2,y2]) => {
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', x1); line.setAttribute('y1', y1);
+    line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+    line.setAttribute('stroke', 'rgba(244,63,94,0.5)');
+    line.setAttribute('stroke-width', '1.8');
+    line.setAttribute('marker-end', 'url(#arrowhead)');
+    svg.appendChild(line);
+  });
+
+  canvas.insertBefore(svg, canvas.firstChild);
+}
+
+// Scene 7 — animate cost bars
+function animateCostBars() {
+  document.querySelectorAll('.cost-bar-fill').forEach(bar => {
+    const target = bar.dataset.width + '%';
+    // Slight delay to let scene transition finish
+    setTimeout(() => { bar.style.width = target; }, 80);
+  });
+}
+
+// ── Tour loop ──────────────────────────────────────────────────────
+function tick(now) {
+  if (paused) { animFrame = requestAnimationFrame(tick); return; }
+
+  const elapsed = now - enterTime;
+  const frac = Math.min(elapsed / SCENE_DURATION, 1);
+
+  // Smooth the progress bar
+  progressBar.style.width = (frac * 100) + '%';
+
+  if (frac >= 1) {
+    const next = (current + 1) % TOTAL_SCENES;
+    current = next;
+    enterTime = now;
+    activateScene(current);
   }
 
-  // ─── SCENE NAVIGATION ─────────────────────────────────────────
-  function goToScene(index) {
-    if (index < 0 || index >= TOTAL_SCENES || index === currentScene) return;
-    clearTimeout(sceneTimer);
+  animFrame = requestAnimationFrame(tick);
+}
 
-    // Deactivate old scene
-    if (currentScene >= 0) {
-      document.getElementById('scene-' + currentScene).classList.remove('active');
-    }
-
-    currentScene = index;
-
-    // Activate new scene
-    document.getElementById('scene-' + currentScene).classList.add('active');
-
-    // Update dots
-    document.querySelectorAll('.scene-dot').forEach((d, i) => {
-      d.classList.toggle('active', i === currentScene);
-    });
-
-    // Update progress bar
-    const pct = ((currentScene + 1) / TOTAL_SCENES) * 100;
-    document.getElementById('progress-bar').style.width = pct + '%';
-
-    // Run scene animation
-    runSceneAnimation(currentScene);
-
-    // Schedule next scene
-    scheduleNext();
-  }
-
-  function scheduleNext() {
-    clearTimeout(sceneTimer);
-    const dur = SCENE_DURATIONS[currentScene];
-    if (dur === Infinity || paused) return;
-    sceneStartTime = Date.now();
-    sceneRemaining = dur;
-    sceneTimer = setTimeout(() => goToScene(currentScene + 1), dur);
-  }
-
-  function togglePause() {
+// ── Keyboard controls ──────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight') { jumpTo((current + 1) % TOTAL_SCENES); }
+  else if (e.key === 'ArrowLeft') { jumpTo((current - 1 + TOTAL_SCENES) % TOTAL_SCENES); }
+  else if (e.key === ' ') {
+    e.preventDefault();
     paused = !paused;
-    const el = document.getElementById('pause-indicator');
-    if (paused) {
-      clearTimeout(sceneTimer);
-      sceneRemaining -= (Date.now() - sceneStartTime);
-      el.classList.add('visible');
-    } else {
-      el.classList.remove('visible');
-      if (sceneRemaining > 0 && SCENE_DURATIONS[currentScene] !== Infinity) {
-        sceneStartTime = Date.now();
-        sceneTimer = setTimeout(() => goToScene(currentScene + 1), sceneRemaining);
-      }
-    }
+    document.getElementById('pause-badge').classList.toggle('visible', paused);
+    if (!paused) enterTime = performance.now() - (SCENE_DURATION * 0.01); // resume near start
   }
+});
 
-  // ─── KEYBOARD ──────────────────────────────────────────────────
-  document.addEventListener('keydown', e => {
-    if (e.code === 'Space') { e.preventDefault(); togglePause(); }
-    if (e.code === 'ArrowRight') { e.preventDefault(); goToScene(currentScene + 1); }
-    if (e.code === 'ArrowLeft') { e.preventDefault(); goToScene(currentScene - 1); }
-    if (e.code === 'KeyR') { e.preventDefault(); replay(); }
-  });
-
-  function replay() {
-    paused = false;
-    document.getElementById('pause-indicator').classList.remove('visible');
-    currentScene = -1;
-    // Reset all scenes
-    document.querySelectorAll('.scene').forEach(s => s.classList.remove('active'));
-    cleanupAnimations();
-    goToScene(0);
-  }
-
-  function cleanupAnimations() {
-    // Reset typewriter
-    document.getElementById('code-output').innerHTML = '';
-    // Reset console
-    document.getElementById('console-output').innerHTML = '';
-    document.getElementById('console-progress').style.width = '0';
-    // Reset stat counters
-    document.querySelectorAll('.stat-value').forEach(el => {
-      el.textContent = el.dataset.prefix || '';
-      el.textContent += '0';
-    });
-    // Reset waterfall
-    document.querySelectorAll('.span-row').forEach(r => { r.classList.remove('visible'); });
-    document.querySelectorAll('.span-bar').forEach(b => { b.style.width = '0'; });
-    // Reset DAG
-    document.querySelectorAll('.dag-node').forEach(n => { n.classList.remove('visible', 'error', 'glow', 'dimmed'); });
-    document.querySelectorAll('.root-cause-label').forEach(l => l.classList.remove('visible'));
-    document.querySelectorAll('.root-cause-panel').forEach(p => p.classList.remove('visible'));
-    // Reset alerts
-    document.querySelectorAll('.alert-card').forEach(c => c.classList.remove('visible'));
-    // Reset costs
-    document.getElementById('cost-bar-sonnet').style.width = '0';
-    document.getElementById('cost-bar-opus').style.width = '0';
-    document.getElementById('savings-box').classList.remove('visible');
-    document.getElementById('savings-value').textContent = '$0';
-    // Destroy charts
-    if (chartLatency) { chartLatency.destroy(); chartLatency = null; }
-    if (chartVolume) { chartVolume.destroy(); chartVolume = null; }
-    if (chartDonut) { chartDonut.destroy(); chartDonut = null; }
-  }
-
-  // ─── SCENE ANIMATIONS ─────────────────────────────────────────
-
-  function runSceneAnimation(idx) {
-    switch(idx) {
-      case 0: animateCode(); break;
-      case 1: animateConsole(); break;
-      case 2: animateDashboard(); break;
-      case 3: animateWaterfall(); break;
-      case 4: animateDAG(); break;
-      case 5: animateAlerts(); break;
-      case 6: animateCosts(); break;
-      case 7: /* static */ break;
-    }
-  }
-
-  // ─── SCENE 1: CODE TYPEWRITER ──────────────────────────────────
-  const codeLines = [
-    { text: 'from flowlens import FlowLens, trace_agent, trace_llm, trace_tool', classes: ['kw','imp','imp','imp','imp','imp'] },
-    { text: '' },
-    { text: 'lens = FlowLens(project="my-rag-agent")', classes: ['imp','fn','str'] },
-    { text: '' },
-    { text: '@trace_agent', cls: 'dec' },
-    { text: 'def run_pipeline(query: str):', classes: ['kw', 'fn'] },
-    { text: '    docs = search(query)', indent: true },
-    { text: '    return generate(docs)', indent: true },
-    { text: '' },
-    { text: '@trace_llm(model="sonnet-4")', cls: 'dec' },
-    { text: 'def generate(context):', classes: ['kw', 'fn'] },
-    { text: '    return llm.complete(context)', indent: true },
-    { text: '' },
-    { text: '@trace_tool', cls: 'dec' },
-    { text: 'def search(query: str):', classes: ['kw', 'fn'] },
-    { text: '    return vector_db.search(query, k=5)', indent: true },
-  ];
-
-  function renderCodeLine(line) {
-    if (!line.text) return '\n';
-    if (line.cls) return `<span class="${line.cls}">${escHtml(line.text)}</span>\n`;
-
-    // Simple highlighting
-    let t = escHtml(line.text);
-    // Decorators
-    t = t.replace(/@\w+/g, m => `<span class="dec">${m}</span>`);
-    // Keywords
-    t = t.replace(/\b(from|import|def|return|class)\b/g, m => `<span class="kw">${m}</span>`);
-    // Strings
-    t = t.replace(/(&quot;[^&]*&quot;|&#39;[^&]*&#39;|"[^"]*"|'[^']*')/g, m => `<span class="str">${m}</span>`);
-    // Function calls
-    t = t.replace(/(\w+)\(/g, (m, fn) => `<span class="fn">${fn}</span>(`);
-    return t + '\n';
-  }
-
-  function escHtml(s) {
-    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-  }
-
-  function animateCode() {
-    const el = document.getElementById('code-output');
-    el.innerHTML = '';
-    const fullText = codeLines.map(l => renderCodeLine(l)).join('');
-    const plainChars = fullText.replace(/<[^>]*>/g, '');
-    let charIdx = 0;
-
-    function typeNext() {
-      if (currentScene !== 0) return;
-      if (charIdx >= plainChars.length) {
-        el.innerHTML = fullText;
-        return;
-      }
-      charIdx += 2; // type 2 chars at a time
-      // Render up to charIdx by counting non-tag characters
-      let rendered = '';
-      let count = 0;
-      let inTag = false;
-      for (let i = 0; i < fullText.length && count < charIdx; i++) {
-        if (fullText[i] === '<') { inTag = true; }
-        if (!inTag) count++;
-        rendered += fullText[i];
-        if (fullText[i] === '>') { inTag = false; }
-      }
-      // Close any open tags
-      const openTags = [];
-      const tagRegex = /<\/?span[^>]*>/g;
-      let match;
-      while ((match = tagRegex.exec(rendered)) !== null) {
-        if (match[0].startsWith('</')) openTags.pop();
-        else openTags.push('</span>');
-      }
-      rendered += openTags.reverse().join('');
-      el.innerHTML = rendered + '<span class="code-cursor"></span>';
-      requestAnimationFrame(() => setTimeout(typeNext, 28));
-    }
-    typeNext();
-  }
-
-  // ─── SCENE 2: CONSOLE TRACES ──────────────────────────────────
-  const traceLines = [
-    { id: 'a1b2c3d4', spans: 5, ms: 2340, tok: '8,420', cost: '$0.048', status: 'OK' },
-    { id: 'c3d4e5f6', spans: 8, ms: 4580, tok: '12,450', cost: '$0.124', status: 'OK' },
-    { id: 'e5f6a7b8', spans: 6, ms: 3120, tok: '9,800', cost: '$0.031', status: 'ERROR' },
-    { id: 'f7a8b9c0', spans: 4, ms: 1890, tok: '6,210', cost: '$0.022', status: 'OK' },
-    { id: 'd1e2f3a4', spans: 7, ms: 5210, tok: '15,300', cost: '$0.089', status: 'OK' },
-    { id: 'b5c6d7e8', spans: 3, ms: 980, tok: '3,100', cost: '$0.009', status: 'OK' },
-  ];
-
-  function animateConsole() {
-    const el = document.getElementById('console-output');
-    el.innerHTML = '';
-    document.getElementById('console-progress').style.width = '0';
-    setTimeout(() => { document.getElementById('console-progress').style.width = '100%'; }, 50);
-
-    traceLines.forEach((t, i) => {
-      const statusClass = t.status === 'OK' ? 'status-ok' : 'status-err';
-      const line = document.createElement('div');
-      line.className = 'trace-line';
-      line.innerHTML = `<span class="trace-dim">[FlowLens]</span> Trace <span class="trace-id">${t.id}...</span> <span class="trace-dim">|</span> ${t.spans} spans <span class="trace-dim">|</span> ${t.ms}ms <span class="trace-dim">|</span> ${t.tok} tok <span class="trace-dim">|</span> ${t.cost} <span class="trace-dim">|</span> <span class="${statusClass}">${t.status}</span>`;
-      el.appendChild(line);
-      setTimeout(() => {
-        if (currentScene === 1) line.classList.add('visible');
-      }, 600 + i * 1000);
-    });
-  }
-
-  // ─── SCENE 3: DASHBOARD ───────────────────────────────────────
-  function animateDashboard() {
-    // Animate stat counters
-    document.querySelectorAll('.stat-value').forEach(el => {
-      const target = parseFloat(el.dataset.target);
-      const prefix = el.dataset.prefix || '';
-      const suffix = el.dataset.suffix || '';
-      const decimals = parseInt(el.dataset.decimals) || 0;
-      let start = 0;
-      const duration = 1500;
-      const startTime = performance.now();
-
-      function tick(now) {
-        if (currentScene !== 2) return;
-        const elapsed = now - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-        const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
-        const val = start + (target - start) * eased;
-        el.textContent = prefix + val.toFixed(decimals) + suffix;
-        if (progress < 1) requestAnimationFrame(tick);
-      }
-      requestAnimationFrame(tick);
-    });
-
-    // Latency chart (line)
-    setTimeout(() => {
-      if (currentScene !== 2) return;
-      const ctx = document.getElementById('chart-latency');
-      if (chartLatency) chartLatency.destroy();
-      chartLatency = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
-          datasets: [{
-            label: 'Latency (s)',
-            data: [2.1, 2.4, 1.9, 2.8, 2.3, 1.7, 2.4],
-            borderColor: '#9b8ec4',
-            backgroundColor: 'rgba(155, 142, 196, 0.1)',
-            fill: true,
-            tension: 0.4,
-            pointRadius: 3,
-            pointBackgroundColor: '#9b8ec4',
-            borderWidth: 2,
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          animation: { duration: 1500, easing: 'easeOutQuart' },
-          plugins: { legend: { display: false } },
-          scales: {
-            x: { grid: { display: false }, ticks: { color: '#b5b5b0', font: { size: 10 } } },
-            y: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { color: '#b5b5b0', font: { size: 10 } }, beginAtZero: true }
-          }
-        }
-      });
-    }, 200);
-
-    // Volume chart (bar)
-    setTimeout(() => {
-      if (currentScene !== 2) return;
-      const ctx = document.getElementById('chart-volume');
-      if (chartVolume) chartVolume.destroy();
-      chartVolume = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
-          datasets: [{
-            label: 'Traces',
-            data: [142, 198, 167, 221, 189, 95, 135],
-            backgroundColor: ['rgba(107,158,122,0.6)','rgba(122,158,181,0.6)','rgba(155,142,196,0.6)','rgba(107,158,122,0.6)','rgba(122,158,181,0.6)','rgba(196,154,92,0.6)','rgba(155,142,196,0.6)'],
-            borderRadius: 6,
-            borderSkipped: false,
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          animation: { duration: 1500, easing: 'easeOutQuart' },
-          plugins: { legend: { display: false } },
-          scales: {
-            x: { grid: { display: false }, ticks: { color: '#b5b5b0', font: { size: 10 } } },
-            y: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { color: '#b5b5b0', font: { size: 10 } }, beginAtZero: true }
-          }
-        }
-      });
-    }, 400);
-  }
-
-  // ─── SCENE 4: WATERFALL ────────────────────────────────────────
-  const spans = [
-    { label: 'rag_agent', color: '#b5a8d8', width: 95, duration: '4,580ms', offset: 0 },
-    { label: 'embed_query', color: '#7a9eb5', width: 15, duration: '340ms', offset: 2 },
-    { label: 'vector_search', color: '#7a9eb5', width: 25, duration: '890ms', offset: 18 },
-    { label: 'rerank', color: '#7a9eb5', width: 12, duration: '210ms', offset: 44 },
-    { label: 'generate_answer', color: '#9b8ec4', width: 40, duration: '3,140ms', offset: 55 },
-  ];
-
-  // Build waterfall HTML once
-  (function buildWaterfall() {
-    const container = document.getElementById('waterfall');
-    spans.forEach((s, i) => {
-      const row = document.createElement('div');
-      row.className = 'span-row';
-      row.innerHTML = `
-        <div class="span-label" style="color:${s.color};">${s.label}</div>
-        <div class="span-track">
-          <div class="span-bar" style="background:${s.color};left:${s.offset}%;" data-width="${s.width}">
-            <span class="span-duration">${s.duration}</span>
-          </div>
-        </div>`;
-      container.appendChild(row);
-    });
-  })();
-
-  function animateWaterfall() {
-    const rows = document.querySelectorAll('.span-row');
-    rows.forEach(r => { r.classList.remove('visible'); });
-    document.querySelectorAll('.span-bar').forEach(b => { b.style.width = '0'; });
-
-    rows.forEach((row, i) => {
-      setTimeout(() => {
-        if (currentScene !== 3) return;
-        row.classList.add('visible');
-        const bar = row.querySelector('.span-bar');
-        setTimeout(() => {
-          bar.style.width = bar.dataset.width + '%';
-        }, 100);
-      }, i * 600);
-    });
-  }
-
-  // ─── SCENE 5: DAG ─────────────────────────────────────────────
-  const dagNodes = [
-    { id: 'agent', label: 'rag_agent', x: 42, y: 5 },
-    { id: 'embed', label: 'embed_query', x: 10, y: 30 },
-    { id: 'search', label: 'web_search', x: 42, y: 30, isError: true },
-    { id: 'vector', label: 'vector_search', x: 74, y: 30 },
-    { id: 'rerank', label: 'rerank', x: 25, y: 60 },
-    { id: 'generate', label: 'generate', x: 60, y: 60 },
-  ];
-  const dagEdges = [
-    { from: 'agent', to: 'embed' },
-    { from: 'agent', to: 'search' },
-    { from: 'agent', to: 'vector' },
-    { from: 'embed', to: 'rerank' },
-    { from: 'vector', to: 'rerank' },
-    { from: 'rerank', to: 'generate' },
-  ];
-
-  // Build DAG HTML
-  (function buildDAG() {
-    const container = document.getElementById('dag-container');
-    // Nodes
-    dagNodes.forEach(n => {
-      const el = document.createElement('div');
-      el.className = 'dag-node';
-      el.id = 'dag-' + n.id;
-      el.textContent = n.label;
-      el.style.left = n.x + '%';
-      el.style.top = n.y + '%';
-      container.appendChild(el);
-    });
-    // Root cause label
-    const rcLabel = document.createElement('div');
-    rcLabel.className = 'root-cause-label';
-    rcLabel.id = 'rc-label';
-    rcLabel.textContent = 'ROOT CAUSE';
-    const errNode = dagNodes.find(n => n.isError);
-    rcLabel.style.left = (errNode.x) + '%';
-    rcLabel.style.top = (errNode.y + 14) + '%';
-    container.appendChild(rcLabel);
-    // Root cause panel
-    const rcPanel = document.createElement('div');
-    rcPanel.className = 'root-cause-panel';
-    rcPanel.id = 'rc-panel';
-    rcPanel.style.right = '0';
-    rcPanel.style.bottom = '0';
-    rcPanel.innerHTML = '<div style="font-weight:600;font-size:0.85rem;color:#c47070;margin-bottom:0.25rem;">Root Cause Identified</div><div style="font-size:0.8rem;color:#555553;">web_search timeout (30s)</div><div style="font-size:0.7rem;color:#8a8a86;margin-top:0.25rem;">Cascaded to 2 downstream spans</div>';
-    container.appendChild(rcPanel);
-  })();
-
-  function animateDAG() {
-    // Reset
-    dagNodes.forEach(n => {
-      const el = document.getElementById('dag-' + n.id);
-      el.classList.remove('visible', 'error', 'glow', 'dimmed');
-    });
-    document.getElementById('rc-label').classList.remove('visible');
-    document.getElementById('rc-panel').classList.remove('visible');
-
-    // Animate nodes one by one
-    dagNodes.forEach((n, i) => {
-      setTimeout(() => {
-        if (currentScene !== 4) return;
-        document.getElementById('dag-' + n.id).classList.add('visible');
-      }, i * 400);
-    });
-
-    // After nodes appear, highlight error
-    setTimeout(() => {
-      if (currentScene !== 4) return;
-      const errEl = document.getElementById('dag-search');
-      errEl.classList.add('error');
-      setTimeout(() => {
-        errEl.classList.add('glow');
-        document.getElementById('rc-label').classList.add('visible');
-      }, 400);
-    }, dagNodes.length * 400 + 300);
-
-    // Dim non-error nodes and show panel
-    setTimeout(() => {
-      if (currentScene !== 4) return;
-      dagNodes.forEach(n => {
-        if (!n.isError) {
-          document.getElementById('dag-' + n.id).classList.add('dimmed');
-        }
-      });
-      document.getElementById('rc-panel').classList.add('visible');
-    }, dagNodes.length * 400 + 1200);
-  }
-
-  // ─── SCENE 6: ALERTS ──────────────────────────────────────────
-  const alerts = [
-    { title: 'Retry Storm', desc: '3 retries in 2s on embed_query', severity: 'warning', icon: '\u26A0' },
-    { title: 'Token Waste', desc: '128k tokens for a summarization task', severity: 'warning', icon: '\u26A0' },
-    { title: 'Cascading Failure', desc: 'timeout propagated to 3 downstream spans', severity: 'critical', icon: '\u2716' },
-  ];
-
-  // Build alerts
-  (function buildAlerts() {
-    const container = document.getElementById('alerts-container');
-    alerts.forEach(a => {
-      const card = document.createElement('div');
-      const borderColor = a.severity === 'critical' ? 'rgba(196,112,112,0.3)' : 'rgba(196,154,92,0.3)';
-      card.className = 'alert-card';
-      card.style.borderLeftWidth = '3px';
-      card.style.borderLeftColor = a.severity === 'critical' ? '#c47070' : '#c49a5c';
-      card.innerHTML = `
-        <div class="alert-icon alert-${a.severity}">
-          <span style="color:${a.severity === 'critical' ? '#c47070' : '#c49a5c'}">${a.icon}</span>
-        </div>
-        <div>
-          <div style="font-weight:600;font-size:0.85rem;">${a.title}</div>
-          <div style="font-size:0.78rem;color:#8a8a86;margin-top:0.15rem;">${a.desc}</div>
-        </div>`;
-      container.appendChild(card);
-    });
-  })();
-
-  function animateAlerts() {
-    const cards = document.querySelectorAll('.alert-card');
-    cards.forEach(c => c.classList.remove('visible'));
-    cards.forEach((card, i) => {
-      setTimeout(() => {
-        if (currentScene !== 5) return;
-        card.classList.add('visible');
-      }, 400 + i * 1200);
-    });
-  }
-
-  // ─── SCENE 7: COSTS ───────────────────────────────────────────
-  function animateCosts() {
-    document.getElementById('cost-bar-sonnet').style.width = '0';
-    document.getElementById('cost-bar-opus').style.width = '0';
-    document.getElementById('savings-box').classList.remove('visible');
-    document.getElementById('savings-value').textContent = '$0';
-    if (chartDonut) { chartDonut.destroy(); chartDonut = null; }
-
-    setTimeout(() => {
-      if (currentScene !== 6) return;
-      document.getElementById('cost-bar-sonnet').style.width = '6%';
-    }, 300);
-
-    setTimeout(() => {
-      if (currentScene !== 6) return;
-      document.getElementById('cost-bar-opus').style.width = '95%';
-    }, 600);
-
-    // Savings counter
-    setTimeout(() => {
-      if (currentScene !== 6) return;
-      document.getElementById('savings-box').classList.add('visible');
-      const target = 1350;
-      const duration = 1200;
-      const start = performance.now();
-      function tick(now) {
-        if (currentScene !== 6) return;
-        const p = Math.min((now - start) / duration, 1);
-        const eased = 1 - Math.pow(1 - p, 3);
-        const val = Math.round(target * eased);
-        document.getElementById('savings-value').textContent = '$' + val.toLocaleString() + '/mo';
-        if (p < 1) requestAnimationFrame(tick);
-      }
-      requestAnimationFrame(tick);
-    }, 1400);
-
-    // Donut chart
-    setTimeout(() => {
-      if (currentScene !== 6) return;
-      const ctx = document.getElementById('chart-donut');
-      chartDonut = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-          labels: ['Sonnet 4', 'Opus 4', 'Haiku 4'],
-          datasets: [{
-            data: [62, 28, 10],
-            backgroundColor: ['rgba(107,158,122,0.7)', 'rgba(196,154,92,0.7)', 'rgba(122,158,181,0.7)'],
-            borderColor: ['#6b9e7a', '#c49a5c', '#7a9eb5'],
-            borderWidth: 1.5,
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: true,
-          cutout: '55%',
-          animation: { duration: 1200, easing: 'easeOutQuart' },
-          plugins: {
-            legend: {
-              position: 'bottom',
-              labels: { color: '#8a8a86', font: { size: 10 }, boxWidth: 10, padding: 8 }
-            }
-          }
-        }
-      });
-    }, 800);
-  }
-
-  // ─── START ─────────────────────────────────────────────────────
-  window.addEventListener('load', () => {
-    setTimeout(() => goToScene(0), 400);
-  });
-  </script>
+// ── Init ───────────────────────────────────────────────────────────
+activateScene(0);
+enterTime = performance.now();
+animFrame = requestAnimationFrame(tick);
+</script>
 </body>
 </html>

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "flowlens"
-version = "0.5.0"
+version = "1.0.0"
 description = "Agent Observability Platform — Chrome DevTools for LLM Agents"
 readme = "README.md"
 license = {text = "MIT"}
@@ -14,7 +14,7 @@ authors = [
 ]
 keywords = ["llm", "agent", "observability", "tracing", "debugging", "opentelemetry", "fastapi", "causal-analysis", "llm-ops", "monitoring"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
