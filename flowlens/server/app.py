@@ -65,6 +65,7 @@ from ..config import settings
 from ..logging_config import configure_logging
 from ..sdk.models import Span, SpanKind, SpanStatus, TokenUsage, Trace
 from .storage import TraceStore
+from .validation import validate_trace as _validate_trace, check_payload_size as _check_payload_size
 
 logger = logging.getLogger(__name__)
 
@@ -527,9 +528,21 @@ def create_app(db_path: str | None = None) -> FastAPI:
     # -----------------------------------------------------------------------
 
     @app.post("/v1/traces/ingest", status_code=201)
-    async def ingest_trace(req: TraceIngestRequest) -> dict[str, str]:
+    async def ingest_trace(req: TraceIngestRequest, request: Request) -> dict[str, str]:
         """Receive and persist trace data; broadcast to WebSocket subscribers."""
         import random
+
+        # Payload size check (body is already buffered by FastAPI/Starlette)
+        try:
+            raw_body = await request.body()
+            size_ok, size_err = _check_payload_size(raw_body)
+            if not size_ok:
+                raise HTTPException(413, size_err)
+        except HTTPException:
+            raise
+        except Exception:
+            pass  # If we cannot read the body size, proceed without the check
+
         # Enforce spans list size limit (belt-and-suspenders beyond Pydantic)
         if len(req.spans) > _MAX_SPANS_PER_INGEST:
             raise HTTPException(
@@ -537,8 +550,15 @@ def create_app(db_path: str | None = None) -> FastAPI:
                 f"spans list exceeds maximum allowed size of {_MAX_SPANS_PER_INGEST}",
             )
 
+        # Structural validation: orphan refs, duplicate span_ids, cycle detection
+        # require_spans=False maintains backward compatibility with existing
+        # integrations that send trace-level records without span data.
+        payload = req.model_dump()
+        is_valid, validation_error = _validate_trace(payload, require_spans=False)
+        if not is_valid:
+            raise HTTPException(422, f"Trace validation failed: {validation_error}")
+
         try:
-            payload = req.model_dump()
             store.save_trace(payload)
             # Periodically check if cleanup is needed (~1% of ingests)
             # to prevent database from growing unbounded
@@ -629,6 +649,14 @@ def create_app(db_path: str | None = None) -> FastAPI:
                         continue
                     try:
                         trace_data = json.loads(line)
+                        # Per-trace validation: skip invalid traces, count as errors
+                        is_valid, val_err = _validate_trace(trace_data, require_spans=False)
+                        if not is_valid:
+                            errors += 1
+                            logger.warning(
+                                "Skipping invalid trace during import: %s", val_err
+                            )
+                            continue
                         store.save_trace(trace_data)
                         count += 1
                     except Exception as e:
