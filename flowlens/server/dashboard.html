@@ -230,7 +230,7 @@
           </svg>
         </div>
         <div>
-          <h1 class="text-lg font-semibold text-white tracking-tight">FlowLens</h1>
+          <h1 class="text-lg font-semibold text-white tracking-tight flex items-center gap-2">FlowLens<span id="live-pulse" class="hidden w-2 h-2 rounded-full bg-emerald-500 pulse-dot"></span></h1>
           <p class="text-[10px] text-slate-500 -mt-0.5 tracking-wider uppercase">Agent Observability</p>
         </div>
       </div>
@@ -276,7 +276,7 @@
     <!-- OVERVIEW VIEW -->
     <div id="view-overview" class="view-panel view-enter">
       <!-- Stats Cards -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 stat-grid">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6 stat-grid">
         <div class="glass rounded-xl p-5 stat-glow">
           <div class="flex items-center justify-between mb-3">
             <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Traces</span>
@@ -291,7 +291,7 @@
             <div class="skeleton skeleton-text w-16 h-3"></div>
           </div>
         </div>
-        <div class="glass rounded-xl p-5 stat-glow">
+        <div id="stat-card-error" class="glass rounded-xl p-5 stat-glow transition-colors duration-500">
           <div class="flex items-center justify-between mb-3">
             <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Error Rate</span>
             <div class="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center">
@@ -305,7 +305,7 @@
             <div class="skeleton skeleton-text w-24 h-3"></div>
           </div>
         </div>
-        <div class="glass rounded-xl p-5 stat-glow">
+        <div id="stat-card-latency" class="glass rounded-xl p-5 stat-glow transition-colors duration-500">
           <div class="flex items-center justify-between mb-3">
             <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Avg Latency</span>
             <div class="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
@@ -317,7 +317,7 @@
           </div>
           <div class="text-xs text-slate-500 mt-1">milliseconds</div>
         </div>
-        <div class="glass rounded-xl p-5 stat-glow">
+        <div id="stat-card-cost" class="glass rounded-xl p-5 stat-glow transition-colors duration-500">
           <div class="flex items-center justify-between mb-3">
             <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Cost</span>
             <div class="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
@@ -330,6 +330,27 @@
           <div id="stat-tokens" class="text-xs text-slate-500 mt-1">
             <div class="skeleton skeleton-text w-20 h-3"></div>
           </div>
+        </div>
+        <div class="glass stat-glow rounded-xl p-5">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Active Agents</span>
+            <div class="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center">
+              <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            </div>
+          </div>
+          <div class="text-2xl font-bold text-white" id="stat-agents">--</div>
+          <div class="text-xs text-slate-500 mt-1" id="stat-agents-sub">--</div>
+        </div>
+      </div>
+
+      <!-- Agent Activity (below stats, above recent traces) -->
+      <div class="mb-6">
+        <h2 class="text-sm font-semibold text-white mb-3">Agent Activity</h2>
+        <div id="agent-activity" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+          <!-- Skeleton loading state -->
+          <div class="skeleton rounded-lg h-16"></div>
+          <div class="skeleton rounded-lg h-16"></div>
+          <div class="skeleton rounded-lg h-16"></div>
         </div>
       </div>
 
@@ -783,8 +804,10 @@ function connectWebSocket() {
       const msg = JSON.parse(event.data);
       if (msg.event === 'connected') {
         console.log('WS handshake:', msg.data.message);
+        updateWsStatus('connected');
       } else if (msg.event === 'trace_ingested') {
         handleLiveTrace(msg.data);
+        handleLiveTraceUpdate(msg.data);
       }
     } catch (err) {
       console.warn('WS message parse error:', err);
@@ -1019,17 +1042,36 @@ async function loadStats() {
     document.getElementById('stat-traces').textContent = stats.total_traces.toLocaleString();
     document.getElementById('stat-spans').textContent = `${(stats.total_spans || 0).toLocaleString()} spans`;
 
-    const errorRate = stats.total_traces > 0
-      ? ((stats.error_traces / stats.total_traces) * 100).toFixed(1) + '%'
-      : '0%';
-    document.getElementById('stat-error-rate').textContent = errorRate;
+    const errorPct = stats.total_traces > 0
+      ? (stats.error_traces / stats.total_traces) * 100
+      : 0;
+    document.getElementById('stat-error-rate').textContent = errorPct.toFixed(1) + '%';
     document.getElementById('stat-error-count').textContent = `${stats.error_traces} error traces`;
+    const errorCard = document.getElementById('stat-card-error');
+    if (errorCard) {
+      errorCard.classList.toggle('bg-red-500/10', errorPct > 10);
+      errorCard.classList.toggle('border', errorPct > 10);
+      errorCard.classList.toggle('border-red-500/30', errorPct > 10);
+    }
 
-    const latency = stats.avg_duration_ms > 0 ? stats.avg_duration_ms.toFixed(0) : '0';
-    document.getElementById('stat-latency').textContent = latency;
+    const latencyMs = stats.avg_duration_ms || 0;
+    document.getElementById('stat-latency').textContent = latencyMs > 0 ? latencyMs.toFixed(0) : '0';
+    const latencyCard = document.getElementById('stat-card-latency');
+    if (latencyCard) {
+      latencyCard.classList.toggle('bg-yellow-500/10', latencyMs > 10000);
+      latencyCard.classList.toggle('border', latencyMs > 10000);
+      latencyCard.classList.toggle('border-yellow-500/30', latencyMs > 10000);
+    }
 
-    document.getElementById('stat-cost').textContent = '$' + (stats.total_cost || 0).toFixed(4);
+    const totalCost = stats.total_cost || 0;
+    document.getElementById('stat-cost').textContent = '$' + totalCost.toFixed(4);
     document.getElementById('stat-tokens').textContent = `${(stats.total_tokens || 0).toLocaleString()} tokens`;
+    const costCard = document.getElementById('stat-card-cost');
+    if (costCard) {
+      costCard.classList.toggle('bg-amber-500/10', totalCost > 1);
+      costCard.classList.toggle('border', totalCost > 1);
+      costCard.classList.toggle('border-amber-500/30', totalCost > 1);
+    }
 
     updateRefreshTime();
   } catch (err) {
@@ -1040,19 +1082,54 @@ async function loadStats() {
 // =========================================================================
 // Trace Row Rendering
 // =========================================================================
+function formatTimeAgo(timestamp) {
+  if (!timestamp) return '--';
+  const seconds = Math.floor(Date.now() / 1000 - timestamp);
+  if (seconds < 60) return 'just now';
+  if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
+  if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
+  return Math.floor(seconds / 86400) + 'd ago';
+}
+
 function renderTraceRow(trace, compact = false) {
   const hasErrors = trace.has_errors === true || trace.has_errors === 1;
   const statusDot = hasErrors
     ? '<span class="w-2 h-2 rounded-full bg-red-500 flex-shrink-0"></span>'
     : '<span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>';
 
-  const timeStr = trace.start_time > 0
-    ? new Date(trace.start_time * 1000).toLocaleString()
-    : '--';
+  const tags = trace.tags || {};
+  const meta = trace.metadata || {};
+
+  // Extract meaningful name
+  const agentName = tags.agent || null;
+  const projectName = tags.project || meta.project || (meta.cwd ? meta.cwd.split('/').pop() : null);
+
+  // Agent color mapping
+  const agentColors = {
+    'vr-alpha': 'bg-blue-500/15 text-blue-400 border-blue-500/25',
+    'vr-beta': 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25',
+    'vr-gamma': 'bg-purple-500/15 text-purple-400 border-purple-500/25',
+    'vr-lead': 'bg-amber-500/15 text-amber-400 border-amber-500/25',
+    'vr-scribe': 'bg-slate-500/15 text-slate-400 border-slate-500/25',
+    'main': 'bg-indigo-500/15 text-indigo-400 border-indigo-500/25',
+    'Explore': 'bg-cyan-500/15 text-cyan-400 border-cyan-500/25',
+  };
+
+  // Build display name and agent badge
+  let displayName = agentName || projectName || (trace.trace_id || '').substring(0, 12) + '...';
+  let agentBadge = '';
+  if (agentName) {
+    const colorClass = agentColors[agentName] || 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20';
+    agentBadge = `<span class="px-1.5 py-0.5 text-[10px] font-medium rounded border ${colorClass}">${escHtml(agentName)}</span>`;
+    displayName = projectName || trace.service_name || 'session';
+  }
+
+  // Time ago and span count
+  const timeAgo = formatTimeAgo(trace.start_time);
+  const spanOps = `${trace.span_count || 0} ops`;
 
   const duration = (trace.duration_ms || 0).toFixed(0);
   const cost = (trace.total_cost_usd || 0).toFixed(4);
-  const traceIdShort = (trace.trace_id || '').substring(0, 12);
 
   const isSelected = compareSelection.includes(trace.trace_id);
   return `
@@ -1061,21 +1138,22 @@ function renderTraceRow(trace, compact = false) {
       ${statusDot}
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2 flex-wrap">
-          <span class="text-sm font-medium text-slate-200 group-hover:text-white transition">${traceIdShort}...</span>
-          ${trace.service_name ? `<span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">${escHtml(trace.service_name)}</span>` : ''}
+          <span class="text-sm font-medium text-slate-200 group-hover:text-white transition">${escHtml(displayName)}</span>
+          ${agentBadge}
+          ${!agentName && trace.service_name ? `<span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">${escHtml(trace.service_name)}</span>` : ''}
           ${hasErrors ? `<span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-red-500/10 text-red-300 border border-red-500/20">${trace.error_count || 1} error${(trace.error_count || 1) > 1 ? 's' : ''}</span>` : ''}
         </div>
-        ${!compact ? `<div class="text-xs text-slate-500 mt-0.5">${timeStr}</div>` : ''}
+        <div class="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
+          <span>${timeAgo}</span>
+          ${!compact ? `<span class="text-slate-600">·</span><span>${spanOps}</span>` : ''}
+        </div>
       </div>
       <div class="flex items-center gap-6 text-xs text-slate-500 trace-row-details">
         <div class="text-right">
           <div class="text-slate-400">${duration}ms</div>
-          ${!compact ? `<div>${trace.span_count || 0} spans</div>` : ''}
+          ${!compact ? `<div>$${cost}</div>` : ''}
         </div>
-        <div class="text-right">
-          <div class="text-slate-400">$${cost}</div>
-          ${!compact ? `<div>${(trace.total_tokens || 0).toLocaleString()} tok</div>` : ''}
-        </div>
+        ${compact ? `<div class="text-right"><div class="text-slate-400">$${cost}</div></div>` : ''}
         <svg class="w-4 h-4 text-slate-600 group-hover:text-slate-400 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
       </div>
     </div>
@@ -1139,6 +1217,21 @@ async function loadRecentTraces() {
       return;
     }
     container.innerHTML = data.traces.map(t => renderTraceRow(t, true)).join('');
+
+    // Count unique agents from recent traces to populate Active Agents stat card
+    const agentSet = new Set();
+    for (const t of data.traces) {
+      const agentName = (t.tags || {}).agent;
+      if (agentName) agentSet.add(agentName);
+    }
+    const agentsEl = document.getElementById('stat-agents');
+    const agentsSubEl = document.getElementById('stat-agents-sub');
+    if (agentsEl) agentsEl.textContent = agentSet.size > 0 ? agentSet.size.toString() : '0';
+    if (agentsSubEl) {
+      agentsSubEl.textContent = agentSet.size > 0
+        ? Array.from(agentSet).slice(0, 3).join(', ') + (agentSet.size > 3 ? ` +${agentSet.size - 3} more` : '')
+        : 'no agent tags seen';
+    }
   } catch (err) {
     document.getElementById('recent-traces-list').innerHTML = '<div class="p-8 text-center text-red-400/60 text-sm">Failed to load traces. Is the server running?</div>';
   }

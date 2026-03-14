@@ -8,11 +8,11 @@ All planned improvements delivered. System production-ready. Final cycle (Cycle 
 
 ## Final Cycle: Cycle 3 (COMPLETE — 2026-03-14)
 
-| Agent | Model     | Status    | Last Task                                           | Branch | Last Commit |
-|-------|-----------|-----------|-----------------------------------------------------|--------|-------------|
-| Alpha | sonnet 4.6| complete  | Budget alerts (cost_total) + AND compound conditions| main   | 88c2582     |
-| Beta  | sonnet 4.6| complete  | FTS5 full-text search (schema v6)                   | main   | 7706c8f     |
-| (Fix) | sonnet 4.6| complete  | FTS fallback to LIKE for robustness                 | main   | a63dfb1     |
+| Agent | Model     | Status    | Last Task                                                         | Branch | Last Commit |
+|-------|-----------|-----------|-------------------------------------------------------------------|--------|-------------|
+| Alpha | sonnet 4.6| complete  | Human-readable trace rows: agent badges, time-ago, Active Agents card | main   | pending     |
+| Beta  | sonnet 4.6| complete  | FTS5 full-text search (schema v6)                                 | main   | 7706c8f     |
+| (Fix) | sonnet 4.6| complete  | FTS fallback to LIKE for robustness                               | main   | a63dfb1     |
 
 ---
 
