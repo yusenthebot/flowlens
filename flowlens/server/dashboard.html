@@ -892,8 +892,9 @@ function handleLiveTrace(traceData) {
         container.removeChild(container.lastChild);
       }
     }
-    // Also refresh stats
+    // Also refresh stats and agent activity
     loadStats();
+    loadAgentActivity();
   }
 
   // If on traces list, prepend there too
@@ -971,12 +972,43 @@ function switchView(view) {
   if (tabBtn) { tabBtn.classList.remove('tab-inactive'); tabBtn.classList.add('tab-active'); }
 
   // Load data for the view
-  if (view === 'overview') { loadStats(); loadRecentTraces(); }
+  if (view === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); }
   else if (view === 'traces') { loadTraces(); }
   else if (view === 'cost') { loadCostData(); }
   else if (view === 'patterns') { loadAllPatterns(); }
   else if (view === 'compare') { renderCompareView(); }
   else if (view === 'agents') { loadAgentData(); }
+}
+
+// =========================================================================
+// Agent Activity (Overview panel — real-time compact cards)
+// =========================================================================
+async function loadAgentActivity() {
+  try {
+    const data = await apiFetch('/v1/agents/activity');
+    const container = document.getElementById('agent-activity');
+    if (!container) return;
+    if (!data.agents || data.agents.length === 0) {
+      container.innerHTML = '<p class="text-xs text-slate-500 col-span-full">No agent activity yet</p>';
+      return;
+    }
+    container.innerHTML = data.agents.map(a => {
+      const statusColor = a.status === 'active' ? 'bg-emerald-500' : 'bg-slate-600';
+      const tools = (a.recent_tools || []).slice(0, 3).join(', ') || 'idle';
+      const timeAgo = formatTimeAgo(a.last_seen);
+      return `
+        <div class="glass rounded-lg p-3 cursor-pointer hover:border-indigo-500/30 transition" onclick="filterTracesByAgent('${escHtml(a.agent)}')">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="w-2 h-2 rounded-full ${statusColor} flex-shrink-0"></span>
+            <span class="text-xs font-medium text-white truncate">${escHtml(a.agent)}</span>
+          </div>
+          <div class="text-[10px] text-slate-400 truncate">${escHtml(tools)}</div>
+          <div class="text-[10px] text-slate-500 mt-1">${timeAgo} · ${a.trace_count_1h} ops</div>
+        </div>`;
+    }).join('');
+  } catch (e) {
+    // silently fail — agent activity panel is non-critical
+  }
 }
 
 // =========================================================================
@@ -987,14 +1019,23 @@ async function loadAgentData() {
   if (!grid) return;
   grid.innerHTML = '<p class="text-xs text-slate-500 col-span-full">Loading...</p>';
   try {
-    const resp = await fetch('/v1/agents/summary');
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const data = await resp.json();
+    // Fetch both summary stats and live activity in parallel
+    const [summaryResp, activityData] = await Promise.all([
+      fetch('/v1/agents/summary'),
+      apiFetch('/v1/agents/activity').catch(() => ({ agents: [] })),
+    ]);
+    if (!summaryResp.ok) throw new Error(`HTTP ${summaryResp.status}`);
+    const data = await summaryResp.json();
     const agents = data.agents || [];
     if (agents.length === 0) {
       grid.innerHTML = '<p class="text-xs text-slate-500 col-span-full">No agent data found. Ingest traces with a <code>tags.agent</code> field to populate this view.</p>';
       return;
     }
+
+    // Build activity lookup by agent name
+    const activityByAgent = {};
+    (activityData.agents || []).forEach(a => { activityByAgent[a.agent] = a; });
+
     grid.innerHTML = agents.map(a => {
       const errPct = (a.error_rate * 100).toFixed(1);
       const errColor = a.error_rate < 0.05 ? 'text-emerald-400' : a.error_rate < 0.20 ? 'text-yellow-400' : 'text-red-400';
@@ -1004,9 +1045,23 @@ async function loadAgentData() {
       const cost = a.total_cost_usd < 0.01
         ? '$' + a.total_cost_usd.toFixed(6)
         : '$' + a.total_cost_usd.toFixed(4);
+
+      const activity = activityByAgent[a.agent] || null;
+      const statusColor = activity && activity.status === 'active' ? 'bg-emerald-500' : 'bg-slate-600';
+      const statusLabel = activity && activity.status === 'active' ? 'active' : 'idle';
+      const recentTools = activity ? (activity.recent_tools || []).slice(0, 5) : [];
+      const toolsHtml = recentTools.length > 0
+        ? recentTools.map(t => `<span class="px-1.5 py-0.5 text-[10px] rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">${escHtml(t)}</span>`).join(' ')
+        : '<span class="text-[10px] text-slate-600">no recent tools</span>';
+      const opsLastHour = activity ? activity.trace_count_1h : 0;
+
       return `<div class="glass rounded-xl p-5 cursor-pointer hover:border-indigo-500/40 border border-transparent transition" onclick="filterTracesByAgent('${escHtml(a.agent)}')">
-        <div class="text-base font-semibold text-white mb-3 truncate" title="${escHtml(a.agent)}">${escHtml(a.agent)}</div>
-        <div class="grid grid-cols-2 gap-2 text-xs">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="w-2.5 h-2.5 rounded-full ${statusColor} flex-shrink-0"></span>
+          <div class="text-base font-semibold text-white truncate flex-1" title="${escHtml(a.agent)}">${escHtml(a.agent)}</div>
+          <span class="text-[10px] text-slate-500">${statusLabel}</span>
+        </div>
+        <div class="grid grid-cols-2 gap-2 text-xs mb-3">
           <div>
             <div class="text-slate-500 uppercase tracking-wider mb-0.5">Traces</div>
             <div class="text-white font-medium">${a.trace_count}</div>
@@ -1020,11 +1075,15 @@ async function loadAgentData() {
             <div class="text-white font-medium">${latency}</div>
           </div>
           <div>
-            <div class="text-slate-500 uppercase tracking-wider mb-0.5">Total Cost</div>
-            <div class="text-white font-medium">${cost}</div>
+            <div class="text-slate-500 uppercase tracking-wider mb-0.5">Last Hour</div>
+            <div class="text-white font-medium">${opsLastHour} ops</div>
           </div>
         </div>
-        <div class="mt-3 text-xs text-slate-600">${a.total_spans} spans</div>
+        <div class="flex flex-wrap gap-1 mb-2">${toolsHtml}</div>
+        <div class="flex items-center justify-between text-xs text-slate-600">
+          <span>${a.total_spans} spans total</span>
+          <span>${cost}</span>
+        </div>
       </div>`;
     }).join('');
   } catch (err) {
@@ -2389,7 +2448,7 @@ function setupKeyboardNavigation() {
 }
 
 function refreshCurrentView() {
-  if (currentView === 'overview') { loadStats(); loadRecentTraces(); }
+  if (currentView === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); }
   else if (currentView === 'traces') { loadTraces(); }
   else if (currentView === 'cost') { loadCostData(); }
   else if (currentView === 'patterns') { loadAllPatterns(); }
@@ -2466,7 +2525,7 @@ function startAutoRefresh() {
   autoRefreshTimer = setInterval(async () => {
     const ok = await healthCheck();
     if (!ok) return;
-    if (currentView === 'overview') { loadStats(); loadRecentTraces(); }
+    if (currentView === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); }
     else if (currentView === 'traces') { loadTraces(); }
   }, 15000);
 }
@@ -2723,6 +2782,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await healthCheck();
   loadStats();
   loadRecentTraces();
+  loadAgentActivity();
   startAutoRefresh();
 
   // Connect WebSocket for real-time updates

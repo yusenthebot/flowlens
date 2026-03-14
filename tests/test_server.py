@@ -854,3 +854,133 @@ class TestAPI:
         assert bot["trace_count"] == 2
         assert bot["error_count"] == 1
         assert bot["error_rate"] == 0.5
+
+    # ------------------------------------------------------------------
+    # New: GET /v1/agents/activity
+    # ------------------------------------------------------------------
+
+    def test_agents_activity_empty_db(self, client):
+        """Returns empty list when no traces exist."""
+        resp = client.get("/v1/agents/activity")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "agents" in data
+        assert data["agents"] == []
+
+    def test_agents_activity_with_recent_traces(self, client):
+        """Returns agent activity with recent traces in the last hour."""
+        now = time.time()
+        # Ingest two recent traces for two different agents
+        t1 = _make_trace_data("act-t1", tags={"agent": "vr-alpha"}, start_time=now - 60)
+        t2 = _make_trace_data("act-t2", tags={"agent": "vr-beta"}, start_time=now - 120)
+        client.post("/v1/traces/ingest", json=t1)
+        client.post("/v1/traces/ingest", json=t2)
+
+        resp = client.get("/v1/agents/activity")
+        assert resp.status_code == 200
+        data = resp.json()
+        agents = data["agents"]
+        assert len(agents) >= 2
+        agent_names = [a["agent"] for a in agents]
+        assert "vr-alpha" in agent_names
+        assert "vr-beta" in agent_names
+
+    def test_agents_activity_has_required_fields(self, client):
+        """Each agent entry has all required fields."""
+        now = time.time()
+        client.post("/v1/traces/ingest", json=_make_trace_data(
+            "act-fields", tags={"agent": "test-bot"}, start_time=now - 30
+        ))
+        resp = client.get("/v1/agents/activity")
+        assert resp.status_code == 200
+        agents = resp.json()["agents"]
+        bot = next((a for a in agents if a["agent"] == "test-bot"), None)
+        assert bot is not None
+        assert "last_seen" in bot
+        assert "status" in bot
+        assert "recent_tools" in bot
+        assert "trace_count_1h" in bot
+        assert isinstance(bot["recent_tools"], list)
+        assert bot["trace_count_1h"] >= 1
+
+    def test_agents_activity_status_active_for_recent(self, client):
+        """Status is 'active' when last trace is within 5 minutes."""
+        now = time.time()
+        # Ingest a very recent trace (30 seconds ago)
+        client.post("/v1/traces/ingest", json=_make_trace_data(
+            "active-trace", tags={"agent": "live-agent"}, start_time=now - 30
+        ))
+        resp = client.get("/v1/agents/activity")
+        assert resp.status_code == 200
+        agents = resp.json()["agents"]
+        live = next((a for a in agents if a["agent"] == "live-agent"), None)
+        assert live is not None
+        assert live["status"] == "active"
+
+    def test_agents_activity_status_idle_for_old_trace(self, client, tmp_path):
+        """Status is 'idle' when last trace is older than 5 minutes but within the hour."""
+        now = time.time()
+        # We need to insert a trace with an old start_time (10 min ago) directly
+        db_path = str(tmp_path / "idle_test.db")
+        from flowlens.server.app import create_app
+        from fastapi.testclient import TestClient
+        app = create_app(db_path=db_path)
+        c = TestClient(app)
+
+        old_trace = _make_trace_data(
+            "idle-trace", tags={"agent": "idle-agent"}, start_time=now - 700
+        )
+        c.post("/v1/traces/ingest", json=old_trace)
+
+        resp = c.get("/v1/agents/activity")
+        assert resp.status_code == 200
+        agents = resp.json()["agents"]
+        idle = next((a for a in agents if a["agent"] == "idle-agent"), None)
+        assert idle is not None
+        assert idle["status"] == "idle"
+
+    def test_agents_activity_trace_count_1h(self, client):
+        """trace_count_1h reflects traces ingested in the last hour."""
+        now = time.time()
+        for i in range(3):
+            client.post("/v1/traces/ingest", json=_make_trace_data(
+                f"cnt-{i}", tags={"agent": "counter-agent"}, start_time=now - (i * 100)
+            ))
+        resp = client.get("/v1/agents/activity")
+        assert resp.status_code == 200
+        agents = resp.json()["agents"]
+        counter = next((a for a in agents if a["agent"] == "counter-agent"), None)
+        assert counter is not None
+        assert counter["trace_count_1h"] == 3
+
+    def test_agents_activity_recent_tools_extracted(self, client):
+        """recent_tools is extracted from span names."""
+        now = time.time()
+        trace = _make_trace_data("tools-trace", tags={"agent": "tool-agent"}, start_time=now - 60)
+        # The default trace has spans named "agent" and "search"
+        client.post("/v1/traces/ingest", json=trace)
+
+        resp = client.get("/v1/agents/activity")
+        assert resp.status_code == 200
+        agents = resp.json()["agents"]
+        tool_agent = next((a for a in agents if a["agent"] == "tool-agent"), None)
+        assert tool_agent is not None
+        # Should have extracted tool names from span names ("agent", "search")
+        assert isinstance(tool_agent["recent_tools"], list)
+        assert len(tool_agent["recent_tools"]) >= 1
+
+    def test_agents_activity_no_traces_outside_window(self, client):
+        """Traces older than 1 hour should not appear in activity."""
+        now = time.time()
+        # Ingest a trace that is 2 hours old — should NOT appear in activity
+        old_trace = _make_trace_data(
+            "old-outside", tags={"agent": "ghost-agent"}, start_time=now - 7300
+        )
+        client.post("/v1/traces/ingest", json=old_trace)
+
+        resp = client.get("/v1/agents/activity")
+        assert resp.status_code == 200
+        agents = resp.json()["agents"]
+        ghost = next((a for a in agents if a["agent"] == "ghost-agent"), None)
+        # Agent should not appear since trace is outside the 1-hour window
+        assert ghost is None

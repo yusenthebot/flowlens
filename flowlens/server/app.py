@@ -17,6 +17,7 @@ Endpoints:
 - GET    /v1/stats                  — global statistics
 - GET    /v1/patterns/summary       — aggregate pattern statistics
 - GET    /v1/agents/summary         — agent-level trace statistics
+- GET    /v1/agents/activity        — real-time per-agent activity (last hour)
 - GET    /health                    — health check
 - WS     /ws/traces                 — real-time trace stream
 """
@@ -1311,6 +1312,103 @@ def create_app(db_path: str | None = None) -> FastAPI:
             })
 
         result.sort(key=lambda x: x["trace_count"], reverse=True)
+        return JSONResponse({"agents": result})
+
+    # -----------------------------------------------------------------------
+    # Agents activity
+    # -----------------------------------------------------------------------
+
+    @app.get("/v1/agents/activity")
+    async def agents_activity() -> JSONResponse:
+        """Return recent activity for each known agent.
+
+        For each agent, returns:
+        - last_seen: timestamp of most recent trace
+        - status: "active" if last seen within 5 min, else "idle"
+        - recent_tools: list of recent tool names used (from span names)
+        - current_task: description from most recent span attributes
+        - trace_count_1h: traces in last hour
+        """
+        now = time.time()
+        one_hour_ago = now - 3600.0
+        active_threshold = now - 300.0  # 5 minutes
+
+        try:
+            recent_traces = store.get_traces_by_time_range(start=one_hour_ago, end=now + 1)
+        except Exception:
+            logger.exception("Failed to list traces for agents activity")
+            raise HTTPException(500, "Failed to retrieve agent activity")
+
+        # Group traces by agent
+        agent_buckets: dict[str, dict[str, Any]] = {}
+        for trace in recent_traces:
+            tags = trace.get("tags") or {}
+            if isinstance(tags, str):
+                try:
+                    tags = json.loads(tags)
+                except Exception:
+                    tags = {}
+            agent_name: str = tags.get("agent") or "unknown"
+
+            if agent_name not in agent_buckets:
+                agent_buckets[agent_name] = {
+                    "agent": agent_name,
+                    "last_seen": 0.0,
+                    "trace_count_1h": 0,
+                    "all_tool_names": [],
+                    "latest_trace_id": None,
+                }
+            bucket = agent_buckets[agent_name]
+            bucket["trace_count_1h"] += 1
+            start_time = trace.get("start_time") or 0.0
+            if start_time > bucket["last_seen"]:
+                bucket["last_seen"] = start_time
+                bucket["latest_trace_id"] = trace.get("trace_id")
+
+        # For each agent, fetch the most recent trace's spans to extract tool names
+        result = []
+        for agent_name, bucket in agent_buckets.items():
+            recent_tools: list[str] = []
+            current_task: str | None = None
+
+            latest_tid = bucket["latest_trace_id"]
+            if latest_tid:
+                try:
+                    full_trace = store.get_trace(latest_tid)
+                    if full_trace:
+                        spans = full_trace.get("spans") or []
+                        # Collect span names, extract tool name after last "/"
+                        tool_names_seen: list[str] = []
+                        for span in spans:
+                            span_name = span.get("name") or ""
+                            # "vr-alpha/Read" -> "Read"; "Read" -> "Read"
+                            tool_name = span_name.split("/")[-1] if "/" in span_name else span_name
+                            if tool_name and tool_name not in tool_names_seen:
+                                tool_names_seen.append(tool_name)
+                        recent_tools = tool_names_seen[:5]
+
+                        # current_task: description from the last span's attributes
+                        if spans:
+                            last_span = spans[-1]
+                            attrs = last_span.get("attributes") or {}
+                            current_task = attrs.get("description") or attrs.get("task") or None
+                except Exception:
+                    logger.debug("Failed to fetch spans for agent %s trace %s", agent_name, latest_tid)
+
+            last_seen = bucket["last_seen"]
+            status = "active" if last_seen >= active_threshold else "idle"
+
+            result.append({
+                "agent": agent_name,
+                "last_seen": last_seen,
+                "status": status,
+                "recent_tools": recent_tools,
+                "current_task": current_task,
+                "trace_count_1h": bucket["trace_count_1h"],
+            })
+
+        # Sort: active agents first, then by last_seen descending
+        result.sort(key=lambda x: (0 if x["status"] == "active" else 1, -x["last_seen"]))
         return JSONResponse({"agents": result})
 
     # -----------------------------------------------------------------------
