@@ -358,9 +358,7 @@
     /* ========== Cycle 8: Dark mode polish for new elements ========== */
     /* Three.js 3D graph container background */
     .dark #agent-graph { background: #0f172a; }
-    .dark #agent-graph-mini { background: #0f172a; }
     html:not(.dark) #agent-graph { background: #fafaf8; }
-    html:not(.dark) #agent-graph-mini { background: #fafaf8; }
 
     /* Gradient orbs: reduce opacity in light mode */
     html:not(.dark) .gradient-orb { opacity: 0.45; }
@@ -598,10 +596,25 @@
           <span class="text-[10px] text-slate-500" id="team-status-label">--</span>
         </div>
         <div id="agent-team-bar" class="flex gap-3 overflow-x-auto pb-2"></div>
-        <div id="agent-graph-mini" class="glass rounded-xl overflow-hidden mt-3" style="height:150px;"></div>
       </div>
 
-      <!-- Trace Volume Trend + 3D Mini (side by side to save space) -->
+      <!-- Summary Metrics Row -->
+      <div class="grid grid-cols-3 gap-4 mb-4">
+        <div class="glass rounded-lg p-3 text-center">
+          <div class="text-lg font-bold text-white" id="metric-active-now">0</div>
+          <div class="text-[10px] text-slate-500">Active Now</div>
+        </div>
+        <div class="glass rounded-lg p-3 text-center">
+          <div class="text-lg font-bold text-white" id="metric-ops-1h">0</div>
+          <div class="text-[10px] text-slate-500">Ops Last Hour</div>
+        </div>
+        <div class="glass rounded-lg p-3 text-center">
+          <div class="text-lg font-bold text-emerald-400" id="metric-success-rate">--</div>
+          <div class="text-[10px] text-slate-500">Success Rate</div>
+        </div>
+      </div>
+
+      <!-- Trace Volume Trend -->
       <div class="glass rounded-xl p-4 mb-6">
         <div class="flex items-center justify-between mb-3">
           <h2 class="text-sm font-semibold text-white">Activity Trend</h2>
@@ -611,7 +624,7 @@
             <button onclick="loadTrendChart(168)" class="trend-btn px-2 py-1 text-[10px] rounded bg-surface-100 text-slate-400 hover:text-white transition">7d</button>
           </div>
         </div>
-        <canvas id="chart-trend" height="120"></canvas>
+        <canvas id="chart-trend" height="180"></canvas>
       </div>
 
       <!-- Live Agent Monitor -->
@@ -632,7 +645,7 @@
             <h2 class="text-sm font-semibold text-white">Activity Timeline</h2>
             <span class="text-[10px] text-slate-500" id="timeline-count">--</span>
           </div>
-          <div id="activity-timeline" class="max-h-[400px] overflow-y-auto divide-y divide-white/5"></div>
+          <div id="activity-timeline" class="max-h-[500px] overflow-y-auto divide-y divide-white/5"></div>
         </div>
 
         <!-- Recent Traces (right) -->
@@ -1488,7 +1501,7 @@ function switchView(view) {
   if (tabBtn) { tabBtn.classList.remove('tab-inactive'); tabBtn.classList.add('tab-active'); }
 
   // Load data for the view
-  if (view === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); loadActivityTimeline(); loadTrendChart(_trendHours || 24); loadAgentGraphMini(); }
+  if (view === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); loadActivityTimeline(); loadTrendChart(_trendHours || 24);  }
   else if (view === 'traces') { loadTraces(); }
   else if (view === 'cost') { loadCostData(); }
   else if (view === 'patterns') { loadAllPatterns(); }
@@ -1511,6 +1524,15 @@ async function loadAgentActivity() {
     }
     const activeCount = data.agents.filter(a => a.status === 'active').length;
     label.textContent = `${activeCount} active / ${data.agents.length} total`;
+
+    // Update summary metrics row
+    const metricActiveEl = document.getElementById('metric-active-now');
+    const metricOpsEl = document.getElementById('metric-ops-1h');
+    if (metricActiveEl) metricActiveEl.textContent = activeCount;
+    if (metricOpsEl) {
+      const totalOps1h = data.agents.reduce((sum, a) => sum + (a.trace_count_1h || 0), 0);
+      metricOpsEl.textContent = totalOps1h;
+    }
 
     bar.innerHTML = data.agents.map((a, idx) => {
       const p = getAgentProfile(a.agent);
@@ -2033,18 +2055,8 @@ async function loadAgentGraph() {
 }
 
 async function loadAgentGraphMini() {
-  try {
-    const container = document.getElementById('agent-graph-mini');
-    if (!container) return;
-    const data = _agentRelData || await apiFetch('/v1/agents/relationships');
-    if (!data || !data.nodes || data.nodes.length === 0) return;
-    _agentRelData = data;
-    if (typeof THREE !== 'undefined') {
-      if (_threeMini) { _disposeThreeScene(_threeMini); _threeMini = null; }
-      container.innerHTML = '';
-      _threeMini = _buildThreeScene(container, data, { showLabels: false, autoRotate: true, miniMode: true });
-    }
-  } catch (e) { /* silently fail */ }
+  // Removed — 3D mini graph no longer shown on Overview; use Agents tab for full 3D view
+  return;
 }
 
 // =========================================================================
@@ -2331,6 +2343,15 @@ async function loadStats() {
       costCard.classList.toggle('bg-amber-500/10', totalCost > 1);
       costCard.classList.toggle('border', totalCost > 1);
       costCard.classList.toggle('border-amber-500/30', totalCost > 1);
+    }
+
+    // Update summary metrics — success rate
+    const metricSuccessEl = document.getElementById('metric-success-rate');
+    if (metricSuccessEl) {
+      const successPct = stats.total_traces > 0
+        ? ((1 - stats.error_traces / stats.total_traces) * 100).toFixed(1)
+        : '--';
+      metricSuccessEl.textContent = successPct !== '--' ? successPct + '%' : '--';
     }
 
     updateRefreshTime();
@@ -4158,7 +4179,7 @@ function setupKeyboardNavigation() {
 }
 
 function refreshCurrentView() {
-  if (currentView === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); loadActivityTimeline(); loadTrendChart(_trendHours || 24); loadAgentGraphMini(); }
+  if (currentView === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); loadActivityTimeline(); loadTrendChart(_trendHours || 24);  }
   else if (currentView === 'traces') { loadTraces(); }
   else if (currentView === 'cost') { loadCostData(); }
   else if (currentView === 'patterns') { loadAllPatterns(); }
@@ -4238,7 +4259,6 @@ function startAutoRefresh() {
     if (currentView === 'overview') { loadStats(); loadRecentTraces(); loadAgentActivity(); loadActivityTimeline(); loadTrendChart(_trendHours || 24); }
     else if (currentView === 'traces') { loadTraces(); }
   }, 15000);
-  // Note: loadAgentGraphMini is not included in auto-refresh to avoid frequent WebGL teardown
 }
 
 // =========================================================================
@@ -4718,7 +4738,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   loadAgentActivity();
   loadActivityTimeline();
   loadTrendChart(24);
-  loadAgentGraphMini();
   startAutoRefresh();
 
   // Connect WebSocket for real-time updates
