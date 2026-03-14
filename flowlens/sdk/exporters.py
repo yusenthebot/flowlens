@@ -1057,6 +1057,29 @@ def _to_otel_value(value: Any) -> dict[str, Any]:
     return {"stringValue": str(value)}
 
 
+class LocalExporter(TraceExporter):
+    """Export traces directly to a local SQLite database.
+
+    Bypasses the HTTP server entirely — useful for local-only usage such
+    as Claude Code agent monitoring, unit tests, or CI pipelines where
+    running a full server is unnecessary overhead.
+
+    Args:
+        db_path: Path to the SQLite database file.
+                 Supports ``~`` expansion.  Defaults to ``./flowlens.db``.
+    """
+
+    def __init__(self, db_path: str = "./flowlens.db") -> None:
+        from flowlens.local import LocalCollector
+        self._collector = LocalCollector(db_path=db_path)
+
+    def export(self, trace: Trace) -> None:
+        self._collector.ingest(trace.to_dict())
+
+    def shutdown(self) -> None:
+        self._collector.close()
+
+
 def create_exporter(
     export_to: str = "console",
     output_dir: str = "./traces",
@@ -1073,7 +1096,14 @@ def create_exporter(
         return OTLPExporter(endpoint=otlp_endpoint)
     elif export_to == "console":
         return ConsoleExporter(verbose=verbose)
+    elif export_to == "local":
+        db_path = (
+            output_dir + "/flowlens.db"
+            if output_dir != "./traces"
+            else "./flowlens.db"
+        )
+        return LocalExporter(db_path=db_path)
     else:
         raise ValueError(
-            f"Unknown exporter: {export_to}. Use 'console', 'jsonl', 'http', or 'otlp'."
+            f"Unknown exporter: {export_to}. Use 'console', 'jsonl', 'http', 'otlp', or 'local'."
         )
