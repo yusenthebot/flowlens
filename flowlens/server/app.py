@@ -16,6 +16,7 @@ Endpoints:
 - GET    /v1/cost/trends            — cost over time (daily/hourly)
 - GET    /v1/stats                  — global statistics
 - GET    /v1/patterns/summary       — aggregate pattern statistics
+- GET    /v1/agents/summary         — agent-level trace statistics
 - GET    /health                    — health check
 - WS     /ws/traces                 — real-time trace stream
 """
@@ -1249,6 +1250,68 @@ def create_app(db_path: str | None = None) -> FastAPI:
             logger.warning("Test webhook to %s failed: %s", req.webhook_url, exc)
             success = False
         return {"delivered": success, "webhook_url": req.webhook_url}
+
+    # -----------------------------------------------------------------------
+    # Agents summary
+    # -----------------------------------------------------------------------
+
+    @app.get("/v1/agents/summary")
+    async def agents_summary() -> JSONResponse:
+        """Aggregate trace statistics grouped by agent name.
+
+        Extracts agent info from trace tags (tags.agent) or span attributes.
+        Returns a list of agent summaries with trace count, error rate,
+        avg latency, total cost, and span count.
+        """
+        try:
+            traces = store.list_traces(limit=10_000)
+        except Exception:
+            logger.exception("Failed to list traces for agents summary")
+            raise HTTPException(500, "Failed to retrieve traces")
+
+        # Group metrics by agent name extracted from tags["agent"]
+        agent_stats: dict[str, dict[str, Any]] = {}
+        for trace in traces:
+            tags = trace.get("tags") or {}
+            if isinstance(tags, str):
+                try:
+                    tags = json.loads(tags)
+                except Exception:
+                    tags = {}
+            agent_name: str = tags.get("agent") or "unknown"
+
+            if agent_name not in agent_stats:
+                agent_stats[agent_name] = {
+                    "agent": agent_name,
+                    "trace_count": 0,
+                    "error_count": 0,
+                    "total_duration_ms": 0.0,
+                    "total_cost_usd": 0.0,
+                    "total_spans": 0,
+                }
+            bucket = agent_stats[agent_name]
+            bucket["trace_count"] += 1
+            if trace.get("has_errors"):
+                bucket["error_count"] += 1
+            bucket["total_duration_ms"] += trace.get("duration_ms") or 0.0
+            bucket["total_cost_usd"] += trace.get("total_cost_usd") or 0.0
+            bucket["total_spans"] += trace.get("span_count") or 0
+
+        result = []
+        for bucket in agent_stats.values():
+            tc = bucket["trace_count"]
+            result.append({
+                "agent": bucket["agent"],
+                "trace_count": tc,
+                "error_count": bucket["error_count"],
+                "error_rate": round(bucket["error_count"] / tc, 4) if tc else 0.0,
+                "avg_duration_ms": round(bucket["total_duration_ms"] / tc, 2) if tc else 0.0,
+                "total_cost_usd": round(bucket["total_cost_usd"], 6),
+                "total_spans": bucket["total_spans"],
+            })
+
+        result.sort(key=lambda x: x["trace_count"], reverse=True)
+        return JSONResponse({"agents": result})
 
     # -----------------------------------------------------------------------
     # Dashboard

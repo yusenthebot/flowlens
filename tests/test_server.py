@@ -10,7 +10,7 @@ from flowlens.server.app import create_app, _ALLOWED_IMPORT_DIRS
 # Shared fixture helpers
 # ===========================================================================
 
-def _make_trace_data(trace_id="t1", has_errors=False, service_name="test-svc", start_time=1000.0):
+def _make_trace_data(trace_id="t1", has_errors=False, service_name="test-svc", start_time=1000.0, tags=None):
     """Build a minimal but fully valid trace dict for testing."""
     return {
         "trace_id": trace_id,
@@ -24,6 +24,7 @@ def _make_trace_data(trace_id="t1", has_errors=False, service_name="test-svc", s
         "has_errors": has_errors,
         "error_count": 1 if has_errors else 0,
         "metadata": {"env": "test"},
+        "tags": tags or {},
         "spans": [
             {
                 "span_id": f"{trace_id}_s1",
@@ -795,3 +796,61 @@ class TestAPI:
             assert r.status_code == 200
         # On exit, the lifespan context manager calls the shutdown logic
         # (store.close() is called, DB connections are cleaned up)
+
+    # ------------------------------------------------------------------
+    # New: GET /v1/agents/summary
+    # ------------------------------------------------------------------
+
+    def test_agents_summary_endpoint(self, client):
+        # Ingest traces with different agent tags
+        client.post("/v1/traces/ingest", json=_make_trace_data("t1", tags={"agent": "vr-alpha"}))
+        client.post("/v1/traces/ingest", json=_make_trace_data("t2", tags={"agent": "vr-beta"}))
+        client.post("/v1/traces/ingest", json=_make_trace_data("t3", tags={"agent": "vr-alpha"}))
+
+        resp = client.get("/v1/agents/summary")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "agents" in data
+        assert len(data["agents"]) == 2
+        # vr-alpha should have 2 traces
+        alpha = next(a for a in data["agents"] if a["agent"] == "vr-alpha")
+        assert alpha["trace_count"] == 2
+
+    def test_agents_summary_sorted_by_trace_count(self, client):
+        """Agents with more traces should appear first."""
+        for i in range(3):
+            client.post("/v1/traces/ingest", json=_make_trace_data(f"a{i}", tags={"agent": "heavy-agent"}))
+        client.post("/v1/traces/ingest", json=_make_trace_data("b1", tags={"agent": "light-agent"}))
+
+        resp = client.get("/v1/agents/summary")
+        assert resp.status_code == 200
+        agents = resp.json()["agents"]
+        assert agents[0]["agent"] == "heavy-agent"
+        assert agents[0]["trace_count"] == 3
+
+    def test_agents_summary_empty_db(self, client):
+        """Returns an empty list when no traces are ingested."""
+        resp = client.get("/v1/agents/summary")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["agents"] == []
+
+    def test_agents_summary_unknown_agent(self, client):
+        """Traces without a tags.agent field are grouped under 'unknown'."""
+        client.post("/v1/traces/ingest", json=_make_trace_data("no-tag"))
+        resp = client.get("/v1/agents/summary")
+        assert resp.status_code == 200
+        agents = resp.json()["agents"]
+        assert any(a["agent"] == "unknown" for a in agents)
+
+    def test_agents_summary_error_rate(self, client):
+        """Error rate is computed correctly."""
+        client.post("/v1/traces/ingest", json=_make_trace_data("ok1", tags={"agent": "bot"}))
+        client.post("/v1/traces/ingest", json=_make_trace_data("err1", has_errors=True, tags={"agent": "bot"}))
+
+        resp = client.get("/v1/agents/summary")
+        assert resp.status_code == 200
+        bot = next(a for a in resp.json()["agents"] if a["agent"] == "bot")
+        assert bot["trace_count"] == 2
+        assert bot["error_count"] == 1
+        assert bot["error_rate"] == 0.5
