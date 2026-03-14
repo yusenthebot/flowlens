@@ -31,6 +31,10 @@ logger = logging.getLogger(__name__)
 def trace_agent(
     name: str = "agent",
     metadata: Optional[dict] = None,
+    user_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    experiment: Optional[str] = None,
+    tags: Optional[dict] = None,
     **attrs: Any,
 ) -> Callable:
     """
@@ -48,7 +52,13 @@ def trace_agent(
             if not lens:
                 return await func(*args, **kwargs)
 
-            trace = lens.start_trace(metadata=metadata)
+            trace = lens.start_trace(
+                metadata=metadata,
+                user_id=user_id,
+                session_id=session_id,
+                experiment=experiment,
+                tags=tags,
+            )
 
             with TraceContext(trace):
                 span = lens.start_span(name, kind=SpanKind.AGENT, attributes=attrs or {})
@@ -74,7 +84,13 @@ def trace_agent(
             if not lens:
                 return func(*args, **kwargs)
 
-            trace = lens.start_trace(metadata=metadata)
+            trace = lens.start_trace(
+                metadata=metadata,
+                user_id=user_id,
+                session_id=session_id,
+                experiment=experiment,
+                tags=tags,
+            )
 
             with TraceContext(trace):
                 span = lens.start_span(name, kind=SpanKind.AGENT, attributes=attrs or {})

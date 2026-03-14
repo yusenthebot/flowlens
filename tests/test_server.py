@@ -290,7 +290,7 @@ class TestTraceStore:
     def test_schema_version_is_set(self, store):
         row = store._conn.execute("SELECT version FROM schema_version").fetchone()
         assert row is not None
-        assert row[0] == 3  # current SCHEMA_VERSION
+        assert row[0] == 5  # current SCHEMA_VERSION
 
 
 # ===========================================================================

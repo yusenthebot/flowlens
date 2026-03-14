@@ -43,11 +43,13 @@ def captured_traces():
 # ---------------------------------------------------------------------------
 
 class TestAutoInstrumentBasic:
-    def test_unknown_library_logs_warning(self, caplog):
+    def test_unknown_library_logs_warning(self):
         import logging
-        with caplog.at_level(logging.WARNING, logger="flowlens.sdk.auto_instrument"):
+        logger = logging.getLogger("flowlens.sdk.auto_instrument")
+        with patch.object(logger, "warning") as mock_warn:
             auto_instrument(["not_a_real_library"])
-        assert "not_a_real_library" in caplog.text
+        mock_warn.assert_called_once()
+        assert "not_a_real_library" in str(mock_warn.call_args)
 
     def test_idempotent_patch(self):
         """Calling auto_instrument twice for the same lib must not double-patch."""

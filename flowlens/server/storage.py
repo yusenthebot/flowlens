@@ -7,6 +7,8 @@ Schema versioning:
 - Version 1: initial schema (traces + spans tables)
 - Version 2: added indexes for has_errors, created_at; error_message index on spans
 - Version 3: added FTS-friendly composite index on spans for search_traces
+- Version 4: user/session/experiment context columns + feedback table
+- Version 5: alert_rules and alert_history tables
 """
 
 from __future__ import annotations
@@ -22,7 +24,7 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 # Bump this whenever _migrate() gains a new migration step.
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 5
 
 # ---------------------------------------------------------------------------
 # Connection pool
@@ -298,6 +300,71 @@ class TraceStore:
             conn.commit()
             current = 3
 
+        if current < 4:
+            # v4 → user/session/experiment context columns + feedback table
+            logger.info("DB schema: migrating to version 4 (user/session/experiment context + feedback)")
+            conn.executescript("""
+                ALTER TABLE traces ADD COLUMN user_id    TEXT;
+                ALTER TABLE traces ADD COLUMN session_id TEXT;
+                ALTER TABLE traces ADD COLUMN experiment TEXT;
+                ALTER TABLE traces ADD COLUMN tags_json  TEXT;
+
+                CREATE INDEX IF NOT EXISTS idx_traces_user_id
+                    ON traces(user_id) WHERE user_id IS NOT NULL;
+                CREATE INDEX IF NOT EXISTS idx_traces_session_id
+                    ON traces(session_id) WHERE session_id IS NOT NULL;
+                CREATE INDEX IF NOT EXISTS idx_traces_experiment
+                    ON traces(experiment) WHERE experiment IS NOT NULL;
+
+                CREATE TABLE IF NOT EXISTS feedback (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    trace_id   TEXT NOT NULL,
+                    rating     INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5),
+                    comment    TEXT,
+                    metadata   TEXT NOT NULL DEFAULT '{}',
+                    created_at REAL NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_feedback_trace_id
+                    ON feedback(trace_id);
+            """)
+            self._set_version(4)
+            conn.commit()
+            current = 4
+
+        if current < 5:
+            # v5 → alert_rules and alert_history tables for the alerting subsystem
+            logger.info("DB schema: migrating to version 5 (alerting tables)")
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS alert_rules (
+                    name             TEXT PRIMARY KEY,
+                    condition        TEXT NOT NULL,
+                    severity         TEXT NOT NULL DEFAULT 'warning',
+                    webhook_url      TEXT,
+                    cooldown_seconds INTEGER NOT NULL DEFAULT 300,
+                    enabled          INTEGER NOT NULL DEFAULT 1,
+                    created_at       REAL NOT NULL DEFAULT 0
+                );
+
+                CREATE TABLE IF NOT EXISTS alert_history (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    rule_name    TEXT NOT NULL,
+                    severity     TEXT NOT NULL,
+                    message      TEXT NOT NULL,
+                    trace_id     TEXT,
+                    metrics_json TEXT NOT NULL DEFAULT '{}',
+                    fired_at     REAL NOT NULL DEFAULT 0
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_alert_history_fired_at
+                    ON alert_history(fired_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_alert_history_rule_name
+                    ON alert_history(rule_name);
+            """)
+            self._set_version(5)
+            conn.commit()
+            current = 5
+
         logger.debug("DB schema is at version %d", current)
 
     # ------------------------------------------------------------------
@@ -321,8 +388,9 @@ class TraceStore:
                 """INSERT OR REPLACE INTO traces
                    (trace_id, service_name, start_time, end_time, duration_ms,
                     span_count, total_tokens, total_cost_usd, has_errors,
-                    error_count, metadata_json, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    error_count, metadata_json, created_at,
+                    user_id, session_id, experiment, tags_json)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     trace_data["trace_id"],
                     trace_data.get("service_name", ""),
@@ -336,6 +404,10 @@ class TraceStore:
                     trace_data.get("error_count", 0),
                     json.dumps(trace_data.get("metadata", {})),
                     time.time(),
+                    trace_data.get("user_id"),
+                    trace_data.get("session_id"),
+                    trace_data.get("experiment"),
+                    json.dumps(trace_data.get("tags") or {}),
                 ),
             )
 
@@ -544,6 +616,9 @@ class TraceStore:
         """Convert a raw traces row into the standard dict shape."""
         trace = dict(row)
         trace["metadata"] = json.loads(trace.pop("metadata_json"))
+        # Deserialise tags; older rows may lack the column (None)
+        tags_raw = trace.pop("tags_json", None)
+        trace["tags"] = json.loads(tags_raw) if tags_raw else None
         return trace
 
     @staticmethod
@@ -586,6 +661,9 @@ class TraceStore:
         offset: int = 0,
         service_name: Optional[str] = None,
         has_errors: Optional[bool] = None,
+        user_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        experiment: Optional[str] = None,
     ) -> list[dict[str, Any]]:
         """List traces (without span detail)."""
         conn = self._pool.primary
@@ -598,6 +676,15 @@ class TraceStore:
         if has_errors is not None:
             query += " AND has_errors = ?"
             params.append(1 if has_errors else 0)
+        if user_id is not None:
+            query += " AND user_id = ?"
+            params.append(user_id)
+        if session_id is not None:
+            query += " AND session_id = ?"
+            params.append(session_id)
+        if experiment is not None:
+            query += " AND experiment = ?"
+            params.append(experiment)
 
         query += " ORDER BY start_time DESC LIMIT ? OFFSET ?"
         params.extend([limit, offset])
@@ -846,5 +933,361 @@ class TraceStore:
         self._cache.set(cache_key, result)
         return result
 
+    # ------------------------------------------------------------------
+    # Feedback operations
+    # ------------------------------------------------------------------
+
+    def save_feedback(
+        self,
+        trace_id: str,
+        rating: int,
+        comment: Optional[str] = None,
+        metadata: Optional[dict[str, Any]] = None,
+    ) -> int:
+        """
+        Save user feedback for a trace.
+
+        Returns the new feedback row id.
+        Raises ValueError if rating is not in [1, 5].
+        """
+        if not (1 <= rating <= 5):
+            raise ValueError(f"rating must be between 1 and 5, got {rating}")
+        conn = self._pool.primary
+        cursor = conn.execute(
+            """INSERT INTO feedback (trace_id, rating, comment, metadata, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (
+                trace_id,
+                rating,
+                comment,
+                json.dumps(metadata or {}),
+                time.time(),
+            ),
+        )
+        conn.commit()
+        self._cache.invalidate("feedback_summary")
+        return cursor.lastrowid  # type: ignore[return-value]
+
+    def get_feedback(self, trace_id: str) -> list[dict[str, Any]]:
+        """Return all feedback rows for a given trace, newest first."""
+        conn = self._pool.primary
+        rows = conn.execute(
+            "SELECT * FROM feedback WHERE trace_id = ? ORDER BY created_at DESC",
+            (trace_id,),
+        ).fetchall()
+        result = []
+        for r in rows:
+            d = dict(r)
+            d["metadata"] = json.loads(d.get("metadata") or "{}")
+            result.append(d)
+        return result
+
+    def get_feedback_summary(self) -> dict[str, Any]:
+        """
+        Return aggregate feedback statistics:
+        - avg_rating: overall average
+        - rating_distribution: dict mapping "1"–"5" to count
+        - total_count: total feedback entries
+        - low_rating_traces: list of trace_ids with avg rating <= 2
+        """
+        cache_key = "feedback_summary"
+        cached = self._cache.get(cache_key)
+        if not isinstance(cached, _CacheMiss):
+            return cached
+
+        conn = self._pool.primary
+
+        agg_row = conn.execute(
+            "SELECT COUNT(*) as total_count, AVG(rating) as avg_rating FROM feedback"
+        ).fetchone()
+        total_count = agg_row["total_count"] if agg_row else 0
+        avg_rating = agg_row["avg_rating"] if agg_row else None
+
+        dist_rows = conn.execute(
+            "SELECT rating, COUNT(*) as cnt FROM feedback GROUP BY rating ORDER BY rating"
+        ).fetchall()
+        distribution: dict[str, int] = {str(i): 0 for i in range(1, 6)}
+        for r in dist_rows:
+            distribution[str(r["rating"])] = r["cnt"]
+
+        low_rows = conn.execute(
+            """SELECT trace_id, AVG(rating) as avg_r
+               FROM feedback
+               GROUP BY trace_id
+               HAVING avg_r <= 2
+               ORDER BY avg_r ASC
+               LIMIT 20"""
+        ).fetchall()
+        low_rating_traces = [{"trace_id": r["trace_id"], "avg_rating": r["avg_r"]} for r in low_rows]
+
+        result: dict[str, Any] = {
+            "total_count": total_count,
+            "avg_rating": round(avg_rating, 3) if avg_rating is not None else None,
+            "rating_distribution": distribution,
+            "low_rating_traces": low_rating_traces,
+        }
+        self._cache.set(cache_key, result)
+        return result
+
+    # ------------------------------------------------------------------
+    # User / experiment metrics
+    # ------------------------------------------------------------------
+
+    def get_user_metrics(self) -> list[dict[str, Any]]:
+        """Per-user aggregate: trace count, error rate, avg cost."""
+        cache_key = "user_metrics"
+        cached = self._cache.get(cache_key)
+        if not isinstance(cached, _CacheMiss):
+            return cached
+
+        conn = self._pool.primary
+        rows = conn.execute(
+            """SELECT
+                   user_id,
+                   COUNT(*)                     AS trace_count,
+                   SUM(has_errors)              AS error_traces,
+                   AVG(CAST(has_errors AS REAL)) AS error_rate,
+                   AVG(total_cost_usd)          AS avg_cost_usd,
+                   SUM(total_cost_usd)          AS total_cost_usd
+               FROM traces
+               WHERE user_id IS NOT NULL
+               GROUP BY user_id
+               ORDER BY trace_count DESC"""
+        ).fetchall()
+        result = [dict(r) for r in rows]
+        self._cache.set(cache_key, result)
+        return result
+
+    def get_experiment_metrics(self) -> list[dict[str, Any]]:
+        """Per-experiment aggregate: trace count, error rate, avg cost, avg duration."""
+        cache_key = "experiment_metrics"
+        cached = self._cache.get(cache_key)
+        if not isinstance(cached, _CacheMiss):
+            return cached
+
+        conn = self._pool.primary
+        rows = conn.execute(
+            """SELECT
+                   experiment,
+                   COUNT(*)                     AS trace_count,
+                   SUM(has_errors)              AS error_traces,
+                   AVG(CAST(has_errors AS REAL)) AS error_rate,
+                   AVG(total_cost_usd)          AS avg_cost_usd,
+                   SUM(total_cost_usd)          AS total_cost_usd,
+                   AVG(duration_ms)             AS avg_duration_ms
+               FROM traces
+               WHERE experiment IS NOT NULL
+               GROUP BY experiment
+               ORDER BY trace_count DESC"""
+        ).fetchall()
+        result = [dict(r) for r in rows]
+        self._cache.set(cache_key, result)
+        return result
+
+    # ------------------------------------------------------------------
+    # Alert rules CRUD
+    # ------------------------------------------------------------------
+
+    def save_alert_rule(self, rule: dict[str, Any]) -> None:
+        """Insert or replace an alert rule."""
+        conn = self._pool.primary
+        conn.execute(
+            """INSERT OR REPLACE INTO alert_rules
+               (name, condition, severity, webhook_url, cooldown_seconds, enabled, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (
+                rule["name"],
+                rule["condition"],
+                rule.get("severity", "warning"),
+                rule.get("webhook_url"),
+                rule.get("cooldown_seconds", 300),
+                1 if rule.get("enabled", True) else 0,
+                rule.get("created_at", time.time()),
+            ),
+        )
+        conn.commit()
+        logger.debug("Saved alert rule: %s", rule["name"])
+
+    def get_alert_rule(self, name: str) -> Optional[dict[str, Any]]:
+        """Return a single alert rule by name, or None."""
+        conn = self._pool.primary
+        row = conn.execute(
+            "SELECT * FROM alert_rules WHERE name = ?", (name,)
+        ).fetchone()
+        if row is None:
+            return None
+        d = dict(row)
+        d["enabled"] = bool(d["enabled"])
+        return d
+
+    def list_alert_rules(self) -> list[dict[str, Any]]:
+        """Return all alert rules ordered by creation time."""
+        conn = self._pool.primary
+        rows = conn.execute(
+            "SELECT * FROM alert_rules ORDER BY created_at ASC"
+        ).fetchall()
+        result = []
+        for row in rows:
+            d = dict(row)
+            d["enabled"] = bool(d["enabled"])
+            result.append(d)
+        return result
+
+    def delete_alert_rule(self, name: str) -> bool:
+        """Delete an alert rule by name.  Returns True if it existed."""
+        conn = self._pool.primary
+        cursor = conn.execute(
+            "DELETE FROM alert_rules WHERE name = ?", (name,)
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+
+    # ------------------------------------------------------------------
+    # Alert history
+    # ------------------------------------------------------------------
+
+    def save_alert(self, alert: dict[str, Any]) -> int:
+        """
+        Persist a fired alert to the history table.
+
+        Returns the new row id.
+        """
+        conn = self._pool.primary
+        cursor = conn.execute(
+            """INSERT INTO alert_history
+               (rule_name, severity, message, trace_id, metrics_json, fired_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (
+                alert["rule_name"],
+                alert["severity"],
+                alert["message"],
+                alert.get("trace_id"),
+                json.dumps(alert.get("metrics", {})),
+                alert.get("fired_at", time.time()),
+            ),
+        )
+        conn.commit()
+        return cursor.lastrowid  # type: ignore[return-value]
+
+    def get_alert_history(self, limit: int = 100) -> list[dict[str, Any]]:
+        """Return the most recent fired alerts (newest first)."""
+        conn = self._pool.primary
+        rows = conn.execute(
+            """SELECT * FROM alert_history
+               ORDER BY fired_at DESC
+               LIMIT ?""",
+            (limit,),
+        ).fetchall()
+        result = []
+        for row in rows:
+            d = dict(row)
+            d["metrics"] = json.loads(d.pop("metrics_json", "{}"))
+            result.append(d)
+        return result
+
     def close(self) -> None:
         self._pool.close_all()
+
+
+    # ------------------------------------------------------------------
+    # Cost intelligence queries
+    # ------------------------------------------------------------------
+
+    def get_daily_costs(self, days: int = 30) -> list[dict[str, Any]]:
+        """
+        Return daily cost aggregations for the last *days* calendar days.
+
+        Each entry is a dict with keys:
+          date (str, YYYY-MM-DD), total_cost_usd, total_tokens, trace_count.
+        Results are in chronological order (oldest first).
+        """
+        cache_key = f"daily_costs:{days}"
+        cached = self._cache.get(cache_key)
+        if not isinstance(cached, _CacheMiss):
+            return cached
+
+        conn = self._pool.primary
+        cutoff = time.time() - days * 86_400
+        rows = conn.execute(
+            """SELECT
+                   strftime('%Y-%m-%d', start_time, 'unixepoch') AS date,
+                   SUM(total_cost_usd)  AS total_cost_usd,
+                   SUM(total_tokens)    AS total_tokens,
+                   COUNT(*)             AS trace_count
+               FROM traces
+               WHERE start_time >= ?
+               GROUP BY date
+               ORDER BY date ASC""",
+            (cutoff,),
+        ).fetchall()
+
+        result = [dict(r) for r in rows]
+        self._cache.set(cache_key, result)
+        return result
+
+    def get_cost_by_model(self, days: int = 30) -> list[dict[str, Any]]:
+        """
+        Return cost aggregated by LLM model for the last *days* days.
+
+        Reads the ``model`` field from ``attributes_json`` on each span.
+        Each entry: {model, total_cost_usd, total_tokens, call_count, avg_cost_per_call}.
+        """
+        cache_key = f"cost_by_model:{days}"
+        cached = self._cache.get(cache_key)
+        if not isinstance(cached, _CacheMiss):
+            return cached
+
+        conn = self._pool.primary
+        cutoff = time.time() - days * 86_400
+
+        rows = conn.execute(
+            """SELECT
+                   s.attributes_json,
+                   s.input_tokens,
+                   s.output_tokens,
+                   s.total_cost_usd
+               FROM spans s
+               JOIN traces t ON t.trace_id = s.trace_id
+               WHERE t.start_time >= ?
+                 AND (s.input_tokens > 0 OR s.output_tokens > 0)""",
+            (cutoff,),
+        ).fetchall()
+
+        model_stats: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            try:
+                attrs = json.loads(row["attributes_json"]) or {}
+            except Exception:
+                attrs = {}
+            model = (
+                attrs.get("model")
+                or attrs.get("llm.model")
+                or attrs.get("gen_ai.request.model")
+                or "unknown"
+            )
+            cost = row["total_cost_usd"] or 0.0
+            tokens = (row["input_tokens"] or 0) + (row["output_tokens"] or 0)
+            if model not in model_stats:
+                model_stats[model] = {"total_cost_usd": 0.0, "total_tokens": 0, "call_count": 0}
+            model_stats[model]["total_cost_usd"] += cost
+            model_stats[model]["total_tokens"] += tokens
+            model_stats[model]["call_count"] += 1
+
+        result = []
+        for model, stats in sorted(
+            model_stats.items(), key=lambda kv: kv[1]["total_cost_usd"], reverse=True
+        ):
+            cnt = stats["call_count"]
+            result.append(
+                {
+                    "model": model,
+                    "total_cost_usd": round(stats["total_cost_usd"], 6),
+                    "total_tokens": stats["total_tokens"],
+                    "call_count": cnt,
+                    "avg_cost_per_call": round(
+                        stats["total_cost_usd"] / cnt if cnt > 0 else 0.0, 8
+                    ),
+                }
+            )
+        self._cache.set(cache_key, result)
+        return result

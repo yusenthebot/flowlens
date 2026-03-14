@@ -211,6 +211,11 @@ class Trace:
     start_time: float = field(default_factory=time.time)
     end_time: float = 0.0
     metadata: dict[str, Any] = field(default_factory=dict)
+    # User/session/experiment context
+    user_id: Optional[str] = None
+    session_id: Optional[str] = None
+    experiment: Optional[str] = None
+    tags: Optional[dict[str, str]] = None
 
     @property
     def duration_ms(self) -> float:
@@ -266,6 +271,10 @@ class Trace:
             "error_count": self.error_count,
             "span_count": len(self.spans),
             "metadata": self.metadata,
+            "user_id": self.user_id,
+            "session_id": self.session_id,
+            "experiment": self.experiment,
+            "tags": self.tags,
             "spans": [s.to_dict() for s in self.spans],
         }
 

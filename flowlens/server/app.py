@@ -50,8 +50,13 @@ from .storage import TraceStore
 from ..sdk.models import Span, SpanKind, SpanStatus, Trace, TokenUsage
 from ..analysis.dag_builder import build_causal_dag
 from ..analysis.patterns import detect_patterns
+from ..analysis.trace_diff import TraceDiff as _TraceDiff
+from ..analysis.smart_advisor import SmartAdvisor as _SmartAdvisor
 from ..config import settings
 from ..logging_config import configure_logging
+from ..alerting import AlertRule, Alert
+from ..alerting.engine import AlertEngine
+from ..alerting.webhooks import send_webhook as _send_webhook
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +113,11 @@ class TraceIngestRequest(BaseModel):
     span_count: int = Field(0, ge=0)
     metadata: dict[str, Any] = {}
     spans: list[dict[str, Any]] = Field(default_factory=list, max_length=_MAX_SPANS_PER_INGEST)
+    # User/session/experiment context
+    user_id: Optional[str] = Field(None, max_length=_MAX_ID_LENGTH)
+    session_id: Optional[str] = Field(None, max_length=_MAX_ID_LENGTH)
+    experiment: Optional[str] = Field(None, max_length=_MAX_ID_LENGTH)
+    tags: Optional[dict[str, str]] = None
 
     @field_validator("trace_id")
     @classmethod
@@ -122,6 +132,13 @@ class TraceIngestRequest(BaseModel):
         if v and ("\x00" in v or ".." in v):
             raise ValueError("service_name contains disallowed sequences")
         return v
+
+
+class FeedbackRequest(BaseModel):
+    """Payload for POST /v1/traces/{trace_id}/feedback."""
+    rating: int = Field(..., ge=1, le=5, description="Rating from 1 (worst) to 5 (best)")
+    comment: Optional[str] = Field(None, max_length=4096)
+    metadata: dict[str, Any] = {}
 
 
 class BatchDeleteRequest(BaseModel):
@@ -153,6 +170,25 @@ class StatsResponse(BaseModel):
     total_cost: float = 0
     error_traces: int = 0
     avg_duration_ms: float = 0
+
+
+# ---------------------------------------------------------------------------
+# Alerting Pydantic models
+# ---------------------------------------------------------------------------
+
+class AlertRuleCreate(BaseModel):
+    """Payload for POST /v1/alerts/rules."""
+    name: str = Field(..., min_length=1, max_length=256)
+    condition: str = Field(..., min_length=1, max_length=512)
+    severity: str = Field("warning", pattern="^(critical|warning|info)$")
+    webhook_url: Optional[str] = Field(None, max_length=2048)
+    cooldown_seconds: int = Field(300, ge=0)
+    enabled: bool = True
+
+
+class AlertWebhookTest(BaseModel):
+    """Payload for POST /v1/alerts/test."""
+    webhook_url: str = Field(..., min_length=1, max_length=2048)
 
 
 # ---------------------------------------------------------------------------
@@ -285,6 +321,11 @@ def create_app(db_path: str | None = None) -> FastAPI:
     store = TraceStore(db_path=db_path or settings.db_path)
     ws_manager = ConnectionManager()
     rate_limiter = _RateLimiter(requests_per_minute=settings.rate_limit)
+
+    # Alerting engine — load persisted rules from DB on startup
+    alert_engine = AlertEngine()
+    for _rule_data in store.list_alert_rules():
+        alert_engine.add_rule(AlertRule.from_dict(_rule_data))
 
     # Track server start time for uptime calculation
     _server_start_time: float = time.time()
@@ -492,6 +533,17 @@ def create_app(db_path: str | None = None) -> FastAPI:
             )}
             await ws_manager.broadcast({"event": "trace_ingested", "data": summary})
 
+        # Evaluate alert rules (non-blocking; errors are swallowed)
+        try:
+            fired_alerts = await alert_engine.check_trace(payload)
+            for alert in fired_alerts:
+                try:
+                    store.save_alert(alert.to_dict())
+                except Exception as ae:
+                    logger.debug("Failed to persist alert: %s", ae)
+        except Exception as alert_err:
+            logger.debug("Alert evaluation failed: %s", alert_err)
+
         return {"status": "ok", "trace_id": req.trace_id}
 
     @app.post("/v1/traces/import", status_code=201)
@@ -641,11 +693,20 @@ def create_app(db_path: str | None = None) -> FastAPI:
         offset: int = Query(0, ge=0),
         service: Optional[str] = Query(None, max_length=_MAX_ID_LENGTH),
         errors_only: bool = False,
+        user_id: Optional[str] = Query(None, max_length=_MAX_ID_LENGTH),
+        session_id: Optional[str] = Query(None, max_length=_MAX_ID_LENGTH),
+        experiment: Optional[str] = Query(None, max_length=_MAX_ID_LENGTH),
     ) -> TraceListResponse:
-        """List traces (paginated). Filter by service or errors."""
+        """List traces (paginated). Filter by service, errors, user, session, or experiment."""
         # Sanitize the service filter against path traversal
         if service is not None:
             _sanitize_id(service, "service")
+        if user_id is not None:
+            _sanitize_id(user_id, "user_id")
+        if session_id is not None:
+            _sanitize_id(session_id, "session_id")
+        if experiment is not None:
+            _sanitize_id(experiment, "experiment")
 
         try:
             traces = store.list_traces(
@@ -653,6 +714,9 @@ def create_app(db_path: str | None = None) -> FastAPI:
                 offset=offset,
                 service_name=service,
                 has_errors=True if errors_only else None,
+                user_id=user_id,
+                session_id=session_id,
+                experiment=experiment,
             )
         except Exception:
             logger.exception("Failed to list traces")
@@ -717,6 +781,144 @@ def create_app(db_path: str | None = None) -> FastAPI:
             raise HTTPException(500, "Failed to build causal DAG")
 
     # -----------------------------------------------------------------------
+    # Trace diff / experiment diff
+    # -----------------------------------------------------------------------
+
+    @app.get("/v1/traces/diff")
+    async def trace_diff(
+        a: str = Query(..., description="Trace ID A (baseline)"),
+        b: str = Query(..., description="Trace ID B (comparison)"),
+    ) -> dict[str, Any]:
+        """Compare two traces by ID and return a full diff result."""
+        _sanitize_id(a, "trace_id_a")
+        _sanitize_id(b, "trace_id_b")
+        try:
+            data_a = store.get_trace(a)
+            data_b = store.get_trace(b)
+        except Exception:
+            logger.exception("Failed to retrieve traces for diff")
+            raise HTTPException(500, "Failed to retrieve traces")
+        if not data_a:
+            raise HTTPException(404, f"Trace '{a}' not found")
+        if not data_b:
+            raise HTTPException(404, f"Trace '{b}' not found")
+        try:
+            trace_a = _reconstruct_trace(data_a)
+            trace_b = _reconstruct_trace(data_b)
+            differ = _TraceDiff()
+            result = differ.diff(trace_a, trace_b)
+            return result.to_dict()
+        except Exception:
+            logger.exception("Failed to diff traces %s vs %s", a[:32], b[:32])
+            raise HTTPException(500, "Failed to compute trace diff")
+
+    @app.get("/v1/experiments/diff")
+    async def experiment_diff(
+        a: str = Query(..., description="Experiment name A (baseline)"),
+        b: str = Query(..., description="Experiment name B (comparison)"),
+        limit: int = Query(200, ge=1, le=1000),
+    ) -> dict[str, Any]:
+        """Compare two experiment groups by name and return aggregate statistics."""
+        _sanitize_id(a, "experiment_a")
+        _sanitize_id(b, "experiment_b")
+        try:
+            raw_a = store.list_traces(limit=limit, service_name=a)
+            raw_b = store.list_traces(limit=limit, service_name=b)
+        except Exception:
+            logger.exception("Failed to retrieve experiment traces for diff")
+            raise HTTPException(500, "Failed to retrieve experiment traces")
+        if not raw_a:
+            raise HTTPException(404, f"No traces found for experiment '{a}'")
+        if not raw_b:
+            raise HTTPException(404, f"No traces found for experiment '{b}'")
+        try:
+            traces_a = [_reconstruct_trace(t) for t in raw_a]
+            traces_b = [_reconstruct_trace(t) for t in raw_b]
+            differ = _TraceDiff()
+            result = differ.diff_experiments(traces_a, traces_b, name_a=a, name_b=b)
+            return result.to_dict()
+        except Exception:
+            logger.exception("Failed to diff experiments %s vs %s", a[:32], b[:32])
+            raise HTTPException(500, "Failed to compute experiment diff")
+
+    # -----------------------------------------------------------------------
+    # Fleet analysis / regression detection
+    # -----------------------------------------------------------------------
+
+    @app.get("/v1/analysis/fleet")
+    async def fleet_analysis(
+        limit: int = Query(500, ge=1, le=2000),
+        service: Optional[str] = Query(None, max_length=_MAX_ID_LENGTH),
+    ) -> dict[str, Any]:
+        """Fleet-wide analysis and recommendations."""
+        if service is not None:
+            _sanitize_id(service, "service")
+        try:
+            raw_traces = store.list_traces(limit=limit, service_name=service)
+        except Exception:
+            logger.exception("Failed to list traces for fleet analysis")
+            raise HTTPException(500, "Failed to retrieve traces")
+        try:
+            traces = [_reconstruct_trace(t) for t in raw_traces]
+            advisor = _SmartAdvisor()
+            return advisor.analyze_fleet(traces)
+        except Exception:
+            logger.exception("Fleet analysis failed")
+            raise HTTPException(500, "Fleet analysis failed")
+
+    @app.get("/v1/analysis/regressions")
+    async def regression_analysis(
+        days: int = Query(7, ge=1, le=365, description="Days to treat as recent"),
+        service: Optional[str] = Query(None, max_length=_MAX_ID_LENGTH),
+        limit: int = Query(500, ge=1, le=2000),
+    ) -> dict[str, Any]:
+        """Detect regressions by comparing recent traces against baseline."""
+        if service is not None:
+            _sanitize_id(service, "service")
+        import time as _time
+        cutoff = _time.time() - days * 86_400
+        try:
+            all_raw = store.list_traces(limit=limit, service_name=service)
+        except Exception:
+            logger.exception("Failed to list traces for regression analysis")
+            raise HTTPException(500, "Failed to retrieve traces")
+        try:
+            all_traces = [_reconstruct_trace(t) for t in all_raw]
+            recent_traces = [t for t in all_traces if t.start_time >= cutoff]
+            baseline_traces = [t for t in all_traces if t.start_time < cutoff]
+            if not recent_traces:
+                return {
+                    "regressions": [],
+                    "summary": f"No traces found in the last {days} day(s).",
+                    "recent_count": 0,
+                    "baseline_count": len(baseline_traces),
+                }
+            if not baseline_traces:
+                return {
+                    "regressions": [],
+                    "summary": "No baseline traces available for comparison.",
+                    "recent_count": len(recent_traces),
+                    "baseline_count": 0,
+                }
+            advisor = _SmartAdvisor()
+            reports = advisor.detect_regression(
+                recent_traces, baseline_traces, service_name=service or "all services"
+            )
+            return {
+                "regressions": [r.to_dict() for r in reports],
+                "summary": (
+                    f"Detected {len(reports)} regression(s) comparing last {days} day(s) "
+                    f"({len(recent_traces)} traces) against baseline "
+                    f"({len(baseline_traces)} traces)."
+                ),
+                "recent_count": len(recent_traces),
+                "baseline_count": len(baseline_traces),
+            }
+        except Exception:
+            logger.exception("Regression analysis failed")
+            raise HTTPException(500, "Regression analysis failed")
+
+    # -----------------------------------------------------------------------
     # Cost
     # -----------------------------------------------------------------------
 
@@ -749,6 +951,95 @@ def create_app(db_path: str | None = None) -> FastAPI:
             logger.exception("Failed to get cost trends")
             raise HTTPException(500, "Failed to retrieve cost trends")
 
+    @app.get("/v1/cost/forecast")
+    async def cost_forecast(
+        days: int = Query(30, ge=1, le=365, description="Forecast horizon in days"),
+    ) -> dict[str, Any]:
+        """
+        Project future costs using linear regression on daily cost data.
+
+        Returns projected_daily_cost, projected_monthly_cost, trend,
+        confidence_interval, days_of_data, slope, and r_squared.
+        """
+        from ..analysis.cost_forecast import CostForecaster
+        try:
+            daily_records = store.get_daily_costs(days=max(days, 7))
+            forecaster = CostForecaster()
+            forecast = forecaster.forecast(daily_records, days=days)
+            return forecast.to_dict()
+        except Exception:
+            logger.exception("Failed to compute cost forecast")
+            raise HTTPException(500, "Failed to compute cost forecast")
+
+    @app.get("/v1/cost/budget")
+    async def cost_budget(
+        budget: float = Query(..., gt=0, description="Budget cap in USD"),
+    ) -> dict[str, Any]:
+        """
+        Return budget status: how much has been spent, what remains,
+        the current daily burn rate, and estimated days until the budget is exhausted.
+        """
+        from ..analysis.cost_forecast import CostForecaster
+        try:
+            daily_records = store.get_daily_costs(days=30)
+            total_spent = sum(r.get("total_cost_usd", 0.0) or 0.0 for r in daily_records)
+            remaining = max(0.0, budget - total_spent)
+
+            forecaster = CostForecaster()
+            forecast = forecaster.forecast(daily_records)
+            burn_rate = forecast.projected_daily_cost
+
+            days_left = forecaster.days_until_budget(daily_records, budget_usd=budget)
+
+            return {
+                "budget_usd": budget,
+                "total_spent_usd": round(total_spent, 6),
+                "remaining_usd": round(remaining, 6),
+                "burn_rate_daily_usd": round(burn_rate, 6),
+                "days_until_exhausted": round(days_left, 1) if days_left is not None else None,
+                "trend": forecast.trend,
+            }
+        except Exception:
+            logger.exception("Failed to compute budget status")
+            raise HTTPException(500, "Failed to compute budget status")
+
+    @app.get("/v1/cost/optimization")
+    async def cost_optimization() -> dict[str, Any]:
+        """
+        Return actionable optimisation suggestions with estimated monthly savings.
+        """
+        from ..analysis.cost_breakdown import CostBreakdown
+        try:
+            # Fetch recent traces for analysis (lightweight — no spans loaded)
+            traces = store.list_traces(limit=200)
+            # We need span data for model/context analysis; fetch full traces
+            # but cap at 50 to keep response times reasonable
+            full_traces = []
+            for t in traces[:50]:
+                full = store.get_trace(t["trace_id"])
+                if full:
+                    full_traces.append(full)
+
+            breakdown = CostBreakdown()
+            suggestions = breakdown.optimization_suggestions(full_traces)
+            by_model = breakdown.by_model(full_traces)
+            by_service = breakdown.by_service(full_traces)
+            by_kind = breakdown.by_span_kind(full_traces)
+
+            total_savings = sum(
+                s.get("estimated_monthly_savings_usd", 0.0) for s in suggestions
+            )
+            return {
+                "suggestions": suggestions,
+                "total_estimated_monthly_savings_usd": round(total_savings, 4),
+                "by_model": by_model,
+                "by_service": by_service,
+                "by_span_kind": by_kind,
+            }
+        except Exception:
+            logger.exception("Failed to compute optimisation suggestions")
+            raise HTTPException(500, "Failed to compute optimisation suggestions")
+
     # -----------------------------------------------------------------------
     # Patterns
     # -----------------------------------------------------------------------
@@ -766,6 +1057,69 @@ def create_app(db_path: str | None = None) -> FastAPI:
         except Exception:
             logger.exception("Failed to get pattern summary")
             raise HTTPException(500, "Failed to retrieve pattern summary")
+
+    # -----------------------------------------------------------------------
+    # Feedback endpoints
+    # -----------------------------------------------------------------------
+
+    @app.post("/v1/traces/{trace_id}/feedback", status_code=201)
+    async def submit_feedback(trace_id: str, req: FeedbackRequest) -> dict[str, Any]:
+        """Submit feedback (rating 1–5, optional comment) for a trace."""
+        _sanitize_id(trace_id, "trace_id")
+        try:
+            feedback_id = store.save_feedback(
+                trace_id=trace_id,
+                rating=req.rating,
+                comment=req.comment,
+                metadata=req.metadata,
+            )
+        except ValueError as exc:
+            raise HTTPException(400, str(exc))
+        except Exception:
+            logger.exception("Failed to save feedback for trace %s", trace_id[:32])
+            raise HTTPException(500, "Failed to save feedback")
+        return {"status": "ok", "trace_id": trace_id, "feedback_id": feedback_id}
+
+    @app.get("/v1/traces/{trace_id}/feedback")
+    async def get_trace_feedback(trace_id: str) -> list[dict[str, Any]]:
+        """Get all feedback for a specific trace."""
+        _sanitize_id(trace_id, "trace_id")
+        try:
+            return store.get_feedback(trace_id)
+        except Exception:
+            logger.exception("Failed to get feedback for trace %s", trace_id[:32])
+            raise HTTPException(500, "Failed to retrieve feedback")
+
+    @app.get("/v1/feedback/summary")
+    async def feedback_summary() -> dict[str, Any]:
+        """Aggregate feedback statistics: avg rating, distribution, low-rated traces."""
+        try:
+            return store.get_feedback_summary()
+        except Exception:
+            logger.exception("Failed to get feedback summary")
+            raise HTTPException(500, "Failed to retrieve feedback summary")
+
+    # -----------------------------------------------------------------------
+    # Metrics — users and experiments
+    # -----------------------------------------------------------------------
+
+    @app.get("/v1/metrics/users")
+    async def user_metrics() -> list[dict[str, Any]]:
+        """Per-user stats: trace count, error rate, avg cost."""
+        try:
+            return store.get_user_metrics()
+        except Exception:
+            logger.exception("Failed to get user metrics")
+            raise HTTPException(500, "Failed to retrieve user metrics")
+
+    @app.get("/v1/metrics/experiments")
+    async def experiment_metrics() -> list[dict[str, Any]]:
+        """Per-experiment comparison: trace count, error rate, avg cost, avg duration."""
+        try:
+            return store.get_experiment_metrics()
+        except Exception:
+            logger.exception("Failed to get experiment metrics")
+            raise HTTPException(500, "Failed to retrieve experiment metrics")
 
     # -----------------------------------------------------------------------
     # Stats
@@ -813,6 +1167,84 @@ def create_app(db_path: str | None = None) -> FastAPI:
             "trace_count": stats.get("total_traces") or 0,
             "db_size_bytes": db_size_bytes,
         }
+
+    # -----------------------------------------------------------------------
+    # Alerting
+    # -----------------------------------------------------------------------
+
+    @app.post("/v1/alerts/rules", status_code=201)
+    async def create_alert_rule(req: AlertRuleCreate) -> dict[str, Any]:
+        """Create or replace an alert rule."""
+        rule = AlertRule(
+            name=req.name,
+            condition=req.condition,
+            severity=req.severity,
+            webhook_url=req.webhook_url,
+            cooldown_seconds=req.cooldown_seconds,
+            enabled=req.enabled,
+        )
+        try:
+            store.save_alert_rule(rule.to_dict())
+            alert_engine.add_rule(rule)
+        except Exception:
+            logger.exception("Failed to save alert rule %s", req.name)
+            raise HTTPException(500, "Failed to save alert rule")
+        return {"status": "created", "name": req.name}
+
+    @app.get("/v1/alerts/rules")
+    async def list_alert_rules() -> list[dict[str, Any]]:
+        """List all configured alert rules."""
+        try:
+            return store.list_alert_rules()
+        except Exception:
+            logger.exception("Failed to list alert rules")
+            raise HTTPException(500, "Failed to retrieve alert rules")
+
+    @app.delete("/v1/alerts/rules/{name}", status_code=200)
+    async def delete_alert_rule(name: str) -> dict[str, str]:
+        """Delete an alert rule by name."""
+        _sanitize_id(name, "rule name")
+        try:
+            deleted = store.delete_alert_rule(name)
+            alert_engine.remove_rule(name)
+        except Exception:
+            logger.exception("Failed to delete alert rule %s", name)
+            raise HTTPException(500, "Failed to delete alert rule")
+        if not deleted:
+            raise HTTPException(404, f"Alert rule '{name}' not found")
+        return {"status": "deleted", "name": name}
+
+    @app.get("/v1/alerts/history")
+    async def get_alert_history(
+        limit: int = Query(100, ge=1, le=1000),
+    ) -> list[dict[str, Any]]:
+        """Return recent fired alerts (most recent first)."""
+        try:
+            return store.get_alert_history(limit=limit)
+        except Exception:
+            logger.exception("Failed to retrieve alert history")
+            raise HTTPException(500, "Failed to retrieve alert history")
+
+    @app.post("/v1/alerts/test", status_code=200)
+    async def test_webhook(req: AlertWebhookTest) -> dict[str, Any]:
+        """Send a test alert to the specified webhook URL."""
+        test_alert = Alert(
+            rule_name="test",
+            severity="info",
+            message="This is a test alert from FlowLens.",
+            trace_id=None,
+            metrics={"test": True},
+        )
+        try:
+            success = await _send_webhook(
+                url=req.webhook_url,
+                alert_dict=test_alert.to_dict(),
+                trace_context=None,
+            )
+        except Exception as exc:
+            logger.warning("Test webhook to %s failed: %s", req.webhook_url, exc)
+            success = False
+        return {"delivered": success, "webhook_url": req.webhook_url}
 
     # -----------------------------------------------------------------------
     # Dashboard
@@ -896,3 +1328,7 @@ def _reconstruct_trace(trace_data: dict[str, Any]) -> Trace:
         trace.spans.append(span)
 
     return trace
+
+# NOTE: The new cost intelligence endpoints below are appended at module level
+# but are registered inside the existing create_app() factory.  We instead
+# patch them in via a secondary factory call.

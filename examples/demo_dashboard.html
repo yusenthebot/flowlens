@@ -186,6 +186,7 @@
       <button onclick="switchView('traces')" data-tab="traces" class="tab-btn tab-inactive px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg whitespace-nowrap">Traces</button>
       <button onclick="switchView('cost')" data-tab="cost" class="tab-btn tab-inactive px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg whitespace-nowrap">Cost Analysis</button>
       <button onclick="switchView('patterns')" data-tab="patterns" class="tab-btn tab-inactive px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg whitespace-nowrap">Patterns</button>
+      <button onclick="switchView('alerts')" data-tab="alerts" class="tab-btn tab-inactive px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg whitespace-nowrap">Alerts</button>
       <button onclick="switchView('compare')" data-tab="compare" class="tab-btn tab-inactive px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg whitespace-nowrap">
         Compare
         <span id="compare-badge" class="hidden ml-1 px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-indigo-500 text-white">0</span>
@@ -277,9 +278,38 @@
             <input type="checkbox" id="filter-errors" class="rounded bg-surface-100 border-white/10 text-red-500 focus:ring-red-500/30" onchange="filterTraces()" /> Errors only
           </label>
         </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-slate-500 mr-1">User:</span>
+          <select id="filter-user" class="filter-input bg-surface-100 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-200" onchange="filterTraces()">
+            <option value="">All users</option>
+            <option value="user_alice">user_alice</option>
+            <option value="user_bob">user_bob</option>
+            <option value="user_charlie">user_charlie</option>
+          </select>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-slate-500 mr-1">Session:</span>
+          <select id="filter-session" class="filter-input bg-surface-100 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-200" onchange="filterTraces()">
+            <option value="">All sessions</option>
+            <option value="sess-001">sess-001</option>
+            <option value="sess-002">sess-002</option>
+            <option value="sess-003">sess-003</option>
+            <option value="sess-004">sess-004</option>
+          </select>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-slate-500 mr-1">Experiment:</span>
+          <select id="filter-experiment" class="filter-input bg-surface-100 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-200" onchange="filterTraces()">
+            <option value="">All experiments</option>
+            <option value="v1-baseline">v1-baseline</option>
+            <option value="v2-new-prompt">v2-new-prompt</option>
+            <option value="v3-model-upgrade">v3-model-upgrade</option>
+          </select>
+        </div>
         <button onclick="filterTraces()" class="px-3 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition">Apply</button>
         <button onclick="clearFilters()" class="px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-slate-200 bg-surface-100 rounded-lg border border-white/10 hover:border-white/20 transition">Clear</button>
       </div>
+      <div id="traces-filter-stats" class="hidden mb-2 px-1"></div>
       <div class="glass rounded-xl overflow-hidden">
         <div id="traces-list" class="divide-y divide-white/5"></div>
       </div>
@@ -297,6 +327,7 @@
           <div class="flex-1 min-w-0">
             <h2 id="detail-trace-id" class="text-lg font-semibold text-white font-mono truncate">--</h2>
             <div id="detail-trace-meta" class="flex flex-wrap gap-4 mt-2 text-xs text-slate-400"></div>
+            <div id="detail-feedback" class="hidden mt-3 p-3 rounded-lg bg-surface-100 border border-white/5"></div>
           </div>
           <div class="flex gap-1">
             <button onclick="showDetailTab('timeline')" data-dtab="timeline" class="dtab-btn tab-active px-3 py-1.5 text-xs font-medium border-b-2 rounded-t transition">Timeline</button>
@@ -367,6 +398,81 @@
         <h3 class="text-sm font-semibold text-white mb-4">Cost Trend Over Time</h3>
         <div class="h-64"><canvas id="chart-cost-trend"></canvas></div>
       </div>
+      <!-- Cost Forecast -->
+      <div class="glass rounded-xl p-5 mt-4">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-sm font-semibold text-white">Cost Forecast</h3>
+          <span class="px-2 py-0.5 text-[10px] font-medium rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">BETA</span>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div class="glass rounded-lg p-4">
+            <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">Projected Monthly Cost</div>
+            <div class="flex items-center gap-2">
+              <span class="text-xl font-bold text-white">$47.20</span>
+              <span class="flex items-center text-xs text-red-400">
+                <svg class="w-3 h-3 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
+                +12.3%
+              </span>
+            </div>
+            <div class="text-[10px] text-slate-600 mt-1">Based on 7-day rolling average</div>
+          </div>
+          <div class="glass rounded-lg p-4">
+            <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">Budget Status</div>
+            <div class="text-xl font-bold text-white">$100<span class="text-sm text-slate-500 font-normal">/mo</span></div>
+            <div class="flex items-center gap-2 mt-1">
+              <div class="flex-1 h-2 rounded-full bg-surface-200 overflow-hidden">
+                <div class="h-full rounded-full bg-gradient-to-r from-emerald-500 to-amber-400" style="width:47%"></div>
+              </div>
+              <span class="text-[10px] text-slate-400">53% left</span>
+            </div>
+            <div class="text-[10px] text-amber-400 mt-1">~18 days until budget exhausted</div>
+          </div>
+          <div class="glass rounded-lg p-4">
+            <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">Cost per Trace</div>
+            <div class="flex items-center gap-2">
+              <span class="text-xl font-bold text-white">$0.187</span>
+              <span class="flex items-center text-xs text-emerald-400">
+                <svg class="w-3 h-3 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+                -5.2%
+              </span>
+            </div>
+            <div class="text-[10px] text-slate-600 mt-1">Down from $0.198 last week</div>
+          </div>
+        </div>
+        <div class="h-48 mb-4"><canvas id="chart-cost-forecast"></canvas></div>
+        <div class="border-t border-white/5 pt-4">
+          <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Optimization Suggestions</h4>
+          <div class="space-y-2">
+            <div class="flex items-start gap-3 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/15">
+              <div class="w-6 h-6 rounded-full bg-emerald-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+              </div>
+              <div>
+                <div class="text-xs font-medium text-slate-200">Switch document-processor to hierarchical summarization</div>
+                <div class="text-[10px] text-slate-500 mt-0.5">Estimated savings: <span class="text-emerald-400 font-medium">$18.50/mo (39%)</span> — reduces token usage by ~60% on large docs</div>
+              </div>
+            </div>
+            <div class="flex items-start gap-3 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/15">
+              <div class="w-6 h-6 rounded-full bg-emerald-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+              </div>
+              <div>
+                <div class="text-xs font-medium text-slate-200">Use gpt-4o-mini for intent classification in support-chatbot</div>
+                <div class="text-[10px] text-slate-500 mt-0.5">Estimated savings: <span class="text-emerald-400 font-medium">$4.20/mo (9%)</span> — already using it for classify_intent, extend to format_output</div>
+              </div>
+            </div>
+            <div class="flex items-start gap-3 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/15">
+              <div class="w-6 h-6 rounded-full bg-emerald-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+              </div>
+              <div>
+                <div class="text-xs font-medium text-slate-200">Cache embedding results for repeated RAG queries</div>
+                <div class="text-[10px] text-slate-500 mt-0.5">Estimated savings: <span class="text-emerald-400 font-medium">$2.80/mo (6%)</span> — 34% of queries hit duplicate embeddings</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
       <!-- Cost summary table -->
       <div class="glass rounded-xl overflow-hidden mt-4">
         <div class="px-5 py-4 border-b border-white/5">
@@ -381,10 +487,86 @@
       <div id="patterns-list"></div>
     </div>
 
+    <!-- ALERTS VIEW -->
+    <div id="view-alerts" class="view-panel hidden">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-semibold text-white">Alert Rules & History</h2>
+        <button onclick="document.getElementById('alert-create-form').classList.toggle('hidden')" class="px-3 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          Create Rule
+        </button>
+      </div>
+
+      <!-- Create Rule Form (collapsed by default) -->
+      <div id="alert-create-form" class="hidden glass rounded-xl p-5 mb-4 fade-in">
+        <h3 class="text-sm font-semibold text-white mb-3">New Alert Rule</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+          <div>
+            <label class="text-xs text-slate-500 block mb-1">Metric</label>
+            <select class="filter-input bg-surface-100 border border-white/10 rounded-lg px-3 py-2 text-xs text-slate-200 w-full">
+              <option>Error rate</option>
+              <option>Cost per trace</option>
+              <option>Latency (p95)</option>
+              <option>Pattern detected</option>
+              <option>Token usage</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs text-slate-500 block mb-1">Condition</label>
+            <div class="flex gap-2">
+              <select class="filter-input bg-surface-100 border border-white/10 rounded-lg px-2 py-2 text-xs text-slate-200 w-20">
+                <option>></option>
+                <option><</option>
+                <option>=</option>
+                <option>>=</option>
+              </select>
+              <input type="text" placeholder="Threshold..." class="filter-input bg-surface-100 border border-white/10 rounded-lg px-3 py-2 text-xs text-slate-200 flex-1" />
+            </div>
+          </div>
+          <div>
+            <label class="text-xs text-slate-500 block mb-1">Severity</label>
+            <select class="filter-input bg-surface-100 border border-white/10 rounded-lg px-3 py-2 text-xs text-slate-200 w-full">
+              <option>Critical</option>
+              <option>Warning</option>
+              <option>Info</option>
+            </select>
+          </div>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="showToast('Alert rule created (demo)', 'success'); document.getElementById('alert-create-form').classList.add('hidden');" class="px-4 py-2 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition">Save Rule</button>
+          <button onclick="document.getElementById('alert-create-form').classList.add('hidden')" class="px-4 py-2 text-xs font-medium text-slate-400 bg-surface-100 rounded-lg border border-white/10 transition">Cancel</button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <!-- Active Rules -->
+        <div class="glass rounded-xl overflow-hidden">
+          <div class="px-5 py-4 border-b border-white/5">
+            <h3 class="text-sm font-semibold text-white">Active Rules</h3>
+          </div>
+          <div class="divide-y divide-white/5" id="alert-rules-list"></div>
+        </div>
+        <!-- Alert History -->
+        <div class="glass rounded-xl overflow-hidden">
+          <div class="px-5 py-4 border-b border-white/5">
+            <h3 class="text-sm font-semibold text-white">Recent Alerts</h3>
+          </div>
+          <div class="divide-y divide-white/5" id="alert-history-list"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- COMPARE VIEW -->
     <div id="view-compare" class="view-panel hidden">
+      <!-- Mode toggle -->
       <div class="flex items-center justify-between mb-4">
-        <h2 class="text-sm font-semibold text-white">Trace Comparison</h2>
+        <div class="flex items-center gap-3">
+          <h2 class="text-sm font-semibold text-white">Comparison</h2>
+          <div class="flex rounded-lg border border-white/10 overflow-hidden">
+            <button onclick="setCompareMode('trace')" id="compare-mode-trace" class="px-3 py-1.5 text-xs font-medium transition bg-indigo-600 text-white">Traces</button>
+            <button onclick="setCompareMode('experiment')" id="compare-mode-experiment" class="px-3 py-1.5 text-xs font-medium transition text-slate-400 hover:text-slate-200 bg-surface-100">Experiments</button>
+          </div>
+        </div>
         <button onclick="clearComparison()" class="px-3 py-1.5 text-xs font-medium text-slate-400 bg-surface-100 rounded-lg border border-white/10 hover:border-white/20 hover:text-slate-200 transition">Clear Selection</button>
       </div>
       <div id="compare-instructions" class="glass rounded-xl p-8 text-center">
@@ -395,6 +577,23 @@
         <p class="text-xs text-slate-600">Use the checkboxes in the Traces view to select traces for side-by-side comparison.</p>
       </div>
       <div id="compare-content" class="hidden"></div>
+      <!-- Experiment Comparison -->
+      <div id="compare-experiment-panel" class="hidden">
+        <div class="flex gap-3 mb-4">
+          <select id="exp-select-a" class="filter-input bg-surface-100 border border-white/10 rounded-lg px-3 py-2 text-sm text-slate-200 flex-1" onchange="renderExperimentComparison()">
+            <option value="v1-baseline">v1-baseline</option>
+            <option value="v2-new-prompt" selected>v2-new-prompt</option>
+            <option value="v3-model-upgrade">v3-model-upgrade</option>
+          </select>
+          <span class="text-slate-500 flex items-center text-sm font-medium">vs</span>
+          <select id="exp-select-b" class="filter-input bg-surface-100 border border-white/10 rounded-lg px-3 py-2 text-sm text-slate-200 flex-1" onchange="renderExperimentComparison()">
+            <option value="v1-baseline" selected>v1-baseline</option>
+            <option value="v2-new-prompt">v2-new-prompt</option>
+            <option value="v3-model-upgrade">v3-model-upgrade</option>
+          </select>
+        </div>
+        <div id="experiment-compare-content"></div>
+      </div>
     </div>
 
   </main>
@@ -413,14 +612,14 @@
         <span>Agent Observability Platform</span>
       </div>
       <div class="flex items-center gap-4 text-xs text-slate-500">
-        <a href="https://github.com/yusenhan/flowlens" target="_blank" rel="noopener noreferrer"
+        <a href="https://github.com/yusenthebot/flowlens" target="_blank" rel="noopener noreferrer"
            class="flex items-center gap-1.5 hover:text-slate-300 transition-colors duration-200">
           <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
             <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
           </svg>
           GitHub
         </a>
-        <a href="https://github.com/yusenhan/flowlens#readme" target="_blank" rel="noopener noreferrer"
+        <a href="https://github.com/yusenthebot/flowlens#readme" target="_blank" rel="noopener noreferrer"
            class="flex items-center gap-1.5 hover:text-slate-300 transition-colors duration-200">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
@@ -456,7 +655,8 @@
           <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">2</kbd><span class="text-slate-300">Traces</span></div>
           <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">3</kbd><span class="text-slate-300">Cost Analysis</span></div>
           <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">4</kbd><span class="text-slate-300">Patterns</span></div>
-          <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">5</kbd><span class="text-slate-300">Compare</span></div>
+          <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">5</kbd><span class="text-slate-300">Alerts</span></div>
+          <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">6</kbd><span class="text-slate-300">Compare</span></div>
         </div>
         <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider pt-2">Actions</div>
         <div class="grid grid-cols-2 gap-2">
@@ -519,6 +719,10 @@ const SAMPLE_TRACES = [
       makeSpan('sp-rag-gen', 'sp-rag-root', 'generate_answer', 'llm', 1.02, 1.28, { tokens: [3200, 3988], cost: 0.048, attrs: { 'model': 'claude-sonnet-4-20250514', 'temperature': 0.3, 'max_tokens': 4096 } }),
     ],
     patterns: [],
+    feedback: { rating: 4.5, comment: 'Great answer, well-sourced!' },
+    user_id: 'user_alice',
+    session_id: 'sess-001',
+    experiment: 'v1-baseline',
   },
   // 2. Multi-step Agent
   {
@@ -540,6 +744,10 @@ const SAMPLE_TRACES = [
       makeSpan('sp-agent-synth', 'sp-agent-root', 'synthesize_report', 'llm', 3.58, 0.98, { tokens: [2400, 1510], cost: 0.0725, attrs: { 'model': 'claude-sonnet-4-20250514', 'temperature': 0.4 } }),
     ],
     patterns: [],
+    feedback: { rating: 3.2, comment: 'Decent summary but missed some key papers.' },
+    user_id: 'user_bob',
+    session_id: 'sess-002',
+    experiment: 'v2-new-prompt',
   },
   // 3. Customer Support Chatbot with error recovery
   {
@@ -563,6 +771,10 @@ const SAMPLE_TRACES = [
     patterns: [
       { pattern: 'retry_storm', severity: 'warning', description: 'LLM call failed with rate limit and required retry. Consider implementing request throttling.', involved_spans: ['sp-chat-llm-fail', 'sp-chat-llm-retry'] },
     ],
+    feedback: { rating: 1.0, comment: 'Response was delayed due to retries. User frustrated.' },
+    user_id: 'user_charlie',
+    session_id: 'sess-003',
+    experiment: 'v1-baseline',
   },
   // 4. Code Generation with streaming
   {
@@ -583,6 +795,10 @@ const SAMPLE_TRACES = [
       makeSpan('sp-code-test', 'sp-code-root', 'run_tests', 'tool', 4.7, 0.92, { attrs: { 'tool': 'pytest', 'passed': 12, 'failed': 0, 'duration_s': 0.92 } }),
     ],
     patterns: [],
+    feedback: { rating: 4.8, comment: 'Excellent code quality, all tests passed!' },
+    user_id: 'user_alice',
+    session_id: 'sess-001',
+    experiment: 'v2-new-prompt',
   },
   // 5. Data Analysis with parallel tool calls
   {
@@ -605,6 +821,9 @@ const SAMPLE_TRACES = [
       makeSpan('sp-data-narrate', 'sp-data-root', 'narrate_findings', 'llm', 2.2, 1.65, { tokens: [5800, 4220], cost: 0.0814, attrs: { 'model': 'claude-sonnet-4-20250514', 'temperature': 0.2 } }),
     ],
     patterns: [],
+    user_id: 'user_bob',
+    session_id: 'sess-002',
+    experiment: 'v3-model-upgrade',
   },
   // 6. Failed pipeline with cascading errors
   {
@@ -628,6 +847,9 @@ const SAMPLE_TRACES = [
       { pattern: 'cascading_failure', severity: 'critical', description: 'LLM connection timeout in enrich_with_llm caused downstream load_to_warehouse to fail. Consider adding circuit breakers and fallback logic.', involved_spans: ['sp-fail-enrich', 'sp-fail-load'] },
       { pattern: 'missing_fallback', severity: 'warning', description: 'No fallback mechanism for LLM enrichment step. Pipeline should gracefully degrade when LLM is unavailable.', involved_spans: ['sp-fail-enrich'] },
     ],
+    user_id: 'user_charlie',
+    session_id: 'sess-004',
+    experiment: 'v1-baseline',
   },
   // 7. High-cost token-heavy trace
   {
@@ -649,6 +871,10 @@ const SAMPLE_TRACES = [
     patterns: [
       { pattern: 'token_waste', severity: 'warning', description: 'Extremely high token usage (128,500 tokens) in document summarization. Consider using hierarchical summarization or extractive methods to reduce costs.', involved_spans: ['sp-doc-summarize'] },
     ],
+    feedback: { rating: 4.2, comment: 'Summary was accurate but took too long.' },
+    user_id: 'user_alice',
+    session_id: 'sess-003',
+    experiment: 'v2-new-prompt',
   },
   // 8. Multi-modal agent
   {
@@ -669,6 +895,10 @@ const SAMPLE_TRACES = [
       makeSpan('sp-mm-tags', 'sp-mm-root', 'generate_tags', 'llm', 2.4, 0.45, { tokens: [1200, 950], cost: 0.0118, attrs: { 'model': 'gpt-4o-mini' } }),
     ],
     patterns: [],
+    feedback: { rating: 4.0, comment: 'Good product description.' },
+    user_id: 'user_bob',
+    session_id: 'sess-001',
+    experiment: 'v3-model-upgrade',
   },
   // 9. Agentic workflow with tool errors
   {
@@ -693,6 +923,10 @@ const SAMPLE_TRACES = [
     patterns: [
       { pattern: 'tool_permission_error', severity: 'warning', description: 'JIRA ticket creation failed due to permissions on project INFRA. Agent fell back to project ENG. Review API credentials.', involved_spans: ['sp-task-jira-fail'] },
     ],
+    feedback: { rating: 2.5, comment: 'Ticket was created but in wrong project initially.' },
+    user_id: 'user_charlie',
+    session_id: 'sess-004',
+    experiment: 'v2-new-prompt',
   },
   // 10. Fast inference pipeline
   {
@@ -710,6 +944,9 @@ const SAMPLE_TRACES = [
       makeSpan('sp-filter-pii', 'sp-filter-root', 'detect_pii', 'tool', 0.02, 0.12, { attrs: { 'tool': 'presidio', 'pii_found': false } }),
     ],
     patterns: [],
+    user_id: 'user_alice',
+    session_id: 'sess-002',
+    experiment: 'v1-baseline',
   },
 ];
 
@@ -798,6 +1035,7 @@ function switchView(view) {
   else if (view === 'traces') renderTracesList(SAMPLE_TRACES);
   else if (view === 'cost') loadCostView();
   else if (view === 'patterns') loadPatterns();
+  else if (view === 'alerts') loadAlerts();
   else if (view === 'compare') renderCompareView();
 }
 
@@ -944,6 +1182,9 @@ function renderTraceRow(trace, compact = false) {
         ${!compact ? `<div class="text-xs text-slate-500 mt-0.5">${timeStr}</div>` : ''}
       </div>
       <div class="flex items-center gap-6 text-xs text-slate-500">
+        ${!compact ? `<div class="text-right w-12">
+          ${trace.feedback ? `<span class="font-medium tabular-nums ${trace.feedback.rating >= 4 ? 'text-emerald-400' : trace.feedback.rating >= 2 ? 'text-amber-400' : 'text-rose-400'}">${trace.feedback.rating.toFixed(1)}</span><span class="text-slate-600"> &#9733;</span>` : '<span class="text-slate-600">&mdash;</span>'}
+        </div>` : ''}
         <div class="text-right">
           <div class="text-slate-400 tabular-nums">${duration}ms</div>
           ${!compact ? `<div>${trace.span_count} spans</div>` : ''}
@@ -970,17 +1211,41 @@ function renderTracesList(traces) {
 function filterTraces() {
   const search = (document.getElementById('filter-service').value || '').toLowerCase().trim();
   const errorsOnly = document.getElementById('filter-errors').checked;
+  const userFilter = document.getElementById('filter-user')?.value || '';
+  const sessionFilter = document.getElementById('filter-session')?.value || '';
+  const experimentFilter = document.getElementById('filter-experiment')?.value || '';
   let filtered = SAMPLE_TRACES.filter(t => {
     if (errorsOnly && !t.has_errors) return false;
     if (search && !t.service_name.toLowerCase().includes(search) && !t.trace_id.toLowerCase().includes(search)) return false;
+    if (userFilter && t.user_id !== userFilter) return false;
+    if (sessionFilter && t.session_id !== sessionFilter) return false;
+    if (experimentFilter && t.experiment !== experimentFilter) return false;
     return true;
   });
   renderTracesList(filtered);
+  // Update filtered stats
+  const statsEl = document.getElementById('traces-filter-stats');
+  if (statsEl) {
+    if (filtered.length < SAMPLE_TRACES.length) {
+      const avgLatency = filtered.length > 0 ? (filtered.reduce((s,t) => s + t.duration_ms, 0) / filtered.length).toFixed(0) : 0;
+      const totalCost = filtered.reduce((s,t) => s + t.total_cost_usd, 0).toFixed(4);
+      const errorRate = filtered.length > 0 ? ((filtered.filter(t => t.has_errors).length / filtered.length) * 100).toFixed(1) : '0';
+      statsEl.innerHTML = `<span class="text-xs text-slate-400">Showing ${filtered.length}/${SAMPLE_TRACES.length} traces | Avg: ${avgLatency}ms | Cost: $${totalCost} | Errors: ${errorRate}%</span>`;
+      statsEl.classList.remove('hidden');
+    } else {
+      statsEl.classList.add('hidden');
+    }
+  }
 }
 
 function clearFilters() {
   document.getElementById('filter-service').value = '';
   document.getElementById('filter-errors').checked = false;
+  if (document.getElementById('filter-user')) document.getElementById('filter-user').value = '';
+  if (document.getElementById('filter-session')) document.getElementById('filter-session').value = '';
+  if (document.getElementById('filter-experiment')) document.getElementById('filter-experiment').value = '';
+  const statsEl = document.getElementById('traces-filter-stats');
+  if (statsEl) statsEl.classList.add('hidden');
   renderTracesList(SAMPLE_TRACES);
 }
 
@@ -1018,6 +1283,27 @@ function renderTraceDetail(data) {
     hasErrors ? '<span class="text-red-400">Has Errors</span>' : '<span class="text-emerald-400">OK</span>',
   ];
   document.getElementById('detail-trace-meta').innerHTML = meta.join('');
+
+  // Feedback section
+  const feedbackEl = document.getElementById('detail-feedback');
+  if (data.feedback) {
+    const r = data.feedback.rating;
+    const colorClass = r >= 4 ? 'text-emerald-400' : r >= 2 ? 'text-amber-400' : 'text-rose-400';
+    const stars = Array.from({length: 5}, (_, i) => i < Math.round(r) ? `<span class="${colorClass}">&#9733;</span>` : '<span class="text-slate-600">&#9733;</span>').join('');
+    feedbackEl.innerHTML = `
+      <div class="flex items-center gap-2 mb-1">
+        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Feedback</span>
+        <span class="text-sm">${stars}</span>
+        <span class="text-xs font-bold ${colorClass}">${r.toFixed(1)}</span>
+      </div>
+      ${data.feedback.comment ? `<p class="text-xs text-slate-400 italic">"${escHtml(data.feedback.comment)}"</p>` : ''}
+      ${data.user_id ? `<div class="text-[10px] text-slate-500 mt-1">User: <span class="text-slate-400">${escHtml(data.user_id)}</span> | Session: <span class="text-slate-400">${escHtml(data.session_id || '--')}</span> | Experiment: <span class="text-slate-400">${escHtml(data.experiment || '--')}</span></div>` : ''}
+    `;
+    feedbackEl.classList.remove('hidden');
+  } else {
+    feedbackEl.classList.add('hidden');
+  }
+
   renderWaterfallTimeline(data.spans || []);
 }
 
@@ -1454,6 +1740,7 @@ function loadCostView() {
   renderCostByModel();
   renderCostByService();
   renderCostTrend();
+  renderCostForecastChart();
   renderCostTable();
 }
 
@@ -1578,6 +1865,131 @@ function renderCostTable() {
       </div>
     </div>
   `).join('');
+}
+
+// =========================================================================
+// Cost Forecast Chart
+// =========================================================================
+function renderCostForecastChart() {
+  if (chartInstances['chart-cost-forecast']) chartInstances['chart-cost-forecast'].destroy();
+  const canvas = document.getElementById('chart-cost-forecast');
+  if (!canvas) return;
+  const isLight = !document.documentElement.classList.contains('dark');
+
+  const days = Array.from({ length: 14 }, (_, i) => {
+    const d = new Date(Date.now() - (13 - i) * 86400000);
+    return (d.getMonth() + 1) + '/' + d.getDate();
+  });
+  const forecastDays = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(Date.now() + (i + 1) * 86400000);
+    return (d.getMonth() + 1) + '/' + d.getDate();
+  });
+  const allLabels = [...days, ...forecastDays];
+
+  const actualData = [1.12, 1.45, 1.23, 1.67, 1.89, 1.34, 2.01, 1.56, 1.78, 1.92, 1.45, 1.87, 1.93, 1.57];
+  const forecastData = new Array(14).fill(null).concat([1.65, 1.72, 1.58, 1.80, 1.75, 1.68, 1.82]);
+
+  chartInstances['chart-cost-forecast'] = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: allLabels,
+      datasets: [
+        {
+          label: 'Actual Cost',
+          data: [...actualData, ...new Array(7).fill(null)],
+          borderColor: '#6b9e7a',
+          backgroundColor: 'rgba(107, 158, 122, 0.1)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 3,
+          pointBackgroundColor: '#6b9e7a',
+        },
+        {
+          label: 'Forecast',
+          data: forecastData,
+          borderColor: '#c49a5c',
+          backgroundColor: 'rgba(196, 154, 92, 0.05)',
+          borderWidth: 2,
+          borderDash: [6, 4],
+          fill: true,
+          tension: 0.4,
+          pointRadius: 3,
+          pointBackgroundColor: '#c49a5c',
+          pointStyle: 'triangle',
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: isLight ? '#475569' : '#94a3b8', font: { size: 11 } } },
+        tooltip: { callbacks: { label: ctx => ` $${ctx.parsed.y?.toFixed(2) || '--'}` } }
+      },
+      scales: {
+        x: { ticks: { color: '#64748b', font: { size: 10 }, maxRotation: 45 }, grid: { color: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.03)' } },
+        y: { ticks: { color: '#64748b', font: { size: 10 }, callback: v => '$' + v.toFixed(2) }, grid: { color: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.03)' } },
+      }
+    }
+  });
+}
+
+// =========================================================================
+// Alerts View
+// =========================================================================
+const ALERT_RULES = [
+  { id: 'ar-1', name: 'Error rate > 20%', metric: 'error_rate', condition: '>', threshold: 20, severity: 'critical', enabled: true },
+  { id: 'ar-2', name: 'Cost per trace > $0.50', metric: 'cost_per_trace', condition: '>', threshold: 0.50, severity: 'warning', enabled: true },
+  { id: 'ar-3', name: 'Pattern: retry_storm', metric: 'pattern', condition: '=', threshold: 'retry_storm', severity: 'warning', enabled: true },
+  { id: 'ar-4', name: 'Latency p95 > 5000ms', metric: 'latency_p95', condition: '>', threshold: 5000, severity: 'info', enabled: false },
+];
+
+const ALERT_HISTORY = [
+  { id: 'ah-1', rule_name: 'Cost per trace > $0.50', severity: 'critical', message: 'document-processor trace cost $1.2340 exceeds $0.50 threshold', timestamp: NOW - 1200, trace_id: 'tr-cost-9a8b7c6d5e4f' },
+  { id: 'ah-2', rule_name: 'Error rate > 20%', severity: 'critical', message: 'Error rate at 30% (3/10 traces) over last 1h window', timestamp: NOW - 2400, trace_id: 'tr-fail-3b4c5d6e7f8a' },
+  { id: 'ah-3', rule_name: 'Pattern: retry_storm', severity: 'warning', message: 'retry_storm detected in support-chatbot — LLM rate limit caused retry', timestamp: NOW - 2800, trace_id: 'tr-chat-4a5b6c7d8e9f' },
+  { id: 'ah-4', rule_name: 'Latency p95 > 5000ms', severity: 'warning', message: 'document-processor latency 8920ms exceeds p95 threshold', timestamp: NOW - 3600, trace_id: 'tr-cost-9a8b7c6d5e4f' },
+  { id: 'ah-5', rule_name: 'Error rate > 20%', severity: 'critical', message: 'Error rate spike to 25% — etl-pipeline and task-automation failures', timestamp: NOW - 5400, trace_id: 'tr-fail-3b4c5d6e7f8a' },
+];
+
+function loadAlerts() {
+  // Render rules
+  const rulesContainer = document.getElementById('alert-rules-list');
+  rulesContainer.innerHTML = ALERT_RULES.map(r => `
+    <div class="flex items-center gap-3 px-5 py-3.5 hover:bg-white/[0.02] transition">
+      <div class="w-2 h-2 rounded-full ${r.enabled ? 'bg-emerald-500' : 'bg-slate-600'} flex-shrink-0"></div>
+      <div class="flex-1 min-w-0">
+        <div class="text-sm font-medium text-slate-200">${escHtml(r.name)}</div>
+        <div class="text-[10px] text-slate-500 mt-0.5">${r.enabled ? 'Active' : 'Disabled'} | ${r.metric} ${r.condition} ${r.threshold}</div>
+      </div>
+      <span class="px-2 py-0.5 text-[10px] font-bold uppercase rounded severity-${r.severity}">${r.severity}</span>
+    </div>
+  `).join('');
+
+  // Render history
+  const historyContainer = document.getElementById('alert-history-list');
+  historyContainer.innerHTML = ALERT_HISTORY.map(a => {
+    const timeStr = new Date(a.timestamp * 1000).toLocaleString();
+    return `
+      <div class="flex items-start gap-3 px-5 py-3.5 hover:bg-white/[0.02] cursor-pointer transition" onclick="openTrace('${escHtml(a.trace_id)}')">
+        <div class="flex-shrink-0 mt-1">
+          ${a.severity === 'critical' ? '<svg class="w-4 h-4 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>' : a.severity === 'warning' ? '<svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>' : '<svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>'}
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="px-2 py-0.5 text-[10px] font-bold uppercase rounded severity-${a.severity}">${a.severity}</span>
+            <span class="text-xs font-medium text-slate-300">${escHtml(a.rule_name)}</span>
+          </div>
+          <p class="text-xs text-slate-400 mt-1">${escHtml(a.message)}</p>
+          <div class="flex items-center gap-3 mt-1 text-[10px] text-slate-600">
+            <span>${timeStr}</span>
+            <span class="font-mono">${a.trace_id.substring(0, 16)}</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 // =========================================================================
@@ -1734,6 +2146,141 @@ function renderCompareView() {
 }
 
 // =========================================================================
+// Compare Mode & Experiment Comparison
+// =========================================================================
+let compareMode = 'trace';
+
+function setCompareMode(mode) {
+  compareMode = mode;
+  const traceBtn = document.getElementById('compare-mode-trace');
+  const expBtn = document.getElementById('compare-mode-experiment');
+  const instructions = document.getElementById('compare-instructions');
+  const content = document.getElementById('compare-content');
+  const expPanel = document.getElementById('compare-experiment-panel');
+
+  if (mode === 'trace') {
+    traceBtn.className = 'px-3 py-1.5 text-xs font-medium transition bg-indigo-600 text-white';
+    expBtn.className = 'px-3 py-1.5 text-xs font-medium transition text-slate-400 hover:text-slate-200 bg-surface-100';
+    expPanel.classList.add('hidden');
+    if (compareSelection.length >= 2) {
+      instructions.classList.add('hidden');
+      content.classList.remove('hidden');
+    } else {
+      instructions.classList.remove('hidden');
+      content.classList.add('hidden');
+    }
+  } else {
+    expBtn.className = 'px-3 py-1.5 text-xs font-medium transition bg-indigo-600 text-white';
+    traceBtn.className = 'px-3 py-1.5 text-xs font-medium transition text-slate-400 hover:text-slate-200 bg-surface-100';
+    instructions.classList.add('hidden');
+    content.classList.add('hidden');
+    expPanel.classList.remove('hidden');
+    renderExperimentComparison();
+  }
+}
+
+function renderExperimentComparison() {
+  const expA = document.getElementById('exp-select-a')?.value || 'v1-baseline';
+  const expB = document.getElementById('exp-select-b')?.value || 'v2-new-prompt';
+  const tracesA = SAMPLE_TRACES.filter(t => t.experiment === expA);
+  const tracesB = SAMPLE_TRACES.filter(t => t.experiment === expB);
+
+  function calcStats(traces) {
+    if (traces.length === 0) return { count: 0, avgLatency: 0, errorRate: 0, avgCost: 0, avgTokens: 0, avgFeedback: 0 };
+    return {
+      count: traces.length,
+      avgLatency: traces.reduce((s,t) => s + t.duration_ms, 0) / traces.length,
+      errorRate: (traces.filter(t => t.has_errors).length / traces.length) * 100,
+      avgCost: traces.reduce((s,t) => s + t.total_cost_usd, 0) / traces.length,
+      avgTokens: traces.reduce((s,t) => s + t.total_tokens, 0) / traces.length,
+      avgFeedback: traces.filter(t => t.feedback).length > 0
+        ? traces.filter(t => t.feedback).reduce((s,t) => s + t.feedback.rating, 0) / traces.filter(t => t.feedback).length
+        : 0,
+    };
+  }
+
+  const statsA = calcStats(tracesA);
+  const statsB = calcStats(tracesB);
+
+  function metricRow(label, valA, valB, format, lowerBetter = true) {
+    const formattedA = format(valA);
+    const formattedB = format(valB);
+    const diff = valB - valA;
+    const isBetter = lowerBetter ? diff < 0 : diff > 0;
+    const isWorse = lowerBetter ? diff > 0 : diff < 0;
+    const clsA = (isWorse ? 'compare-diff-better' : isBetter ? 'compare-diff-worse' : '');
+    const clsB = (isBetter ? 'compare-diff-better' : isWorse ? 'compare-diff-worse' : '');
+    return `<tr class="hover:bg-white/[0.02]">
+      <td class="px-5 py-3 text-slate-400">${label}</td>
+      <td class="px-5 py-3 text-right text-slate-200 tabular-nums ${clsA}">${formattedA}</td>
+      <td class="px-5 py-3 text-right text-slate-200 tabular-nums ${clsB}">${formattedB}</td>
+    </tr>`;
+  }
+
+  const container = document.getElementById('experiment-compare-content');
+  container.innerHTML = `
+    <div class="glass rounded-xl overflow-hidden mb-4">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-white/5">
+            <th class="px-5 py-3 text-left text-xs font-medium text-slate-500 uppercase">Metric</th>
+            <th class="px-5 py-3 text-right text-xs font-medium text-indigo-400 uppercase">${expA}</th>
+            <th class="px-5 py-3 text-right text-xs font-medium text-violet-400 uppercase">${expB}</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-white/5">
+          ${metricRow('Traces', statsA.count, statsB.count, v => v, false)}
+          ${metricRow('Avg Latency', statsA.avgLatency, statsB.avgLatency, v => v.toFixed(0) + 'ms')}
+          ${metricRow('Error Rate', statsA.errorRate, statsB.errorRate, v => v.toFixed(1) + '%')}
+          ${metricRow('Avg Cost', statsA.avgCost, statsB.avgCost, v => '$' + v.toFixed(4))}
+          ${metricRow('Avg Tokens', statsA.avgTokens, statsB.avgTokens, v => Math.round(v).toLocaleString())}
+          ${metricRow('Avg Feedback', statsA.avgFeedback, statsB.avgFeedback, v => v > 0 ? v.toFixed(1) + ' &#9733;' : '--', false)}
+        </tbody>
+      </table>
+    </div>
+    <div class="glass rounded-xl p-5">
+      <h4 class="text-sm font-semibold text-white mb-4">Metric Comparison</h4>
+      <div class="h-64"><canvas id="chart-experiment-compare"></canvas></div>
+    </div>
+  `;
+
+  setTimeout(() => renderExperimentBarChart(expA, expB, statsA, statsB), 50);
+}
+
+function renderExperimentBarChart(nameA, nameB, statsA, statsB) {
+  if (chartInstances['chart-experiment-compare']) chartInstances['chart-experiment-compare'].destroy();
+  const canvas = document.getElementById('chart-experiment-compare');
+  if (!canvas) return;
+  const isLight = !document.documentElement.classList.contains('dark');
+
+  const metrics = ['Latency (ms)', 'Error Rate (%)', 'Cost (cents)', 'Tokens (k)', 'Feedback'];
+  const valuesA = [statsA.avgLatency, statsA.errorRate, statsA.avgCost * 100, statsA.avgTokens / 1000, statsA.avgFeedback];
+  const valuesB = [statsB.avgLatency, statsB.errorRate, statsB.avgCost * 100, statsB.avgTokens / 1000, statsB.avgFeedback];
+
+  chartInstances['chart-experiment-compare'] = new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: metrics,
+      datasets: [
+        { label: nameA, data: valuesA, backgroundColor: 'rgba(124, 122, 239, 0.5)', borderRadius: 4, borderSkipped: false },
+        { label: nameB, data: valuesB, backgroundColor: 'rgba(155, 142, 196, 0.5)', borderRadius: 4, borderSkipped: false },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: isLight ? '#475569' : '#94a3b8', font: { size: 11 } } },
+      },
+      scales: {
+        x: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { display: false } },
+        y: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.03)' } },
+      }
+    }
+  });
+}
+
+// =========================================================================
 // Theme Toggle
 // =========================================================================
 function toggleTheme() {
@@ -1792,7 +2339,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 't' && !isInputFocused()) { toggleTheme(); return; }
 
   if (!isInputFocused()) {
-    const viewMap = { '1': 'overview', '2': 'traces', '3': 'cost', '4': 'patterns', '5': 'compare' };
+    const viewMap = { '1': 'overview', '2': 'traces', '3': 'cost', '4': 'patterns', '5': 'alerts', '6': 'compare' };
     if (viewMap[e.key]) { switchView(viewMap[e.key]); return; }
   }
 

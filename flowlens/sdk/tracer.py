@@ -186,15 +186,81 @@ class FlowLens:
 
     # ===== Trace 生命周期 =====
 
-    def start_trace(self, metadata: Optional[dict] = None) -> Trace:
+    def start_trace(
+        self,
+        metadata: Optional[dict] = None,
+        user_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        experiment: Optional[str] = None,
+        tags: Optional[dict[str, str]] = None,
+    ) -> Trace:
         """创建并启动一个新的 trace (thread-safe)"""
         trace = Trace(
             service_name=self.service_name,
             metadata={**self.metadata, **(metadata or {})},
+            user_id=user_id,
+            session_id=session_id,
+            experiment=experiment,
+            tags=tags,
         )
         with self._traces_lock:
             self._active_traces[trace.trace_id] = trace
         return trace
+
+    def add_feedback(
+        self,
+        trace_id: str,
+        rating: int,
+        comment: Optional[str] = None,
+        metadata: Optional[dict[str, Any]] = None,
+    ) -> bool:
+        """Submit feedback for a completed trace.
+
+        Sends feedback to the FlowLens server via HTTP if the exporter is
+        configured as an HTTP exporter.  Falls back to logging a warning when
+        no HTTP endpoint is available.
+
+        Args:
+            trace_id: The trace to attach feedback to.
+            rating: Integer rating between 1 (worst) and 5 (best).
+            comment: Optional free-text comment.
+            metadata: Optional extra metadata dict.
+
+        Returns:
+            True if the feedback was submitted successfully, False otherwise.
+        """
+        if not (1 <= rating <= 5):
+            raise ValueError(f"rating must be between 1 and 5, got {rating}")
+
+        payload: dict[str, Any] = {"rating": rating}
+        if comment is not None:
+            payload["comment"] = comment
+        if metadata is not None:
+            payload["metadata"] = metadata
+
+        # Try to post via the HTTP exporter's endpoint
+        try:
+            from .exporters import HttpExporter  # local import to avoid circular
+            if isinstance(self._exporter, HttpExporter):
+                import urllib.request
+                import json as _json
+                url = self._exporter.endpoint.replace(
+                    "/v1/traces/ingest",
+                    f"/v1/traces/{trace_id}/feedback",
+                )
+                data = _json.dumps(payload).encode()
+                req = urllib.request.Request(
+                    url,
+                    data=data,
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    return resp.status in (200, 201)
+        except Exception as exc:
+            logger.warning("[FlowLens] add_feedback HTTP call failed: %s", exc)
+
+        return False
 
     def end_trace(self, trace: Trace) -> None:
         """结束 trace 并导出（如果采样命中）(thread-safe)"""
