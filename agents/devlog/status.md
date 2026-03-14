@@ -8,7 +8,7 @@
 |-------|-----------|-------------|---------------------------------------------------------------------------------|-----------------------------------|-------------|
 | Alpha | sonnet 4.6| in_progress | Enhanced compare view + responsive mobile layout + dark mode polish             | main                              | pending     |
 | Beta  | sonnet 4.6| complete    | /v1/stats/trends + /v1/stats/summary APIs with agent breakdown                 | main                              | 4ef045d     |
-| Gamma | sonnet 4.6| complete    | Activity trend charts and visual pattern cards with severity filters           | main                              | acdbe78     |
+| Gamma | sonnet 4.6| in_progress | Agent relationship graph, agent detail modal, keyboard shortcuts (Cycle 6)    | main                              | pending     |
 
 ### Alpha — Trace Detail Waterfall Visualization
 - **Commit**: `860d44b`
