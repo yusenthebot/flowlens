@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlowLens — Agent Trace Dashboard</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --surface2: #21262d;
+    --border: #30363d; --text: #c9d1d9; --text-muted: #8b949e;
+    --accent: #58a6ff; --green: #3fb950; --red: #f85149;
+    --yellow: #d29922; --purple: #bc8cff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, 'Segoe UI', sans-serif; }
+  .header { padding: 20px 32px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; }
+  .header h1 { font-size: 20px; font-weight: 600; }
+  .header .logo { width: 28px; height: 28px; background: var(--accent); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+  .header .badge { background: var(--surface2); padding: 3px 10px; border-radius: 12px; font-size: 12px; color: var(--text-muted); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 24px 32px; }
+  .grid-full { grid-column: 1 / -1; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+  .card-title { font-size: 13px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px; }
+  .stat-row { display: flex; gap: 24px; flex-wrap: wrap; }
+  .stat { text-align: center; flex: 1; min-width: 100px; }
+  .stat .value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat .label { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+  .stat .green { color: var(--green); }
+  .stat .red { color: var(--red); }
+  .stat .accent { color: var(--accent); }
+  .stat .yellow { color: var(--yellow); }
+
+  /* Timeline */
+  .timeline { position: relative; }
+  .tl-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .tl-row:last-child { border-bottom: none; }
+  .tl-icon { width: 24px; height: 24px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
+  .tl-icon.agent { background: #1f3a5f; }
+  .tl-icon.llm { background: #2d1f5e; }
+  .tl-icon.tool { background: #1f4a3a; }
+  .tl-icon.err { background: #5f1f1f; }
+  .tl-name { width: 120px; font-weight: 500; flex-shrink: 0; }
+  .tl-bar-wrap { flex: 1; height: 20px; position: relative; }
+  .tl-bar { height: 100%; border-radius: 3px; position: absolute; top: 0; display: flex; align-items: center; padding-left: 6px; font-size: 10px; color: rgba(255,255,255,0.8); white-space: nowrap; min-width: 2px; }
+  .tl-bar.ok { background: var(--accent); opacity: 0.7; }
+  .tl-bar.error { background: var(--red); opacity: 0.8; }
+  .tl-dur { width: 60px; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-muted); font-size: 12px; }
+  .tl-status { width: 18px; text-align: center; }
+
+  /* DAG */
+  .dag-container { position: relative; height: 320px; }
+  .dag-node { position: absolute; padding: 8px 14px; border-radius: 6px; font-size: 12px; font-weight: 500; border: 2px solid; white-space: nowrap; }
+  .dag-node.ok { background: #0d2137; border-color: var(--accent); color: var(--accent); }
+  .dag-node.error { background: #3b1219; border-color: var(--red); color: var(--red); }
+  .dag-node.root-cause { background: #5f1f1f; border-color: var(--red); color: #ff6b6b; box-shadow: 0 0 12px rgba(248,81,73,0.3); }
+  .dag-node.cascaded { background: #3b2a10; border-color: var(--yellow); color: var(--yellow); }
+  .dag-label { position: absolute; font-size: 10px; color: var(--text-muted); font-style: italic; }
+  svg.dag-edges { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+  svg.dag-edges line { stroke-width: 2; }
+  svg.dag-edges .causal { stroke: var(--red); stroke-dasharray: 6 3; }
+  svg.dag-edges .preceded { stroke: var(--yellow); stroke-dasharray: 4 4; }
+  .arrow-head { fill: var(--red); }
+
+  /* Patterns */
+  .pattern { padding: 10px 14px; border-radius: 6px; margin-bottom: 8px; font-size: 13px; display: flex; gap: 10px; align-items: flex-start; }
+  .pattern.critical { background: rgba(248,81,73,0.1); border-left: 3px solid var(--red); }
+  .pattern.warning { background: rgba(210,153,34,0.1); border-left: 3px solid var(--yellow); }
+  .pattern .icon { flex-shrink: 0; }
+  .pattern .desc { line-height: 1.4; }
+  .pattern .tag { display: inline-block; background: var(--surface2); padding: 1px 8px; border-radius: 10px; font-size: 11px; color: var(--text-muted); margin-right: 6px; }
+
+  /* Cost */
+  .cost-bars { display: flex; flex-direction: column; gap: 10px; }
+  .cost-item { display: flex; align-items: center; gap: 12px; font-size: 13px; }
+  .cost-label { width: 100px; color: var(--text-muted); }
+  .cost-bar-bg { flex: 1; height: 22px; background: var(--surface2); border-radius: 4px; overflow: hidden; position: relative; }
+  .cost-bar-fill { height: 100%; border-radius: 4px; display: flex; align-items: center; padding-left: 8px; font-size: 11px; color: white; }
+  .cost-bar-fill.llm { background: linear-gradient(90deg, #6e40c9, #bc8cff); }
+  .cost-bar-fill.tool { background: linear-gradient(90deg, #1f6feb, #58a6ff); }
+  .cost-val { width: 80px; text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* Footer */
+  .footer { padding: 16px 32px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); }
+  .footer a { color: var(--accent); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">🔬</div>
+  <h1>FlowLens</h1>
+  <div class="badge">v0.1.0</div>
+  <div style="flex:1"></div>
+  <div style="font-size:13px;color:var(--text-muted)">Trace: <span style="color:var(--accent);font-family:monospace">4ebd4d69d75b</span></div>
+</div>
+
+<div class="grid">
+  <!-- Stats -->
+  <div class="card grid-full">
+    <div class="card-title">Trace Overview — research_bot</div>
+    <div class="stat-row">
+      <div class="stat"><div class="value accent">8</div><div class="label">Total Spans</div></div>
+      <div class="stat"><div class="value green">253ms</div><div class="label">Duration</div></div>
+      <div class="stat"><div class="value" style="color:var(--purple)">2,967</div><div class="label">Total Tokens</div></div>
+      <div class="stat"><div class="value yellow">$0.019</div><div class="label">Total Cost</div></div>
+      <div class="stat"><div class="value red">2</div><div class="label">Errors</div></div>
+      <div class="stat"><div class="value red">1</div><div class="label">Root Causes</div></div>
+      <div class="stat"><div class="value yellow">1</div><div class="label">Cascade Depth</div></div>
+    </div>
+  </div>
+
+  <!-- Timeline -->
+  <div class="card grid-full">
+    <div class="card-title">Execution Timeline</div>
+    <div class="timeline">
+      <div class="tl-row">
+        <div class="tl-icon agent">🤖</div>
+        <div class="tl-name">research_bot</div>
+        <div class="tl-bar-wrap"><div class="tl-bar ok" style="left:0;width:100%">agent loop</div></div>
+        <div class="tl-dur">253ms</div>
+        <div class="tl-status">✅</div>
+      </div>
+      <div class="tl-row">
+        <div class="tl-icon llm">🧠</div>
+        <div class="tl-name" style="padding-left:16px">planner</div>
+        <div class="tl-bar-wrap"><div class="tl-bar ok" style="left:0;width:22%">1,771 tok</div></div>
+        <div class="tl-dur">55ms</div>
+        <div class="tl-status">✅</div>
+      </div>
+      <div class="tl-row">
+        <div class="tl-icon err">🔧</div>
+        <div class="tl-name" style="padding-left:16px">web_search</div>
+        <div class="tl-bar-wrap"><div class="tl-bar error" style="left:22%;width:15%">TIMEOUT</div></div>
+        <div class="tl-dur">37ms</div>
+        <div class="tl-status">❌</div>
+      </div>
+      <div class="tl-row">
+        <div class="tl-icon err">🔧</div>
+        <div class="tl-name" style="padding-left:16px">fetch_page</div>
+        <div class="tl-bar-wrap"><div class="tl-bar error" style="left:37%;width:10%">CASCADED</div></div>
+        <div class="tl-dur">25ms</div>
+        <div class="tl-status">❌</div>
+      </div>
+      <div class="tl-row">
+        <div class="tl-icon tool">🔧</div>
+        <div class="tl-name" style="padding-left:16px">web_search</div>
+        <div class="tl-bar-wrap"><div class="tl-bar ok" style="left:47%;width:12%">retry</div></div>
+        <div class="tl-dur">31ms</div>
+        <div class="tl-status">✅</div>
+      </div>
+      <div class="tl-row">
+        <div class="tl-icon tool">🔧</div>
+        <div class="tl-name" style="padding-left:16px">fetch_page</div>
+        <div class="tl-bar-wrap"><div class="tl-bar ok" style="left:59%;width:10%">ok</div></div>
+        <div class="tl-dur">25ms</div>
+        <div class="tl-status">✅</div>
+      </div>
+      <div class="tl-row">
+        <div class="tl-icon tool">🔧</div>
+        <div class="tl-name" style="padding-left:16px">summarize</div>
+        <div class="tl-bar-wrap"><div class="tl-bar ok" style="left:69%;width:10%">ok</div></div>
+        <div class="tl-dur">24ms</div>
+        <div class="tl-status">✅</div>
+      </div>
+      <div class="tl-row">
+        <div class="tl-icon llm">🧠</div>
+        <div class="tl-name" style="padding-left:16px">planner</div>
+        <div class="tl-bar-wrap"><div class="tl-bar ok" style="left:79%;width:21%">1,196 tok</div></div>
+        <div class="tl-dur">55ms</div>
+        <div class="tl-status">✅</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Causal DAG -->
+  <div class="card">
+    <div class="card-title">Causal Error DAG</div>
+    <div class="dag-container">
+      <svg class="dag-edges" viewBox="0 0 440 300">
+        <!-- web_search → fetch_page (preceded_by) -->
+        <defs>
+          <marker id="arrowRed" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#f85149" />
+          </marker>
+          <marker id="arrowYellow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#d29922" />
+          </marker>
+        </defs>
+        <line x1="155" y1="80" x2="155" y2="170" class="causal" marker-end="url(#arrowRed)" />
+        <line x1="195" y1="190" x2="280" y2="190" class="preceded" marker-end="url(#arrowYellow)" />
+      </svg>
+
+      <div class="dag-node ok" style="left:100px;top:15px">🤖 research_bot</div>
+
+      <div class="dag-node root-cause" style="left:60px;top:80px">
+        🔧 web_search<br>
+        <span style="font-size:10px;opacity:0.8">⚡ ROOT CAUSE: timeout</span>
+      </div>
+
+      <div class="dag-node cascaded" style="left:260px;top:80px">
+        🧠 planner #1<br>
+        <span style="font-size:10px;opacity:0.7">1,771 tokens</span>
+      </div>
+
+      <div class="dag-node cascaded" style="left:60px;top:175px">
+        🔧 fetch_page<br>
+        <span style="font-size:10px;opacity:0.8">⚠ CASCADED: invalid input</span>
+      </div>
+
+      <div class="dag-node ok" style="left:260px;top:175px">
+        🔧 web_search (retry)<br>
+        <span style="font-size:10px;opacity:0.7">✓ recovered</span>
+      </div>
+
+      <div class="dag-node ok" style="left:60px;top:260px">🔧 fetch_page (retry) ✓</div>
+      <div class="dag-node ok" style="left:220px;top:260px">🔧 summarize ✓</div>
+      <div class="dag-node ok" style="left:360px;top:260px">🧠 planner #2</div>
+
+      <div class="dag-label" style="left:130px;top:130px;color:var(--red)">caused_by ↓</div>
+      <div class="dag-label" style="left:210px;top:178px;color:var(--yellow)">preceded_by →</div>
+    </div>
+  </div>
+
+  <!-- Patterns -->
+  <div class="card">
+    <div class="card-title">Detected Patterns</div>
+
+    <div class="pattern critical">
+      <div class="icon">🔴</div>
+      <div>
+        <div class="desc">
+          <span class="tag">timeout_cascade</span>
+          <strong>web_search</strong> timed out, causing <strong>fetch_page</strong> to receive invalid input and fail.
+        </div>
+        <div style="margin-top:6px;font-size:11px;color:var(--text-muted)">
+          Cascade depth: 1 &nbsp;|&nbsp; Affected spans: 2
+        </div>
+      </div>
+    </div>
+
+    <div class="pattern warning">
+      <div class="icon">🟡</div>
+      <div>
+        <div class="desc">
+          <span class="tag">retry_detected</span>
+          <strong>web_search</strong> and <strong>fetch_page</strong> were each called 2× — successful after retry.
+        </div>
+        <div style="margin-top:6px;font-size:11px;color:var(--text-muted)">
+          Retry cost overhead: ~30% of total tokens
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:20px;">
+      <div class="card-title">Root Cause Summary</div>
+      <div style="padding:14px;background:rgba(248,81,73,0.08);border-radius:6px;border:1px solid rgba(248,81,73,0.2);font-size:13px;line-height:1.6;">
+        <strong style="color:var(--red)">1 root cause identified:</strong><br>
+        <code style="background:var(--surface2);padding:2px 6px;border-radius:3px;">web_search</code> → TimeoutError after 30s<br><br>
+        <strong style="color:var(--yellow)">1 cascaded failure:</strong><br>
+        <code style="background:var(--surface2);padding:2px 6px;border-radius:3px;">fetch_page</code> received empty URL from failed search → ValueError
+      </div>
+    </div>
+  </div>
+
+  <!-- Cost -->
+  <div class="card grid-full">
+    <div class="card-title">Cost Attribution</div>
+    <div class="cost-bars">
+      <div class="cost-item">
+        <div class="cost-label">🧠 planner #1</div>
+        <div class="cost-bar-bg"><div class="cost-bar-fill llm" style="width:62%">1,771 tokens</div></div>
+        <div class="cost-val">$0.0120</div>
+      </div>
+      <div class="cost-item">
+        <div class="cost-label">🧠 planner #2</div>
+        <div class="cost-bar-bg"><div class="cost-bar-fill llm" style="width:38%">1,196 tokens</div></div>
+        <div class="cost-val">$0.0070</div>
+      </div>
+      <div class="cost-item">
+        <div class="cost-label">🔧 web_search ×2</div>
+        <div class="cost-bar-bg"><div class="cost-bar-fill tool" style="width:3%"></div></div>
+        <div class="cost-val">$0.0000</div>
+      </div>
+      <div class="cost-item">
+        <div class="cost-label">🔧 fetch_page ×2</div>
+        <div class="cost-bar-bg"><div class="cost-bar-fill tool" style="width:2%"></div></div>
+        <div class="cost-val">$0.0000</div>
+      </div>
+      <div class="cost-item">
+        <div class="cost-label">🔧 summarize</div>
+        <div class="cost-bar-bg"><div class="cost-bar-fill tool" style="width:1%"></div></div>
+        <div class="cost-val">$0.0000</div>
+      </div>
+    </div>
+    <div style="margin-top:16px;padding:10px 14px;background:var(--surface2);border-radius:6px;font-size:12px;color:var(--text-muted);display:flex;gap:24px;">
+      <span>LLM calls: <strong style="color:var(--purple)">$0.019</strong> (100% of cost)</span>
+      <span>Tool calls: <strong style="color:var(--accent)">$0.000</strong></span>
+      <span>Retry overhead: <strong style="color:var(--yellow)">~$0.007</strong> (37%)</span>
+      <span>Model: <strong style="color:var(--text)">claude-sonnet-4</strong></span>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  <span>FlowLens v0.1.0 — Agent Observability Platform</span>
+  <span>46 tests passing &nbsp;|&nbsp; MIT License &nbsp;|&nbsp; <a href="https://github.com/niceyusen/flowlens">github.com/niceyusen/flowlens</a></span>
+</div>
+
+</body>
+</html>
