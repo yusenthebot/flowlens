@@ -326,6 +326,98 @@
     .compare-metric-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 12px; }
     html:not(.dark) .compare-metric-row { border-bottom-color: rgba(0,0,0,0.05); }
     .compare-metric-row:last-child { border-bottom: none; }
+
+    /* ========== Cycle 8: Dark mode polish for new elements ========== */
+    /* Three.js 3D graph container background */
+    .dark #agent-graph { background: #252523; }
+    .dark #agent-graph-mini { background: #252523; }
+    html:not(.dark) #agent-graph { background: #fafaf8; }
+    html:not(.dark) #agent-graph-mini { background: #fafaf8; }
+
+    /* Gradient orbs: reduce opacity in light mode */
+    html:not(.dark) .gradient-orb { opacity: 0.45; }
+    .dark .gradient-orb { opacity: 1; }
+
+    /* Agent detail modal: dark mode consistent colors */
+    .dark #agent-detail-modal .shortcuts-modal { background: rgba(42, 42, 38, 0.96); }
+    html:not(.dark) #agent-detail-modal .shortcuts-modal { background: rgba(255, 255, 255, 0.98); }
+    html:not(.dark) #agent-modal-title { color: #2c2c2a; }
+
+    /* Stat card animations work in both modes */
+    html:not(.dark) .stat-card-enter { animation: cardSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+    /* Activity timeline: text colors in light mode */
+    html:not(.dark) #activity-timeline { color: #2c2c2a; }
+
+    /* ========== Button ripple effect ========== */
+    .ripple-btn {
+      position: relative;
+      overflow: hidden;
+    }
+    .ripple-btn::after {
+      content: '';
+      position: absolute;
+      width: 0;
+      height: 0;
+      background: rgba(255,255,255,0.15);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      transition: width 0.6s ease, height 0.6s ease, opacity 0.6s ease;
+      opacity: 0;
+    }
+    .ripple-btn:active::after {
+      width: 200px;
+      height: 200px;
+      opacity: 1;
+      transition: 0s;
+    }
+
+    /* ========== Smooth scroll ========== */
+    html { scroll-behavior: smooth; }
+    .overflow-y-auto { scroll-behavior: smooth; }
+
+    /* ========== Focus ring accessibility ========== */
+    *:focus-visible {
+      outline: 2px solid rgba(99, 102, 241, 0.5);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+
+    /* ========== Trace hover preview tooltip ========== */
+    .trace-preview-tooltip {
+      position: fixed;
+      z-index: 9999;
+      min-width: 220px;
+      max-width: 320px;
+      background: rgba(42, 42, 40, 0.97);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 12px;
+      pointer-events: none;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+      animation: fadeIn 0.15s ease-out;
+    }
+    html:not(.dark) .trace-preview-tooltip {
+      background: rgba(255, 255, 255, 0.97);
+      border-color: #e8e6e1;
+      color: #2c2c2a;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    }
+    .trace-preview-duration-bar {
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(99,102,241,0.18);
+      overflow: hidden;
+      margin-top: 6px;
+    }
+    .trace-preview-duration-fill {
+      height: 100%;
+      border-radius: 3px;
+      background: linear-gradient(90deg, #7c7aef, #9b8ec4);
+      transition: width 0.3s ease;
+    }
   </style>
 </head>
 <body class="min-h-screen font-sans text-slate-200 antialiased">
@@ -378,15 +470,15 @@
   <!-- Navigation Tabs -->
   <nav class="max-w-[1600px] mx-auto px-6 pt-4">
     <div class="flex gap-1 border-b border-white/5">
-      <button onclick="switchView('overview')" data-tab="overview" class="tab-btn tab-active px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg">Overview</button>
-      <button onclick="switchView('traces')" data-tab="traces" class="tab-btn tab-inactive px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg">Traces</button>
-      <button onclick="switchView('cost')" data-tab="cost" class="tab-btn tab-inactive px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg">Cost Analysis</button>
-      <button onclick="switchView('patterns')" data-tab="patterns" class="tab-btn tab-inactive px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg">Patterns</button>
-      <button onclick="switchView('compare')" data-tab="compare" class="tab-btn tab-inactive px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg">
+      <button onclick="switchView('overview')" data-tab="overview" class="tab-btn ripple-btn tab-active px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg">Overview</button>
+      <button onclick="switchView('traces')" data-tab="traces" class="tab-btn ripple-btn tab-inactive px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg">Traces</button>
+      <button onclick="switchView('cost')" data-tab="cost" class="tab-btn ripple-btn tab-inactive px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg">Cost Analysis</button>
+      <button onclick="switchView('patterns')" data-tab="patterns" class="tab-btn ripple-btn tab-inactive px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg">Patterns</button>
+      <button onclick="switchView('compare')" data-tab="compare" class="tab-btn ripple-btn tab-inactive px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg">
         Compare
         <span id="compare-badge" class="hidden ml-1 px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-indigo-500 text-white">0</span>
       </button>
-      <button onclick="switchView('agents')" data-tab="agents" class="tab-btn tab-inactive px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg">Agents</button>
+      <button onclick="switchView('agents')" data-tab="agents" class="tab-btn ripple-btn tab-inactive px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg">Agents</button>
     </div>
   </nav>
 
@@ -592,9 +684,9 @@
             class="filter-input bg-surface-100 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-300 w-24 transition" />
         </div>
 
-        <button onclick="traceOffset = 0; loadTraces();" class="px-3 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition">Apply</button>
-        <button onclick="clearFilters()" class="px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-slate-200 bg-surface-100 rounded-lg border border-white/10 hover:border-white/20 transition">Clear</button>
-        <button onclick="loadTraces()" class="ml-auto px-3 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition">Refresh</button>
+        <button onclick="traceOffset = 0; loadTraces();" class="ripple-btn px-3 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition">Apply</button>
+        <button onclick="clearFilters()" class="ripple-btn px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-slate-200 bg-surface-100 rounded-lg border border-white/10 hover:border-white/20 transition">Clear</button>
+        <button onclick="loadTraces()" class="ripple-btn ml-auto px-3 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition">Refresh</button>
       </div>
 
       <!-- Trace List -->
@@ -735,10 +827,10 @@
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-sm font-semibold text-white">Detected Patterns</h2>
         <div class="flex gap-2">
-          <button class="pattern-filter-btn px-2.5 py-1 text-[10px] rounded bg-indigo-500/20 text-indigo-300 font-medium border border-indigo-500/30 transition" onclick="filterPatterns('all')">All</button>
-          <button class="pattern-filter-btn px-2.5 py-1 text-[10px] rounded bg-surface-100 text-slate-400 hover:text-white border border-white/10 hover:border-white/20 transition" onclick="filterPatterns('critical')">Critical</button>
-          <button class="pattern-filter-btn px-2.5 py-1 text-[10px] rounded bg-surface-100 text-slate-400 hover:text-white border border-white/10 hover:border-white/20 transition" onclick="filterPatterns('warning')">Warning</button>
-          <button class="pattern-filter-btn px-2.5 py-1 text-[10px] rounded bg-surface-100 text-slate-400 hover:text-white border border-white/10 hover:border-white/20 transition" onclick="filterPatterns('info')">Info</button>
+          <button class="pattern-filter-btn ripple-btn px-2.5 py-1 text-[10px] rounded bg-indigo-500/20 text-indigo-300 font-medium border border-indigo-500/30 transition" onclick="filterPatterns('all')">All</button>
+          <button class="pattern-filter-btn ripple-btn px-2.5 py-1 text-[10px] rounded bg-surface-100 text-slate-400 hover:text-white border border-white/10 hover:border-white/20 transition" onclick="filterPatterns('critical')">Critical</button>
+          <button class="pattern-filter-btn ripple-btn px-2.5 py-1 text-[10px] rounded bg-surface-100 text-slate-400 hover:text-white border border-white/10 hover:border-white/20 transition" onclick="filterPatterns('warning')">Warning</button>
+          <button class="pattern-filter-btn ripple-btn px-2.5 py-1 text-[10px] rounded bg-surface-100 text-slate-400 hover:text-white border border-white/10 hover:border-white/20 transition" onclick="filterPatterns('info')">Info</button>
         </div>
       </div>
       <div id="patterns-list">
@@ -750,7 +842,7 @@
     <div id="view-compare" class="view-panel hidden">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-sm font-semibold text-white">Trace Comparison</h2>
-        <button onclick="clearComparison()" class="px-3 py-1.5 text-xs font-medium text-slate-400 bg-surface-100 rounded-lg border border-white/10 hover:border-white/20 hover:text-slate-200 transition">Clear Selection</button>
+        <button onclick="clearComparison()" class="ripple-btn px-3 py-1.5 text-xs font-medium text-slate-400 bg-surface-100 rounded-lg border border-white/10 hover:border-white/20 hover:text-slate-200 transition">Clear Selection</button>
       </div>
       <div id="compare-instructions" class="glass rounded-xl p-8 text-center">
         <svg class="w-16 h-16 text-slate-700 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -766,7 +858,7 @@
     <div id="view-agents" class="view-panel hidden">
       <div class="flex items-center justify-between mb-6">
         <h2 class="text-sm font-semibold text-white">Agent Overview</h2>
-        <button onclick="loadAgentData()" class="px-3 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition">Refresh</button>
+        <button onclick="loadAgentData()" class="ripple-btn px-3 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition">Refresh</button>
       </div>
       <div id="agents-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
 
@@ -1833,21 +1925,23 @@ async function openAgentDetailModal(agentName, _encodedData) {
   modal.classList.remove('hidden');
 
   try {
-    // Fetch all-time stats and recent activity in parallel
-    const [summaryData, activityData] = await Promise.all([
+    // Fetch all-time stats, live activity, recent traces and activity stream in parallel
+    const [summaryData, activityData, tracesData, activityStream] = await Promise.all([
       apiFetch('/v1/agents/summary').catch(() => ({ agents: [] })),
       apiFetch('/v1/agents/activity').catch(() => ({ agents: [] })),
+      apiFetch(`/v1/traces?limit=10&agent=${encodeURIComponent(agentName)}`).catch(() => ({ traces: [] })),
+      apiFetch('/v1/activity/stream?limit=20').catch(() => ({ activities: [] })),
     ]);
 
     const agentStats = (summaryData.agents || []).find(a => a.agent === agentName) || null;
     const agentActivity = (activityData.agents || []).find(a => a.agent === agentName) || null;
-
-    // Fetch recent traces for this agent
-    const tracesData = await apiFetch(`/v1/traces?limit=10&agent=${encodeURIComponent(agentName)}`).catch(() => ({ traces: [] }));
     const recentTraces = tracesData.traces || [];
 
-    const initial = (p.name || agentName)[0].toUpperCase();
-    const avatarLg = `<div class="w-16 h-16 rounded-xl flex items-center justify-center text-xl font-bold text-white" style="background:${p.color || '#6366f1'}">${initial}</div>`;
+    // Filter activity stream for this agent
+    const agentActivities = (activityStream.activities || []).filter(ev => ev.agent === agentName);
+
+    // Large SVG avatar using profile icon and gradient background
+    const avatarLg = `<div class="w-16 h-16 rounded-xl bg-gradient-to-br ${p.bgClass} flex items-center justify-center flex-shrink-0" style="color:${p.color}">${p.icon}</div>`;
 
     const errPct = agentStats ? (agentStats.error_rate * 100).toFixed(1) + '%' : '--';
     const errColor = agentStats && agentStats.error_rate < 0.05 ? 'text-emerald-400' : agentStats && agentStats.error_rate < 0.20 ? 'text-yellow-400' : 'text-red-400';
@@ -1855,6 +1949,37 @@ async function openAgentDetailModal(agentName, _encodedData) {
     const cost = agentStats ? (agentStats.total_cost_usd < 0.01 ? '$' + agentStats.total_cost_usd.toFixed(6) : '$' + agentStats.total_cost_usd.toFixed(4)) : '--';
     const totalTraces = agentStats ? agentStats.trace_count : '--';
     const totalSpans = agentStats ? agentStats.total_spans : '--';
+
+    // Activity mini-timeline from stream filtered by agent
+    const activityTimelineHtml = agentActivities.length === 0
+      ? '<p class="text-[10px] text-slate-500 py-2">No recent activity found.</p>'
+      : agentActivities.slice(0, 20).map(ev => {
+          const actionLabel = escHtml(ev.action || ev.tool || ev.type || 'Event');
+          const timeLabel = ev.timestamp ? formatTimeAgo(ev.timestamp) : '';
+          const dotColor = ev.error ? 'bg-red-500' : 'bg-emerald-500';
+          return `<div class="flex items-center gap-2 py-1.5 text-xs">
+            <span class="w-1 h-1 rounded-full ${dotColor} flex-shrink-0"></span>
+            <span class="text-slate-300 truncate flex-1">${actionLabel}</span>
+            <span class="text-slate-500 ml-auto flex-shrink-0">${timeLabel}</span>
+          </div>`;
+        }).join('');
+
+    // Error history from recent traces that have errors
+    const errorTraces = recentTraces.filter(t => t.has_error || t.error);
+    const errorHistoryHtml = errorTraces.length === 0 ? '' : `
+      <div class="mb-4">
+        <div class="text-xs font-semibold text-red-400 uppercase tracking-wider mb-2">Error History (${errorTraces.length})</div>
+        <div class="rounded-lg border border-red-500/20 bg-red-500/5 p-3 max-h-[150px] overflow-y-auto">
+          ${errorTraces.map(t => {
+            const traceTime = t.start_time ? new Date(t.start_time * 1000).toLocaleTimeString() : '';
+            return `<div class="flex items-center gap-2 py-1 text-xs cursor-pointer hover:bg-red-500/10 rounded px-1" onclick="closeAgentDetailModal();openTrace('${escHtml(t.trace_id)}')">
+              <span class="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0"></span>
+              <span class="text-red-300 truncate flex-1">${escHtml(t.service_name || t.trace_id.substring(0, 12))}</span>
+              <span class="text-red-500 flex-shrink-0">${traceTime}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
 
     const recentTracesHtml = recentTraces.length === 0
       ? '<p class="text-[10px] text-slate-500 py-2">No recent traces found.</p>'
@@ -1901,7 +2026,12 @@ async function openAgentDetailModal(agentName, _encodedData) {
         </div>
       </div>
       <div class="mb-4">
-        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Recent Activity (last 10)</div>
+        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Activity Timeline</div>
+        <div class="max-h-[200px] overflow-y-auto">${activityTimelineHtml}</div>
+      </div>
+      ${errorHistoryHtml}
+      <div class="mb-4">
+        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Recent Traces (last 10)</div>
         <div class="max-h-[180px] overflow-y-auto">${recentTracesHtml}</div>
       </div>
       <button onclick="closeAgentDetailModal();filterTracesByAgent('${escHtml(agentName)}')" class="w-full px-3 py-2 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition">
@@ -2062,8 +2192,11 @@ function renderTraceRow(trace, compact = false) {
   const cost = (trace.total_cost_usd || 0).toFixed(4);
 
   const isSelected = compareSelection.includes(trace.trace_id);
+  const _previewAttrs = !compact
+    ? `onmouseenter="showTracePreview('${escHtml(trace.trace_id)}', event)" onmouseleave="hideTracePreview()"`
+    : '';
   return `
-    <div class="trace-row flex items-center gap-4 px-5 py-3.5 hover:bg-white/[0.02] cursor-pointer transition group" data-trace-id="${escHtml(trace.trace_id)}" onclick="openTrace('${escHtml(trace.trace_id)}')">
+    <div class="trace-row flex items-center gap-4 px-5 py-3.5 hover:bg-white/[0.02] cursor-pointer transition group" data-trace-id="${escHtml(trace.trace_id)}" onclick="openTrace('${escHtml(trace.trace_id)}')" ${_previewAttrs}>
       ${!compact ? `<input type="checkbox" class="compare-checkbox ${isSelected ? 'checked' : ''} w-3.5 h-3.5 rounded bg-surface-100 border-white/10 text-indigo-500 focus:ring-indigo-500/30 flex-shrink-0" title="Select for comparison" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleCompare('${escHtml(trace.trace_id)}', this)" />` : ''}
       ${statusDot}
       <div class="flex-1 min-w-0">
@@ -4256,6 +4389,95 @@ function renderVirtualizedTraces(traces, containerId) {
 
   scrollContainer.addEventListener('scroll', renderVisibleRows);
   renderVisibleRows();
+}
+
+// =========================================================================
+// Trace Row Hover Preview
+// =========================================================================
+let _tracePreviewTimer = null;
+let _tracePreviewEl = null;
+
+function showTracePreview(traceId, event) {
+  clearTimeout(_tracePreviewTimer);
+  _tracePreviewTimer = setTimeout(async () => {
+    try {
+      const data = await apiFetch(`/v1/traces/${traceId}`);
+      const spans = data.spans || [];
+
+      // Count spans by kind
+      const kindCounts = { llm: 0, tool: 0, agent: 0 };
+      spans.forEach(s => {
+        const k = (s.kind || '').toLowerCase();
+        if (kindCounts[k] !== undefined) kindCounts[k]++;
+      });
+
+      const durationMs = data.duration_ms || 0;
+      const hasErrors = data.has_errors === true || data.has_errors === 1;
+      const errorMsg = hasErrors
+        ? (spans.find(s => s.error || s.error_message))
+        : null;
+      const errorText = errorMsg
+        ? (errorMsg.error ? (errorMsg.error.message || JSON.stringify(errorMsg.error)) : errorMsg.error_message)
+        : null;
+
+      // Max duration for visual bar (cap at 10s for proportionality)
+      const maxDur = 10000;
+      const barWidth = Math.min((durationMs / maxDur) * 100, 100);
+
+      if (!_tracePreviewEl) {
+        _tracePreviewEl = document.createElement('div');
+        _tracePreviewEl.className = 'trace-preview-tooltip';
+        document.body.appendChild(_tracePreviewEl);
+      }
+
+      const isDark = document.documentElement.classList.contains('dark');
+      const labelColor = isDark ? '#94a3b8' : '#64748b';
+      const valueColor = isDark ? '#e2e0db' : '#2c2c2a';
+
+      _tracePreviewEl.innerHTML = `
+        <div style="font-weight:600;margin-bottom:6px;font-size:11px;color:${valueColor}">
+          ${escHtml((data.service_name || traceId).substring(0, 30))}
+        </div>
+        <div style="font-size:11px;color:${labelColor};margin-bottom:4px">Span breakdown</div>
+        <div style="display:flex;gap:8px;font-size:11px;margin-bottom:8px">
+          <span style="color:#9b8ec4">LLM: ${kindCounts.llm}</span>
+          <span style="color:#7ab5a0">Tool: ${kindCounts.tool}</span>
+          <span style="color:#a88ec4">Agent: ${kindCounts.agent}</span>
+        </div>
+        <div style="font-size:11px;color:${labelColor};margin-bottom:2px">Duration: <span style="color:${valueColor}">${formatDuration(durationMs)}</span></div>
+        <div class="trace-preview-duration-bar">
+          <div class="trace-preview-duration-fill" style="width:${barWidth}%"></div>
+        </div>
+        ${errorText ? `<div style="font-size:10px;color:#f87171;margin-top:6px;white-space:normal;line-height:1.4">${escHtml(errorText.substring(0, 100))}${errorText.length > 100 ? '...' : ''}</div>` : ''}
+      `;
+      _tracePreviewEl.style.display = 'block';
+      _positionTracePreview(event);
+    } catch (e) {
+      // Silently fail — trace might not be available
+    }
+  }, 500);
+}
+
+function hideTracePreview() {
+  clearTimeout(_tracePreviewTimer);
+  _tracePreviewTimer = null;
+  if (_tracePreviewEl) _tracePreviewEl.style.display = 'none';
+}
+
+function _positionTracePreview(event) {
+  if (!_tracePreviewEl) return;
+  const x = event.clientX + 18;
+  const y = event.clientY - 10;
+  _tracePreviewEl.style.left = x + 'px';
+  _tracePreviewEl.style.top = y + 'px';
+  // Keep within viewport
+  const rect = _tracePreviewEl.getBoundingClientRect();
+  if (rect.right > window.innerWidth - 8) {
+    _tracePreviewEl.style.left = (event.clientX - rect.width - 18) + 'px';
+  }
+  if (rect.bottom > window.innerHeight - 8) {
+    _tracePreviewEl.style.top = (window.innerHeight - rect.height - 8) + 'px';
+  }
 }
 
 // =========================================================================
