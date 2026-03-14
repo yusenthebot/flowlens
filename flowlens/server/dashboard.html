@@ -18,6 +18,7 @@
   <script src="https://cdn.jsdelivr.net/npm/dagre@0.8.5/dist/dagre.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script>if(typeof Chart==='undefined'){var s=document.createElement('script');s.src='/static/chart.min.js';document.head.appendChild(s);}</script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
   <script>if(typeof THREE==='undefined'){var s=document.createElement('script');s.src='/static/three.min.js';document.head.appendChild(s);}</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2318,8 +2319,11 @@ async function loadAgentGraphMini() {
 async function loadOverviewCharts() {
   try {
     const summary = await apiFetch('/v1/agents/summary');
+    console.log('[FlowLens] loadOverviewCharts: got', summary?.agents?.length, 'agents');
     if (!summary || !summary.agents || summary.agents.length === 0) return;
-    const agents = summary.agents;
+    const agents = summary.agents.filter(a => a.agent !== 'unknown'); // Skip unknown for cleaner charts
+    if (agents.length === 0) return;
+    console.log('[FlowLens] Rendering charts for', agents.length, 'agents, costs:', agents.map(a => a.total_cost_usd));
 
     // Doughnut: Cost by Agent
     const pieCanvas = document.getElementById('overview-pie-agent');
@@ -2378,7 +2382,17 @@ async function loadOverviewCharts() {
         }
       });
     }
-  } catch (err) { console.warn('Overview charts error:', err); }
+  } catch (err) {
+    console.error('Overview charts error:', err);
+    // Show error visually
+    const containers = ['overview-pie-agent', 'overview-bar-agent', 'overview-pie-errors'];
+    containers.forEach(id => {
+      const el = document.getElementById(id);
+      if (el && el.parentElement) {
+        el.parentElement.innerHTML = '<p style="color:#ef4444;font-size:11px;padding:20px;text-align:center">Chart error: ' + (err.message || err) + '</p>';
+      }
+    });
+  }
 }
 
 // =========================================================================
