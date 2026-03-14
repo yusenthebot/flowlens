@@ -8,7 +8,7 @@
 |-------|-----------|-------------|---------------------------------------------------------------------------------|--------|-------------|
 | Alpha | sonnet 4.6| complete    | Three.js 3D agent network visualization with glow effects and mini preview      | main   | 92d54c5     |
 | Beta  | sonnet 4.6| complete    | /v1/agents/network API with node size/status/color properties                  | main   | 0d0d034     |
-| Gamma | sonnet 4.6| in_progress | Dark mode polish, button ripple, trace hover preview, smooth scroll, focus ring | feat/gamma-dark-mode-polish | pending     |
+| Gamma | sonnet 4.6| complete    | Dark mode polish, button ripple, trace hover preview, smooth scroll, focus ring | main                        | pending     |
 
 ### Alpha — Three.js 3D Agent Network Visualization with Glow Effects
 - **Commit**: `92d54c5`
@@ -22,6 +22,13 @@
 - **Impact**: 3D visualization receives complete enriched data. Node size/status/color enable quick visual assessment of agent health and workload.
 - **Files**: `flowlens/server/app.py`, `tests/test_server.py`
 - **Tests**: 5 new tests pass (all 1071 tests pass)
+
+### Gamma — Dark Mode Polish + Micro-interactions (Cycle 8)
+- **Commit**: pending
+- **Feature**: Dark mode CSS fixes for Three.js graph containers, gradient orb opacity tuning, agent detail modal dark colors, activity timeline light-mode text. Button ripple effect (.ripple-btn) applied to all tab, filter, and action buttons. Trace row hover preview tooltip (500ms delay, span count breakdown, duration bar, error preview). Smooth scroll for html and overflow-y-auto containers. `*:focus-visible` accessibility focus ring (indigo, 2px solid, 2px offset).
+- **Impact**: Full dark/light mode consistency across all Cycle 7 new elements. Ripple gives tactile button feedback. Hover previews reduce round-trips when reviewing trace lists. Focus rings improve keyboard navigation for screen reader users.
+- **Files**: `flowlens/server/dashboard.html`
+- **Tests**: All 1071 tests pass
 
 ### Gamma — CSS Animation System — Stagger Cards, 3D Hover, Gradient Orbs, Counter Animation
 - **Commit**: `8066f3a`

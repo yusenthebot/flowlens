@@ -1,8 +1,19 @@
 # Task Board — FlowLens Development
 
-## PROJECT COMPLETE — 2026-03-14 (Cycle 7 delivered 2026-03-14)
+## PROJECT COMPLETE — 2026-03-14 (Cycle 8 delivered 2026-03-14)
 
-All planned improvements and enhancements delivered across 7 development cycles. All tasks closed. System production-ready. Version 0.8.0. 1071 tests (all passing).
+All planned improvements and enhancements delivered across 8 development cycles. All tasks closed. System production-ready. Version 0.8.0. 1071 tests (all passing).
+
+---
+
+## Cycle 8: Complete (2026-03-14) — DARK MODE POLISH & MICRO-INTERACTIONS
+
+### Done (2026-03-14)
+- [x] **Dark mode fixes for new elements** — Gamma — Dark background for Three.js 3D graph containers (#agent-graph, #agent-graph-mini); gradient orb opacity reduced in light mode (0.45) to prevent overwhelming brightness; agent detail modal dark/light consistent glass backgrounds; activity timeline text colors in light mode — `flowlens/server/dashboard.html`
+- [x] **Button ripple effect** — Gamma — .ripple-btn CSS class with ::after pseudo-element ripple animation (200px circle, 0.6s ease); applied to all tab buttons, pattern filter buttons, Apply/Clear/Refresh trace filter buttons, Agents Refresh button, Compare Clear Selection button — `flowlens/server/dashboard.html`
+- [x] **Trace row hover preview** — Gamma — showTracePreview() with 500ms delay timer; fetches /v1/traces/:id; displays span kind breakdown (LLM/Tool/Agent counts), visual duration bar (proportional fill), error message preview if any; .trace-preview-tooltip with dark/light mode variants; hideTracePreview() clears timer and hides tooltip; onmouseenter/onmouseleave applied to non-compact trace rows — `flowlens/server/dashboard.html`
+- [x] **Smooth scroll behavior** — Gamma — html { scroll-behavior: smooth } and .overflow-y-auto { scroll-behavior: smooth } for native smooth scrolling across the dashboard — `flowlens/server/dashboard.html`
+- [x] **Focus ring accessibility** — Gamma — *:focus-visible { outline: 2px solid rgba(99,102,241,0.5); outline-offset: 2px; border-radius: 4px } for keyboard navigation accessibility, WCAG-compliant indigo focus indicator — `flowlens/server/dashboard.html`
 
 ---
 
