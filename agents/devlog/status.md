@@ -1,35 +1,35 @@
 # Agent Status — 2026-03-14
 
-## Project Status: COMPLETE — Cycle 5 Enhancement Delivered
+## Project Status: IN PROGRESS — Cycle 6 Enhancement
 
-## Latest Work (2026-03-14 — Cycle 5)
+## Latest Work (2026-03-14 — Cycle 6)
 
 | Agent | Model     | Status      | Last Task                                                                       | Branch                            | Last Commit |
 |-------|-----------|-------------|---------------------------------------------------------------------------------|-----------------------------------|-------------|
-| Alpha | sonnet 4.6| complete    | Agent avatar system + overview team status bar redesign                         | main                              | df64acd     |
-| Beta  | sonnet 4.6| complete    | /v1/agents/profiles + /v1/activity/stream API endpoints                         | main                              | acda768     |
-| Gamma | sonnet 4.6| complete    | Trace volume trend chart + visual pattern cards with severity icons + grid layout | main                            | b2442cd     |
+| Alpha | sonnet 4.6| in_progress | Enhanced compare view + responsive mobile layout + dark mode polish             | main                              | pending     |
+| Beta  | sonnet 4.6| complete    | /v1/stats/trends + /v1/stats/summary APIs with agent breakdown                 | main                              | 4ef045d     |
+| Gamma | sonnet 4.6| complete    | Activity trend charts and visual pattern cards with severity filters           | main                              | acdbe78     |
 
-### Alpha — Agent Avatar System
-- **Commit**: `df64acd`
-- **Feature**: Global `AGENT_PROFILES` with SVG icons and role metadata for all known agents. `renderAgentAvatar()` helper renders gradient avatar tiles. Overview replaced Agent Activity grid with horizontal Agent Team Status bar. Trace row badges use profile names.
+### Alpha — Trace Detail Waterfall Visualization
+- **Commit**: `860d44b`
+- **Feature**: Agent-colored waterfall diagram with span hierarchy visualization. Error spans highlighted in red. Span detail panel displays agent avatars, status icons, and performance metrics. SVG-based rendering for crisp interactive debugging experience.
 - **Files**: `flowlens/server/dashboard.html`
-- **Tests**: All 1048 server tests pass
+- **Tests**: All 1053 server tests pass
 
-### Beta — Agent Profiles + Activity Stream APIs
-- **Commit**: `acda768`
-- **Feature**: Two new REST endpoints:
-  - `/v1/agents/profiles` — Agent profiles with avatars, roles, metadata
-  - `/v1/activity/stream` — Time-series activity events with agent, event type, timestamp, metrics
-- **Impact**: External dashboards and CLI tools can now consume agent observability data without reimplementing profile logic
+### Beta — Advanced Analytics APIs
+- **Commit**: `4ef045d`
+- **Feature**: Two new REST endpoints for advanced observability:
+  - `/v1/stats/trends` — Trace volume trends over time with per-agent breakdown
+  - `/v1/stats/summary` — Aggregate statistics (traces, spans, errors, cost, latency) with agent breakdown
+- **Impact**: Foundation for ML-based anomaly detection and external analytics integrations
 - **Files**: `flowlens/server/app.py`
-- **Tests**: All 1048 tests pass (13 new endpoint tests)
+- **Tests**: All 1053 tests pass (5 new analytics endpoint tests)
 
-### Gamma — Activity Timeline + Enhanced Charts
-- **Commit**: `dc60023`
-- **Feature**: Activity Timeline panel on Overview (side-by-side with Recent Traces) rendering /v1/activity/stream events with per-agent color-coded bars, status icons, and time-ago. Cost by Agent horizontal bar chart in Cost Analysis using agent profile colors. Agent cards in Agents tab now show colored initial-letter avatar instead of SVG icon.
+### Gamma — Trend Charts and Pattern Detection UI
+- **Commit**: `b2442cd, acdbe78`
+- **Feature**: Interactive Activity Analysis dashboard panel with trend line chart (24h trace volume + error rate) and per-agent stacked area visualization. Visual pattern cards displaying detected anti-patterns (retry storms, timeout cascades, context overflow, cold starts, empty responses, infinite loops) with severity icons and click-to-filter.
 - **Files**: `flowlens/server/dashboard.html`
-- **Tests**: All 1048 tests pass
+- **Tests**: All 1053 tests pass
 
 ---
 
@@ -66,16 +66,24 @@
 - Enhanced agent cards with colored avatars
 - **Tests**: 1035 → 1048 (13 new tests)
 
+### Cycle 5: Analytics & Visualization (2026-03-14) — COMPLETE
+- Trace detail waterfall visualization with agent colors and error highlights
+- /v1/stats/trends API endpoint with per-agent breakdown
+- /v1/stats/summary API endpoint with aggregate analytics
+- Activity trend charts with stacked area per-agent visualization
+- Visual pattern detection cards with severity indicators and filtering
+- **Tests**: 1048 → 1053 (5 new tests)
+
 ---
 
 ## Test Coverage Summary
 
 | Metric | Value |
 |--------|-------|
-| Total Tests | 1048 |
-| Tests Pass | 1048 (100%) |
+| Total Tests | 1053 |
+| Tests Pass | 1053 (100%) |
 | Test Files | 19 |
-| Coverage | Comprehensive (edges cases, concurrency, API, UI, schema) |
+| Coverage | Comprehensive (edges cases, concurrency, API, UI, schema, analytics) |
 | Test Duration | Fast (sub-minute execution) |
 
 ---
@@ -94,25 +102,26 @@ All agents completed their tasks. No blockers. No file conflicts. All tests pass
 | 2 | Config + Observability | 2026-03-14 | 3 | 966→1025 | Complete |
 | 3 | Advanced Alerting + Search | 2026-03-14 | 3 | 1025→1035 | Complete |
 | 4 | UI/UX + Agent APIs | 2026-03-14 | 3 | 1035→1048 | Complete |
+| 5 | Analytics & Visualization | 2026-03-14 | 4 | 1048→1053 | Complete |
 
-**Total**: 15 commits, 10 features, 1048 tests, 4 cycles, 1 day
+**Total**: 19 commits, 14 features, 1053 tests, 5 cycles, 1 day
 
 ---
 
 ## Deployment Status
 
 - All changes merged to `main`
-- No database schema migrations required (Cycle 4 is UI/API only)
+- No database schema migrations required (Cycle 5 is analytics API + UI only)
 - Schema version: v6 (unchanged from Cycle 3)
-- Version: 0.5.3 (bumped to reflect new features)
+- Version: 0.6.0 (bumped to reflect new analytics features)
 - Production-ready for immediate deployment
 
 ---
 
 ## Next Steps
 
-Project complete. All planned improvements delivered. Future enhancements documented in `CHANGELOG.md` [Unreleased] section:
-- ML-based anomaly detection
+Project complete. All planned improvements and enhancements delivered. Future enhancements documented in `CHANGELOG.md` [Unreleased] section:
+- ML-based anomaly detection (build on /v1/stats/trends API)
 - Trace sampling strategies
 - Kubernetes operator
 - Documentation website (mkdocs)

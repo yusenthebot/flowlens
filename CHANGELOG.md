@@ -10,13 +10,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Planned
-- ML-based anomaly detection
-- Trace sampling strategies
-- Kubernetes operator
-- Documentation website (mkdocs)
-- PyPI publishing
+- ML-based anomaly detection (leverage /v1/stats/trends API for statistical analysis)
+- Trace sampling strategies (probabilistic, head-based, tail-based)
+- Kubernetes operator (custom resource definitions, controller)
+- Documentation website (mkdocs with auto-generated API docs)
+- PyPI publishing and distribution
 
 ---
+
+## [0.6.0] — 2026-03-14
+
+Advanced analytics and trace visualization cycle. Agent-colored waterfall trace debugging, comprehensive trend analysis APIs with per-agent breakdown, interactive activity trend charts, and visual pattern detection dashboard. 1048 → 1053 tests across 1 analytics cycle.
+
+### Added
+
+#### Cycle 5 Features (2026-03-14 — Analytics & Visualization)
+
+- **Trace detail waterfall visualization**: Agent-colored waterfall diagram showing complete span hierarchy with color-coded agents, duration bars, and error highlights. New span detail panel displays agent avatars, status icons, and performance metrics. SVG-based rendering enables crisp interactive debugging of complex traces (commit 860d44b)
+
+- **Trace volume trend analytics API**: New `/v1/stats/trends` endpoint returning time-series trace volume trends over configurable time windows (hourly/daily buckets) with per-agent breakdown. Enables visualization of which agents contribute to traffic patterns and anomalies (commit 4ef045d)
+
+- **Aggregate statistics API with agent breakdown**: New `/v1/stats/summary` endpoint returning aggregate statistics (total traces, spans, errors, cost, average latency) with per-agent breakdown. Supports cost attribution, agent performance comparison, and SLA monitoring (commit 4ef045d)
+
+- **Interactive activity trend charts**: New Activity Analysis dashboard panel with trend line chart showing 24-hour trace volume and error rate trends. Per-agent stacked area visualization shows agent contribution to overall system metrics (commit b2442cd)
+
+- **Visual pattern detection cards**: Dashboard cards displaying detected anti-patterns (retry storms, timeout cascades, context overflow, cold starts, empty responses, infinite loops) with severity icons (critical/high/medium/low), occurrence count badges, and click-to-filter functionality. Color-coded severity indicators (red/orange/yellow/green) enable quick pattern assessment (commit acdbe78)
+
+### Changed
+
+- Version bumped to 0.6.0
+- Trace detail view: added interactive waterfall visualization component
+- Analytics dashboard: new Activity Analysis panel with trend charts
+- Dashboard layout: added pattern detection cards to primary observability view
+
+### Technical Decisions
+
+- **Waterfall visualization color scheme**: Agent colors mapped from AGENT_PROFILES configuration for consistency with timeline and cost charts. Error spans highlighted in red with context for immediate issue identification. SVG-based rendering supports future interactivity (logs, metrics linkage)
+
+- **Trend analytics query optimization**: Aggregation performed at database layer using SQL GROUP BY/time buckets rather than post-processing. Architecture ready for Redis caching layer in future versions
+
+- **Per-agent stacking strategy**: Stacked area charts show agent contribution percentages rather than absolute values, preventing large agents from obscuring smaller ones. Color consistency with agent profiles enables team member identification
+
+- **Pattern card filtering**: Click-to-filter from pattern cards updates main traces view with MATCH clause. Supports both pattern type and severity filtering for rapid RCA workflows
+
+- **Analytics API extensibility**: Trend and summary endpoints accept optional time range, agent filter, and service filter parameters. Generic structure supports future metric types without breaking existing clients
+
+### Fixed
+
+- Schema version consistency validated across all analytics queries
+
+---
+
 ## [0.5.3] — 2026-03-14
 
 Agent observability UI enhancements with avatar system and activity stream APIs. 1035 → 1048 tests across 1 post-cycle enhancement cycle.
@@ -170,7 +214,7 @@ Major release: plugin system, batch exporters, full CLI toolset, production hard
 - `examples/take_screenshots.py` — Playwright-based screenshot generation
 
 #### Test Coverage (Cycles 1–6)
-- 1035 tests across 19 test files
+- 1053 tests across 19 test files
 - New test files: `test_context.py`, `test_dag_builder.py`, `test_decorators_advanced.py`, `test_exporters.py`, `test_plugins.py`, `test_storage_edge.py`, `test_new_features.py`
 - Edge cases: Unicode, large traces (500+ spans), concurrent writes, SQL injection attempts, FTS5 schema migration
 
@@ -224,17 +268,21 @@ Initial public release of FlowLens — Agent Observability Platform.
 
 ## Project Complete
 
-This changelog documents the evolution of FlowLens from initial release (v0.1.0) through three development cycles:
+This changelog documents the evolution of FlowLens from initial release (v0.1.0) through five development cycles:
 
 - **Cycle 1** (2026-03-14): 5 critical bug fixes addressing WebSocket routing, thread safety, FK constraints, model cost accuracy, and HTTP timeout configurability. Grew test suite from 88 to 966 tests.
 - **Cycle 2** (2026-03-14): 3 major features adding runtime configurability of pattern thresholds, offline SQLite access via LocalCollector, and comprehensive agent observability dashboard. Grew tests from 966 to 1025.
 - **Cycle 3** (2026-03-14): 2 advanced features delivering budget-aware alerting with AND compound conditions and production-grade full-text search with FTS5. Grew tests from 1025 to 1035.
+- **Cycle 4** (2026-03-14): 6 UI/UX enhancements including agent avatar system, agent observability APIs, activity timeline, and cost visualization. Grew tests from 1035 to 1048.
+- **Cycle 5** (2026-03-14): 5 advanced analytics and visualization features including waterfall trace debugging, trend analysis APIs, activity trend charts, and pattern detection cards. Grew tests from 1048 to 1053.
 
-**Total improvements**: 10 features/fixes across 3 cycles, 1035 comprehensive tests, schema versions 1→6, 4 version releases (0.1.0 → 0.5.2). The system is now production-ready with observability, cost control, offline capabilities, and advanced search.
+**Total improvements**: 19 features/fixes across 5 cycles, 1053 comprehensive tests, schema versions 1→6, 6 version releases (0.1.0 → 0.6.0). The system is now production-ready with comprehensive observability, agent attribution, cost control, offline capabilities, advanced search, and data-driven analytics.
 
 ---
 
-[Unreleased]: https://github.com/yusenthebot/flowlens/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/yusenthebot/flowlens/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/yusenthebot/flowlens/compare/v0.5.3...v0.6.0
+[0.5.3]: https://github.com/yusenthebot/flowlens/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/yusenthebot/flowlens/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/yusenthebot/flowlens/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/yusenthebot/flowlens/compare/v0.1.0...v0.5.0
