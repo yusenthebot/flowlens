@@ -20,9 +20,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.5.0] — 2026-03-14
 
-Major release: plugin system, batch exporters, full CLI toolset, production hardening, UI redesign, and polished demos. 88 → 754 tests across 6 development cycles.
+Major release: plugin system, batch exporters, full CLI toolset, production hardening, UI redesign, and polished demos. 88 → 966 tests across 1 development cycle of bug fixes.
 
 ### Added
+
+#### Cycle 1 Bug Fixes (2026-03-14)
+- **WebSocket route handling**: Fixed /ws/traces 404 errors by adding scope type check in HTTP middleware to prevent intercepting WebSocket upgrades (commit 4e8f9d4)
+- **Thread-safe exporters**: Added `threading.Lock` to JSONLExporter, CSVExporter, and JSONLStreamExporter for safe concurrent writes (commit c05f1b6)
+- **Configurable HTTP timeout**: Made HTTPExporter timeout configurable via `timeout_sec` parameter (default 30s) (commit c05f1b6)
+- **FK constraint resilience**: Force trace_id consistency in storage.py to prevent foreign key constraint failures (commit 70b94c8)
+- **Improved model cost matching**: Changed from substring to longest-match-first strategy for accurate model cost estimation (commit 70b94c8)
+- **New edge case tests**: Added 69 lines to test_storage_edge.py, 153 lines to test_exporters.py for thread safety and constraint validation
 
 #### Plugin System (Cycle 5)
 - `BasePlugin` abstract class with `name`, `version`, `patch()`, `unpatch()` interface
@@ -83,7 +91,7 @@ Major release: plugin system, batch exporters, full CLI toolset, production hard
 - `examples/take_screenshots.py` — Playwright-based screenshot generation
 
 #### Test Coverage (Cycles 1–6)
-- 754 tests across 18 test files
+- 966 tests across 18 test files
 - New test files: `test_context.py`, `test_dag_builder.py`, `test_decorators_advanced.py`, `test_exporters.py`, `test_plugins.py`, `test_storage_edge.py`, `test_new_features.py`
 - Edge cases: Unicode, large traces (500+ spans), concurrent writes, SQL injection attempts
 
@@ -104,6 +112,7 @@ Major release: plugin system, batch exporters, full CLI toolset, production hard
 - GitHub URLs corrected to `yusenthebot/flowlens`
 
 ### Fixed
+- WebSocket /ws/traces 404 (Cycle 1 — commit 4e8f9d4)
 - WebSocket double-reconnect scheduling
 - `asyncio.iscoroutinefunction` deprecation (Python 3.16)
 - `on_event("shutdown")` FastAPI deprecation → lifespan context manager
@@ -112,6 +121,8 @@ Major release: plugin system, batch exporters, full CLI toolset, production hard
 - Flaky timing tests (`span.duration_ms == 0` on fast machines)
 - Rate limiter stale cleanup test race condition
 - httpx null byte rejection in security tests
+- FK constraint failures in storage (Cycle 1 — commit 70b94c8)
+- Model cost estimation with longest-match-first (Cycle 1 — commit 70b94c8)
 
 ---
 
