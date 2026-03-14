@@ -1,5 +1,12 @@
 # Task Board — FlowLens Development
 
+## Cycle 11: Complete (2026-03-14) — APP.PY MODULARIZATION
+
+### Done (2026-03-14)
+- [x] **app.py route modularization** — Beta — Refactored 2003-line monolithic app.py into focused route modules: routes/traces.py (15 endpoints), routes/cost.py (5 endpoints), routes/agents.py (5 endpoints), routes/stats.py (9 endpoints), routes/alerts.py (5 endpoints), routes/system.py (5 endpoints); shared utils.py with security helpers and _AGENT_PROFILES — Commit 7af0433 — `flowlens/server/app.py`, `flowlens/server/utils.py`, `flowlens/server/routes/`
+
+---
+
 ## Cycle 10: In Progress (2026-03-14) — DASHBOARD PERFORMANCE & MODULARIZATION
 
 ### In Progress
