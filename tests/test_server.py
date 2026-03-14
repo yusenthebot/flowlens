@@ -1179,13 +1179,17 @@ class TestAPI:
         }
 
     def test_agents_relationships_empty(self, client):
-        """Returns empty nodes and edges when no spawn spans exist."""
+        """Even with no spawn spans, built-in agents appear as nodes and edges is empty."""
         r = client.get("/v1/agents/relationships")
         assert r.status_code == 200
         data = r.json()
         assert "nodes" in data
         assert "edges" in data
-        assert data["nodes"] == []
+        # Built-in agents (vr-alpha, vr-beta, vr-gamma, etc.) are always present
+        node_ids = {n["id"] for n in data["nodes"]}
+        assert "vr-alpha" in node_ids
+        assert "vr-beta" in node_ids
+        # No spawn relationships → no edges
         assert data["edges"] == []
 
     def test_agents_relationships_subagent_pattern(self, client):
@@ -1271,6 +1275,80 @@ class TestAPI:
         data = r.json()
         assert isinstance(data["nodes"], list)
         assert isinstance(data["edges"], list)
+
+    def test_agents_relationships_always_includes_discovered_agents(self, client):
+        """Agents tagged in trace data always appear as nodes, even without spawn spans."""
+        client.post("/v1/traces/ingest", json=_make_trace_data("disc-1", tags={"agent": "custom-bot"}))
+        r = client.get("/v1/agents/relationships")
+        assert r.status_code == 200
+        data = r.json()
+        node_ids = {n["id"] for n in data["nodes"]}
+        # Discovered agent from trace tags must be present
+        assert "custom-bot" in node_ids
+        # Built-in agents must also be present
+        assert "vr-alpha" in node_ids
+
+    # ------------------------------------------------------------------
+    # New: GET /v1/agents/network
+    # ------------------------------------------------------------------
+
+    def test_agents_network_returns_all_known_agents(self, client):
+        """Even without relationships, built-in agents appear in /v1/agents/network."""
+        r = client.get("/v1/agents/network")
+        assert r.status_code == 200
+        data = r.json()
+        assert "nodes" in data
+        assert "edges" in data
+        node_ids = {n["id"] for n in data["nodes"]}
+        # All built-in profiles must appear
+        assert "vr-alpha" in node_ids
+        assert "vr-beta" in node_ids
+        assert "vr-gamma" in node_ids
+
+    def test_agents_network_node_has_required_fields(self, client):
+        """Each node in /v1/agents/network has id, label, color, size, and status."""
+        r = client.get("/v1/agents/network")
+        assert r.status_code == 200
+        nodes = r.json()["nodes"]
+        assert len(nodes) > 0
+        for node in nodes:
+            assert "id" in node, f"node missing 'id': {node}"
+            assert "label" in node, f"node missing 'label': {node}"
+            assert "color" in node, f"node missing 'color': {node}"
+            assert "size" in node, f"node missing 'size': {node}"
+            assert "status" in node, f"node missing 'status': {node}"
+            # Size must be in the normalised range [0.3, 1.0]
+            assert 0.3 <= node["size"] <= 1.0, f"size out of range: {node['size']}"
+
+    def test_agents_network_includes_edges_from_relationships(self, client):
+        """Edges from spawn relationships are forwarded into /v1/agents/network."""
+        trace = self._make_spawn_trace(
+            "net-spawn-1",
+            spans=[self._make_span("ns1", "net-spawn-1", "subagent/vr-beta")],
+            tags={"agent": "vr-alpha"},
+        )
+        client.post("/v1/traces/ingest", json=trace)
+
+        r = client.get("/v1/agents/network")
+        assert r.status_code == 200
+        data = r.json()
+        edges = data["edges"]
+        found = [e for e in edges if e["source"] == "vr-alpha" and e["target"] == "vr-beta"]
+        assert len(found) >= 1
+        assert found[0]["count"] >= 1
+
+    def test_agents_network_discovered_agent_appears_as_node(self, client):
+        """An agent discovered only from trace tags still appears as a network node."""
+        import time as _time
+        client.post("/v1/traces/ingest", json=_make_trace_data(
+            "net-disc-1",
+            tags={"agent": "discovered-agent"},
+            start_time=_time.time() - 30,
+        ))
+        r = client.get("/v1/agents/network")
+        assert r.status_code == 200
+        node_ids = {n["id"] for n in r.json()["nodes"]}
+        assert "discovered-agent" in node_ids
 
     # ------------------------------------------------------------------
     # New: GET /v1/export/report

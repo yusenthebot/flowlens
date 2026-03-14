@@ -22,6 +22,7 @@ Endpoints:
 - GET    /v1/agents/activity        — real-time per-agent activity (last hour)
 - GET    /v1/agents/profiles        — profile info for all known agents
 - GET    /v1/agents/relationships   — agent spawn relationship graph (nodes + edges)
+- GET    /v1/agents/network        — richer agent network for 3D visualization
 - GET    /v1/activity/stream        — recent activity events across all agents
 - GET    /v1/export/report          — summary activity report (last N hours)
 - GET    /health                    — health check
@@ -1647,7 +1648,7 @@ def create_app(db_path: str | None = None) -> FastAPI:
                             key = f"{parent}->{child}"
                             relationships[key] = relationships.get(key, 0) + 1
 
-        # Build graph structure
+        # Build graph structure — collect agents from relationships
         agents: set[str] = set()
         edges: list[dict[str, Any]] = []
         for rel, count in relationships.items():
@@ -1656,8 +1657,95 @@ def create_app(db_path: str | None = None) -> FastAPI:
             agents.add(tgt)
             edges.append({"source": src, "target": tgt, "count": count})
 
-        nodes = [{"id": a, "label": a} for a in sorted(agents)]
+        # Always include all built-in agents as nodes
+        for agent_name in _AGENT_PROFILES:
+            agents.add(agent_name)
+
+        # Always include agents discovered from traces
+        for trace_meta in traces:
+            tags = trace_meta.get("tags") or {}
+            if isinstance(tags, str):
+                try:
+                    tags = json.loads(tags)
+                except Exception:
+                    tags = {}
+            discovered_agent: str = tags.get("agent") or ""
+            if discovered_agent:
+                agents.add(discovered_agent)
+
+        nodes = [
+            {
+                "id": a,
+                "label": _AGENT_PROFILES.get(a, {}).get("name", a),
+            }
+            for a in sorted(agents)
+        ]
         edges.sort(key=lambda e: (-e["count"], e["source"], e["target"]))
+        return JSONResponse({"nodes": nodes, "edges": edges})
+
+    # -----------------------------------------------------------------------
+    # Agent network (richer version for 3D visualization)
+    # -----------------------------------------------------------------------
+
+    @app.get("/v1/agents/network")
+    async def agents_network() -> JSONResponse:
+        """Return complete agent network data for 3D visualization.
+
+        Returns nodes with size/status info and edges with type/weight.
+        Merges data from summary, activity, profiles, and relationships.
+        """
+        # Fetch all source data
+        summary_resp = await agents_summary()
+        summary_data = json.loads(summary_resp.body)
+
+        activity_resp = await agents_activity()
+        activity_data = json.loads(activity_resp.body)
+
+        rel_resp = await agents_relationships()
+        rel_data = json.loads(rel_resp.body)
+
+        # Index summary and activity by agent name for O(1) lookup
+        summary_by_agent: dict[str, dict[str, Any]] = {
+            a["agent"]: a for a in summary_data.get("agents", [])
+        }
+        activity_by_agent: dict[str, dict[str, Any]] = {
+            a["agent"]: a for a in activity_data.get("agents", [])
+        }
+
+        # Collect the full set of known agents from all sources
+        all_agents: set[str] = set(_AGENT_PROFILES.keys())
+        all_agents.update(summary_by_agent.keys())
+        all_agents.update(activity_by_agent.keys())
+        # Also include nodes returned by the relationships endpoint
+        for node in rel_data.get("nodes", []):
+            all_agents.add(node["id"])
+
+        def _normalize_size(trace_count: int) -> float:
+            """Map trace count to a node size in [0.3, 1.0]."""
+            if trace_count <= 0:
+                return 0.3
+            # Soft cap at 100 traces → size 1.0
+            return min(1.0, 0.3 + 0.7 * (trace_count / 100.0))
+
+        nodes: list[dict[str, Any]] = []
+        for agent in sorted(all_agents):
+            profile = _AGENT_PROFILES.get(agent, {})
+            summary = summary_by_agent.get(agent, {})
+            activity = activity_by_agent.get(agent, {})
+
+            nodes.append({
+                "id": agent,
+                "label": profile.get("name", agent),
+                "role": profile.get("role", "Agent"),
+                "color": profile.get("color", "#9ca3af"),
+                "size": _normalize_size(summary.get("trace_count", 0)),
+                "status": activity.get("status", "idle") if activity else "idle",
+                "trace_count": summary.get("trace_count", 0),
+                "error_rate": summary.get("error_rate", 0),
+                "cost": summary.get("total_cost_usd", 0),
+            })
+
+        edges = rel_data.get("edges", [])
         return JSONResponse({"nodes": nodes, "edges": edges})
 
     # -----------------------------------------------------------------------
