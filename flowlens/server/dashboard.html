@@ -2326,7 +2326,7 @@ async function loadOverviewCharts() {
     if (pieCanvas) {
       if (chartInstances['overview-pie-agent']) chartInstances['overview-pie-agent'].destroy();
       const labels = agents.map(a => getAgentProfile(a.agent).name || a.agent);
-      const costs = agents.map(a => a.total_cost || a.cost || 0);
+      const costs = agents.map(a => a.total_cost_usd || a.total_cost || a.cost || 0);
       const colors = agents.map(a => getAgentProfile(a.agent).color || '#6366f1');
       chartInstances['overview-pie-agent'] = new Chart(pieCanvas, {
         type: 'doughnut',
