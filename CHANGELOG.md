@@ -17,6 +17,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PyPI publishing
 
 ---
+## [0.5.3] — 2026-03-14
+
+Agent observability UI enhancements with avatar system and activity stream APIs. 1035 → 1048 tests across 1 post-cycle enhancement cycle.
+
+### Added
+
+#### Cycle 4 Features (2026-03-14 — Post-Cycle Enhancement)
+- **Agent avatar system**: Global `AGENT_PROFILES` configuration with 7 SVG avatar icons and role metadata. New `renderAgentAvatar()` helper function for consistent avatar rendering across all agent-related UI elements. Visual branding consistency with gradient avatar tiles and status indicators (commit df64acd)
+- **Agent profiles API**: New `/v1/agents/profiles` REST endpoint returning all configured agent profiles with avatars, roles, and metadata. Enables external dashboards and CLI tools to display agent information (commit acda768)
+- **Activity stream API**: New `/v1/activity/stream` endpoint returning time-series activity events with agent, event type, timestamp, and metrics. Supports filtering and pagination for real-time monitoring (commit acda768)
+- **Activity Timeline UI**: Interactive Activity Timeline panel on Overview dashboard (left column) rendering `/v1/activity/stream` events with per-agent color-coded status bars, status icons (success/error/in-progress), and time-ago labels. Provides parallel view of agent activity vs. system traces (commit dc60023)
+- **Cost by Agent visualization**: New horizontal bar chart in Cost Analysis section using agent profile colors. Better cost attribution to agents for financial tracking (commit dc60023)
+- **Enhanced agent cards**: Agent cards in Agents tab redesigned with colored initial-letter avatars instead of SVG icons. Improved visual consistency and space efficiency (commit dc60023)
+
+### Changed
+- Version bumped to 0.5.3
+- Overview dashboard layout: replaced Agent Activity grid with horizontal Team Status bar
+- Agent cards visual design: SVG icons → colored initial-letter avatars
+- Overview dashboard panels: added Activity Timeline as companion to Recent Traces
+
+### Technical Decisions
+- **AGENT_PROFILES as single source of truth**: Centralized agent metadata configuration, easy extensibility for new agents
+- **Avatar rendering abstraction**: `renderAgentAvatar()` function encapsulates SVG generation, enables consistent styling across all UI contexts
+- **Activity stream generics**: Generic event structure allows future extensibility without breaking existing API clients
+- **Color consistency**: Agent colors derived from profile avatars, propagated through timeline bars and cost charts
+- **Timeline UI co-location**: Activity Timeline placed side-by-side with Recent Traces for parallel observability without UI clutter
+
+---
 
 ## [0.5.2] — 2026-03-14
 
