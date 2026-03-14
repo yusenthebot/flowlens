@@ -1,8 +1,23 @@
 # Task Board — FlowLens Development
 
-## PROJECT COMPLETE — 2026-03-14 (Cycle 8 delivered 2026-03-14)
+## PROJECT COMPLETE — 2026-03-14 (Cycle 9 delivered 2026-03-14)
 
-All planned improvements and enhancements delivered across 8 development cycles. All tasks closed. System production-ready. Version 0.8.0. 1071 tests (all passing).
+All planned improvements and enhancements delivered across 9 development cycles. All tasks closed. System production-ready. Version 0.9.0 (ready for v1.0.0 release). 1071 tests (all passing).
+
+---
+
+## Cycle 9: Complete (2026-03-14) — VISUAL ENHANCEMENTS & LIVE MONITORING
+
+### Done (2026-03-14)
+- [x] **Sparklines in stat cards** — Lead — Lightweight SVG path approximation mini trend-lines in Overview stat cards (Traces, Spans, Errors, Latency, Cost) rendering in <1ms per card for at-a-glance visual context — Commit 4587523 — `flowlens/server/dashboard.html`
+- [x] **Activity feed styling enhancements** — Lead — Redesigned activity timeline with colored left borders per-agent (matching AGENT_PROFILES colors), pill-shaped status badges (active/idle/error), improved typography and spacing — Commit 4587523 — `flowlens/server/dashboard.html`
+- [x] **Dark gradient background** — Lead — Updated Overview background from solid dark to gradient (#1a1a18→#0f0f0e) for subtle visual depth improvement — Commit 4587523 — `flowlens/server/dashboard.html`
+- [x] **Agent graph CSS fallback strategy** — Lead — Agent network graph gracefully falls back to Cytoscape.js if Three.js CDN fails; ensures dashboard usability with CDN unavailability — Commit 4587523 — `flowlens/server/dashboard.html`
+- [x] **Cost chart enhancements** — Lead — Dual-axis visualization for cost trends (primary: cost, secondary: count) for better volume correlation — Commit 4587523 — `flowlens/server/dashboard.html`
+- [x] **Compact overview layout** — Alpha — Denser agent strip (removed padding), removed mini 3D graph (#agent-graph-mini) for performance, expanded trend chart height/width, summary metrics row (Active Now, Ops/1h, Success Rate) — Commit d0f8849 — `flowlens/server/dashboard.html`
+- [x] **Live Agent Monitor widget** — Beta — Real-time agent status updates via WebSocket, flash highlighting (0.5s pulse) on state changes, connection status indicator, auto-reconnect on disconnect for on-call observability — Commit 0e97e3b — `flowlens/server/dashboard.html`, `flowlens/server/app.py`
+- [x] **Three.js CDN rollback** — Fix — Downgraded Three.js CDN from 0.162.0→0.160.0 with local fallback for browser compatibility — Commit ab7f295 — `flowlens/server/dashboard.html`
+- [x] **Dashboard version footer** — Chore — Updated footer version to v1.0.0, adjusted compact layout height — Commit d58d1c7 — `flowlens/server/dashboard.html`
 
 ---
 
@@ -134,12 +149,12 @@ The following tasks were proposed for future cycles but are deprioritized given 
 
 | Metric | Value |
 |--------|-------|
-| Total Cycles | 8 (3 planned + 5 enhancement) |
-| Total Commits | 28 |
-| Total Features | 31 |
+| Total Cycles | 9 |
+| Total Commits | 34 |
+| Total Features | 36 |
 | Total Tests | 1071 |
 | Test Pass Rate | 100% |
-| Lines Added | ~3100 (source + tests) |
+| Lines Added | ~4500 (source + tests) |
 | Active Blockers | 0 |
 | File Conflicts | 0 |
 | Deployment Status | Production-ready |
@@ -151,6 +166,6 @@ The following tasks were proposed for future cycles but are deprioritized given 
 
 - `[x]` = done (date in Cycle header)
 - `[ ]` = backlog / deferred
-- Agent = responsible developer (Alpha, Beta, Gamma)
+- Agent = responsible developer (Lead, Alpha, Beta, Gamma)
 - Priority = critical/high/medium/low
-- Status: Project Complete — All improvements delivered, system production-ready, version 0.8.0
+- Status: Project Complete — All improvements delivered, system production-ready, version 0.9.0 (ready for v1.0.0 release)

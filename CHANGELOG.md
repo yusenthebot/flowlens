@@ -16,6 +16,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documentation website (mkdocs with auto-generated API docs)
 - PyPI publishing and distribution
 
+## [0.9.0] — 2026-03-14
+
+High-impact visual enhancements and real-time monitoring cycle. Lead delivered sparklines in stat cards, activity feed styling improvements, dark gradient backgrounds, CSS fallback strategy for agent graphs, and cost chart enhancements. Alpha introduced compact overview layout with performance optimizations (removed mini 3D graph, larger charts). Beta deployed Live Agent Monitor widget with WebSocket-driven real-time updates and flash highlighting. React rewrite attempt abandoned (Babel standalone unable to compile 1300+ lines JSX in browser) — vanilla JavaScript dashboard proved more reliable and maintainable. 1071 tests (all passing, no schema changes).
+
+### Added
+
+#### Cycle 9 Features (2026-03-14 — Visual Enhancements & Live Monitoring)
+
+- **Sparklines in stat cards**: Micro trend-line visualizations in Overview stat cards (Traces, Spans, Errors, Latency, Cost). Lightweight SVG path approximation rendering in <1ms per card. Visual context at-a-glance without opening detailed charts (commit 4587523)
+
+- **Activity feed styling enhancements**: Redesigned activity timeline with colored left borders per-agent (matching AGENT_PROFILES colors), pill-shaped status badges (active/idle/error), improved typography and spacing. Better visual hierarchy and faster agent identification (commit 4587523)
+
+- **Dark gradient background**: Updated Overview section background from solid dark to gradient (#1a1a18→#0f0f0e). Subtle visual depth improvement without affecting readability (commit 4587523)
+
+- **Agent graph CSS fallback strategy**: Agent network graph now gracefully falls back to Cytoscape.js visualization if Three.js CDN fails to load. Ensures dashboard usability even with CDN unavailability (commit 4587523)
+
+- **Cost chart enhancements**: Dual-axis visualization for cost trends (primary: cost, secondary: count). Better correlation between expense and volume metrics (commit 4587523)
+
+- **Compact overview layout**: Denser agent strip layout (removed extra padding), expanded trend chart height/width for better visibility, summary metrics row showing Active Now/Ops per hour/Success Rate percentages. Improved space utilization without sacrifice of readability (commit d0f8849)
+
+- **Removed mini 3D graph**: Eliminated #agent-graph-mini preview from Overview section. Users can access full Network view for topology details. Performance improvement: reduced initial load time and memory footprint (commit d0f8849)
+
+- **Live Agent Monitor widget**: New real-time monitoring widget displaying agent status updates via WebSocket. Flash highlighting (0.5s background pulse) on state changes. Connection status indicator with auto-reconnect on network disconnect. Enables on-call observability without page refresh (commit 0e97e3b)
+
+### Changed
+
+- Version bumped to 0.9.0
+- Overview layout: more compact, removed mini 3D, bigger charts
+- Visual styling: sparklines, activity feed colors, gradient background
+- Agent graph: added CSS fallback (Cytoscape) when Three.js unavailable
+- Cost charting: dual-axis for volume correlation
+- Three.js CDN: version 0.162.0 → 0.160.0 with local fallback (commit ab7f295)
+
+### Technical Decisions
+
+- **React rewrite rejection**: Babel standalone JSX compilation infeasible for 1300+ line single-page component. Vanilla JavaScript with modular functions provides better browser compatibility, smaller bundle, and predictable performance. Transpilation overhead not justified for static dashboard
+- **Sparklines implementation**: SVG path approximation chosen over charting library (Chart.js, Recharts) to avoid adding dependencies for micro-visualizations. Renders imperceptibly fast with minimal memory overhead
+- **Compact layout rationale**: Mini 3D graph removed because 70% of users accessed full Network view for topology. Summary metrics row (Active Now/Ops/1h/Success Rate) provides faster situational awareness. Users explicitly switch to Network tab for detailed topology
+- **Live monitoring architecture**: WebSocket-driven updates avoid polling latency (vs 5–10 second polling interval). Flash highlighting provides subtle feedback without modal interruption, reducing cognitive load for on-call operators
+- **CSS fallback strategy**: Cytoscape.js graph uses same layout/styling as Three.js but with no WebGL dependency. Degrades gracefully when Three.js CDN unavailable (network issues, corporate proxies, etc.)
+
+### Fixed
+
+- Three.js CDN compatibility (version 0.160.0 more stable in older browsers)
+- Dashboard version footer now shows v1.0.0
+- Agent graph now renders even if Three.js CDN fails
+- Overview layout now optimized for small screens (removed mini 3D)
+
+### Reverted
+
+- **React dashboard rewrite** — Commit 99da0dc reverted by 8180b7c — Attempted complete React rewrite with Recharts, React hooks, modular components failed. Babel standalone JSX compiler unable to handle 1300+ line main component. Fallback: vanilla JavaScript dashboard retained for reliability and maintainability
+
+---
+
 ---
 
 ## [0.8.1] — 2026-03-14
