@@ -15,6 +15,8 @@ Endpoints:
 - GET    /v1/cost/breakdown         — cost attribution
 - GET    /v1/cost/trends            — cost over time (daily/hourly)
 - GET    /v1/stats                  — global statistics
+- GET    /v1/stats/trends           — trace volume over time (bucketed for charting)
+- GET    /v1/stats/summary          — enhanced stats with per-agent breakdown
 - GET    /v1/patterns/summary       — aggregate pattern statistics
 - GET    /v1/agents/summary         — agent-level trace statistics
 - GET    /v1/agents/activity        — real-time per-agent activity (last hour)
@@ -1164,6 +1166,90 @@ def create_app(db_path: str | None = None) -> FastAPI:
             error_traces=stats.get("error_traces") or 0,
             avg_duration_ms=stats.get("avg_duration_ms") or 0,
         )
+
+    # -----------------------------------------------------------------------
+    # Stats trends + summary
+    # -----------------------------------------------------------------------
+
+    @app.get("/v1/stats/trends")
+    async def stats_trends(hours: int = 24, bucket_minutes: int = 60) -> JSONResponse:
+        """Return trace count and error count bucketed by time.
+
+        Returns data suitable for a line chart showing activity over time.
+        """
+        hours = min(hours, 168)  # Max 1 week
+        bucket_minutes = max(5, min(bucket_minutes, 1440))
+
+        now = time.time()
+        start = now - (hours * 3600)
+        bucket_size = bucket_minutes * 60
+
+        # Query traces in time range
+        try:
+            traces = store.get_traces_by_time_range(start=start, end=now)
+        except Exception:
+            logger.exception("Failed to get traces for trends")
+            raise HTTPException(500, "Failed to retrieve traces for trends")
+
+        # Bucket them
+        buckets: dict[float, dict[str, Any]] = {}
+        for t in traces:
+            bucket_key = int((t["start_time"] - start) / bucket_size)
+            bucket_time = start + bucket_key * bucket_size
+            if bucket_time not in buckets:
+                buckets[bucket_time] = {"timestamp": bucket_time, "traces": 0, "errors": 0, "cost": 0.0}
+            buckets[bucket_time]["traces"] += 1
+            if t.get("has_errors"):
+                buckets[bucket_time]["errors"] += 1
+            buckets[bucket_time]["cost"] += t.get("total_cost_usd", 0)
+
+        # Fill gaps with zeros
+        result = []
+        current = start
+        while current < now:
+            if current in buckets:
+                result.append(buckets[current])
+            else:
+                result.append({"timestamp": current, "traces": 0, "errors": 0, "cost": 0.0})
+            current += bucket_size
+
+        return JSONResponse({"buckets": result, "hours": hours, "bucket_minutes": bucket_minutes})
+
+    @app.get("/v1/stats/summary")
+    async def stats_summary() -> JSONResponse:
+        """Enhanced stats with per-agent breakdown."""
+        try:
+            basic = store.get_stats()
+        except Exception:
+            logger.exception("Failed to get basic stats for summary")
+            raise HTTPException(500, "Failed to retrieve statistics")
+
+        # Get agent breakdown
+        try:
+            traces = store.list_traces(limit=1000)
+        except Exception:
+            logger.exception("Failed to list traces for stats summary")
+            raise HTTPException(500, "Failed to retrieve traces")
+
+        agent_stats: dict[str, dict[str, Any]] = {}
+        for t in traces:
+            tags = t.get("tags") or {}
+            if isinstance(tags, str):
+                import json as _json
+                tags = _json.loads(tags)
+            agent = tags.get("agent", "unknown")
+            if agent not in agent_stats:
+                agent_stats[agent] = {"traces": 0, "errors": 0, "cost": 0.0, "spans": 0}
+            agent_stats[agent]["traces"] += 1
+            if t.get("has_errors"):
+                agent_stats[agent]["errors"] += 1
+            agent_stats[agent]["cost"] += t.get("total_cost_usd", 0)
+            agent_stats[agent]["spans"] += t.get("span_count", 0)
+
+        return JSONResponse({
+            **basic,
+            "agent_breakdown": agent_stats,
+        })
 
     # -----------------------------------------------------------------------
     # Health

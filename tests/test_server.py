@@ -1028,3 +1028,115 @@ class TestAPI:
             client.post("/v1/traces/ingest", json=_make_trace_data(f"lim-{i}", tags={"agent": "bot"}))
         resp = client.get("/v1/activity/stream?limit=3")
         assert len(resp.json()["events"]) <= 3
+
+    # ------------------------------------------------------------------
+    # New: GET /v1/stats/trends
+    # ------------------------------------------------------------------
+
+    def test_stats_trends_empty(self, client):
+        """Trends endpoint returns bucketed data even when no traces exist."""
+        resp = client.get("/v1/stats/trends?hours=1&bucket_minutes=60")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "buckets" in data
+        assert "hours" in data
+        assert "bucket_minutes" in data
+        assert data["hours"] == 1
+        assert data["bucket_minutes"] == 60
+        # All buckets should have zero counts
+        for bucket in data["buckets"]:
+            assert bucket["traces"] == 0
+            assert bucket["errors"] == 0
+            assert bucket["cost"] == 0.0
+
+    def test_stats_trends_with_data(self, client):
+        """Traces ingested now appear in the current bucket."""
+        now = time.time()
+        # Ingest one normal trace and one error trace in the current window
+        client.post("/v1/traces/ingest", json=_make_trace_data("trend-ok", start_time=now - 10))
+        client.post("/v1/traces/ingest", json=_make_trace_data("trend-err", has_errors=True, start_time=now - 5))
+
+        resp = client.get("/v1/stats/trends?hours=1&bucket_minutes=60")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["hours"] == 1
+        assert data["bucket_minutes"] == 60
+
+        # At least one bucket should have traces > 0
+        total_traces = sum(b["traces"] for b in data["buckets"])
+        total_errors = sum(b["errors"] for b in data["buckets"])
+        assert total_traces >= 2
+        assert total_errors >= 1
+
+    def test_stats_trends_custom_params(self, client):
+        """Custom hours and bucket_minutes are reflected in the response and clipped correctly."""
+        # Test with custom params within allowed range
+        resp = client.get("/v1/stats/trends?hours=48&bucket_minutes=30")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["hours"] == 48
+        assert data["bucket_minutes"] == 30
+        # 48 hours with 30 min buckets = 96 buckets (approximately)
+        assert len(data["buckets"]) >= 90
+
+        # Test that hours is capped at 168 (1 week)
+        resp2 = client.get("/v1/stats/trends?hours=999&bucket_minutes=1440")
+        assert resp2.status_code == 200
+        assert resp2.json()["hours"] == 168
+        # bucket_minutes capped at 1440
+        assert resp2.json()["bucket_minutes"] == 1440
+
+        # Test that bucket_minutes is floored at 5
+        resp3 = client.get("/v1/stats/trends?hours=1&bucket_minutes=1")
+        assert resp3.status_code == 200
+        assert resp3.json()["bucket_minutes"] == 5
+
+    # ------------------------------------------------------------------
+    # New: GET /v1/stats/summary
+    # ------------------------------------------------------------------
+
+    def test_stats_summary_endpoint(self, client):
+        """Summary endpoint returns basic stats merged with agent_breakdown."""
+        resp = client.get("/v1/stats/summary")
+        assert resp.status_code == 200
+        data = resp.json()
+        # Should contain basic stats keys
+        assert "total_traces" in data
+        assert "total_spans" in data
+        assert "total_cost" in data
+        assert "error_traces" in data
+        # Should contain agent_breakdown
+        assert "agent_breakdown" in data
+        assert isinstance(data["agent_breakdown"], dict)
+
+    def test_stats_summary_agent_breakdown(self, client):
+        """Per-agent breakdown is populated from trace tags."""
+        now = time.time()
+        # Ingest traces for two distinct agents
+        client.post("/v1/traces/ingest", json=_make_trace_data(
+            "sum-a1", tags={"agent": "agent-alpha"}, start_time=now - 20
+        ))
+        client.post("/v1/traces/ingest", json=_make_trace_data(
+            "sum-a2", tags={"agent": "agent-alpha"}, start_time=now - 15
+        ))
+        client.post("/v1/traces/ingest", json=_make_trace_data(
+            "sum-b1", tags={"agent": "agent-beta"}, has_errors=True, start_time=now - 10
+        ))
+
+        resp = client.get("/v1/stats/summary")
+        assert resp.status_code == 200
+        breakdown = resp.json()["agent_breakdown"]
+
+        # agent-alpha should have 2 traces, 0 errors
+        assert "agent-alpha" in breakdown
+        alpha = breakdown["agent-alpha"]
+        assert alpha["traces"] == 2
+        assert alpha["errors"] == 0
+        assert alpha["cost"] >= 0.0
+        assert alpha["spans"] >= 0
+
+        # agent-beta should have 1 trace with 1 error
+        assert "agent-beta" in breakdown
+        beta = breakdown["agent-beta"]
+        assert beta["traces"] == 1
+        assert beta["errors"] == 1
