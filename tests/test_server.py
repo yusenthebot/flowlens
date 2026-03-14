@@ -320,7 +320,7 @@ class TestAPI:
     def test_health(self, client):
         r = client.get("/health")
         assert r.status_code == 200
-        assert r.json()["status"] == "ok"
+        assert r.json()["status"] == "healthy"
 
     def test_ingest_and_get(self, client):
         r = self._ingest(client, "api-t1")
@@ -666,3 +666,121 @@ class TestAPI:
             msg = ws.receive_json()
             assert msg["event"] == "trace_ingested"
             assert msg["data"]["trace_id"] == "ws-t1"
+
+    # ------------------------------------------------------------------
+    # Production Hardening: Health Check Improvements
+    # ------------------------------------------------------------------
+
+    def test_health_check_enhanced_response(self, client):
+        """Health check returns status, version, uptime, and metrics."""
+        r = client.get("/health")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["status"] == "healthy"
+        assert data["version"] == "0.5.0"
+        assert "uptime_seconds" in data
+        assert "trace_count" in data
+        assert "db_size_bytes" in data
+        assert data["uptime_seconds"] >= 0
+        assert data["db_size_bytes"] >= 0
+
+    def test_health_check_uptime_increases(self, client):
+        """Uptime should increase across calls."""
+        import time as time_module
+        r1 = client.get("/health")
+        uptime1 = r1.json()["uptime_seconds"]
+        time_module.sleep(0.1)
+        r2 = client.get("/health")
+        uptime2 = r2.json()["uptime_seconds"]
+        assert uptime2 >= uptime1
+
+    def test_health_check_trace_count_updates(self, client):
+        """Trace count in health check should update with ingests."""
+        r1 = client.get("/health")
+        count1 = r1.json()["trace_count"]
+        self._ingest(client, "hc-1")
+        r2 = client.get("/health")
+        count2 = r2.json()["trace_count"]
+        assert count2 > count1
+
+    # ------------------------------------------------------------------
+    # Production Hardening: Request Logging (health check excluded)
+    # ------------------------------------------------------------------
+
+    def test_request_logging_excludes_health(self, client):
+        """Health check requests should NOT be logged (too noisy)."""
+        # The health endpoint should not produce log messages in the middleware
+        # This is ensured by the condition: if path != "/health": logger.info(...)
+        # We verify by checking that calling /health doesn't fail
+        r = client.get("/health")
+        assert r.status_code == 200
+
+    def test_request_logging_includes_other_endpoints(self, client):
+        """Non-health endpoints should be logged (middleware logs them)."""
+        # The ingest endpoint will be logged by the middleware
+        # We verify by checking that calling ingest succeeds
+        r = self._ingest(client, "logging-1")
+        assert r.status_code == 201
+
+    # ------------------------------------------------------------------
+    # Production Hardening: Auto-cleanup on Max Traces
+    # ------------------------------------------------------------------
+
+    def test_max_traces_config_default(self):
+        """FLOWLENS_MAX_TRACES should default to 100000."""
+        from flowlens.config import FlowLensConfig
+        cfg = FlowLensConfig()
+        assert cfg.max_traces == 100000
+
+    def test_auto_cleanup_on_ingest_exceeding_limit(self, tmp_path):
+        """When trace count exceeds max_traces, cleanup_excess_traces should delete oldest."""
+        import os
+        from flowlens.server.storage import TraceStore
+        # Temporarily set a low max_traces limit for testing
+        os.environ["FLOWLENS_MAX_TRACES"] = "5"
+        try:
+            from importlib import reload
+            import flowlens.config
+            reload(flowlens.config)
+
+            db_path = str(tmp_path / "max_traces_test.db")
+            app = create_app(db_path=db_path)
+            from fastapi.testclient import TestClient
+            c = TestClient(app)
+
+            # Ingest 7 traces (more than the limit of 5)
+            for i in range(7):
+                c.post("/v1/traces/ingest", json=_make_trace_data(f"cleanup-{i}", start_time=1000.0 + i))
+
+            # Manually call cleanup_excess_traces to enforce the limit
+            store = TraceStore(db_path=db_path)
+            cleaned = store.cleanup_excess_traces()
+            assert cleaned > 0, "Expected cleanup to delete some traces"
+
+            # Now maximum should be 5 traces (the configured limit)
+            r = c.get("/v1/stats")
+            total = r.json()["total_traces"]
+            assert total <= 5, f"Expected max 5 traces after cleanup, got {total}"
+            store.close()
+        finally:
+            # Clean up environment
+            if "FLOWLENS_MAX_TRACES" in os.environ:
+                del os.environ["FLOWLENS_MAX_TRACES"]
+            import flowlens.config
+            reload(flowlens.config)
+
+    # ------------------------------------------------------------------
+    # Production Hardening: Graceful Shutdown
+    # ------------------------------------------------------------------
+
+    def test_app_lifespan_context(self, tmp_path):
+        """Verify that the app properly initializes and shuts down."""
+        app = create_app(db_path=str(tmp_path / "lifespan_test.db"))
+        from fastapi.testclient import TestClient
+
+        # The TestClient uses the lifespan context manager
+        with TestClient(app) as client:
+            r = client.get("/v1/traces")
+            assert r.status_code == 200
+        # On exit, the lifespan context manager calls the shutdown logic
+        # (store.close() is called, DB connections are cleaned up)

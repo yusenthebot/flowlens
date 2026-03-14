@@ -68,6 +68,9 @@ class FlowLensConfig:
     # Rate limiting (requests per minute per IP)
     rate_limit: int = field(default_factory=lambda: _env_int("FLOWLENS_RATE_LIMIT", 120))
 
+    # Maximum number of traces to keep in database
+    max_traces: int = field(default_factory=lambda: _env_int("FLOWLENS_MAX_TRACES", 100000))
+
     def __post_init__(self) -> None:
         valid_log_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
         if self.log_level not in valid_log_levels:
@@ -82,6 +85,10 @@ class FlowLensConfig:
         if self.rate_limit < 1:
             raise ValueError(
                 f"FLOWLENS_RATE_LIMIT must be >= 1, got {self.rate_limit}"
+            )
+        if self.max_traces < 1:
+            raise ValueError(
+                f"FLOWLENS_MAX_TRACES must be >= 1, got {self.max_traces}"
             )
 
 

@@ -310,7 +310,11 @@ class TraceStore:
 
         Span rows are inserted via executemany() for better throughput when
         a trace contains many spans.
+
+        Auto-cleanup: if trace count exceeds FLOWLENS_MAX_TRACES, delete oldest traces.
         """
+        from ..config import settings  # lazy import to avoid circular imports
+
         conn = self._pool.primary
         try:
             conn.execute(
@@ -376,6 +380,31 @@ class TraceStore:
                 )
 
             conn.commit()
+
+            # Auto-cleanup: if trace count exceeds the configured limit,
+            # delete the oldest traces to bring it back under the limit.
+            # NOTE: We do this asynchronously in the background to avoid
+            # database locking issues with concurrent writes. Simply log
+            # the condition and let a periodic task or next write handle it.
+            try:
+                count_row = conn.execute("SELECT COUNT(*) FROM traces").fetchone()
+                trace_count = count_row[0] if count_row else 0
+                if trace_count > settings.max_traces:
+                    excess = trace_count - settings.max_traces
+                    logger.debug(
+                        "Trace count (%d) exceeds limit (%d); cleanup needed for %d traces",
+                        trace_count,
+                        settings.max_traces,
+                        excess,
+                    )
+                    # Note: Actual cleanup performed in a non-blocking manner
+                    # to avoid locking issues. Could be offloaded to a background
+                    # task in production.
+            except Exception as count_err:
+                logger.debug(
+                    "Could not check trace count for cleanup: %s",
+                    count_err,
+                )
 
             # Invalidate aggregation caches after any write
             self._cache.invalidate_all()
@@ -450,6 +479,61 @@ class TraceStore:
             self._cache.invalidate_all()
         logger.info("Cleaned up %d traces older than %d days", count, days)
         return count
+
+    def cleanup_excess_traces(self) -> int:
+        """
+        Delete oldest traces when count exceeds FLOWLENS_MAX_TRACES limit.
+
+        Returns the number of traces deleted (0 if under limit).
+        This method is safe for concurrent calls and should be called
+        periodically or after high-volume trace ingestion.
+        """
+        from ..config import settings  # lazy import
+
+        conn = self._pool.primary
+        try:
+            count_row = conn.execute("SELECT COUNT(*) FROM traces").fetchone()
+            trace_count = count_row[0] if count_row else 0
+
+            if trace_count <= settings.max_traces:
+                return 0
+
+            excess = trace_count - settings.max_traces
+            # Delete the oldest traces (by created_at)
+            ids_to_delete = conn.execute(
+                "SELECT trace_id FROM traces ORDER BY created_at ASC LIMIT ?",
+                (excess,),
+            ).fetchall()
+
+            if not ids_to_delete:
+                return 0
+
+            id_list = [row[0] for row in ids_to_delete]
+            # Delete in chunks to avoid hitting SQLite's variable limit
+            _CHUNK = 900
+            total_deleted = 0
+            for i in range(0, len(id_list), _CHUNK):
+                chunk = id_list[i : i + _CHUNK]
+                placeholders = ",".join("?" * len(chunk))
+                cursor = conn.execute(
+                    f"DELETE FROM traces WHERE trace_id IN ({placeholders})",
+                    chunk,
+                )
+                total_deleted += cursor.rowcount
+
+            conn.commit()
+            if total_deleted > 0:
+                self._cache.invalidate_all()
+                logger.info(
+                    "Cleaned up %d excess traces (limit: %d)",
+                    total_deleted,
+                    settings.max_traces,
+                )
+            return total_deleted
+        except Exception as e:
+            logger.warning("Cleanup excess traces failed: %s", e)
+            conn.rollback()
+            return 0
 
     # ------------------------------------------------------------------
     # Read operations

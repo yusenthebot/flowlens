@@ -11,6 +11,7 @@ from click.testing import CliRunner
 
 import flowlens as _fl_pkg
 from flowlens.cli import cli
+from flowlens.server.storage import TraceStore
 
 
 # ---------------------------------------------------------------------------
@@ -21,6 +22,96 @@ from flowlens.cli import cli
 def runner() -> CliRunner:
     """Return an isolated Click test runner."""
     return CliRunner()
+
+
+# Minimal trace dict used by multiple fixtures
+_TRACE_A = {
+    "trace_id": "export-test-t1",
+    "service_name": "svc-export",
+    "start_time": 1_700_000_000.0,
+    "end_time": 1_700_000_001.0,
+    "duration_ms": 1000.0,
+    "span_count": 1,
+    "total_tokens": 300,
+    "total_cost_usd": 0.003,
+    "has_errors": False,
+    "error_count": 0,
+    "metadata": {},
+    "spans": [
+        {
+            "span_id": "sp-export-1",
+            "trace_id": "export-test-t1",
+            "parent_span_id": None,
+            "name": "agent",
+            "kind": "agent",
+            "status": "ok",
+            "start_time": 1_700_000_000.0,
+            "end_time": 1_700_000_001.0,
+            "duration_ms": 1000.0,
+            "attributes": {},
+            "events": [],
+        }
+    ],
+}
+
+_TRACE_B = {
+    "trace_id": "export-test-t2",
+    "service_name": "svc-other",
+    "start_time": 1_700_000_100.0,
+    "end_time": 1_700_000_101.0,
+    "duration_ms": 1000.0,
+    "span_count": 1,
+    "total_tokens": 100,
+    "total_cost_usd": 0.001,
+    "has_errors": True,
+    "error_count": 1,
+    "metadata": {},
+    "spans": [
+        {
+            "span_id": "sp-export-2",
+            "trace_id": "export-test-t2",
+            "parent_span_id": None,
+            "name": "tool",
+            "kind": "tool",
+            "status": "error",
+            "start_time": 1_700_000_100.0,
+            "end_time": 1_700_000_101.0,
+            "duration_ms": 1000.0,
+            "attributes": {},
+            "events": [],
+            "error": {"message": "timeout"},
+        }
+    ],
+}
+
+
+@pytest.fixture()
+def populated_db(tmp_path: Path) -> Path:
+    """Create a SQLite DB with two traces pre-loaded, return the db path."""
+    db_path = tmp_path / "test.db"
+    store = TraceStore(db_path=str(db_path))
+    store.save_trace(_TRACE_A)
+    store.save_trace(_TRACE_B)
+    return db_path
+
+
+@pytest.fixture()
+def import_json_file(tmp_path: Path) -> Path:
+    """A JSON file containing a list of two trace objects."""
+    p = tmp_path / "import_traces.json"
+    p.write_text(json.dumps([_TRACE_A, _TRACE_B]), encoding="utf-8")
+    return p
+
+
+@pytest.fixture()
+def import_jsonl_file(tmp_path: Path) -> Path:
+    """A JSONL file containing two trace objects."""
+    p = tmp_path / "import_traces.jsonl"
+    p.write_text(
+        json.dumps(_TRACE_A) + "\n" + json.dumps(_TRACE_B) + "\n",
+        encoding="utf-8",
+    )
+    return p
 
 
 @pytest.fixture()
@@ -315,3 +406,284 @@ class TestDemoCommand:
         result = runner.invoke(cli, ["demo", "--help"])
         assert result.exit_code == 0
         assert "demo" in result.output.lower()
+
+
+# ---------------------------------------------------------------------------
+# `flowlens export`
+# ---------------------------------------------------------------------------
+
+class TestExportCommand:
+    def test_export_help(self, runner: CliRunner) -> None:
+        result = runner.invoke(cli, ["export", "--help"])
+        assert result.exit_code == 0
+        assert "--format" in result.output
+        assert "--output" in result.output
+        assert "--service" in result.output
+        assert "--since" in result.output
+        assert "--limit" in result.output
+
+    def test_export_missing_db_exits_nonzero(self, runner: CliRunner, tmp_path: Path) -> None:
+        nonexistent = tmp_path / "no.db"
+        result = runner.invoke(cli, ["export", "--db", str(nonexistent)])
+        assert result.exit_code != 0
+
+    def test_export_json_default(self, runner: CliRunner, populated_db: Path) -> None:
+        result = runner.invoke(cli, ["export", "--db", str(populated_db)])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert isinstance(data, list)
+        assert len(data) == 2
+
+    def test_export_jsonl_format(self, runner: CliRunner, populated_db: Path) -> None:
+        result = runner.invoke(cli, ["export", "--db", str(populated_db), "--format", "jsonl"])
+        assert result.exit_code == 0
+        lines = [l for l in result.output.strip().splitlines() if l.strip()]
+        assert len(lines) == 2
+        for line in lines:
+            obj = json.loads(line)
+            assert "trace_id" in obj
+
+    def test_export_csv_format(self, runner: CliRunner, populated_db: Path) -> None:
+        result = runner.invoke(cli, ["export", "--db", str(populated_db), "--format", "csv"])
+        assert result.exit_code == 0
+        assert "trace_id" in result.output  # header row
+        assert "export-test-t1" in result.output
+
+    def test_export_filter_by_service(self, runner: CliRunner, populated_db: Path) -> None:
+        result = runner.invoke(cli, ["export", "--db", str(populated_db), "--service", "svc-export"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert len(data) == 1
+        assert data[0]["trace_id"] == "export-test-t1"
+
+    def test_export_limit(self, runner: CliRunner, populated_db: Path) -> None:
+        result = runner.invoke(cli, ["export", "--db", str(populated_db), "--limit", "1"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert len(data) == 1
+
+    def test_export_since_filters_old_traces(self, runner: CliRunner, populated_db: Path) -> None:
+        # Use a timestamp after both traces; should return zero results
+        future_ts = 1_900_000_000.0
+        result = runner.invoke(cli, ["export", "--db", str(populated_db), "--since", str(future_ts)])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data == []
+
+    def test_export_since_iso_format(self, runner: CliRunner, populated_db: Path) -> None:
+        # ISO timestamp before both traces — should return all
+        result = runner.invoke(cli, [
+            "export", "--db", str(populated_db),
+            "--since", "2000-01-01T00:00:00",
+        ])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert len(data) == 2
+
+    def test_export_since_bad_value(self, runner: CliRunner, populated_db: Path) -> None:
+        result = runner.invoke(cli, [
+            "export", "--db", str(populated_db),
+            "--since", "not-a-date",
+        ])
+        assert result.exit_code != 0
+
+    def test_export_to_file(self, runner: CliRunner, populated_db: Path, tmp_path: Path) -> None:
+        out = tmp_path / "out.json"
+        result = runner.invoke(cli, [
+            "export", "--db", str(populated_db), "--output", str(out),
+        ])
+        assert result.exit_code == 0
+        assert out.exists()
+        data = json.loads(out.read_text())
+        assert isinstance(data, list)
+        assert len(data) == 2
+
+
+# ---------------------------------------------------------------------------
+# `flowlens import`
+# ---------------------------------------------------------------------------
+
+class TestImportCommand:
+    def test_import_help(self, runner: CliRunner) -> None:
+        result = runner.invoke(cli, ["import", "--help"])
+        assert result.exit_code == 0
+        assert "--db" in result.output
+
+    def test_import_json_array(
+        self, runner: CliRunner, import_json_file: Path, tmp_path: Path
+    ) -> None:
+        db = tmp_path / "import.db"
+        result = runner.invoke(cli, ["import", str(import_json_file), "--db", str(db)])
+        assert result.exit_code == 0
+        assert "2" in result.output  # "Imported 2 trace(s)"
+
+    def test_import_jsonl(
+        self, runner: CliRunner, import_jsonl_file: Path, tmp_path: Path
+    ) -> None:
+        db = tmp_path / "import_jsonl.db"
+        result = runner.invoke(cli, ["import", str(import_jsonl_file), "--db", str(db)])
+        assert result.exit_code == 0
+        assert "2" in result.output
+
+    def test_import_persists_to_db(
+        self, runner: CliRunner, import_json_file: Path, tmp_path: Path
+    ) -> None:
+        db = tmp_path / "persist.db"
+        result = runner.invoke(cli, ["import", str(import_json_file), "--db", str(db)])
+        assert result.exit_code == 0
+        store = TraceStore(db_path=str(db))
+        stats = store.get_stats()
+        assert (stats.get("total_traces") or 0) == 2
+
+    def test_import_single_object(self, runner: CliRunner, tmp_path: Path) -> None:
+        p = tmp_path / "single.json"
+        p.write_text(json.dumps(_TRACE_A), encoding="utf-8")
+        db = tmp_path / "single.db"
+        result = runner.invoke(cli, ["import", str(p), "--db", str(db)])
+        assert result.exit_code == 0
+        assert "1" in result.output
+
+    def test_import_empty_file_exits_nonzero(self, runner: CliRunner, tmp_path: Path) -> None:
+        p = tmp_path / "empty.json"
+        p.write_text("", encoding="utf-8")
+        db = tmp_path / "empty.db"
+        result = runner.invoke(cli, ["import", str(p), "--db", str(db)])
+        assert result.exit_code != 0
+
+    def test_import_nonexistent_file_exits_nonzero(self, runner: CliRunner, tmp_path: Path) -> None:
+        db = tmp_path / "x.db"
+        result = runner.invoke(cli, ["import", "/no/such/file.json", "--db", str(db)])
+        assert result.exit_code != 0
+
+    def test_import_shows_db_path(
+        self, runner: CliRunner, import_json_file: Path, tmp_path: Path
+    ) -> None:
+        db = tmp_path / "shown.db"
+        result = runner.invoke(cli, ["import", str(import_json_file), "--db", str(db)])
+        assert result.exit_code == 0
+        assert str(db) in result.output
+
+
+# ---------------------------------------------------------------------------
+# `flowlens stats`
+# ---------------------------------------------------------------------------
+
+class TestStatsCommand:
+    def test_stats_help(self, runner: CliRunner) -> None:
+        result = runner.invoke(cli, ["stats", "--help"])
+        assert result.exit_code == 0
+        assert "--db" in result.output
+
+    def test_stats_missing_db_exits_nonzero(self, runner: CliRunner, tmp_path: Path) -> None:
+        result = runner.invoke(cli, ["stats", "--db", str(tmp_path / "no.db")])
+        assert result.exit_code != 0
+
+    def test_stats_shows_trace_count(self, runner: CliRunner, populated_db: Path) -> None:
+        result = runner.invoke(cli, ["stats", "--db", str(populated_db)])
+        assert result.exit_code == 0
+        assert "Traces" in result.output
+        assert "2" in result.output
+
+    def test_stats_shows_span_count(self, runner: CliRunner, populated_db: Path) -> None:
+        result = runner.invoke(cli, ["stats", "--db", str(populated_db)])
+        assert result.exit_code == 0
+        assert "Spans" in result.output
+
+    def test_stats_shows_error_rate(self, runner: CliRunner, populated_db: Path) -> None:
+        result = runner.invoke(cli, ["stats", "--db", str(populated_db)])
+        assert result.exit_code == 0
+        assert "Error rate" in result.output or "error" in result.output.lower()
+
+    def test_stats_shows_tokens_and_cost(self, runner: CliRunner, populated_db: Path) -> None:
+        result = runner.invoke(cli, ["stats", "--db", str(populated_db)])
+        assert result.exit_code == 0
+        assert "tokens" in result.output.lower()
+        assert "cost" in result.output.lower()
+
+    def test_stats_shows_top_services(self, runner: CliRunner, populated_db: Path) -> None:
+        result = runner.invoke(cli, ["stats", "--db", str(populated_db)])
+        assert result.exit_code == 0
+        assert "svc-export" in result.output or "svc-other" in result.output
+
+    def test_stats_shows_date_range(self, runner: CliRunner, populated_db: Path) -> None:
+        result = runner.invoke(cli, ["stats", "--db", str(populated_db)])
+        assert result.exit_code == 0
+        assert "Date range" in result.output or "date" in result.output.lower()
+
+    def test_stats_empty_db(self, runner: CliRunner, tmp_path: Path) -> None:
+        db = tmp_path / "empty.db"
+        store = TraceStore(db_path=str(db))  # creates schema
+        result = runner.invoke(cli, ["stats", "--db", str(db)])
+        assert result.exit_code == 0
+        assert "0" in result.output
+
+
+# ---------------------------------------------------------------------------
+# `flowlens health`
+# ---------------------------------------------------------------------------
+
+class TestHealthCommand:
+    def test_health_help(self, runner: CliRunner) -> None:
+        result = runner.invoke(cli, ["health", "--help"])
+        assert result.exit_code == 0
+        assert "--db" in result.output
+
+    def test_health_exits_zero(self, runner: CliRunner, populated_db: Path) -> None:
+        result = runner.invoke(cli, ["health", "--db", str(populated_db)])
+        assert result.exit_code == 0
+
+    def test_health_shows_server_status(self, runner: CliRunner, populated_db: Path) -> None:
+        result = runner.invoke(cli, ["health", "--db", str(populated_db)])
+        assert result.exit_code == 0
+        assert "Server" in result.output
+        assert "RUNNING" in result.output or "NOT RUNNING" in result.output
+
+    def test_health_shows_db_info(self, runner: CliRunner, populated_db: Path) -> None:
+        result = runner.invoke(cli, ["health", "--db", str(populated_db)])
+        assert result.exit_code == 0
+        assert "Database" in result.output
+        assert str(populated_db) in result.output
+
+    def test_health_shows_trace_count(self, runner: CliRunner, populated_db: Path) -> None:
+        result = runner.invoke(cli, ["health", "--db", str(populated_db)])
+        assert result.exit_code == 0
+        assert "Trace count" in result.output or "trace" in result.output.lower()
+
+    def test_health_shows_config(self, runner: CliRunner, populated_db: Path) -> None:
+        result = runner.invoke(cli, ["health", "--db", str(populated_db)])
+        assert result.exit_code == 0
+        assert "Configuration" in result.output or "config" in result.output.lower()
+
+    def test_health_missing_db_still_runs(self, runner: CliRunner, tmp_path: Path) -> None:
+        """health should exit 0 even when the DB doesn't exist (reports NOT FOUND)."""
+        result = runner.invoke(cli, ["health", "--db", str(tmp_path / "no.db")])
+        assert result.exit_code == 0
+        assert "NOT FOUND" in result.output
+
+    def test_health_shows_db_size(self, runner: CliRunner, populated_db: Path) -> None:
+        result = runner.invoke(cli, ["health", "--db", str(populated_db)])
+        assert result.exit_code == 0
+        # Size should contain a unit
+        assert "KB" in result.output or "MB" in result.output or "B" in result.output
+
+
+# ---------------------------------------------------------------------------
+# Root help shows new commands
+# ---------------------------------------------------------------------------
+
+class TestNewCommandsInHelp:
+    def test_export_in_help(self, runner: CliRunner) -> None:
+        result = runner.invoke(cli, ["--help"])
+        assert "export" in result.output
+
+    def test_import_in_help(self, runner: CliRunner) -> None:
+        result = runner.invoke(cli, ["--help"])
+        assert "import" in result.output
+
+    def test_stats_in_help(self, runner: CliRunner) -> None:
+        result = runner.invoke(cli, ["--help"])
+        assert "stats" in result.output
+
+    def test_health_in_help(self, runner: CliRunner) -> None:
+        result = runner.invoke(cli, ["--help"])
+        assert "health" in result.output

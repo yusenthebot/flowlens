@@ -31,6 +31,7 @@ from collections import defaultdict
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Optional
+import sqlite3
 
 from fastapi import (
     FastAPI,
@@ -285,15 +286,29 @@ def create_app(db_path: str | None = None) -> FastAPI:
     ws_manager = ConnectionManager()
     rate_limiter = _RateLimiter(requests_per_minute=settings.rate_limit)
 
+    # Track server start time for uptime calculation
+    _server_start_time: float = time.time()
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
-        yield
-        store.close()
+        logger.info("FlowLens server started")
+        try:
+            yield
+        finally:
+            logger.info("FlowLens server shutting down")
+            # Graceful shutdown: flush any pending operations
+            try:
+                # Give any pending writes a moment to complete
+                time.sleep(0.1)
+            except Exception:
+                pass
+            store.close()
+            logger.info("Database connections closed")
 
     app = FastAPI(
         title="FlowLens",
         description="Agent Observability Platform — Chrome DevTools for LLM Agents",
-        version="0.2.0",
+        version="0.5.0",
         lifespan=lifespan,
     )
 
@@ -335,9 +350,9 @@ def create_app(db_path: str | None = None) -> FastAPI:
     async def security_and_rate_limit(request: Request, call_next):  # type: ignore[no-untyped-def]
         start = time.perf_counter()
         client_ip = request.client.host if request.client else "unknown"
+        path = request.url.path
 
         # Per-endpoint rate-limit budget: ingest gets 3× the default allowance.
-        path = request.url.path
         if path == "/v1/traces/ingest":
             limit_key = "ingest"
             limit_override = settings.rate_limit * 3
@@ -381,13 +396,16 @@ def create_app(db_path: str | None = None) -> FastAPI:
             )
 
         elapsed_ms = (time.perf_counter() - start) * 1000
-        logger.info(
-            "%s %s %d %.1fms",
-            request.method,
-            path,
-            response.status_code,
-            elapsed_ms,
-        )
+
+        # Log request details (exclude health checks to reduce noise)
+        if path != "/health":
+            logger.info(
+                "%s %s %d %.1fms",
+                request.method,
+                path,
+                response.status_code,
+                elapsed_ms,
+            )
 
         # Security headers — prevent common web vulnerabilities
         response.headers["X-Content-Type-Options"] = "nosniff"
@@ -443,6 +461,7 @@ def create_app(db_path: str | None = None) -> FastAPI:
     @app.post("/v1/traces/ingest", status_code=201)
     async def ingest_trace(req: TraceIngestRequest) -> dict[str, str]:
         """Receive and persist trace data; broadcast to WebSocket subscribers."""
+        import random
         # Enforce spans list size limit (belt-and-suspenders beyond Pydantic)
         if len(req.spans) > _MAX_SPANS_PER_INGEST:
             raise HTTPException(
@@ -453,6 +472,13 @@ def create_app(db_path: str | None = None) -> FastAPI:
         try:
             payload = req.model_dump()
             store.save_trace(payload)
+            # Periodically check if cleanup is needed (~1% of ingests)
+            # to prevent database from growing unbounded
+            if random.random() < 0.01:
+                try:
+                    store.cleanup_excess_traces()
+                except Exception as cleanup_err:
+                    logger.debug("Background cleanup check failed: %s", cleanup_err)
         except Exception:
             logger.exception("Failed to save trace %s", req.trace_id[:32])
             raise HTTPException(500, "Failed to persist trace data")
@@ -767,8 +793,26 @@ def create_app(db_path: str | None = None) -> FastAPI:
     # -----------------------------------------------------------------------
 
     @app.get("/health")
-    async def health() -> dict[str, str]:
-        return {"status": "ok", "version": "0.2.0"}
+    async def health() -> dict[str, Any]:
+        """
+        Health check endpoint.
+
+        Returns server status, version, uptime, and database metrics.
+        """
+        uptime_seconds = int(time.time() - _server_start_time)
+        stats = store.get_stats()
+
+        # Get database file size in bytes
+        db_file_path = Path(store.db_path)
+        db_size_bytes = db_file_path.stat().st_size if db_file_path.exists() else 0
+
+        return {
+            "status": "healthy",
+            "version": "0.5.0",
+            "uptime_seconds": uptime_seconds,
+            "trace_count": stats.get("total_traces") or 0,
+            "db_size_bytes": db_size_bytes,
+        }
 
     # -----------------------------------------------------------------------
     # Dashboard

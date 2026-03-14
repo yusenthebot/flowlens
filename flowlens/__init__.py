@@ -40,7 +40,13 @@ from flowlens.sdk.context import (
 )
 from flowlens.sdk.models import SpanEvent, SpanKind
 from flowlens.sdk.auto_instrument import auto_instrument
-from flowlens.sdk.exporters import OTLPExporter
+from flowlens.sdk.exporters import (
+    OTLPExporter,
+    OTLPBatchExporter,
+    CSVExporter,
+    JSONLStreamExporter,
+)
+from flowlens.plugins import BasePlugin, PluginRegistry, discover_plugins, load_plugin
 
 __all__ = [
     "FlowLens",
@@ -61,4 +67,11 @@ __all__ = [
     "SpanEvent",
     "SpanKind",
     "OTLPExporter",
+    "OTLPBatchExporter",
+    "CSVExporter",
+    "JSONLStreamExporter",
+    "BasePlugin",
+    "PluginRegistry",
+    "discover_plugins",
+    "load_plugin",
 ]
