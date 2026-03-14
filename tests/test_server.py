@@ -667,6 +667,17 @@ class TestAPI:
             assert msg["event"] == "trace_ingested"
             assert msg["data"]["trace_id"] == "ws-t1"
 
+    def test_websocket_not_blocked_by_http_middleware(self, client):
+        """WebSocket upgrade requests must not be intercepted by the api_key_auth
+        or security_and_rate_limit HTTP middlewares — both guards early-return on
+        scope type 'websocket' so the connection should succeed with a 'connected'
+        event regardless of API-key configuration."""
+        with client.websocket_connect("/ws/traces") as ws:
+            msg = ws.receive_json()
+            assert msg["event"] == "connected", (
+                "Middleware blocked WebSocket upgrade — check early-return guards"
+            )
+
     # ------------------------------------------------------------------
     # Production Hardening: Health Check Improvements
     # ------------------------------------------------------------------

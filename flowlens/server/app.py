@@ -43,7 +43,7 @@ from fastapi import (
     WebSocketDisconnect,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel, Field, field_validator
 
 from .storage import TraceStore
@@ -373,6 +373,8 @@ def create_app(db_path: str | None = None) -> FastAPI:
 
     @app.middleware("http")
     async def api_key_auth(request: Request, call_next):  # type: ignore[no-untyped-def]
+        if request.scope.get("type") == "websocket":
+            return await call_next(request)
         if _api_key is not None and request.url.path not in _NO_AUTH_PATHS:
             provided = request.headers.get("X-API-Key")
             if provided != _api_key:
@@ -389,6 +391,8 @@ def create_app(db_path: str | None = None) -> FastAPI:
 
     @app.middleware("http")
     async def security_and_rate_limit(request: Request, call_next):  # type: ignore[no-untyped-def]
+        if request.scope.get("type") == "websocket":
+            return await call_next(request)
         start = time.perf_counter()
         client_ip = request.client.host if request.client else "unknown"
         path = request.url.path
@@ -1268,6 +1272,20 @@ def create_app(db_path: str | None = None) -> FastAPI:
     async def dashboard_alias() -> HTMLResponse:
         """Serve the FlowLens dashboard (alias)."""
         return HTMLResponse(content=_load_dashboard())
+
+    @app.get("/static/{filename}")
+    async def serve_static(filename: str) -> Response:
+        """Serve bundled static assets (Tailwind fallback, etc.)."""
+        import re
+        if not re.match(r'^[a-zA-Z0-9._-]+$', filename):
+            return JSONResponse({"detail": "invalid filename"}, status_code=400)
+        static_path = Path(__file__).parent / filename
+        if not static_path.exists():
+            return JSONResponse({"detail": "not found"}, status_code=404)
+        content_types = {".js": "application/javascript", ".css": "text/css"}
+        ct = content_types.get(static_path.suffix, "application/octet-stream")
+        return Response(content=static_path.read_bytes(), media_type=ct,
+                        headers={"Cache-Control": "public, max-age=86400"})
 
     return app
 
