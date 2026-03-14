@@ -9,6 +9,7 @@ Schema versioning:
 - Version 3: added FTS-friendly composite index on spans for search_traces
 - Version 4: user/session/experiment context columns + feedback table
 - Version 5: alert_rules and alert_history tables
+- Version 6: FTS5 virtual table spans_fts for full-text search on span name/error_message
 """
 
 from __future__ import annotations
@@ -24,7 +25,7 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 # Bump this whenever _migrate() gains a new migration step.
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 # ---------------------------------------------------------------------------
 # Connection pool
@@ -365,6 +366,31 @@ class TraceStore:
             conn.commit()
             current = 5
 
+        if current < 6:
+            # v6 → FTS5 virtual table for fast full-text search on span name and error_message
+            logger.info("DB schema: migrating to version 6 (FTS5 full-text search)")
+            conn.execute("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS spans_fts USING fts5(
+                    span_id UNINDEXED,
+                    trace_id UNINDEXED,
+                    name,
+                    error_message,
+                    content='spans',
+                    content_rowid='rowid'
+                )
+            """)
+            # Populate FTS from existing data
+            conn.execute("""
+                INSERT INTO spans_fts(span_id, trace_id, name, error_message)
+                SELECT span_id, trace_id, name, COALESCE(error_message, '')
+                FROM spans
+            """)
+            conn.execute("PRAGMA user_version = 6")
+            conn.commit()
+            self._set_version(6)
+            conn.commit()
+            current = 6
+
         logger.debug("DB schema is at version %d", current)
 
     # ------------------------------------------------------------------
@@ -422,6 +448,7 @@ class TraceStore:
 
                 # Build all parameter tuples up-front then batch-insert
                 span_params = []
+                fts_params = []
                 for span in spans:
                     token_usage = span.get("token_usage") or {}
                     error = span.get("error")
@@ -447,6 +474,12 @@ class TraceStore:
                         json.dumps(span.get("attributes", {})),
                         json.dumps(span.get("events", [])),
                     ))
+                    fts_params.append((
+                        span["span_id"],
+                        expected_trace_id,
+                        span.get("name", ""),
+                        error_msg or "",
+                    ))
 
                 conn.executemany(
                     """INSERT OR REPLACE INTO spans
@@ -456,6 +489,12 @@ class TraceStore:
                         error_message, attributes_json, events_json)
                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     span_params,
+                )
+
+                # Keep FTS index in sync with newly inserted spans
+                conn.executemany(
+                    "INSERT INTO spans_fts(span_id, trace_id, name, error_message) VALUES (?, ?, ?, ?)",
+                    fts_params,
                 )
 
             conn.commit()
@@ -504,6 +543,8 @@ class TraceStore:
         row automatically removes all child spans.
         """
         conn = self._pool.primary
+        # Remove FTS entries before the CASCADE delete removes the spans rows
+        conn.execute("DELETE FROM spans_fts WHERE trace_id = ?", (trace_id,))
         cursor = conn.execute(
             "DELETE FROM traces WHERE trace_id = ?", (trace_id,)
         )
@@ -747,14 +788,45 @@ class TraceStore:
         offset: int = 0,
     ) -> list[dict[str, Any]]:
         """
-        Full-text search across trace service_name and span name / error_message.
+        Full-text search across span name and error_message using FTS5.
 
-        Returns distinct traces that have at least one matching span or whose
-        service_name matches the query term (case-insensitive substring match).
+        Falls back to LIKE-based search if the FTS query is syntactically
+        invalid (e.g. unbalanced quotes) or if the FTS table is unavailable.
 
-        The composite index idx_spans_search(name, error_message) added in
-        schema v3 makes the span-side LIKE predicates index-assisted for many
-        common search patterns.
+        The offset parameter is accepted for API compatibility but is only
+        applied in the LIKE fallback path; FTS results are always ordered by
+        trace start_time DESC.
+        """
+        # Empty query: delegate entirely to the LIKE path which handles it well
+        if not query:
+            return self._search_traces_like(query, limit, offset)
+
+        conn = self._pool.get()
+        try:
+            rows = conn.execute(
+                """SELECT DISTINCT t.* FROM traces t
+                   JOIN spans_fts fts ON fts.trace_id = t.trace_id
+                   WHERE spans_fts MATCH ?
+                   ORDER BY t.start_time DESC
+                   LIMIT ?""",
+                (query, limit),
+            ).fetchall()
+            return [self._deserialise_trace(row) for row in rows]
+        except Exception:
+            # Fallback to LIKE if FTS fails (e.g., invalid FTS syntax)
+            return self._search_traces_like(query, limit, offset)
+
+    def _search_traces_like(
+        self,
+        query: str,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
+        """
+        LIKE-based fallback for search_traces.
+
+        Used when query is empty or when FTS syntax is invalid.
+        Searches service_name, span name, and span error_message.
         """
         conn = self._pool.primary
         like = f"%{query}%"

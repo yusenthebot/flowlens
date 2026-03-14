@@ -399,3 +399,63 @@ class TestFKConstraintResilience:
         # All stored spans must carry the correct (normalised) trace_id
         for span in retrieved["spans"]:
             assert span["trace_id"] == trace_id
+
+
+# ---------------------------------------------------------------------------
+# FTS5 full-text search
+# ---------------------------------------------------------------------------
+
+class TestFTSSearch:
+    def test_fts_search_by_span_name(self, store: TraceStore):
+        """Searching for a unique span name should return the owning trace."""
+        t = _make_trace(service="fts-svc", span_name="embedding_lookup")
+        store.save_trace(t)
+        results = store.search_traces("embedding_lookup")
+        assert any(r["trace_id"] == t["trace_id"] for r in results), (
+            "Expected trace not found in FTS results"
+        )
+
+    def test_fts_search_by_error_message(self, store: TraceStore):
+        """Searching for an error keyword should surface traces with matching error spans."""
+        t = _make_trace(service="err-fts-svc", span_name="run_tool", has_error=True)
+        # Override error message with a distinctive token
+        t["spans"][0]["error"] = {"message": "tokenizer_overflow detected"}
+        store.save_trace(t)
+        results = store.search_traces("tokenizer_overflow")
+        assert any(r["trace_id"] == t["trace_id"] for r in results), (
+            "Expected error trace not found via FTS on error_message"
+        )
+
+    def test_fts_search_no_results(self, store: TraceStore):
+        """Searching for a term that does not exist should return an empty list."""
+        t = _make_trace(service="ordinary-svc", span_name="plain_span")
+        store.save_trace(t)
+        results = store.search_traces("xyzzy_nonexistent_token_42")
+        assert results == [], f"Expected no results, got: {results}"
+
+    def test_fts_search_after_delete(self, store: TraceStore):
+        """After deleting a trace the FTS index must not return it."""
+        t = _make_trace(service="ephemeral-svc", span_name="ephemeral_op")
+        store.save_trace(t)
+
+        # Verify it appears before deletion
+        before = store.search_traces("ephemeral_op")
+        assert any(r["trace_id"] == t["trace_id"] for r in before), (
+            "Trace should appear in FTS results before deletion"
+        )
+
+        store.delete_trace(t["trace_id"])
+
+        after = store.search_traces("ephemeral_op")
+        assert not any(r["trace_id"] == t["trace_id"] for r in after), (
+            "Deleted trace should not appear in FTS results"
+        )
+
+    def test_fts_fallback_on_invalid_syntax(self, store: TraceStore):
+        """An invalid FTS query (e.g. unmatched quote) must not raise — fallback to LIKE."""
+        t = _make_trace(service="fallback-svc", span_name="normal_span")
+        store.save_trace(t)
+        # Unmatched double-quote is invalid FTS5 syntax
+        results = store.search_traces('"unmatched')
+        # Result must be a list; no exception should propagate
+        assert isinstance(results, list)
