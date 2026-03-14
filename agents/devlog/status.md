@@ -11,9 +11,12 @@
 
 ## Beta Current Task
 - **Agent**: Beta
-- **Status**: in_progress
+- **Status**: complete
 - **Task**: Rewrite examples/demo_dashboard.html for v1.0.0 with agent team showcase
 - **Branch**: feat/beta-demo-dashboard-v1
+- **Commit**: [beta] docs: demo_dashboard.html rewrite with agent team showcase
+- **File**: `examples/demo_dashboard.html` — 1529 lines, standalone HTML, no server required
+- **Features**: 10 embedded DEMO_TRACES, 5 AGENT_PROFILES (Alpha/Beta/Gamma/Lead/Scribe), Overview with stats + charts + timeline, Agents tab with SVG avatar cards, Traces tab with filtering + waterfall detail, dark/light theme toggle, counter animations, gradient orbs, card stagger, 3D hover, Chart.js token + cost charts, keyboard shortcuts, GitHub footer link
 
 ---
 
