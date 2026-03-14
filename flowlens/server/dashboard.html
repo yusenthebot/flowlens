@@ -1701,6 +1701,17 @@ const SPAN_KIND_COLORS = {
   custom:    { bg: 'bg-[#a0a09a]/20', bar: '#a0a09a', text: 'text-[#a0a09a]', label: 'Custom' },
 };
 
+/** Extract agent name prefix from span name (e.g. "vr-alpha/Read" -> "vr-alpha") */
+function extractAgentFromSpanName(spanName) {
+  if (!spanName) return null;
+  const slashIdx = spanName.indexOf('/');
+  if (slashIdx > 0) {
+    const prefix = spanName.substring(0, slashIdx);
+    if (AGENT_PROFILES[prefix]) return prefix;
+  }
+  return null;
+}
+
 function renderWaterfallTimeline(spans) {
   const container = document.getElementById('timeline-container');
   if (!spans || spans.length === 0) {
@@ -1742,12 +1753,39 @@ function renderWaterfallTimeline(spans) {
   }
   timeAxisHtml += '</div>';
 
-  // Legend
-  let legendHtml = '<div class="flex flex-wrap gap-3 mb-3 pb-3 border-b border-white/5">';
+  // Collect agents present in these spans for the agent color legend
+  const traceAgentTag = currentTraceData && (currentTraceData.tags || {}).agent || null;
+  const agentsInTrace = new Map(); // agentKey -> profile color
+  flatList.forEach(({ span }) => {
+    const _spanAttrs = span.attributes || {};
+    const _agentFromAttr = _spanAttrs.agent || _spanAttrs['agent.name'] || traceAgentTag || null;
+    const _agentFromName = extractAgentFromSpanName(span.name);
+    const _agentKey = _agentFromAttr || _agentFromName;
+    if (_agentKey && !agentsInTrace.has(_agentKey)) {
+      agentsInTrace.set(_agentKey, getAgentProfile(_agentKey).color);
+    }
+  });
+
+  // Span-kind legend
+  let legendHtml = '<div class="flex flex-wrap gap-3 mb-2 pb-2 border-b border-white/5">';
   for (const [kind, cfg] of Object.entries(SPAN_KIND_COLORS)) {
     legendHtml += `<div class="flex items-center gap-1.5 text-xs ${cfg.text}"><span class="w-3 h-1.5 rounded-full" style="background:${cfg.bar}"></span>${cfg.label}</div>`;
   }
   legendHtml += '</div>';
+
+  // Agent color legend (shown only when agents are detected in spans)
+  if (agentsInTrace.size > 0) {
+    legendHtml += '<div class="flex flex-wrap gap-3 mb-3 pb-3 border-b border-white/5 items-center">';
+    legendHtml += '<span class="text-[10px] text-slate-500 uppercase tracking-wider font-medium mr-1">Agents:</span>';
+    agentsInTrace.forEach((color, agentName) => {
+      const profile = getAgentProfile(agentName);
+      legendHtml += `<div class="flex items-center gap-1.5 text-xs" style="color:${color}">
+        ${renderAgentAvatar(agentName, 'sm')}
+        <span>${escHtml(profile.name)}</span>
+      </div>`;
+    });
+    legendHtml += '</div>';
+  }
 
   // Vertical gridlines behind bars
   let gridHtml = '<div class="absolute inset-0 ml-[220px] mr-[70px] pointer-events-none" style="top:0;bottom:0">';
@@ -1776,18 +1814,30 @@ function renderWaterfallTimeline(spans) {
     const durationMs = span.duration_ms || spanDuration * 1000 || 0;
     const durationStr = formatDuration(durationMs);
 
+    // Resolve agent color for bar fill (agent color > kind color; error always red)
+    const spanAttrs = span.attributes || {};
+    const agentFromAttr = spanAttrs.agent || spanAttrs['agent.name'] || traceAgentTag || null;
+    const agentFromName = extractAgentFromSpanName(span.name);
+    const spanAgentKey = agentFromAttr || agentFromName;
+    const agentBarColor = spanAgentKey ? getAgentProfile(spanAgentKey).color : null;
+
     const indent = depth * 20;
-    const barColor = isError ? '#c47070' : cfg.bar;
-    const barOpacity = isError ? 0.85 : 0.7;
+    const barColor = isError ? '#c47070' : (agentBarColor || cfg.bar);
+    const barOpacity = isError ? 0.85 : 0.75;
     const barBorder = isError ? '2px solid #d9a0a0' : 'none';
+    const errorTintStyle = isError ? 'box-shadow:inset 0 0 0 9999px rgba(196,112,112,0.18);' : '';
 
     // Build tooltip data attributes
     const tokens = span.token_usage ? (span.token_usage.total_tokens || (span.token_usage.input_tokens || 0) + (span.token_usage.output_tokens || 0) || 0) : 0;
     const cost = span.token_usage ? (span.token_usage.total_cost_usd || 0) : 0;
     const canCollapse = hasChildren[span.span_id];
 
+    // Error row: red left border + light red background tint
+    const rowErrorStyle = isError ? 'border-left:4px solid #c47070;background:rgba(196,112,112,0.06);' : '';
+
     rowsHtml += `
       <div class="flex items-center gap-0 py-1 px-2 rounded-lg hover:bg-white/[0.03] cursor-pointer transition group waterfall-row"
+           style="${rowErrorStyle}"
            data-span-id="${span.span_id}"
            data-parent-span-id="${span.parent_span_id || ''}"
            data-depth="${depth}"
@@ -1803,14 +1853,14 @@ function renderWaterfallTimeline(spans) {
         <!-- Label column with tree indentation -->
         <div class="span-label-col flex items-center gap-1 w-[220px] min-w-[220px] flex-shrink-0" style="padding-left:${indent}px">
           ${canCollapse ? `<button class="collapsible-chevron rotated w-4 h-4 flex items-center justify-center text-slate-600 hover:text-slate-400 flex-shrink-0 transition" onclick="event.stopPropagation(); toggleSpanChildren('${span.span_id}', this)" title="Collapse/Expand"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg></button>` : (depth > 0 ? '<span class="w-4 flex-shrink-0"></span>' : '')}
+          ${isError ? `<svg class="w-3 h-3 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" title="Error"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>` : ''}
           <span class="px-1.5 py-0.5 text-[10px] font-medium rounded flex-shrink-0 ${cfg.bg} ${cfg.text}">${cfg.label}</span>
-          <span class="text-xs text-slate-300 truncate group-hover:text-white transition">${escHtml(span.name)}</span>
-          ${isError ? '<span class="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" title="Error"></span>' : ''}
+          <span class="text-xs ${isError ? 'text-red-300' : 'text-slate-300'} truncate group-hover:text-white transition">${escHtml(span.name)}</span>
         </div>
         <!-- Bar column -->
         <div class="flex-1 relative h-7 min-w-0">
           <div class="span-bar absolute top-1 h-5 rounded flex items-center overflow-hidden"
-               style="left:${leftPct}%;width:${widthPct}%;background:${barColor};opacity:${barOpacity};border:${barBorder}">
+               style="left:${leftPct}%;width:${widthPct}%;background:${barColor};opacity:${barOpacity};border:${barBorder};${errorTintStyle}">
             ${widthPct > 8 ? `<span class="px-1.5 text-[10px] font-medium text-white/90 whitespace-nowrap">${durationStr}</span>` : ''}
           </div>
           ${widthPct <= 8 ? `<span class="absolute top-1.5 text-[10px] text-slate-500 whitespace-nowrap" style="left:${leftPct + widthPct + 0.5}%">${durationStr}</span>` : ''}
@@ -1897,11 +1947,30 @@ function openSpanDetail(spanId) {
   const cfg = SPAN_KIND_COLORS[kind] || SPAN_KIND_COLORS.custom;
   const isError = span.status === 'error';
 
+  // Resolve agent for this span
+  const spanDetailAttrs = span.attributes || {};
+  const sdAgentFromAttr = spanDetailAttrs.agent || spanDetailAttrs['agent.name'] || (currentTraceData && (currentTraceData.tags || {}).agent) || null;
+  const sdAgentFromName = extractAgentFromSpanName(span.name);
+  const sdAgentKey = sdAgentFromAttr || sdAgentFromName;
+  const sdAgentProfile = sdAgentKey ? getAgentProfile(sdAgentKey) : null;
+
   let html = '';
 
-  // Header
-  html += `<div class="mb-4">
-    <div class="flex items-center gap-2 mb-2">
+  // Header — agent avatar + kind badge + status
+  html += `<div class="mb-4">`;
+
+  // Agent row at the top if we know the agent
+  if (sdAgentProfile) {
+    html += `<div class="flex items-center gap-2 mb-3 p-2 rounded-lg" style="background:${sdAgentProfile.color}18;border:1px solid ${sdAgentProfile.color}30">
+      ${renderAgentAvatar(sdAgentKey, 'md')}
+      <div class="min-w-0">
+        <div class="text-xs font-semibold" style="color:${sdAgentProfile.color}">${escHtml(sdAgentProfile.name)}</div>
+        <div class="text-[10px] text-slate-500">${escHtml(sdAgentProfile.role)}</div>
+      </div>
+    </div>`;
+  }
+
+  html += `<div class="flex items-center gap-2 mb-2">
       <span class="px-2 py-0.5 text-xs font-medium rounded ${cfg.bg} ${cfg.text}">${cfg.label}</span>
       ${isError ? '<span class="px-2 py-0.5 text-xs font-medium rounded bg-red-500/10 text-red-300 border border-red-500/20">ERROR</span>' : '<span class="px-2 py-0.5 text-xs font-medium rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">OK</span>'}
     </div>
@@ -1954,45 +2023,66 @@ function openSpanDetail(spanId) {
     html += renderCollapsibleSection(`Children (${children.length})`, childrenHtml, true);
   }
 
-  // Token Usage — with visual breakdown
+  // Token Usage — mini bar chart (input vs output)
   const tu = span.token_usage;
   if (tu) {
     const totalTok = (tu.input_tokens || 0) + (tu.output_tokens || 0);
-    const inputPct = totalTok > 0 ? ((tu.input_tokens || 0) / totalTok * 100).toFixed(0) : 0;
-    const outputPct = totalTok > 0 ? ((tu.output_tokens || 0) / totalTok * 100).toFixed(0) : 0;
+    const inputPct = totalTok > 0 ? ((tu.input_tokens || 0) / totalTok * 100).toFixed(1) : 0;
+    const outputPct = totalTok > 0 ? ((tu.output_tokens || 0) / totalTok * 100).toFixed(1) : 0;
     html += renderCollapsibleSection('Token Usage', `
       <div class="space-y-2 text-xs">
-        <div class="flex justify-between"><span class="text-slate-500">Input</span><span class="text-slate-300">${(tu.input_tokens || 0).toLocaleString()}</span></div>
-        <div class="flex justify-between"><span class="text-slate-500">Output</span><span class="text-slate-300">${(tu.output_tokens || 0).toLocaleString()}</span></div>
-        ${totalTok > 0 ? `<div class="flex h-2 rounded-full overflow-hidden bg-surface-200 mt-1">
-          <div class="bg-blue-500/60" style="width:${inputPct}%" title="Input ${inputPct}%"></div>
-          <div class="bg-emerald-500/60" style="width:${outputPct}%" title="Output ${outputPct}%"></div>
+        <div class="flex justify-between items-center">
+          <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-sm bg-blue-500/60 flex-shrink-0"></span><span class="text-slate-500">Input</span></div>
+          <span class="text-slate-300 tabular-nums">${(tu.input_tokens || 0).toLocaleString()} <span class="text-slate-600 text-[10px]">(${inputPct}%)</span></span>
         </div>
-        <div class="flex justify-between text-[10px] text-slate-600"><span>Input ${inputPct}%</span><span>Output ${outputPct}%</span></div>` : ''}
-        <div class="flex justify-between border-t border-white/5 pt-1"><span class="text-slate-500">Cost</span><span class="text-emerald-300">$${(tu.total_cost_usd || 0).toFixed(6)}</span></div>
+        <div class="flex justify-between items-center">
+          <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-sm bg-emerald-500/60 flex-shrink-0"></span><span class="text-slate-500">Output</span></div>
+          <span class="text-slate-300 tabular-nums">${(tu.output_tokens || 0).toLocaleString()} <span class="text-slate-600 text-[10px]">(${outputPct}%)</span></span>
+        </div>
+        ${totalTok > 0 ? `<div>
+          <div class="flex h-3 rounded overflow-hidden bg-surface-200 mt-1 gap-0.5">
+            <div class="bg-blue-500/70 rounded-l transition-all" style="width:${inputPct}%" title="Input: ${inputPct}%"></div>
+            <div class="bg-emerald-500/70 rounded-r transition-all" style="width:${outputPct}%" title="Output: ${outputPct}%"></div>
+          </div>
+          <div class="flex justify-between text-[10px] text-slate-600 mt-0.5">
+            <span>Input ${inputPct}%</span>
+            <span>Total: ${totalTok.toLocaleString()}</span>
+            <span>Output ${outputPct}%</span>
+          </div>
+        </div>` : ''}
+        <div class="flex justify-between border-t border-white/5 pt-1.5">
+          <span class="text-slate-500">Cost</span>
+          <span class="text-emerald-300 font-medium">$${(tu.total_cost_usd || 0).toFixed(6)}</span>
+        </div>
       </div>
     `, true);
   }
 
-  // Error — collapsible, always open
+  // Error — collapsible, always open, with prominent red-bordered box
   if (span.error || span.error_message) {
     const errMsg = span.error ? (span.error.message || JSON.stringify(span.error)) : span.error_message;
     html += renderCollapsibleSection('Error', `
-      <div class="p-3 rounded-lg bg-red-500/5 border border-red-500/20 text-xs text-red-300 font-mono break-all">${escHtml(errMsg)}</div>
+      <div class="p-3 rounded-lg bg-red-500/8 border-2 border-red-500/60 text-xs text-red-300 font-mono break-all" style="border-left:4px solid #ef4444;background:rgba(239,68,68,0.06)">
+        <div class="flex items-center gap-1.5 mb-1.5">
+          <svg class="w-3.5 h-3.5 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+          <span class="font-semibold text-red-400 text-[11px] uppercase tracking-wider">Error</span>
+        </div>
+        ${escHtml(errMsg)}
+      </div>
     `, true, 'text-red-400');
   }
 
-  // Attributes — collapsible
+  // Attributes — collapsible, better key-value table layout
   const attrs = span.attributes || {};
   if (Object.keys(attrs).length > 0) {
-    let attrHtml = '<div class="space-y-1">';
+    let attrHtml = '<table class="w-full text-xs border-collapse">';
     for (const [key, val] of Object.entries(attrs)) {
-      attrHtml += `<div class="flex justify-between text-xs gap-2">
-        <span class="text-slate-500 truncate">${escHtml(key)}</span>
-        <span class="text-slate-300 text-right break-all">${escHtml(String(val))}</span>
-      </div>`;
+      attrHtml += `<tr class="border-b border-white/5 last:border-0">
+        <td class="py-1 pr-3 text-slate-500 font-medium align-top w-2/5 break-all">${escHtml(key)}</td>
+        <td class="py-1 text-slate-300 text-right align-top break-all">${escHtml(String(val))}</td>
+      </tr>`;
     }
-    attrHtml += '</div>';
+    attrHtml += '</table>';
     html += renderCollapsibleSection(`Attributes (${Object.keys(attrs).length})`, attrHtml, false);
   }
 
