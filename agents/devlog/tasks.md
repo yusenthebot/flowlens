@@ -1,6 +1,13 @@
 # Task Board — FlowLens Development
 
-**Project Status: Cycle 25 complete — Search & Keyboard UX delivered (Alpha/UX)**
+**Project Status: Cycle 25 complete — Reliability & Error Handling delivered (Gamma)**
+
+---
+
+## Cycle 25: Complete (2026-03-15) — RELIABILITY & ERROR HANDLING
+
+### Done (2026-03-15)
+- [x] **Reliability pass — error handling, empty states, loading skeletons** — Gamma — `apiFetch` wraps network errors to user-friendly message; `updateWsStatus` null-guards DOM elements; all tabs get skeleton loading states; graceful error messages instead of blank/broken views; Cost/Agents/Sessions/Patterns/Traces all have proper empty states and catch blocks — Commit 156b955 — `flowlens/server/static/dashboard.js`, `flowlens/server/static/charts.js`, `flowlens/server/static/network.js`, `flowlens/server/static/websocket.js`
 
 ---
 

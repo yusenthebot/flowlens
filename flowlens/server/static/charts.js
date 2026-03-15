@@ -273,12 +273,12 @@ async function loadOverviewCharts() {
     }
   } catch (err) {
     console.error('Overview charts error:', err);
-    // Show error visually
+    // Show a gentle placeholder — don't expose raw error to users
     const containers = ['overview-pie-agent', 'overview-bar-agent', 'overview-pie-errors'];
     containers.forEach(id => {
       const el = document.getElementById(id);
       if (el && el.parentElement) {
-        el.parentElement.innerHTML = '<p style="color:#ef4444;font-size:11px;padding:20px;text-align:center">Chart error: ' + (err.message || err) + '</p>';
+        el.parentElement.innerHTML = '<p style="color:#64748b;font-size:11px;padding:20px;text-align:center">No chart data yet</p>';
       }
     });
   }
@@ -410,9 +410,20 @@ async function loadSparklines() {
 // Activity Timeline
 // =========================================================================
 async function loadActivityTimeline() {
+  const container = document.getElementById('activity-timeline');
+  // Show skeleton rows while loading (only when container is empty to avoid flash on refresh)
+  if (container && !container.children.length) {
+    container.innerHTML = [1,2,3].map(() => `
+      <div class="flex items-start gap-2.5 px-4 py-2.5 border-l-2 border-slate-700">
+        <div class="flex-1 space-y-1">
+          <div class="skeleton skeleton-text w-48"></div>
+          <div class="skeleton skeleton-warm h-1.5 w-24 rounded"></div>
+        </div>
+        <div class="skeleton skeleton-text w-10 flex-shrink-0"></div>
+      </div>`).join('');
+  }
   try {
     const data = await apiFetch('/v1/activity/stream?limit=30');
-    const container = document.getElementById('activity-timeline');
     const countEl = document.getElementById('timeline-count');
 
     if (!data.events || data.events.length === 0) {
@@ -470,7 +481,13 @@ async function loadActivityTimeline() {
           <span class="text-[9px] text-slate-600 flex-shrink-0 mt-0.5">${timeAgo}</span>
         </div>`;
     }).join('');
-  } catch (e) { /* silently fail */ }
+  } catch (e) {
+    // Non-critical — show placeholder if container is empty
+    const container = document.getElementById('activity-timeline');
+    if (container && !container.children.length) {
+      container.innerHTML = '<p class="p-4 text-xs text-slate-600 italic">Activity unavailable</p>';
+    }
+  }
 }
 
 
@@ -667,11 +684,21 @@ async function loadTrendChart(hours) {
 // Cost Analysis
 // =========================================================================
 async function loadCostData() {
+  // Show skeleton loading state in summary cards area before data arrives
+  const summaryCardsEl = document.getElementById('cost-summary-cards');
+  if (summaryCardsEl) {
+    summaryCardsEl.innerHTML = [1,2,3,4].map(() => `
+      <div class="cost-summary-card">
+        <div class="skeleton skeleton-warm h-8 w-20 mb-2 rounded"></div>
+        <div class="skeleton skeleton-warm skeleton-text w-16"></div>
+      </div>`).join('');
+  }
+
   try {
     const [byService, byKind, byName, agentSummary, costTrends, optimization, tracesData] = await Promise.all([
-      apiFetch('/v1/cost/breakdown?group_by=service_name'),
-      apiFetch('/v1/cost/breakdown?group_by=kind'),
-      apiFetch('/v1/cost/breakdown?group_by=name'),
+      apiFetch('/v1/cost/breakdown?group_by=service_name').catch(() => []),
+      apiFetch('/v1/cost/breakdown?group_by=kind').catch(() => []),
+      apiFetch('/v1/cost/breakdown?group_by=name').catch(() => []),
       apiFetch('/v1/agents/summary').catch(() => ({ agents: [] })),
       apiFetch('/v1/cost/trends?granularity=daily&limit=30').catch(() => []),
       apiFetch('/v1/cost/optimization').catch(() => null),
@@ -716,6 +743,16 @@ async function loadCostData() {
     updateRefreshTime();
   } catch (err) {
     console.error('Cost load error:', err);
+    // Show user-friendly error in summary cards area
+    if (summaryCardsEl) {
+      summaryCardsEl.innerHTML = `
+        <div class="col-span-full flex items-center gap-2 py-4 text-sm text-red-400/80">
+          <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          Failed to load cost data${err && err.message ? ': ' + err.message : ''}. Check server connection.
+        </div>`;
+    }
   }
 }
 
@@ -1022,7 +1059,17 @@ async function loadCostTrends(granularity) {
     const trends = await apiFetch(`/v1/cost/trends?granularity=${granularity}&limit=${limit}`);
     _renderCostTrendsChart(trends, granularity);
   } catch (err) {
-    console.error('Cost trends error:', err);
+    console.warn('Cost trends unavailable:', err.message || err);
+    // Show fallback on canvas
+    const canvas = document.getElementById('chart-cost-trends');
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#475569';
+      ctx.font = '13px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Cost trend data unavailable', canvas.width / 2, canvas.height / 2);
+    }
   }
 }
 

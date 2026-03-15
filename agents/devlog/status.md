@@ -1,22 +1,26 @@
 # Agent Status — 2026-03-15
 
-## Cycle 25: Compare & Export Features — COMPLETE (Beta, 2026-03-15)
+## Cycle 25: Reliability & Error Handling — COMPLETE (Gamma, 2026-03-15)
 
-**Beta**: Fixed Compare view end-to-end and Export functionality
-- Commit: e176d37
-- Branch: `worktree-agent-a324c55b`
+**Gamma**: Graceful error handling, empty states, loading skeletons, WebSocket null-guards
+- Branch: `worktree-agent-a49272ca`
+- Commit: 156b955
 - Tests: 1208 passing (unchanged)
 - Delivered:
-  - Compare view now calls `/v1/traces/diff?a=&b=` in parallel with trace fetches
-  - Server diff summary rendered in verdict banner (real text not just "Trace B vs A")
-  - Span-level diff table: shared spans with A/B timing bars, faster=sage, slower=coral, error status
-  - only_in_a (removed spans) and only_in_b (added spans) shown as colored pill lists
-  - pattern_diffs: resolved patterns (sage "Fixed:") and new patterns (coral "New:")
-  - Side-by-side waterfall: proportional span bars rendered for both traces (up to 20 each)
-  - Fixed `exportDAGPng()`: `cyInstance.png({output:'blob'})` is invalid — now uses `blob-promise`
-    with graceful fallback to `base64uri` → manual Blob conversion
-  - `exportTraceJSON()` and `copyTraceId()` verified correct (no changes needed)
-- Files: `flowlens/server/static/dashboard.js`, `agents/devlog/status.md`
+  - `apiFetch()`: wraps `TypeError` (network down / server unreachable) into friendly "Could not reach server. Is it running?" message with `._isNetworkError` flag
+  - `updateWsStatus()`: null-guards `ws-dot` / `ws-label` elements — no crash if DOM not yet ready
+  - `loadAgentData()`: uses `apiFetch()` for both parallel fetches (was using raw `fetch()`); skeleton cards (3 × placeholder grid cards) while loading; empty state via `renderEmptyState()` for no-agent case
+  - `loadStats()` catch: shows "Stats unavailable — server unreachable" on `#last-refresh` instead of silent `updateWsStatus('error')` only
+  - `loadCostData()`: skeleton summary cards before data arrives; all 3 breakdown fetches wrapped in `.catch(()=>[])` so one failure doesn't kill the whole tab; user-friendly error block rendered in summary cards area on total failure
+  - `loadActivityTimeline()`: skeleton rows while loading; graceful placeholder text on error
+  - `loadSessions()`: skeleton cards (3 rows) while loading; error message includes `err.message` fallback
+  - `loadAllPatterns()`: skeleton block while loading (replaces immediate empty state flash); empty state now uses `renderEmptyState()` with getting-started guide when no traces yet
+  - `loadTraces()` / `loadRecentTraces()`: skeleton rows on first load (only when container is empty, avoids flash on live refresh)
+  - `loadAgentActivity()` catch: shows "Agent data unavailable" placeholder instead of silent failure
+  - `loadOverviewCharts()` catch: "No chart data yet" placeholder instead of raw red error with JS message
+  - `loadCostTrends()` catch: canvas fallback text on fetch failure
+  - `loadOverviewGraph()` catch: "Network graph unavailable" placeholder text in container
+- Files: `flowlens/server/static/dashboard.js`, `flowlens/server/static/charts.js`, `flowlens/server/static/network.js`, `flowlens/server/static/websocket.js`
 
 ---
 
