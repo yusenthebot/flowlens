@@ -103,10 +103,10 @@
       animation: cardSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
     }
     .stat-card-enter:nth-child(1) { animation-delay: 0ms; }
-    .stat-card-enter:nth-child(2) { animation-delay: 80ms; }
-    .stat-card-enter:nth-child(3) { animation-delay: 160ms; }
-    .stat-card-enter:nth-child(4) { animation-delay: 240ms; }
-    .stat-card-enter:nth-child(5) { animation-delay: 320ms; }
+    .stat-card-enter:nth-child(2) { animation-delay: 60ms; }
+    .stat-card-enter:nth-child(3) { animation-delay: 120ms; }
+    .stat-card-enter:nth-child(4) { animation-delay: 180ms; }
+    .stat-card-enter:nth-child(5) { animation-delay: 240ms; }
 
     /* Stagger slide-in-from-left animation for agent team bar */
     @keyframes slideInLeft {
@@ -4110,3 +4110,94 @@
     #agent-team-bar .glass {
       padding: 10px 14px !important;
     }
+
+    /* ==============================================================
+       Cycle 23: UI Animation Polish — Gamma
+       ============================================================== */
+
+    /* ---- Chart containers: fade in when charts are rendered ---- */
+    @keyframes chartReveal {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .chart-reveal {
+      animation: chartReveal 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    /* ---- Agent cards in the Agents tab: stagger fade-up on render ---- */
+    /* Applied by JS via animation-delay inline style */
+    .agent-card-stagger {
+      animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    /* ---- Pill nav glider: ensure it handles resize gracefully ---- */
+    .pill-nav-glider {
+      will-change: left, width;
+    }
+
+    /* ---- Trace row: ensure transition covers background smoothly ---- */
+    .trace-row {
+      transition: background-color 0.15s ease, padding-left 0.15s ease, transform 0.08s ease;
+    }
+
+    /* ---- View panel: ensure will-change for GPU compositing ---- */
+    .view-panel {
+      will-change: opacity, transform;
+    }
+    /* Clean up will-change after animation finishes to free GPU memory */
+    .view-panel:not(.view-enter):not(.view-leaving) {
+      will-change: auto;
+    }
+
+    /* ---- Theme toggle: smooth icon transition ---- */
+    #theme-icon-moon, #theme-icon-sun {
+      transition: opacity 0.25s ease, transform 0.25s ease;
+    }
+
+    /* ---- Doughnut center label: fade in after chart renders ---- */
+    .doughnut-center-label {
+      animation: fadeIn 0.5s ease-out 0.45s both;
+    }
+
+    /* ---- Sparkline: subtle fade in after stat card is visible ---- */
+    .stat-sparkline-canvas-wrap canvas {
+      animation: fadeIn 0.4s ease-out 0.35s both;
+    }
+
+    /* ---- Tooltip: Chart.js tooltips get a CSS fade via the wrapper div ---- */
+    /* Chart.js renders tooltips as canvas overlays — no DOM tooltip to style.
+       Instead we apply a CSS filter transition to the chart canvas on hover. */
+    canvas {
+      transition: filter 0.2s ease;
+    }
+
+    /* ---- Back-to-top: ensure it stays clear of tmux terminal ---- */
+    #back-to-top {
+      bottom: 28px;
+      right: 28px;
+    }
+    /* When tmux terminal is open, shift up so they don't overlap */
+    body:has(.tmux-widget:not(.hidden)) #back-to-top {
+      bottom: 470px;
+    }
+
+    /* ---- Notification panel: smooth slide-down reveal ---- */
+    @keyframes notifPanelSlide {
+      from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    #notification-panel:not(.hidden) {
+      animation: notifPanelSlide 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    /* ---- Activity timeline rows: subtle stagger via CSS ---- */
+    #activity-timeline .activity-event-row:nth-child(1)  { animation: fadeIn 0.25s ease-out   0ms both; }
+    #activity-timeline .activity-event-row:nth-child(2)  { animation: fadeIn 0.25s ease-out  30ms both; }
+    #activity-timeline .activity-event-row:nth-child(3)  { animation: fadeIn 0.25s ease-out  60ms both; }
+    #activity-timeline .activity-event-row:nth-child(4)  { animation: fadeIn 0.25s ease-out  90ms both; }
+    #activity-timeline .activity-event-row:nth-child(5)  { animation: fadeIn 0.25s ease-out 120ms both; }
+    #activity-timeline .activity-event-row:nth-child(6)  { animation: fadeIn 0.25s ease-out 150ms both; }
+    #activity-timeline .activity-event-row:nth-child(7)  { animation: fadeIn 0.25s ease-out 180ms both; }
+    #activity-timeline .activity-event-row:nth-child(8)  { animation: fadeIn 0.25s ease-out 210ms both; }
+    #activity-timeline .activity-event-row:nth-child(9)  { animation: fadeIn 0.25s ease-out 240ms both; }
+    #activity-timeline .activity-event-row:nth-child(10) { animation: fadeIn 0.25s ease-out 270ms both; }

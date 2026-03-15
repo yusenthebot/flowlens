@@ -881,7 +881,7 @@ async function loadAgentData() {
     if (elCost) elCost.textContent = totalCost < 1 ? '$' + totalCost.toFixed(4) : '$' + totalCost.toFixed(2);
     if (elTraces) elTraces.textContent = totalTraces.toLocaleString();
 
-    grid.innerHTML = agents.map(a => {
+    grid.innerHTML = agents.map((a, _agentIdx) => {
       const errPct = (a.error_rate * 100).toFixed(1);
       const errColor = a.error_rate < 0.05 ? 'stat-trend-up' : a.error_rate < 0.20 ? 'text-amber-400' : 'stat-trend-down';
       const latency = a.avg_duration_ms >= 1000
@@ -932,9 +932,10 @@ async function loadAgentData() {
         ? recentTools.map(t => `<span class="tool-badge">${escHtml(t)}</span>`).join(' ')
         : '<span class="text-[10px] text-slate-600">no recent tools</span>';
 
-      // Store agent data for modal access
+      // Store agent data for modal access; compute stagger delay for enter animation
       const agentDataEncoded = escHtml(JSON.stringify({ agent: a.agent, trace_count: a.trace_count, error_rate: a.error_rate, avg_duration_ms: a.avg_duration_ms, total_cost_usd: a.total_cost_usd, total_spans: a.total_spans }));
-      return `<div class="glass rounded-xl p-5 cursor-pointer border transition agent-card-polished" style="border-color:${avatarBg}18" onmouseover="this.style.borderColor='${avatarBg}45';this.style.boxShadow='0 8px 32px ${avatarBg}20'" onmouseout="this.style.borderColor='${avatarBg}18';this.style.boxShadow=''" onclick="openAgentDetailModal('${escHtml(a.agent)}', ${JSON.stringify(agentDataEncoded)})">
+      const staggerDelay = _agentIdx * 60;
+      return `<div class="glass rounded-xl p-5 cursor-pointer border transition agent-card-polished agent-card-stagger" style="border-color:${avatarBg}18;animation-delay:${staggerDelay}ms" onmouseover="this.style.borderColor='${avatarBg}45';this.style.boxShadow='0 8px 32px ${avatarBg}20'" onmouseout="this.style.borderColor='${avatarBg}18';this.style.boxShadow=''" onclick="openAgentDetailModal('${escHtml(a.agent)}', ${JSON.stringify(agentDataEncoded)})">
         <div class="flex items-center gap-3 mb-4">
           ${largeAvatarHtml}
           <div class="min-w-0 flex-1">
@@ -4804,6 +4805,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Initialize pill nav glider on current view
   _movePillGlider(currentView || 'overview');
+
+  // Re-position pill glider on window resize (tab widths change)
+  let _resizeGliderTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(_resizeGliderTimer);
+    _resizeGliderTimer = setTimeout(() => _movePillGlider(currentView || 'overview'), 100);
+  }, { passive: true });
 
   // Register dagre layout for Cytoscape if both libs loaded
   if (typeof cytoscape !== 'undefined' && typeof cytoscapeDagre !== 'undefined') {
