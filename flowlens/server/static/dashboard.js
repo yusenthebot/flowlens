@@ -472,6 +472,68 @@ function _termHideContextMenu() {
   if (m) m.remove();
 }
 
+/** Right-click inside a terminal pane */
+function _termPaneContextMenu(event, paneId) {
+  _termHideContextMenu();
+  const pane = _termPanes.find(p => p.id === paneId);
+  if (!pane) return;
+
+  // Build list of agents not yet open
+  const openAgents = new Set(_termPanes.map(p => p.agent));
+  const available = _monitorAgents.filter(a => !openAgents.has(a.agent));
+
+  const menu = document.createElement('div');
+  menu.id = 'tmux-ctx-menu';
+  menu.className = 'tmux-ctx-menu';
+  menu.style.left = event.clientX + 'px';
+  menu.style.top = event.clientY + 'px';
+
+  let items = `<div class="tmux-ctx-header">Split Pane</div>`;
+
+  // Layout switches
+  items += `<div class="tmux-ctx-item" onclick="_termSetLayout('vsplit')"><span style="opacity:0.6">▐</span> Vertical Split</div>`;
+  items += `<div class="tmux-ctx-item" onclick="_termSetLayout('hsplit')"><span style="opacity:0.6">▄</span> Horizontal Split</div>`;
+  items += `<div class="tmux-ctx-item" onclick="_termSetLayout('grid')"><span style="opacity:0.6">⊞</span> Grid</div>`;
+
+  if (available.length > 0) {
+    items += `<div class="tmux-ctx-sep"></div>`;
+    items += `<div class="tmux-ctx-header">Add Agent</div>`;
+    available.forEach(a => {
+      const ap = getAgentProfile(a.agent);
+      items += `<div class="tmux-ctx-item" onclick="_termHideContextMenu();openAgentTerminal('${escHtml(a.agent)}')"><span style="color:${ap.color};font-weight:700;">${(ap.name||'?')[0]}</span> ${escHtml(ap.name)}</div>`;
+    });
+  }
+
+  items += `<div class="tmux-ctx-sep"></div>`;
+  items += `<div class="tmux-ctx-item" onclick="_termHideContextMenu();_termClosePane(${paneId})"><span style="opacity:0.6">✕</span> Close This Pane</div>`;
+
+  menu.innerHTML = items;
+  document.body.appendChild(menu);
+
+  requestAnimationFrame(() => {
+    const r = menu.getBoundingClientRect();
+    if (r.right > window.innerWidth) menu.style.left = (window.innerWidth - r.width - 8) + 'px';
+    if (r.bottom > window.innerHeight) menu.style.top = (window.innerHeight - r.height - 8) + 'px';
+  });
+
+  setTimeout(() => {
+    document.addEventListener('click', _termHideContextMenu, { once: true });
+    document.addEventListener('contextmenu', _termHideContextMenu, { once: true });
+  }, 10);
+}
+
+/** Set layout without reloading pane content */
+function _termSetLayout(layout) {
+  _termHideContextMenu();
+  if (_termPanes.length < 2) return;
+  _termLayout = layout;
+  const w = document.getElementById('tmux-terminal');
+  if (!w) return;
+  const pc = w.querySelector('.tmux-panes');
+  if (pc) pc.className = `tmux-panes tmux-${layout}`;
+  _termRender();
+}
+
 /** Open agent with a specific layout */
 async function _termOpenWithLayout(agentName, layout) {
   _termHideContextMenu();
@@ -572,6 +634,7 @@ function _termRender() {
     const paneEl = document.createElement('div');
     paneEl.className = 'tmux-pane';
     paneEl.id = `tmux-pane-${p.id}`;
+    paneEl.addEventListener('contextmenu', e => { e.preventDefault(); _termPaneContextMenu(e, p.id); });
     paneEl.innerHTML = `
       <div class="tmux-pane-header">
         <span style="color:${prof.color};font-weight:700;">${(prof.name||'?')[0]}</span>
