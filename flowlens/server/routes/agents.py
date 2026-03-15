@@ -21,7 +21,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
 from ..storage import TraceStore
-from ..utils import _AGENT_PROFILES, _parse_tags
+from ..utils import _AGENT_PROFILES, _parse_tags, _extract_agents_from_trace
 
 logger = logging.getLogger(__name__)
 
@@ -44,11 +44,35 @@ def create_agents_router(store: TraceStore) -> APIRouter:
             logger.exception("Failed to list traces for agents summary")
             raise HTTPException(500, "Failed to retrieve traces")
 
-        # Group metrics by agent name extracted from tags["agent"]
+        # Group metrics by agent name from tags or span attributes
         agent_stats: dict[str, dict[str, Any]] = {}
         for trace in traces:
+            # Try trace-level tags first, then look at spans
             tags = _parse_tags(trace.get("tags") or {})
             agent_name: str = tags.get("agent") or "unknown"
+
+            # If still unknown, check span attributes for agent.name
+            if agent_name == "unknown":
+                full = store.get_trace(trace["trace_id"])
+                if full and full.get("spans"):
+                    found = _extract_agents_from_trace(trace, full["spans"])
+                    found.discard("unknown")
+                    if found:
+                        # Attribute this trace to ALL agents found in spans
+                        for a in found:
+                            if a not in agent_stats:
+                                agent_stats[a] = {
+                                    "agent": a, "trace_count": 0, "error_count": 0,
+                                    "total_duration_ms": 0.0, "total_cost_usd": 0.0, "total_spans": 0,
+                                }
+                            bucket = agent_stats[a]
+                            bucket["trace_count"] += 1
+                            if trace.get("has_errors"):
+                                bucket["error_count"] += 1
+                            bucket["total_duration_ms"] += trace.get("duration_ms") or 0.0
+                            bucket["total_cost_usd"] += trace.get("total_cost_usd") or 0.0
+                            bucket["total_spans"] += trace.get("span_count") or 0
+                        continue
 
             if agent_name not in agent_stats:
                 agent_stats[agent_name] = {

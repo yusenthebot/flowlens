@@ -78,6 +78,46 @@ def _parse_tags(tags: Any) -> dict[str, Any]:
     return {}
 
 
+def _extract_agents_from_trace(trace: dict[str, Any], spans: list[dict] | None = None) -> set[str]:
+    """Extract agent names from a trace's tags and/or its span attributes.
+
+    Checks (in order):
+    1. trace tags.agent
+    2. span attributes.agent.name
+    3. span name prefix before '/' (e.g. 'vr-alpha/Read' → 'vr-alpha')
+
+    Returns a set of discovered agent names (never empty — falls back to {'unknown'}).
+    """
+    agents: set[str] = set()
+
+    # 1. Check trace-level tags
+    tags = _parse_tags(trace.get("tags") or {})
+    if tags.get("agent"):
+        agents.add(tags["agent"])
+
+    # 2. Check span-level attributes
+    for span in (spans or trace.get("spans") or []):
+        attrs = span.get("attributes") or {}
+        if attrs.get("agent.name"):
+            agents.add(attrs["agent.name"])
+        elif "/" in (span.get("name") or ""):
+            prefix = span["name"].split("/", 1)[0]
+            if prefix:
+                agents.add(prefix)
+
+    return agents or {"unknown"}
+
+
+def _extract_primary_agent(trace: dict[str, Any], spans: list[dict] | None = None) -> str:
+    """Extract the primary agent name from a trace. Returns one name."""
+    agents = _extract_agents_from_trace(trace, spans)
+    agents.discard("unknown")
+    agents.discard("main")
+    if agents:
+        return next(iter(agents))
+    return "unknown"
+
+
 def _reconstruct_trace(trace_data: dict[str, Any]) -> Trace:
     """Rebuild a Trace domain object from a storage dict (used for analysis)."""
     trace = Trace(

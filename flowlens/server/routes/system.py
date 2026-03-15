@@ -152,12 +152,17 @@ def create_system_router(store: TraceStore, server_start_time: float) -> APIRout
 
             for span in full["spans"]:
                 tool_name = span.get("name", "")
+                # Extract agent from span attributes or "agent/Tool" name format
+                span_attrs = span.get("attributes") or {}
+                span_agent = span_attrs.get("agent.name") or agent
+                if span_agent == "unknown" and "/" in tool_name:
+                    span_agent = tool_name.split("/", 1)[0]
                 # Extract tool from "agent/Tool" format
                 if "/" in tool_name:
                     tool_name = tool_name.split("/", 1)[1]
 
                 events.append({
-                    "agent": agent,
+                    "agent": span_agent,
                     "tool": tool_name,
                     "status": span.get("status", "ok"),
                     "timestamp": span.get("start_time", 0),
