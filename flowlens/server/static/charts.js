@@ -228,7 +228,7 @@ async function loadOverviewCharts() {
           },
           scales: {
             x: { ticks: { color: tc, font: { size: 10 } }, grid: { color: gc }, border: { display: false }, beginAtZero: true },
-            y: { ticks: { color: tc, font: { size: 10 } }, grid: { display: false }, border: { display: false } }
+            y: { type: 'category', ticks: { color: tc, font: { size: 10 }, autoSkip: false }, grid: { display: false }, border: { display: false } }
           },
           animation: { duration: 600, easing: 'easeOutQuart' },
         }
