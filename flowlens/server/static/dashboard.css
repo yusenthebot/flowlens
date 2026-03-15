@@ -4445,3 +4445,125 @@
     #activity-timeline .activity-event-row:nth-child(8)  { animation: fadeIn 0.25s ease-out 210ms both; }
     #activity-timeline .activity-event-row:nth-child(9)  { animation: fadeIn 0.25s ease-out 240ms both; }
     #activity-timeline .activity-event-row:nth-child(10) { animation: fadeIn 0.25s ease-out 270ms both; }
+
+/* ==========================================================================
+   Cycle 27: Advanced Features — Bookmarks, Recommendations, Insights, Summary
+   ========================================================================== */
+
+/* ---- Bookmark button on trace rows ---- */
+.bookmark-btn {
+  color: var(--color-slate-500, #64748b);
+  opacity: 0;
+  transition: opacity 0.15s ease, color 0.15s ease, transform 0.15s ease;
+  padding: 2px;
+  border-radius: 4px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.bookmark-btn:hover {
+  color: var(--color-amber-warm, #e6a65d);
+  transform: scale(1.15);
+}
+.bookmark-btn.bookmarked {
+  color: var(--color-amber-warm, #e6a65d);
+  opacity: 1;
+}
+.trace-row:hover .bookmark-btn {
+  opacity: 1;
+}
+
+/* ---- Agent Recommendations Section ---- */
+.agent-recommendations {
+  border-top: 1px solid rgba(255,255,255,0.05);
+  padding-top: 8px;
+  margin-top: 6px;
+}
+.agent-recommendation-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  margin-bottom: 3px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.04);
+  transition: background 0.15s ease;
+}
+.agent-recommendation-item:hover {
+  background: rgba(255,255,255,0.04);
+}
+
+/* ---- Compare Insights ---- */
+.compare-insight-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.compare-insight-item.positive {
+  background: rgba(129,178,154,0.06);
+  border-color: rgba(129,178,154,0.15);
+  color: var(--color-sage, #81b29a);
+}
+.compare-insight-item.negative {
+  background: rgba(224,122,95,0.06);
+  border-color: rgba(224,122,95,0.15);
+  color: var(--color-coral, #e07a5f);
+}
+.compare-insight-item.info {
+  background: rgba(107,92,231,0.06);
+  border-color: rgba(107,92,231,0.15);
+  color: var(--color-indigo-warm, #6b5ce7);
+}
+.compare-insight-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+  background: rgba(255,255,255,0.06);
+}
+.compare-insight-item.positive .compare-insight-icon { background: rgba(129,178,154,0.15); }
+.compare-insight-item.negative .compare-insight-icon { background: rgba(224,122,95,0.15); }
+.compare-insight-item.info .compare-insight-icon { background: rgba(107,92,231,0.15); }
+
+/* ---- Today's Summary Widget ---- */
+.summary-metric-card {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.05);
+  transition: background 0.15s ease;
+}
+.summary-metric-card:hover {
+  background: rgba(255,255,255,0.04);
+}
+
+/* ---- Light mode adjustments for Cycle 27 features ---- */
+html:not(.dark) .bookmark-btn { color: #94a3b8; }
+html:not(.dark) .bookmark-btn:hover { color: #d97706; }
+html:not(.dark) .bookmark-btn.bookmarked { color: #d97706; }
+html:not(.dark) .agent-recommendation-item {
+  background: rgba(0,0,0,0.02);
+  border-color: rgba(0,0,0,0.06);
+}
+html:not(.dark) .compare-insight-item { border-color: rgba(0,0,0,0.08); }
+html:not(.dark) .compare-insight-item.positive { background: rgba(129,178,154,0.08); }
+html:not(.dark) .compare-insight-item.negative { background: rgba(224,122,95,0.08); }
+html:not(.dark) .compare-insight-item.info { background: rgba(107,92,231,0.08); }
+html:not(.dark) .summary-metric-card {
+  background: rgba(0,0,0,0.02);
+  border-color: rgba(0,0,0,0.06);
+}
+html:not(.dark) .summary-metric-card:hover { background: rgba(0,0,0,0.04); }

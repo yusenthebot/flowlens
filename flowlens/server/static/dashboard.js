@@ -323,6 +323,7 @@ function switchView(view) {
   if (view === 'overview') {
     loadStats();
     loadRecentTraces();
+    loadTodaysSummary();
     setTimeout(() => { loadAgentActivity(); loadOverviewAgents(); }, 300);
     setTimeout(() => { loadActivityTimeline(); loadTrendChart(_trendHours || 24); loadOverviewCharts(); }, 600);
     setTimeout(() => { loadOverviewGraph(); }, 1200);
@@ -891,6 +892,39 @@ function _termMakeResizable(el) {
 
 // ==================================================================// Agent Overview
 // ==================================================================
+/** Compute smart recommendations for an agent based on summary data */
+function _renderAgentRecommendations(agent) {
+  const tips = [];
+  const errorRate = agent.error_rate || 0;
+  const avgCostPerTrace = agent.trace_count > 0 ? (agent.total_cost_usd || 0) / agent.trace_count : 0;
+  const avgLatencyMs = agent.avg_duration_ms || 0;
+
+  if (errorRate > 0.10) {
+    tips.push({ icon: 'error', color: 'var(--color-coral,#e07a5f)', text: 'High error rate (' + (errorRate * 100).toFixed(1) + '%) — check recent failures' });
+  }
+  if (avgCostPerTrace > 0.05) {
+    tips.push({ icon: 'cost', color: 'var(--color-amber-warm,#e6a65d)', text: 'Avg $' + avgCostPerTrace.toFixed(3) + '/trace — consider a smaller model for routine tasks' });
+  }
+  if (avgLatencyMs > 30000) {
+    tips.push({ icon: 'slow', color: 'var(--color-indigo-warm,#6b5ce7)', text: 'Avg latency ' + (avgLatencyMs / 1000).toFixed(1) + 's — look for sequential bottlenecks' });
+  }
+  if (tips.length === 0) return '';
+
+  const iconSvg = {
+    error: '<svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>',
+    cost: '<svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1"/></svg>',
+    slow: '<svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
+  };
+
+  return `<div class="agent-recommendations mb-2">
+    <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Recommendations</div>
+    ${tips.map(tip => `<div class="agent-recommendation-item" style="color:${tip.color}">
+      ${iconSvg[tip.icon]}
+      <span class="text-[10px] leading-tight">${escHtml(tip.text)}</span>
+    </div>`).join('')}
+  </div>`;
+}
+
 async function loadAgentData() {
   const grid = document.getElementById('agents-grid');
   if (!grid) return;
@@ -1029,6 +1063,7 @@ async function loadAgentData() {
         <div class="agent-models-section mb-2" id="agent-models-${escHtml(a.agent)}">
           <div class="text-[10px] text-slate-600 italic">Loading models...</div>
         </div>
+        ${_renderAgentRecommendations(a)}
         <div class="flex items-center justify-between text-[11px] text-slate-600 agents-grid-card-meta mb-2">
           <span>${a.total_spans} spans</span>
           <span>${opsLastHour} ops/hr</span>
@@ -1548,6 +1583,122 @@ async function loadStats() {
   }
 }
 
+// ==================================================================// Today's Summary Widget
+// ==================================================================
+async function loadTodaysSummary() {
+  const container = document.getElementById('todays-summary-content');
+  const dateEl = document.getElementById('summary-date');
+  if (!container) return;
+
+  const today = new Date();
+  if (dateEl) dateEl.textContent = today.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+
+  try {
+    // Fetch today (24h) and yesterday (24-48h) trends, plus agent summary
+    const [todayTrend, yesterdayTrend, agentData, errorsData] = await Promise.all([
+      apiFetch('/v1/stats/trends?hours=24&bucket_minutes=60'),
+      apiFetch('/v1/stats/trends?hours=48&bucket_minutes=60'),
+      apiFetch('/v1/agents/summary').catch(() => ({ agents: [] })),
+      apiFetch('/v1/traces/errors?limit=50').catch(() => ({ errors: [] })),
+    ]);
+
+    // Compute today's totals
+    const todayBuckets = todayTrend.buckets || [];
+    const todayTraces = todayBuckets.reduce((s, b) => s + (b.traces || b.trace_count || 0), 0);
+    const todayCost = todayBuckets.reduce((s, b) => s + (b.cost || b.total_cost || 0), 0);
+    const todayErrors = todayBuckets.reduce((s, b) => s + (b.errors || b.error_count || 0), 0);
+
+    // Compute yesterday's totals (first half of 48h trend)
+    const allBuckets = yesterdayTrend.buckets || [];
+    const halfIdx = Math.floor(allBuckets.length / 2);
+    const yesterdayBuckets = allBuckets.slice(0, halfIdx);
+    const yesterdayTraces = yesterdayBuckets.reduce((s, b) => s + (b.traces || b.trace_count || 0), 0);
+    const yesterdayCost = yesterdayBuckets.reduce((s, b) => s + (b.cost || b.total_cost || 0), 0);
+
+    // Top agent by activity today
+    const agents = agentData.agents || [];
+    let topAgent = null;
+    let topAgentCount = 0;
+    agents.forEach(a => {
+      if ((a.trace_count || 0) > topAgentCount) {
+        topAgentCount = a.trace_count;
+        topAgent = a.agent;
+      }
+    });
+
+    // Most common error (from recent errors)
+    const errors = errorsData.errors || [];
+    const errorCounts = {};
+    errors.forEach(e => {
+      const msg = (e.error_message || e.message || 'Unknown error').substring(0, 60);
+      errorCounts[msg] = (errorCounts[msg] || 0) + 1;
+    });
+    const topError = Object.entries(errorCounts).sort((a, b) => b[1] - a[1])[0];
+
+    // Compute cost this hour vs last hour
+    const nowHourBuckets = todayBuckets.slice(-1);
+    const prevHourBuckets = todayBuckets.slice(-2, -1);
+    const costThisHour = nowHourBuckets.reduce((s, b) => s + (b.cost || b.total_cost || 0), 0);
+    const costLastHour = prevHourBuckets.reduce((s, b) => s + (b.cost || b.total_cost || 0), 0);
+
+    // Trend arrows
+    function trendArrow(current, previous) {
+      if (previous === 0 && current === 0) return '<span class="text-slate-500">--</span>';
+      if (previous === 0) return '<span class="stat-trend-up text-[10px]">new</span>';
+      const pct = ((current - previous) / previous * 100).toFixed(0);
+      if (current > previous) return `<span class="stat-trend-down text-[10px]">${pct > 0 ? '+' : ''}${pct}%</span>`;
+      if (current < previous) return `<span class="stat-trend-up text-[10px]">${pct}%</span>`;
+      return '<span class="text-slate-500 text-[10px]">0%</span>';
+    }
+
+    const topAgentProfile = topAgent ? getAgentProfile(topAgent) : null;
+
+    container.innerHTML = `
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
+        <div class="summary-metric-card">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Traces Today</div>
+          <div class="flex items-center gap-2">
+            <span class="text-lg font-bold text-white">${todayTraces.toLocaleString()}</span>
+            ${trendArrow(todayTraces, yesterdayTraces)}
+          </div>
+          <div class="text-[10px] text-slate-600">vs ${yesterdayTraces} yesterday</div>
+        </div>
+        <div class="summary-metric-card">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Top Agent</div>
+          <div class="flex items-center gap-2">
+            ${topAgent ? `<span class="w-2 h-2 rounded-full flex-shrink-0" style="background:${topAgentProfile.color}"></span>` : ''}
+            <span class="text-sm font-semibold text-white">${topAgent ? escHtml(topAgentProfile.name) : 'None'}</span>
+          </div>
+          <div class="text-[10px] text-slate-600">${topAgentCount} traces</div>
+        </div>
+        <div class="summary-metric-card">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Errors Today</div>
+          <div class="flex items-center gap-2">
+            <span class="text-lg font-bold ${todayErrors > 0 ? '' : 'text-white'}" style="${todayErrors > 0 ? 'color:var(--color-coral,#e07a5f)' : ''}">${todayErrors}</span>
+          </div>
+          <div class="text-[10px] text-slate-600 truncate" title="${topError ? escHtml(topError[0]) : ''}">${topError ? escHtml(topError[0].substring(0, 40)) : 'No errors'}</div>
+        </div>
+        <div class="summary-metric-card">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Cost This Hour</div>
+          <div class="flex items-center gap-2">
+            <span class="text-lg font-bold text-white">$${costThisHour.toFixed(4)}</span>
+            ${trendArrow(costThisHour, costLastHour)}
+          </div>
+          <div class="text-[10px] text-slate-600">vs $${costLastHour.toFixed(4)} last hour</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-3 text-[10px] text-slate-600 pt-2 border-t border-white/5">
+        <span>Total cost today: $${todayCost.toFixed(4)}</span>
+        <span class="w-px h-3 bg-white/10"></span>
+        <span>${agents.length} agents active</span>
+        <span class="w-px h-3 bg-white/10"></span>
+        <span>Cost vs yesterday: ${trendArrow(todayCost, yesterdayCost)}</span>
+      </div>`;
+  } catch (err) {
+    container.innerHTML = `<div class="text-xs text-slate-500 py-4 text-center">Summary unavailable</div>`;
+  }
+}
+
 // ==================================================================// Trace Row Rendering
 // ==================================================================
 function formatTimeAgo(timestamp) {
@@ -1706,6 +1857,7 @@ function renderTraceRow(trace, compact = false, searchQuery = null) {
   return `
     <div class="trace-row flex items-center gap-4 px-5 cursor-pointer transition group ${errorRowClass} ${emptyRowClass}" data-trace-id="${escHtml(trace.trace_id)}" data-agent="${escHtml(agentName || '')}" onclick="openTrace('${escHtml(trace.trace_id)}')" style="border-left-color:${borderColor}" ${_previewAttrs}>
       ${!compact ? `<input type="checkbox" class="compare-checkbox ${isSelected ? 'checked' : ''} w-3.5 h-3.5 rounded bg-surface-100 border-white/10 text-indigo-500 focus:ring-indigo-500/30 flex-shrink-0" title="Select for comparison" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleCompare('${escHtml(trace.trace_id)}', this)" />` : ''}
+      ${!compact ? `<button class="bookmark-btn flex-shrink-0 ${_bookmarkedTraces.has(trace.trace_id) ? 'bookmarked' : ''}" title="${_bookmarkedTraces.has(trace.trace_id) ? 'Remove bookmark' : 'Bookmark trace'}" onclick="toggleBookmark('${escHtml(trace.trace_id)}', event)"><svg class="w-4 h-4" fill="${_bookmarkedTraces.has(trace.trace_id) ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg></button>` : ''}
       ${statusDot}
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2 flex-wrap">
@@ -1882,6 +2034,30 @@ let _feedbackRatedTraces = new Set();         // trace IDs that have feedback (f
 let _tracesFeedbackRatings = new Map();       // trace_id -> avg rating (for rating filter)
 let _selectedStarRating = 0;                  // currently selected star rating in the feedback form
 
+// Bookmark state — persisted in localStorage
+let _bookmarkedTraces = new Set(JSON.parse(localStorage.getItem('flowlens-bookmarks') || '[]'));
+let _tracesBookmarkFilter = false; // show only bookmarked traces
+
+function toggleBookmark(traceId, event) {
+  if (event) event.stopPropagation();
+  if (_bookmarkedTraces.has(traceId)) {
+    _bookmarkedTraces.delete(traceId);
+  } else {
+    _bookmarkedTraces.add(traceId);
+  }
+  localStorage.setItem('flowlens-bookmarks', JSON.stringify([..._bookmarkedTraces]));
+  // Re-render the specific row's bookmark icon without full reload
+  const row = document.querySelector(`[data-trace-id="${traceId}"]`);
+  if (row) {
+    const btn = row.querySelector('.bookmark-btn');
+    if (btn) {
+      const isBookmarked = _bookmarkedTraces.has(traceId);
+      btn.classList.toggle('bookmarked', isBookmarked);
+      btn.title = isBookmarked ? 'Remove bookmark' : 'Bookmark trace';
+    }
+  }
+}
+
 async function loadTraces() {
   renderQuickFilterBar();
   const service = document.getElementById('filter-service').value.trim() || null;
@@ -2005,6 +2181,9 @@ function applyClientFilters(traces) {
   const ratingFilter = document.getElementById('filter-rating')?.value || '';
 
   return traces.filter(t => {
+    // Bookmark filter
+    if (_tracesBookmarkFilter && !_bookmarkedTraces.has(t.trace_id)) return false;
+
     // Hide empty traces toggle
     if (_tracesHideEmpty && (t.span_count || 0) === 0) return false;
 
@@ -2067,6 +2246,7 @@ function countActiveFilters() {
   if (_tracesDurationFilter !== 'all') n++;
   if (_tracesTimeFilter !== 'all') n++;
   if (_tracesHideEmpty) n++;
+  if (_tracesBookmarkFilter) n++;
   if (_tracesAgentFilter) n++;
   const dateFrom = document.getElementById('filter-date-from');
   const dateTo = document.getElementById('filter-date-to');
@@ -2129,6 +2309,12 @@ function renderQuickFilterBar() {
         <span>Hide empty</span>
       </label>
 
+      <label class="flex items-center gap-1.5 text-xs cursor-pointer select-none ${_tracesBookmarkFilter ? 'text-amber-400' : 'text-slate-400'}">
+        <input type="checkbox" class="rounded bg-surface-100 border-white/10 text-amber-500 focus:ring-amber-500/30" ${_tracesBookmarkFilter ? 'checked' : ''} onchange="_tracesBookmarkFilter = this.checked; traceOffset = 0; loadTraces(); renderQuickFilterBar();" />
+        <svg class="w-3.5 h-3.5" fill="${_tracesBookmarkFilter ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
+        <span>Bookmarked${_bookmarkedTraces.size > 0 ? ' (' + _bookmarkedTraces.size + ')' : ''}</span>
+      </label>
+
       ${activeCount > 0 ? `<button onclick="clearQuickFilters()" class="px-2 py-1 text-[11px] text-slate-400 hover:text-white bg-surface-100 rounded-lg border border-white/10 hover:border-white/20 transition">Clear filters</button>` : ''}
     </div>
   `;
@@ -2139,6 +2325,7 @@ function clearQuickFilters() {
   _tracesDurationFilter = 'all';
   _tracesTimeFilter = 'all';
   _tracesHideEmpty = false;
+  _tracesBookmarkFilter = false;
   _tracesAgentFilter = null;
   traceOffset = 0;
   renderQuickFilterBar();
@@ -4320,6 +4507,97 @@ function clearComparison() {
   renderCompareView();
 }
 
+/** Generate automated comparison insights between two traces */
+function _generateCompareInsights(trace1, trace2, dur1, dur2, cost1, cost2, spans1, spans2, diffResult) {
+  const insights = [];
+
+  // Duration insight
+  if (dur1 > 0 && dur2 > 0) {
+    const durDiffPct = Math.abs(dur2 - dur1) / dur1 * 100;
+    if (durDiffPct > 10) {
+      const faster = dur2 < dur1;
+      const fasterLabel = faster ? 'B' : 'A';
+      const slowerLabel = faster ? 'A' : 'B';
+      let reason = '';
+      if (diffResult) {
+        const onlyInSlow = faster ? (diffResult.only_in_a || []) : (diffResult.only_in_b || []);
+        if (onlyInSlow.length > 0) {
+          const skipNames = onlyInSlow.slice(0, 2).join(', ');
+          reason = ` because it skipped ${skipNames}`;
+        }
+      }
+      if (spans1 !== spans2) {
+        const diff = Math.abs(spans2 - spans1);
+        const fewerLabel = spans2 < spans1 ? 'B' : 'A';
+        if (!reason && fewerLabel === fasterLabel) {
+          reason = ` (${diff} fewer spans)`;
+        }
+      }
+      insights.push({
+        type: faster ? 'positive' : 'negative',
+        icon: faster ? '>' : '<',
+        text: `Trace ${fasterLabel} is ${durDiffPct.toFixed(0)}% faster than Trace ${slowerLabel}${reason}`
+      });
+    }
+  }
+
+  // Cost insight — model comparison
+  if (cost1 > 0 && cost2 > 0 && cost1 !== cost2) {
+    const ratio = cost1 > cost2 ? cost1 / cost2 : cost2 / cost1;
+    const cheaperLabel = cost2 < cost1 ? 'B' : 'A';
+    const expensiveLabel = cost2 < cost1 ? 'A' : 'B';
+    if (ratio >= 1.5) {
+      const savings = Math.abs(cost1 - cost2);
+      insights.push({
+        type: 'info',
+        icon: '$',
+        text: `Trace ${expensiveLabel} costs ${ratio.toFixed(1)}x more than Trace ${cheaperLabel} ($${savings.toFixed(4)} difference)`
+      });
+    }
+  }
+
+  // Cost savings projection
+  if (cost1 > 0 && cost2 > 0 && cost1 !== cost2) {
+    const cheaperCost = Math.min(cost1, cost2);
+    const expensiveCost = Math.max(cost1, cost2);
+    const savingsPer = expensiveCost - cheaperCost;
+    if (savingsPer > 0.001) {
+      const monthlySavings = savingsPer * 1000; // assume 1000 traces/month
+      insights.push({
+        type: 'positive',
+        icon: 'i',
+        text: `Switching to the cheaper approach could save ~$${monthlySavings.toFixed(2)}/month at 1000 traces/month`
+      });
+    }
+  }
+
+  // Error resolution insight
+  const errors1 = trace1.has_errors ? 1 : 0;
+  const errors2 = trace2.has_errors ? 1 : 0;
+  if (errors1 === 1 && errors2 === 0) {
+    insights.push({ type: 'positive', icon: 'ok', text: 'Trace B resolved the error present in Trace A' });
+  } else if (errors1 === 0 && errors2 === 1) {
+    insights.push({ type: 'negative', icon: '!', text: 'Trace B introduced an error not present in Trace A' });
+  }
+
+  // Token usage insight
+  const tok1 = trace1.total_tokens || 0;
+  const tok2 = trace2.total_tokens || 0;
+  if (tok1 > 0 && tok2 > 0) {
+    const tokDiffPct = Math.abs(tok2 - tok1) / tok1 * 100;
+    if (tokDiffPct > 20) {
+      const fewerLabel = tok2 < tok1 ? 'B' : 'A';
+      insights.push({
+        type: tok2 < tok1 ? 'positive' : 'info',
+        icon: '#',
+        text: `Trace ${fewerLabel} uses ${tokDiffPct.toFixed(0)}% fewer tokens (${Math.min(tok1,tok2).toLocaleString()} vs ${Math.max(tok1,tok2).toLocaleString()})`
+      });
+    }
+  }
+
+  return insights;
+}
+
 async function renderCompareView() {
   const instructions = document.getElementById('compare-instructions');
   const content = document.getElementById('compare-content');
@@ -4441,6 +4719,23 @@ async function renderCompareView() {
       </span>
       <span class="text-xs text-slate-400 flex-1">${diffResult && diffResult.summary ? escHtml(diffResult.summary) : 'Trace B compared to Trace A'}</span>
     </div>`;
+
+    // ---- Automated Comparison Insights ----
+    const insights = _generateCompareInsights(trace1, trace2, dur1, dur2, cost1, cost2, spans1, spans2, diffResult);
+    if (insights.length > 0) {
+      html += `<div class="glass rounded-xl p-4 mb-4">
+        <div class="flex items-center gap-2 mb-3">
+          <svg class="w-4 h-4 text-indigo-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+          <h3 class="text-sm font-semibold text-white">Automated Insights</h3>
+        </div>
+        <div class="space-y-2">
+          ${insights.map(ins => `<div class="compare-insight-item ${ins.type}">
+            <span class="compare-insight-icon">${ins.icon}</span>
+            <span class="text-xs">${escHtml(ins.text)}</span>
+          </div>`).join('')}
+        </div>
+      </div>`;
+    }
 
     // ---- Side-by-side summary cards ----
     html += `<div class="compare-cards-grid grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
@@ -5289,6 +5584,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Critical: load immediately (above the fold)
   loadStats();
   loadRecentTraces();
+  loadTodaysSummary();
   // Deferred: load after 500ms (below the fold)
   setTimeout(() => {
     loadAgentActivity();
