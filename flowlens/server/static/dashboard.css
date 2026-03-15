@@ -1488,8 +1488,7 @@
       background: rgba(0,0,0,0.02);
     }
 
-    /* =====================================================================
-       Cycle 14: Visual Polish — Claude Aesthetic Design System
+    /* ==============================================================       Cycle 14: Visual Polish — Claude Aesthetic Design System
        ===================================================================== */
 
     /* ---- Design tokens ---- */
@@ -1506,8 +1505,7 @@
       --color-sage-border: rgba(129, 178, 154, 0.28);
     }
 
-    /* ======================================================
-       1. Trace rows — refined layout and interaction
+    /* ===============================================       1. Trace rows — refined layout and interaction
        ====================================================== */
 
     /* Base row: generous padding, smooth hover */
@@ -1613,8 +1611,7 @@
       border-color: rgba(224, 122, 95, 0.22);
     }
 
-    /* ======================================================
-       2. Agent cards — polished look with lift & glow
+    /* ===============================================       2. Agent cards — polished look with lift & glow
        ====================================================== */
 
     /* Agent card hover: lift + border glow in agent color */
@@ -1684,8 +1681,7 @@
     }
     .agent-live-feed-v14 .text-slate-300 { font-size: 11.5px !important; }
 
-    /* ======================================================
-       3. Badges and pills — standardized warm design
+    /* ===============================================       3. Badges and pills — standardized warm design
        ====================================================== */
 
     /* Status dot badges */
@@ -1779,8 +1775,7 @@
       border-color: rgba(107, 92, 231, 0.18);
     }
 
-    /* ======================================================
-       4. Buttons and inputs — warm styled
+    /* ===============================================       4. Buttons and inputs — warm styled
        ====================================================== */
 
     /* Primary button: warm indigo */
@@ -1914,8 +1909,7 @@
       box-shadow: 0 0 0 3px rgba(107, 92, 231, 0.1) !important;
     }
 
-    /* ======================================================
-       5. Toast notifications — upgraded design
+    /* ===============================================       5. Toast notifications — upgraded design
        ====================================================== */
 
     /* Slide in from right with subtle bounce */
@@ -1949,6 +1943,91 @@
     /* Left color bar by type */
     .toast-v14::before {
       content: '';
+    /* ========== Cycle 14: Visual Polish ========== */
+
+    /* --- Skeleton loading: warm shimmer --- */
+    @keyframes warmShimmer {
+      0%   { background-position: -200% 0; }
+      100% { background-position:  200% 0; }
+    }
+    .skeleton-warm {
+      background: linear-gradient(90deg,
+        rgba(107,92,231,0.04) 0%,
+        rgba(230,166,93,0.10) 40%,
+        rgba(107,92,231,0.04) 80%
+      );
+      background-size: 200% 100%;
+      animation: warmShimmer 1.4s ease-in-out infinite;
+      border-radius: 6px;
+    }
+    html:not(.dark) .skeleton-warm {
+      background: linear-gradient(90deg,
+        rgba(107,92,231,0.03) 0%,
+        rgba(230,166,93,0.08) 40%,
+        rgba(107,92,231,0.03) 80%
+      );
+      background-size: 200% 100%;
+      animation: warmShimmer 1.4s ease-in-out infinite;
+    }
+
+    /* --- Card staggered fadeInUp entry --- */
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .card-fade-in {
+      animation: fadeInUp 0.3s ease-out both;
+    }
+    .card-fade-in:nth-child(1)  { animation-delay:   0ms; }
+    .card-fade-in:nth-child(2)  { animation-delay:  50ms; }
+    .card-fade-in:nth-child(3)  { animation-delay: 100ms; }
+    .card-fade-in:nth-child(4)  { animation-delay: 150ms; }
+    .card-fade-in:nth-child(5)  { animation-delay: 200ms; }
+    .card-fade-in:nth-child(6)  { animation-delay: 250ms; }
+    .card-fade-in:nth-child(7)  { animation-delay: 300ms; }
+    .card-fade-in:nth-child(8)  { animation-delay: 350ms; }
+
+    /* --- Tab switch cross-fade --- */
+    @keyframes tabFadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .tab-fade-in {
+      animation: tabFadeIn 0.22s ease-out both;
+    }
+
+    /* --- Number counter animation (used via JS) --- */
+    .counter-animated {
+      display: inline-block;
+      transition: none;
+    }
+
+    /* --- Waterfall bar upgrades --- */
+    /* Gradient bar (left darker → right lighter) */
+    .wf-bar-gradient {
+      position: absolute;
+      top: 2px;
+      height: 20px;
+      border-radius: 4px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.15s ease-out, box-shadow 0.15s ease-out, filter 0.15s ease;
+    }
+    .wf-bar-gradient:hover {
+      transform: scaleY(1.15);
+      filter: brightness(1.25);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+    }
+    /* Error bar pulse/glow */
+    @keyframes errorBarPulse {
+      0%,100% { box-shadow: 0 0 0   0 rgba(196,112,112,0); }
+      50%      { box-shadow: 0 0 10px 2px rgba(196,112,112,0.35); }
+    }
+    .wf-bar-error {
+      animation: errorBarPulse 2s ease-in-out infinite;
+    }
+    /* Parent-child connector line (left dotted vertical) */
+    .wf-connector {
       position: absolute;
       left: 0;
       top: 0;
@@ -2041,3 +2120,72 @@
     .toast-v14.toast-exit {
       animation: toastSlideOut 0.28s ease-in forwards;
     }
+      width: 1px;
+      border-left: 1px dotted rgba(124,122,239,0.25);
+      pointer-events: none;
+    }
+    html:not(.dark) .wf-connector {
+      border-left-color: rgba(107,104,217,0.2);
+    }
+    /* Waterfall row hover expand */
+    .waterfall-row {
+      transition: background-color 0.15s ease, padding-top 0.12s ease, padding-bottom 0.12s ease;
+    }
+    .waterfall-row:hover {
+      background: rgba(255,255,255,0.03) !important;
+    }
+    html:not(.dark) .waterfall-row:hover {
+      background: rgba(0,0,0,0.025) !important;
+    }
+
+    /* --- Empty state SVG illustration --- */
+    .empty-state-illustration {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+    .empty-state-illustration svg {
+      opacity: 0.55;
+    }
+    html:not(.dark) .empty-state-illustration svg {
+      opacity: 0.45;
+    }
+
+    /* --- Agent network node pulse refinement --- */
+    @keyframes nodeActivePulse {
+      0%,100% { r: 6; opacity: 0.18; }
+      50%      { r: 9; opacity: 0.08; }
+    }
+    .svg-net-pulse-refined {
+      animation: nodeActivePulse 2.8s ease-in-out infinite;
+    }
+
+    /* --- Chart tooltip warm style (applied via JS global defaults) --- */
+    /* (Chart.js tooltips are canvas-based; we style via Chart.js options) */
+
+    /* --- Doughnut center label --- */
+    .doughnut-center-label {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+    .doughnut-center-value {
+      font-size: 15px;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+    .doughnut-center-sub {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      opacity: 0.55;
+      margin-top: 2px;
+    }
+    .dark .doughnut-center-value  { color: #e2e0db; }
+    .dark .doughnut-center-sub    { color: #64748b; }
+    html:not(.dark) .doughnut-center-value { color: #2c2c2a; }
+    html:not(.dark) .doughnut-center-sub   { color: #8a8a86; }
