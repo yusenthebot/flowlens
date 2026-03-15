@@ -507,17 +507,73 @@ async function loadAgentData() {
           <div style="display:flex;align-items:flex-end;height:16px;">${activityDots.join('')}</div>
         </div>
         <div class="flex flex-wrap gap-1 mb-2">${toolsHtml}</div>
-        <div class="flex items-center justify-between text-[11px] text-slate-600">
+        <div class="flex items-center justify-between text-[11px] text-slate-600 mb-3">
           <span>${a.total_spans} spans</span>
           <span>${opsLastHour} ops/hr</span>
+        </div>
+        <div class="agent-live-feed" id="agent-feed-${escHtml(a.agent)}" style="max-height:120px;overflow-y:auto;border-top:1px solid rgba(255,255,255,0.06);padding-top:8px;">
+          <div class="text-[10px] text-slate-600 italic">Loading activity...</div>
         </div>
       </div>`;
     }).join('');
 
     // Load agent relationship graph after rendering cards
     loadAgentGraph();
+
+    // Populate per-agent live activity feeds
+    _loadAgentFeeds(agents.map(a => a.agent));
   } catch (err) {
     grid.innerHTML = `<p class="text-xs text-red-400 col-span-full">Failed to load agent data: ${escHtml(String(err))}</p>`;
+  }
+}
+
+/** Fetch recent activity and distribute into per-agent feed panels */
+async function _loadAgentFeeds(agentNames) {
+  try {
+    const data = await apiFetch('/v1/activity/stream?limit=200');
+    const events = data.events || [];
+
+    // Group events by agent
+    const byAgent = {};
+    agentNames.forEach(name => { byAgent[name] = []; });
+    events.forEach(ev => {
+      const agent = ev.agent || 'unknown';
+      if (byAgent[agent]) {
+        byAgent[agent].push(ev);
+      }
+    });
+
+    // Render each agent's feed (max 8 events)
+    for (const [agent, agentEvents] of Object.entries(byAgent)) {
+      const feed = document.getElementById(`agent-feed-${agent}`);
+      if (!feed) continue;
+
+      const recent = agentEvents.slice(0, 8);
+      if (recent.length === 0) {
+        feed.innerHTML = '<div class="text-[10px] text-slate-600 italic py-1">No recent activity</div>';
+        continue;
+      }
+
+      feed.innerHTML = recent.map(ev => {
+        const timeAgo = formatTimeAgo(ev.timestamp);
+        const isError = ev.status === 'error';
+        const toolName = ev.tool || '?';
+        const statusDot = isError
+          ? '<span style="width:5px;height:5px;border-radius:50%;background:#ef4444;flex-shrink:0;display:inline-block;"></span>'
+          : '<span style="width:5px;height:5px;border-radius:50%;background:#34d399;flex-shrink:0;display:inline-block;"></span>';
+        const durStr = ev.duration_ms > 0 ? `${Math.round(ev.duration_ms)}ms` : '';
+        const errorHint = isError && ev.error ? ` — ${escHtml(ev.error).substring(0, 40)}` : '';
+
+        return `<div class="flex items-center gap-1.5 py-0.5 text-[10px] leading-tight ${isError ? 'text-red-400' : 'text-slate-400'}" title="${escHtml(toolName)} ${durStr}${errorHint}">
+          ${statusDot}
+          <span class="font-medium ${isError ? 'text-red-300' : 'text-slate-300'}" style="min-width:48px;">${escHtml(toolName)}</span>
+          <span class="text-slate-600 flex-1 truncate">${durStr}${errorHint}</span>
+          <span class="text-slate-600 flex-shrink-0">${timeAgo}</span>
+        </div>`;
+      }).join('');
+    }
+  } catch (e) {
+    console.warn('Agent feeds:', e);
   }
 }
 

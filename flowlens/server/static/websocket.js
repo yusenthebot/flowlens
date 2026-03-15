@@ -107,6 +107,15 @@ function handleLiveTrace(traceData) {
     timestamp: traceData.start_time || Date.now() / 1000,
   });
 
+  // Push to per-agent live feed (on Agents tab)
+  _pushToAgentFeed(agentTag, {
+    tool: traceData.service_name || 'trace',
+    status: traceData.has_errors ? 'error' : 'ok',
+    duration_ms: traceData.duration_ms || 0,
+    timestamp: traceData.start_time || Date.now() / 1000,
+    error: traceData.has_errors ? 'error in trace' : null,
+  });
+
   // If on overview, prepend to recent traces list
   if (currentView === 'overview') {
     const container = document.getElementById('recent-traces-list');
@@ -226,6 +235,41 @@ function handleLiveTraceUpdate(traceData) {
     loadRecentTraces();
   } else if (currentView === 'traces') {
     loadTraces();
+  }
+}
+
+/** Push a real-time event to a specific agent's live feed panel */
+function _pushToAgentFeed(agentName, ev) {
+  const feed = document.getElementById(`agent-feed-${agentName}`);
+  if (!feed) return;
+
+  const timeAgo = formatTimeAgo(ev.timestamp);
+  const isError = ev.status === 'error';
+  const toolName = ev.tool || '?';
+  const statusDot = isError
+    ? '<span style="width:5px;height:5px;border-radius:50%;background:#ef4444;flex-shrink:0;display:inline-block;"></span>'
+    : '<span style="width:5px;height:5px;border-radius:50%;background:#34d399;flex-shrink:0;display:inline-block;"></span>';
+  const durStr = ev.duration_ms > 0 ? `${Math.round(ev.duration_ms)}ms` : '';
+  const errorHint = isError && ev.error ? ` — ${escHtml(String(ev.error)).substring(0, 40)}` : '';
+
+  const row = document.createElement('div');
+  row.className = `flex items-center gap-1.5 py-0.5 text-[10px] leading-tight ${isError ? 'text-red-400' : 'text-slate-400'}`;
+  row.title = `${toolName} ${durStr}${errorHint}`;
+  row.innerHTML = `${statusDot}
+    <span class="font-medium ${isError ? 'text-red-300' : 'text-slate-300'}" style="min-width:48px;">${escHtml(toolName)}</span>
+    <span class="text-slate-600 flex-1 truncate">${durStr}${errorHint}</span>
+    <span class="text-slate-600 flex-shrink-0">${timeAgo}</span>`;
+
+  // Remove "Loading..." or "No recent" placeholder
+  const placeholder = feed.querySelector('.italic');
+  if (placeholder) placeholder.remove();
+
+  // Prepend new event
+  feed.insertBefore(row, feed.firstChild);
+
+  // Keep max 8 events
+  while (feed.children.length > 8) {
+    feed.removeChild(feed.lastChild);
   }
 }
 

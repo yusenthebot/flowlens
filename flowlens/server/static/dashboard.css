@@ -192,6 +192,15 @@
     .node-core { cursor: pointer; transition: opacity 0.2s; }
     .node-core:hover { opacity: 1 !important; }
 
+    /* Agent live feed */
+    .agent-live-feed { scrollbar-width: none; }
+    .agent-live-feed::-webkit-scrollbar { display: none; }
+    .agent-live-feed div { animation: fadeIn 0.3s ease; }
+    html:not(.dark) .agent-live-feed { border-top-color: rgba(0,0,0,0.06) !important; }
+    html:not(.dark) .agent-live-feed .text-slate-300 { color: #374151 !important; }
+    html:not(.dark) .agent-live-feed .text-slate-400 { color: #6b7280 !important; }
+    html:not(.dark) .agent-live-feed .text-slate-600 { color: #9ca3af !important; }
+
     /* Focus ring for filter inputs */
     .filter-input:focus { outline: none; border-color: rgba(124, 122, 239, 0.5); box-shadow: 0 0 0 3px rgba(124, 122, 239, 0.08); }
 
