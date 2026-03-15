@@ -369,6 +369,8 @@ async function loadAgentActivity() {
 // Live Agent Monitor
 // =========================================================================
 let _monitorAgents = []; // cached for terminal panel
+let _termTabs = [];       // open agent terminal tabs [{agent, active}]
+let _termMinimized = false;
 
 function renderLiveMonitor(agents) {
   const container = document.getElementById('live-monitor');
@@ -398,96 +400,233 @@ function renderLiveMonitor(agents) {
   }).join('');
 }
 
-/** Open a terminal-like panel showing an agent's real-time activity */
+/** Open/add an agent tab in the floating tmux-style terminal */
 async function openAgentTerminal(agentName) {
-  const p = getAgentProfile(agentName);
+  // If already a tab, just switch to it
+  const existingTab = _termTabs.find(t => t.agent === agentName);
+  if (existingTab) {
+    _termSwitchTab(agentName);
+    // Un-minimize if minimized
+    if (_termMinimized) _termToggleMinimize();
+    return;
+  }
 
-  // Close existing terminal if open
-  let existing = document.getElementById('agent-terminal-overlay');
-  if (existing) existing.remove();
+  // Add new tab
+  _termTabs.forEach(t => t.active = false);
+  _termTabs.push({ agent: agentName, active: true });
 
-  // Create overlay
-  const overlay = document.createElement('div');
-  overlay.id = 'agent-terminal-overlay';
-  overlay.className = 'agent-terminal-overlay';
-  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+  // Create or update the floating terminal widget
+  _termRender();
 
-  const panel = document.createElement('div');
-  panel.className = 'agent-terminal-panel';
-  panel.innerHTML = `
-    <div class="agent-terminal-header" style="border-bottom-color: ${p.color}33">
-      <div class="flex items-center gap-2">
-        <div class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style="background:${p.color}">${(p.name||'?')[0]}</div>
-        <span class="text-sm font-semibold" style="color:${p.color}">${escHtml(p.name)}</span>
-        <span class="text-[10px] text-slate-500">${escHtml(p.role)}</span>
-      </div>
-      <div class="flex items-center gap-2">
-        <span class="agent-terminal-status" id="agent-term-status">loading</span>
-        <button onclick="document.getElementById('agent-terminal-overlay').remove()" class="text-slate-500 hover:text-white transition">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-        </button>
+  // Load data for this agent
+  await _termLoadAgent(agentName);
+}
+
+function _termRender() {
+  let widget = document.getElementById('tmux-terminal');
+  if (!widget) {
+    widget = document.createElement('div');
+    widget.id = 'tmux-terminal';
+    widget.className = 'tmux-widget';
+    document.body.appendChild(widget);
+
+    // Make draggable by header
+    _termMakeDraggable(widget);
+  }
+
+  if (_termMinimized) {
+    widget.className = 'tmux-widget tmux-minimized';
+    widget.innerHTML = `
+      <div class="tmux-titlebar" id="tmux-drag-handle">
+        <span class="text-[10px] text-slate-400">Terminal (${_termTabs.length})</span>
+        <div class="flex gap-1">
+          <button onclick="_termToggleMinimize()" class="tmux-btn" title="Restore">▢</button>
+          <button onclick="_termCloseAll()" class="tmux-btn tmux-btn-close" title="Close">✕</button>
+        </div>
+      </div>`;
+    return;
+  }
+
+  // Tab bar
+  const tabsHtml = _termTabs.map(t => {
+    const p = getAgentProfile(t.agent);
+    const isActive = _monitorAgents.find(a => a.agent === t.agent)?.status === 'active';
+    return `<div class="tmux-tab ${t.active ? 'active' : ''}" onclick="_termSwitchTab('${escHtml(t.agent)}')" style="${t.active ? 'border-bottom-color:' + p.color : ''}">
+      <span class="tmux-tab-dot" style="background:${isActive ? '#34d399' : '#475569'}"></span>
+      <span>${escHtml(p.name)}</span>
+      <button class="tmux-tab-close" onclick="event.stopPropagation();_termCloseTab('${escHtml(t.agent)}')" title="Close">×</button>
+    </div>`;
+  }).join('');
+
+  const activeTab = _termTabs.find(t => t.active);
+
+  widget.className = 'tmux-widget';
+  widget.innerHTML = `
+    <div class="tmux-titlebar" id="tmux-drag-handle">
+      <div class="tmux-tabs">${tabsHtml}</div>
+      <div class="flex gap-1">
+        <button onclick="_termToggleMinimize()" class="tmux-btn" title="Minimize">─</button>
+        <button onclick="_termCloseAll()" class="tmux-btn tmux-btn-close" title="Close all">✕</button>
       </div>
     </div>
-    <div class="agent-terminal-body" id="agent-term-body">
-      <div class="agent-term-line dim">Connecting to ${escHtml(p.name)}...</div>
+    <div class="tmux-body" id="tmux-body">
+      <div class="agent-term-line dim">Loading...</div>
+    </div>
+    <div class="tmux-statusbar">
+      <span id="tmux-status-agent">${activeTab ? escHtml(getAgentProfile(activeTab.agent).name) : ''}</span>
+      <span id="tmux-status-info">—</span>
     </div>
   `;
+}
 
-  overlay.appendChild(panel);
-  document.body.appendChild(overlay);
+async function _termLoadAgent(agentName) {
+  const body = document.getElementById('tmux-body');
+  if (!body) return;
+  body.innerHTML = '<div class="agent-term-line dim">Loading...</div>';
 
-  // Fetch this agent's activity
   try {
     const data = await apiFetch('/v1/activity/stream?limit=200');
     const events = (data.events || []).filter(ev => ev.agent === agentName);
-    const body = document.getElementById('agent-term-body');
-    if (!body) return;
 
-    const statusEl = document.getElementById('agent-term-status');
-    if (statusEl) {
-      const isActive = _monitorAgents.find(a => a.agent === agentName)?.status === 'active';
-      statusEl.textContent = isActive ? 'active' : 'idle';
-      statusEl.className = `agent-terminal-status ${isActive ? 'active' : 'idle'}`;
-    }
+    // Also fetch recent traces for richer span detail
+    const traceIds = [...new Set(events.map(e => e.trace_id).filter(Boolean))].slice(0, 5);
+    const spanDetails = {};
+    await Promise.all(traceIds.map(async tid => {
+      try {
+        const t = await apiFetch(`/v1/traces/${tid}`);
+        (t.spans || []).forEach(s => {
+          const attrs = s.attributes || {};
+          if (attrs['agent.name'] === agentName || (s.name || '').startsWith(agentName + '/')) {
+            spanDetails[s.span_id] = s;
+          }
+        });
+      } catch (_) {}
+    }));
+
+    const statusEl = document.getElementById('tmux-status-info');
+    const isActive = _monitorAgents.find(a => a.agent === agentName)?.status === 'active';
+    if (statusEl) statusEl.textContent = `${events.length} events · ${isActive ? '● active' : '○ idle'}`;
 
     if (events.length === 0) {
-      body.innerHTML = `<div class="agent-term-line dim">No recent activity for ${escHtml(p.name)}</div>`;
+      body.innerHTML = `<div class="agent-term-line dim">~ No recent activity ~</div>`;
       return;
     }
 
-    body.innerHTML = events.slice(0, 30).map(ev => {
-      const time = new Date(ev.timestamp * 1000);
-      const timeStr = time.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      const isError = ev.status === 'error';
-      const durStr = ev.duration_ms > 0 ? `${Math.round(ev.duration_ms)}ms` : '';
-      const errorMsg = isError && ev.error ? ev.error : '';
-
-      let icon = '●';
-      const tool = ev.tool || '?';
-      if (tool === 'Read') icon = '📄';
-      else if (tool === 'Edit') icon = '✏️';
-      else if (tool === 'Write') icon = '📝';
-      else if (tool === 'Bash') icon = '⚡';
-      else if (tool === 'Grep') icon = '🔍';
-      else if (tool === 'Glob') icon = '📂';
-      else if (tool === 'Agent') icon = '🤖';
-
-      return `<div class="agent-term-line ${isError ? 'error' : ''}">` +
-        `<span class="agent-term-time">${timeStr}</span>` +
-        `<span class="agent-term-icon">${icon}</span>` +
-        `<span class="agent-term-tool">${escHtml(tool)}</span>` +
-        `<span class="agent-term-dur">${durStr}</span>` +
-        (isError ? `<span class="agent-term-error">${escHtml(errorMsg).substring(0, 60)}</span>` : '') +
-      `</div>`;
-    }).join('');
-
-    // Auto-scroll to bottom
+    body.innerHTML = events.slice(0, 40).map(ev => _termFormatLine(ev, spanDetails)).join('');
     body.scrollTop = body.scrollHeight;
-
   } catch (e) {
-    const body = document.getElementById('agent-term-body');
-    if (body) body.innerHTML = `<div class="agent-term-line error">Failed to load activity: ${escHtml(String(e))}</div>`;
+    body.innerHTML = `<div class="agent-term-line error">Error: ${escHtml(String(e))}</div>`;
   }
+}
+
+function _termFormatLine(ev, spanDetails) {
+  const time = new Date(ev.timestamp * 1000);
+  const timeStr = time.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const isError = ev.status === 'error';
+  const tool = ev.tool || '?';
+  const durStr = ev.duration_ms > 0 ? `<span class="agent-term-dur">${Math.round(ev.duration_ms)}ms</span>` : '';
+
+  const icons = { Read:'📄', Edit:'✏️', Write:'📝', Bash:'⚡', Grep:'🔍', Glob:'📂', Agent:'🤖' };
+  const icon = icons[tool] || '●';
+
+  // Extract detail from span attributes
+  let detail = '';
+  const matchingSpan = Object.values(spanDetails || {}).find(s => {
+    const sTime = s.start_time || 0;
+    return Math.abs(sTime - ev.timestamp) < 2 && (s.name || '').includes(tool);
+  });
+
+  if (matchingSpan) {
+    const attrs = matchingSpan.attributes || {};
+    const input = attrs['tool.input'] || '';
+    if (tool === 'Read' || tool === 'Write' || tool === 'Edit') {
+      // Extract file path
+      const match = input.match(/file_path=([^\s;,]+)/);
+      if (match) {
+        const parts = match[1].split('/');
+        detail = parts.slice(-2).join('/');
+      }
+    } else if (tool === 'Bash') {
+      const match = input.match(/command=(.+?)(?:;|$)/);
+      if (match) detail = match[1].substring(0, 70);
+    } else if (tool === 'Grep') {
+      const match = input.match(/pattern=(.+?)(?:;|$)/);
+      if (match) detail = `/${match[1].substring(0, 40)}/`;
+    } else if (tool === 'Glob') {
+      const match = input.match(/pattern=(.+?)(?:;|$)/);
+      if (match) detail = match[1].substring(0, 50);
+    } else if (tool === 'Agent') {
+      const match = input.match(/prompt=(.+?)(?:;|$)/);
+      if (match) detail = match[1].substring(0, 50);
+    }
+    // Model info
+    const model = attrs['gen_ai.request.model'];
+    if (model && !detail) detail = model;
+  }
+
+  if (!detail && isError && ev.error) detail = ev.error.substring(0, 60);
+
+  const detailHtml = detail ? `<span class="agent-term-detail">${escHtml(detail)}</span>` : '';
+
+  return `<div class="agent-term-line ${isError ? 'error' : ''}">` +
+    `<span class="agent-term-time">${timeStr}</span>` +
+    `<span class="agent-term-icon">${icon}</span>` +
+    `<span class="agent-term-tool">${escHtml(tool)}</span>` +
+    durStr + detailHtml +
+  `</div>`;
+}
+
+function _termSwitchTab(agentName) {
+  _termTabs.forEach(t => t.active = (t.agent === agentName));
+  _termRender();
+  _termLoadAgent(agentName);
+}
+
+function _termCloseTab(agentName) {
+  _termTabs = _termTabs.filter(t => t.agent !== agentName);
+  if (_termTabs.length === 0) { _termCloseAll(); return; }
+  if (!_termTabs.find(t => t.active)) _termTabs[_termTabs.length - 1].active = true;
+  _termRender();
+  const active = _termTabs.find(t => t.active);
+  if (active) _termLoadAgent(active.agent);
+}
+
+function _termCloseAll() {
+  _termTabs = [];
+  const w = document.getElementById('tmux-terminal');
+  if (w) w.remove();
+}
+
+function _termToggleMinimize() {
+  _termMinimized = !_termMinimized;
+  _termRender();
+  if (!_termMinimized) {
+    const active = _termTabs.find(t => t.active);
+    if (active) _termLoadAgent(active.agent);
+  }
+}
+
+function _termMakeDraggable(el) {
+  let isDrag = false, startX, startY, origX, origY;
+  el.addEventListener('mousedown', e => {
+    if (e.target.closest('.tmux-tab, .tmux-btn, button')) return;
+    const handle = e.target.closest('#tmux-drag-handle, .tmux-titlebar');
+    if (!handle) return;
+    isDrag = true;
+    startX = e.clientX; startY = e.clientY;
+    const rect = el.getBoundingClientRect();
+    origX = rect.left; origY = rect.top;
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', e => {
+    if (!isDrag) return;
+    const dx = e.clientX - startX, dy = e.clientY - startY;
+    el.style.left = (origX + dx) + 'px';
+    el.style.top = (origY + dy) + 'px';
+    el.style.right = 'auto';
+    el.style.bottom = 'auto';
+  });
+  document.addEventListener('mouseup', () => { isDrag = false; });
 }
 
 // =========================================================================

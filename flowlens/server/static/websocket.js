@@ -282,34 +282,23 @@ function _pushToAgentFeed(agentName, ev) {
   }
 }
 
-/** Push a real-time event into the agent terminal panel (if open for this agent) */
+/** Push a real-time event into the tmux terminal (if open for this agent) */
 function _pushToAgentTerminal(agentName, ev) {
-  const overlay = document.getElementById('agent-terminal-overlay');
-  if (!overlay) return;
-  const body = document.getElementById('agent-term-body');
+  const widget = document.getElementById('tmux-terminal');
+  if (!widget || _termMinimized) return;
+  const activeTab = _termTabs.find(t => t.active);
+  if (!activeTab || activeTab.agent !== agentName) return;
+
+  const body = document.getElementById('tmux-body');
   if (!body) return;
-  // Check if terminal is for this agent
-  const headerName = overlay.querySelector('.agent-terminal-header span.text-sm');
-  const p = getAgentProfile(agentName);
-  if (headerName && headerName.textContent !== p.name) return;
 
-  const time = new Date((ev.timestamp || Date.now() / 1000) * 1000);
-  const timeStr = time.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  const isError = ev.status === 'error';
-  const tool = ev.tool || '?';
-  const durStr = ev.duration_ms > 0 ? `${Math.round(ev.duration_ms)}ms` : '';
-  const icons = { Read: '📄', Edit: '✏️', Write: '📝', Bash: '⚡', Grep: '🔍', Glob: '📂', Agent: '🤖' };
-  const icon = icons[tool] || '●';
-
-  const line = document.createElement('div');
-  line.className = `agent-term-line ${isError ? 'error' : ''}`;
-  line.innerHTML = `<span class="agent-term-time">${timeStr}</span>` +
-    `<span class="agent-term-icon">${icon}</span>` +
-    `<span class="agent-term-tool">${escHtml(tool)}</span>` +
-    `<span class="agent-term-dur">${durStr}</span>` +
-    (isError && ev.error ? `<span class="agent-term-error">${escHtml(String(ev.error)).substring(0, 60)}</span>` : '');
-
-  body.appendChild(line);
-  body.scrollTop = body.scrollHeight;
+  const lineHtml = _termFormatLine(ev, {});
+  const tmp = document.createElement('div');
+  tmp.innerHTML = lineHtml;
+  const line = tmp.firstElementChild;
+  if (line) {
+    body.appendChild(line);
+    body.scrollTop = body.scrollHeight;
+  }
 }
 
