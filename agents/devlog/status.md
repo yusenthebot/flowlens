@@ -1,5 +1,27 @@
 # Agent Status — 2026-03-15
 
+## Cycle 23: End-to-End QA + Bug Fixes — COMPLETE (Beta, 2026-03-15)
+
+**Beta**: Ran server, seeded data, tested all 8 API endpoints end-to-end, fixed 3 bugs
+- Commit: a182cea
+- Branch: `main` (direct)
+- Tests: 1156 passing (unchanged)
+- Delivered:
+  - **storage.py** `list_sessions()`: replaced `GROUP_CONCAT(DISTINCT tags_json)` + comma split
+    with `GROUP_CONCAT(tags_json, '|||')` + pipe-delimited split to prevent JSON objects with
+    internal commas from being corrupted mid-parse; added deduplication via `seen_tags` set.
+    Bug was silent: sessions with multiple distinct agent tags returned `agents: []`.
+  - **cost_forecast.py**: added ±10 % minimum CI spread when `_residual_std()` returns 0
+    (< 3 data points). Confidence interval was previously `lower == upper`, making the
+    forecast band invisible in the chart.
+  - **scripts/seed_24h.py**: hardcoded port 8585 replaced with `os.environ.get("FLOWLENS_PORT", "8585")`
+    so the script works without editing when using non-default ports.
+- Verified all working: `/v1/stats`, `/v1/agents/summary`, `/v1/activity/stream`,
+  `/v1/sessions`, `/v1/cost/forecast`, `/v1/feedback/recent`, `/`, all static files 200.
+- Files: `flowlens/server/storage.py`, `flowlens/analysis/cost_forecast.py`, `scripts/seed_24h.py`
+
+---
+
 ## Cycle 22: README Localization — COMPLETE (Alpha, 2026-03-15)
 
 **Alpha**: Split mixed EN/CN README into clean README.md (English) + README_CN.md (Chinese)
