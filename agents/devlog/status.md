@@ -1,46 +1,25 @@
-## Cycle 24: QA Dashboard E2E Testing — COMPLETE (QA Engineer, 2026-03-15)
-
-**QA Engineer**: Comprehensive end-to-end API testing and documentation
-- Tests Created: 38 integration tests across 3 test classes
-- Test Pass Rate: 1194/1194 (100%, +38 new tests)
-- Endpoints Validated: 13 groups (health, stats, agents, activity, sessions, cost, patterns, feedback, static files)
-- Files: `tests/test_dashboard_e2e.py` (540 lines)
-- Features Tested:
-  - Health endpoint (status, version, trace count, db_size)
-  - Stats API (traces, spans, tokens, cost, errors, duration averages)
-  - Agent summary detection from tags + span attributes (vr-alpha, vr-beta, vr-gamma)
-  - Activity stream with agent identification and timestamps
-  - Sessions grouping by session_id
-  - Cost forecast projection and breakdown by service/kind/name
-  - Stats trends time-series for charting
-  - Patterns summary anti-pattern detection
-  - Feedback system (summary, recent entries)
-  - Static file serving (dashboard.js, dashboard.css, charts.js, network.js, websocket.js)
-  - Dashboard HTML rendering
-  - Data integrity validation across endpoints
-  - Error handling (empty db, invalid params, pagination edge cases)
-- Code Quality: Ruff ✓, Black ✓, Pytest ✓
-- Seeded Data: 10 traces across 3 agents, 2 sessions, 25% error rate
-- Blockers: None
-- Documentation: Cycle 24 report created (`agents/devlog/cycle-24.md`)
-
----
-
 # Agent Status — 2026-03-15
 
-## Cycle 24: API Enrichment — COMPLETE (Beta, 2026-03-15)
+## Cycle 24: Dashboard Data Richness — COMPLETE (Gamma, 2026-03-15)
 
-**Beta**: Enhanced API layer with richer data for the dashboard
-- Branch: `worktree-agent-a328be41`
-- Commit: 0091c84
-- Tests: 1170 passing (14 new tests added)
-- CI: ruff, black, mypy all pass
+**Gamma**: Fixed charts, enriched terminal output, added model usage to agent cards
+- Branch: `worktree-agent-a92fa4b0`
+- Commit: e49f381
+- Tests: 1156 passing (unchanged)
 - Delivered:
-  - `/v1/agents/summary`: added `models_used` dict (calls + cost per model from `gen_ai.request.model` span attributes) and `top_tools` list (sorted descending by call count)
-  - `/v1/activity/stream`: added `file_path`, `command`, `model` fields parsed from `span.attributes['tool.input']` and `gen_ai.request.model`; keys omitted when absent
-  - NEW `/v1/agents/{agent_name}/timeline`: chronological tool-call events for a specific agent; supports `limit` param; extracts `file_path`, `command`, `model` per event
-  - `/health`: bumped version from `"0.5.0"` to `"1.0.0"`
-- Files: `flowlens/server/routes/agents.py`, `flowlens/server/routes/system.py`, `tests/test_server.py`
+  - Fixed `loadStats()` bucket field name mismatch: `b.trace_count` → `b.traces||b.trace_count`,
+    `b.error_count` → `b.errors||b.error_count`, `b.total_cost` → `b.cost||b.total_cost`
+    Applied to both windowed and all-time modes — stat card trend indicators now show real ↑↓ %
+  - Fixed same mismatch in all-time `_window_traces` / `_window_cost` calculation
+  - Enhanced `_termFormatLine()`: full file paths (80-char max with ellipsis), bash preview
+    (60-char trimmed), model name pill (`.agent-term-model`, shortened aliases), error messages
+    for failed ops (70-char, overrides generic detail), added LLM/WebFetch/WebSearch icons
+  - Added `_loadAgentModels(agentNames)`: fetches activity stream, batch-loads up to 8 traces per
+    agent, extracts `gen_ai.request.model` from span attributes, renders model pills with call counts
+    in each agent card's new "Models" section
+  - Fixed `loadOverviewCharts()` early-exit when all agents tagged 'unknown'
+  - Added CSS: `.agent-term-model`, `.agent-model-pill`, `.model-count`
+- Files: `flowlens/server/static/dashboard.js`, `flowlens/server/static/charts.js`, `flowlens/server/static/dashboard.css`
 
 ---
 

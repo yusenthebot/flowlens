@@ -713,40 +713,72 @@ function _termFormatLine(ev, spanDetails) {
   const isError = ev.status === 'error';
   const tool = ev.tool || '?';
   const durStr = ev.duration_ms > 0 ? `<span class="agent-term-dur">${Math.round(ev.duration_ms)}ms</span>` : '';
-  const icons = { Read:'📄', Edit:'✏️', Write:'📝', Bash:'⚡', Grep:'🔍', Glob:'📂', Agent:'🤖' };
+  const icons = { Read:'📄', Edit:'✏️', Write:'📝', Bash:'⚡', Grep:'🔍', Glob:'📂', Agent:'🤖', LLM:'🧠', WebFetch:'🌐', WebSearch:'🔎' };
   const icon = icons[tool] || '●';
 
   let detail = '';
+  let modelTag = '';
+  // Match span by timestamp proximity AND tool name (within 2s window)
   const matchingSpan = Object.values(spanDetails || {}).find(s =>
     Math.abs((s.start_time||0) - ev.timestamp) < 2 && (s.name||'').includes(tool));
 
   if (matchingSpan) {
     const attrs = matchingSpan.attributes || {};
     const input = attrs['tool.input'] || '';
+    // File path tools: show full path (up to 80 chars), not just last 3 segments
     if (['Read','Write','Edit'].includes(tool)) {
       const m = input.match(/file_path=([^\s;,]+)/);
-      if (m) detail = m[1].split('/').slice(-3).join('/');
+      if (m) {
+        const fullPath = m[1];
+        // Show full path if under 80 chars, otherwise trim from left with ellipsis
+        detail = fullPath.length <= 80 ? fullPath : '…' + fullPath.slice(fullPath.length - 79);
+      }
     } else if (tool === 'Bash') {
+      // Show first 60 chars of command for a meaningful preview
       const m = input.match(/command=(.+?)(?:;|$)/);
-      if (m) detail = m[1].substring(0, 80);
+      if (m) detail = m[1].trimStart().substring(0, 60);
     } else if (tool === 'Grep') {
       const m = input.match(/pattern=(.+?)(?:;|$)/);
-      if (m) detail = `/${m[1].substring(0, 40)}/`;
+      if (m) detail = `/${m[1].substring(0, 50)}/`;
     } else if (tool === 'Glob') {
       const m = input.match(/pattern=(.+?)(?:;|$)/);
-      if (m) detail = m[1].substring(0, 50);
+      if (m) detail = m[1].substring(0, 60);
     }
-    const model = attrs['gen_ai.request.model'];
-    if (model && !detail) detail = model;
+    // Model name: show for LLM/Agent calls — always extract even if we have a detail
+    const model = attrs['gen_ai.request.model'] || attrs['model'];
+    if (model) {
+      // Shorten well-known model names
+      const shortModel = model
+        .replace('claude-sonnet-4-5', 'sonnet-4.5')
+        .replace('claude-sonnet-4-6', 'sonnet-4.6')
+        .replace('claude-opus-4-5', 'opus-4.5')
+        .replace('claude-haiku-3-5', 'haiku-3.5')
+        .replace('claude-3-5-sonnet', 'sonnet-3.5')
+        .replace('claude-3-opus', 'opus-3')
+        .replace('claude-3-haiku', 'haiku-3')
+        .replace('gpt-4o-mini', 'gpt-4o-mini')
+        .replace('gpt-4o', 'gpt-4o')
+        .replace(/^(claude|gpt)-/, '');
+      modelTag = `<span class="agent-term-model">${escHtml(shortModel)}</span>`;
+      if (!detail) detail = model; // Fall back to model as detail if nothing else
+    }
+    // Output token count for LLM calls
+    const outTokens = attrs['gen_ai.usage.output_tokens'] || attrs['llm.usage.completion_tokens'];
+    if (outTokens && !detail) detail = `${outTokens} tokens out`;
   }
-  if (!detail && isError && ev.error) detail = ev.error.substring(0, 60);
+
+  // Error message takes priority over generic detail
+  if (isError && ev.error) {
+    detail = ev.error.substring(0, 70);
+  }
+
   const detailHtml = detail ? `<span class="agent-term-detail">${escHtml(detail)}</span>` : '';
 
   return `<div class="agent-term-line ${isError ? 'error' : ''}">`+
     `<span class="agent-term-time">${timeStr}</span>`+
     `<span class="agent-term-icon">${icon}</span>`+
     `<span class="agent-term-tool">${escHtml(tool)}</span>`+
-    durStr + detailHtml + `</div>`;
+    modelTag + durStr + detailHtml + `</div>`;
 }
 
 function _termClosePane(paneId) {
@@ -969,6 +1001,9 @@ async function loadAgentData() {
           <div style="display:flex;align-items:flex-end;height:20px;">${activityDots.join('')}</div>
         </div>
         <div class="flex flex-wrap gap-1 mb-2">${toolsHtmlV14}</div>
+        <div class="agent-models-section mb-2" id="agent-models-${escHtml(a.agent)}">
+          <div class="text-[10px] text-slate-600 italic">Loading models...</div>
+        </div>
         <div class="flex items-center justify-between text-[11px] text-slate-600 agents-grid-card-meta mb-2">
           <span>${a.total_spans} spans</span>
           <span>${opsLastHour} ops/hr</span>
@@ -982,8 +1017,10 @@ async function loadAgentData() {
     // Load agent relationship graph after rendering cards
     loadAgentGraph();
 
-    // Populate per-agent live activity feeds
-    _loadAgentFeeds(agents.map(a => a.agent));
+    const agentNames = agents.map(a => a.agent);
+    // Populate per-agent live activity feeds and model usage (non-blocking)
+    _loadAgentFeeds(agentNames);
+    _loadAgentModels(agentNames);
   } catch (err) {
     grid.innerHTML = `<p class="text-xs text-red-400 col-span-full">Failed to load agent data: ${escHtml(String(err))}</p>`;
   }
@@ -1036,6 +1073,81 @@ async function _loadAgentFeeds(agentNames) {
     }
   } catch (e) {
     console.warn('Agent feeds:', e);
+  }
+}
+
+/** Fetch model usage per agent from activity stream + span attributes, render "Models" section in each card */
+async function _loadAgentModels(agentNames) {
+  // Initialize model sections immediately so they don't show stale "Loading models..."
+  agentNames.forEach(name => {
+    const el = document.getElementById(`agent-models-${name}`);
+    if (el) el.innerHTML = '';
+  });
+  try {
+    const data = await apiFetch('/v1/activity/stream?limit=200');
+    const events = data.events || [];
+
+    // For each agent, collect unique trace IDs
+    const byAgent = {};
+    agentNames.forEach(name => { byAgent[name] = { traceIds: new Set(), models: {} }; });
+    events.forEach(ev => {
+      if (byAgent[ev.agent]) byAgent[ev.agent].traceIds.add(ev.trace_id);
+    });
+
+    // Batch-load up to 8 unique traces per agent to extract model names
+    await Promise.all(agentNames.map(async agentName => {
+      const bucket = byAgent[agentName];
+      if (!bucket) return;
+      const traceIds = [...bucket.traceIds].filter(Boolean).slice(0, 8);
+      await Promise.all(traceIds.map(async tid => {
+        try {
+          const t = await apiFetch(`/v1/traces/${tid}`);
+          (t.spans || []).forEach(span => {
+            const attrs = span.attributes || {};
+            const spanAgent = attrs['agent.name'] || agentName;
+            // Only count spans for this agent
+            if (spanAgent !== agentName && !((span.name || '').startsWith(agentName + '/'))) return;
+            const model = attrs['gen_ai.request.model'] || attrs['model'];
+            if (model) {
+              bucket.models[model] = (bucket.models[model] || 0) + 1;
+            }
+          });
+        } catch (_) {}
+      }));
+    }));
+
+    // Render model pills in each agent card
+    agentNames.forEach(agentName => {
+      const el = document.getElementById(`agent-models-${agentName}`);
+      if (!el) return;
+      const models = byAgent[agentName]?.models || {};
+      const modelEntries = Object.entries(models).sort((a, b) => b[1] - a[1]);
+      if (modelEntries.length === 0) {
+        el.innerHTML = ''; // No model data — hide section cleanly
+        return;
+      }
+      const label = '<div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Models</div>';
+      const pills = modelEntries.map(([model, count]) => {
+        // Shorten model name
+        const short = model
+          .replace('claude-sonnet-4-5', 'sonnet-4.5')
+          .replace('claude-sonnet-4-6', 'sonnet-4.6')
+          .replace('claude-opus-4-5', 'opus-4.5')
+          .replace('claude-haiku-3-5', 'haiku-3.5')
+          .replace('claude-3-5-sonnet', 'sonnet-3.5')
+          .replace('claude-3-opus', 'opus-3')
+          .replace('claude-3-haiku', 'haiku-3');
+        return `<span class="agent-model-pill">${escHtml(short)}<span class="model-count">${count}x</span></span>`;
+      }).join(' ');
+      el.innerHTML = label + `<div class="flex flex-wrap gap-1">${pills}</div>`;
+    });
+  } catch (e) {
+    console.warn('Agent models load:', e);
+    // Clear loading placeholders silently on failure
+    agentNames.forEach(name => {
+      const el = document.getElementById(`agent-models-${name}`);
+      if (el) el.innerHTML = '';
+    });
   }
 }
 
@@ -1285,18 +1397,20 @@ async function loadStats() {
       const allBuckets = currentTrend.buckets || [];
       const prevBuckets = (previousTrend.buckets || []).slice(0, Math.floor((previousTrend.buckets || []).length / 2));
       const curBuckets = (previousTrend.buckets || []).slice(Math.floor((previousTrend.buckets || []).length / 2));
+      // Note: /v1/stats/trends buckets use keys: traces, errors, cost
+      // (not trace_count/error_count/total_cost — handle both for safety)
       currentStats = {
-        total_traces: curBuckets.reduce((s, b) => s + (b.trace_count || 0), 0),
-        error_traces: curBuckets.reduce((s, b) => s + (b.error_count || 0), 0),
-        total_cost: curBuckets.reduce((s, b) => s + (b.total_cost || 0), 0),
-        total_tokens: curBuckets.reduce((s, b) => s + (b.total_tokens || 0), 0),
-        avg_duration_ms: curBuckets.length ? curBuckets.reduce((s, b) => s + (b.avg_duration_ms || 0), 0) / curBuckets.length : 0,
-        total_spans: allBuckets.reduce((s, b) => s + (b.span_count || 0), 0),
+        total_traces: curBuckets.reduce((s, b) => s + (b.traces || b.trace_count || 0), 0),
+        error_traces: curBuckets.reduce((s, b) => s + (b.errors || b.error_count || 0), 0),
+        total_cost: curBuckets.reduce((s, b) => s + (b.cost || b.total_cost || 0), 0),
+        total_tokens: 0,
+        avg_duration_ms: 0,
+        total_spans: 0,
       };
       previousStats = {
-        total_traces: prevBuckets.reduce((s, b) => s + (b.trace_count || 0), 0),
-        error_traces: prevBuckets.reduce((s, b) => s + (b.error_count || 0), 0),
-        total_cost: prevBuckets.reduce((s, b) => s + (b.total_cost || 0), 0),
+        total_traces: prevBuckets.reduce((s, b) => s + (b.traces || b.trace_count || 0), 0),
+        error_traces: prevBuckets.reduce((s, b) => s + (b.errors || b.error_count || 0), 0),
+        total_cost: prevBuckets.reduce((s, b) => s + (b.cost || b.total_cost || 0), 0),
       };
     } else {
       // All-time stats
@@ -1307,11 +1421,11 @@ async function loadStats() {
         const buckets = trend24h.buckets || [];
         const half = Math.floor(buckets.length / 2);
         previousStats = {
-          total_traces: buckets.slice(0, half).reduce((s, b) => s + (b.trace_count || 0), 0),
-          total_cost: buckets.slice(0, half).reduce((s, b) => s + (b.total_cost || 0), 0),
+          total_traces: buckets.slice(0, half).reduce((s, b) => s + (b.traces || b.trace_count || 0), 0),
+          total_cost: buckets.slice(0, half).reduce((s, b) => s + (b.cost || b.total_cost || 0), 0),
         };
-        currentStats._window_traces = buckets.slice(half).reduce((s, b) => s + (b.trace_count || 0), 0);
-        currentStats._window_cost = buckets.slice(half).reduce((s, b) => s + (b.total_cost || 0), 0);
+        currentStats._window_traces = buckets.slice(half).reduce((s, b) => s + (b.traces || b.trace_count || 0), 0);
+        currentStats._window_cost = buckets.slice(half).reduce((s, b) => s + (b.cost || b.total_cost || 0), 0);
       } catch (_) {}
     }
 

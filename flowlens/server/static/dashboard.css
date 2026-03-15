@@ -430,6 +430,26 @@
       min-width: 0;
     }
     .agent-term-line.error .agent-term-detail { color: rgba(248,113,113,0.85); }
+    /* Model name pill in terminal line */
+    .agent-term-model {
+      color: #a78bfa; font-size: 10px; flex-shrink: 0;
+      background: rgba(107,92,231,0.15); border: 1px solid rgba(107,92,231,0.25);
+      border-radius: 3px; padding: 0 4px; line-height: 14px;
+      font-family: 'JetBrains Mono', 'Fira Mono', monospace;
+      margin-right: 2px;
+    }
+    /* Agent card models section */
+    .agent-models-section { margin-top: 6px; }
+    .agent-model-pill {
+      display: inline-flex; align-items: center; gap: 3px;
+      padding: 2px 6px; border-radius: 4px; font-size: 10px;
+      background: rgba(107,92,231,0.12); border: 1px solid rgba(107,92,231,0.22);
+      color: #a78bfa; font-family: 'JetBrains Mono', 'Fira Mono', monospace;
+      white-space: nowrap;
+    }
+    .agent-model-pill .model-count {
+      font-size: 9px; color: rgba(148,163,184,0.7); font-family: inherit;
+    }
     .monitor-agent-card { transition: transform 0.15s ease, border-color 0.2s ease; }
 
     /* Context menu — refined */
