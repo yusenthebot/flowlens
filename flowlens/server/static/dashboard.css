@@ -893,6 +893,421 @@
       background: rgba(107,104,217,0.02) !important;
     }
 
+    /* ========== Cycle 14: Visual Polish — Claude Aesthetic ========== */
+
+    /* ---------- Design tokens ---------- */
+    :root {
+      --accent: #6b5ce7;
+      --accent-light: rgba(107, 92, 231, 0.12);
+      --accent-border: rgba(107, 92, 231, 0.3);
+      --warm-off-white: #faf9f6;
+      --warm-gray-100: #f0ede8;
+      --warm-gray-200: #e4e0da;
+      --warm-gray-400: #9a9690;
+      --radius-card: 12px;
+      --radius-pill: 999px;
+      --radius-btn: 8px;
+      --shadow-soft: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04);
+      --shadow-lift: 0 4px 20px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04);
+    }
+
+    /* ---------- Header glass redesign ---------- */
+    header.sticky {
+      min-height: 60px;
+      backdrop-filter: blur(20px) saturate(1.4);
+    }
+    .dark header.sticky {
+      background: rgba(10, 12, 24, 0.75);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      box-shadow: 0 1px 0 rgba(255,255,255,0.04), 0 4px 24px rgba(0,0,0,0.2);
+    }
+    html:not(.dark) header.sticky {
+      background: rgba(250, 249, 246, 0.88);
+      border-bottom: 1px solid rgba(0,0,0,0.07);
+      box-shadow: 0 1px 0 rgba(255,255,255,0.8), 0 2px 12px rgba(0,0,0,0.04);
+    }
+
+    /* Logo mark */
+    .header-logo-mark {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #6b5ce7, #9b8ec4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(107, 92, 231, 0.35), 0 0 0 1px rgba(107,92,231,0.2);
+      flex-shrink: 0;
+    }
+
+    /* Logo text */
+    .header-logo-text {
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+    .dark .header-logo-text { color: #f0eeff; }
+    html:not(.dark) .header-logo-text { color: #1a1730; }
+
+    .header-logo-sub {
+      font-size: 10px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-top: -1px;
+    }
+    .dark .header-logo-sub { color: rgba(255,255,255,0.3); }
+    html:not(.dark) .header-logo-sub { color: rgba(0,0,0,0.35); }
+
+    /* Live status dot — larger + more prominent */
+    .live-status-dot {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px 3px 6px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .dark .live-status-dot {
+      background: rgba(16,185,129,0.12);
+      border: 1px solid rgba(16,185,129,0.2);
+      color: #6ee7b7;
+    }
+    html:not(.dark) .live-status-dot {
+      background: rgba(16,185,129,0.08);
+      border: 1px solid rgba(16,185,129,0.18);
+      color: #059669;
+    }
+    .live-status-dot .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 0 0 rgba(16,185,129,0.4);
+      animation: liveStatusPulse 2s ease-in-out infinite;
+    }
+    @keyframes liveStatusPulse {
+      0%   { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); }
+      50%  { box-shadow: 0 0 0 5px rgba(16,185,129,0); }
+      100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+    }
+
+    /* Header icon buttons */
+    .header-icon-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      border-radius: var(--radius-btn);
+      border: none;
+      cursor: pointer;
+      transition: background-color 0.15s ease, transform 0.1s ease;
+      position: relative;
+    }
+    .dark .header-icon-btn {
+      background: rgba(255,255,255,0.05);
+      color: rgba(255,255,255,0.55);
+    }
+    .dark .header-icon-btn:hover {
+      background: rgba(255,255,255,0.09);
+      color: rgba(255,255,255,0.85);
+    }
+    html:not(.dark) .header-icon-btn {
+      background: rgba(0,0,0,0.04);
+      color: rgba(0,0,0,0.45);
+    }
+    html:not(.dark) .header-icon-btn:hover {
+      background: rgba(0,0,0,0.07);
+      color: rgba(0,0,0,0.7);
+    }
+    .header-icon-btn:active { transform: scale(0.93); }
+
+    /* WS status badge in header */
+    .header-ws-badge {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 500;
+      padding: 3px 10px;
+      border-radius: 999px;
+    }
+    .dark .header-ws-badge { color: rgba(255,255,255,0.35); }
+    html:not(.dark) .header-ws-badge { color: rgba(0,0,0,0.35); }
+
+    /* ---------- Navigation pill tabs ---------- */
+    .pill-nav-container {
+      display: flex;
+      gap: 2px;
+      padding: 4px;
+      border-radius: 12px;
+      position: relative;
+    }
+    .dark .pill-nav-container {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    html:not(.dark) .pill-nav-container {
+      background: rgba(0,0,0,0.04);
+      border: 1px solid rgba(0,0,0,0.06);
+    }
+
+    .pill-tab {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      border: none;
+      cursor: pointer;
+      transition: color 0.15s ease, background-color 0.15s ease, transform 0.1s ease;
+      white-space: nowrap;
+      letter-spacing: -0.01em;
+    }
+    .dark .pill-tab {
+      color: rgba(255,255,255,0.45);
+      background: transparent;
+    }
+    html:not(.dark) .pill-tab {
+      color: rgba(0,0,0,0.45);
+      background: transparent;
+    }
+
+    .dark .pill-tab:hover:not(.pill-tab-active) {
+      background: rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.75);
+      transform: scale(1.02);
+    }
+    html:not(.dark) .pill-tab:hover:not(.pill-tab-active) {
+      background: rgba(0,0,0,0.05);
+      color: rgba(0,0,0,0.7);
+      transform: scale(1.02);
+    }
+
+    .pill-tab-active,
+    .pill-tab.tab-active {
+      font-weight: 600;
+    }
+    .dark .pill-tab-active,
+    .dark .pill-tab.tab-active {
+      background: rgba(107, 92, 231, 0.18) !important;
+      color: #c4b8ff !important;
+      box-shadow: 0 1px 4px rgba(107,92,231,0.2), inset 0 1px 0 rgba(255,255,255,0.06);
+      border-color: transparent !important;
+    }
+    html:not(.dark) .pill-tab-active,
+    html:not(.dark) .pill-tab.tab-active {
+      background: rgba(107, 92, 231, 0.1) !important;
+      color: #5046c8 !important;
+      box-shadow: 0 1px 4px rgba(107,92,231,0.12);
+      border-color: transparent !important;
+    }
+
+    /* Override old tab-active styles when on pill-tab */
+    .pill-tab.tab-active { border-bottom: none !important; }
+    .pill-tab.tab-inactive { border-bottom: none !important; color: inherit; }
+
+    /* Tab count badge */
+    .tab-count-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .dark .tab-count-badge {
+      background: rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.5);
+    }
+    html:not(.dark) .tab-count-badge {
+      background: rgba(0,0,0,0.08);
+      color: rgba(0,0,0,0.45);
+    }
+    .pill-tab-active .tab-count-badge {
+      background: rgba(107,92,231,0.25) !important;
+      color: inherit !important;
+    }
+
+    /* ---------- Typography system ---------- */
+
+    /* H1: page titles */
+    .typo-h1 {
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: -0.025em;
+      line-height: 1.3;
+    }
+    .dark .typo-h1 { color: #f0eeff; }
+    html:not(.dark) .typo-h1 { color: #1a1730; }
+
+    /* H2: section headers — uppercase label style */
+    .typo-h2 {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      line-height: 1.4;
+    }
+    .dark .typo-h2 { color: rgba(255,255,255,0.35); }
+    html:not(.dark) .typo-h2 { color: rgba(0,0,0,0.38); }
+
+    /* H3: card titles */
+    .typo-h3 {
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      line-height: 1.4;
+    }
+    .dark .typo-h3 { color: rgba(255,255,255,0.75); }
+    html:not(.dark) .typo-h3 { color: rgba(0,0,0,0.65); }
+
+    /* Body text */
+    .typo-body {
+      font-size: 13px;
+      font-weight: 400;
+      line-height: 1.55;
+    }
+    .dark .typo-body { color: rgba(255,255,255,0.6); }
+    html:not(.dark) .typo-body { color: rgba(0,0,0,0.55); }
+
+    /* Small/meta text */
+    .typo-meta {
+      font-size: 11px;
+      font-weight: 400;
+      line-height: 1.4;
+    }
+    .dark .typo-meta { color: rgba(255,255,255,0.3); }
+    html:not(.dark) .typo-meta { color: rgba(0,0,0,0.35); }
+
+    /* Monospace / IDs / code */
+    .typo-mono {
+      font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.01em;
+    }
+    .dark .typo-mono { color: rgba(255,255,255,0.45); }
+    html:not(.dark) .typo-mono { color: rgba(0,0,0,0.4); }
+
+    /* ---------- Card system ---------- */
+
+    /* All glass cards: consistent 12px radius, min 16px padding, hover lift */
+    .glass {
+      border-radius: var(--radius-card) !important;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.3s ease, border-color 0.3s ease !important;
+    }
+
+    /* Hover lift for interactive glass cards */
+    .glass-card-hover:hover {
+      transform: translateY(-1px) !important;
+    }
+    .dark .glass-card-hover:hover {
+      box-shadow: 0 6px 28px rgba(0,0,0,0.22), 0 2px 6px rgba(0,0,0,0.12) !important;
+    }
+    html:not(.dark) .glass-card-hover:hover {
+      box-shadow: 0 4px 20px rgba(0,0,0,0.07), 0 1px 4px rgba(0,0,0,0.04) !important;
+    }
+
+    /* Section header pattern: uppercase label + right action */
+    .card-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .card-section-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+    .dark .card-section-label { color: rgba(255,255,255,0.3); }
+    html:not(.dark) .card-section-label { color: rgba(0,0,0,0.35); }
+    .card-section-action {
+      font-size: 11px;
+      font-weight: 500;
+      transition: color 0.15s ease;
+    }
+    .dark .card-section-action { color: rgba(107,92,231,0.8); }
+    .dark .card-section-action:hover { color: #c4b8ff; }
+    html:not(.dark) .card-section-action { color: #5046c8; }
+    html:not(.dark) .card-section-action:hover { color: #3730a3; }
+
+    /* ---------- Stat cards — unique accents + larger number ---------- */
+
+    /* Large stat number */
+    .stat-number {
+      font-size: 28px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+    }
+    .dark .stat-number { color: #f0eeff; }
+    html:not(.dark) .stat-number { color: #1a1730; }
+
+    /* Gradient backgrounds per accent — applied on top of .glass */
+    .stat-card-traces {
+      background: linear-gradient(140deg, rgba(99,102,241,0.09) 0%, transparent 60%) !important;
+    }
+    .stat-card-errors {
+      background: linear-gradient(140deg, rgba(239,68,68,0.08) 0%, transparent 60%) !important;
+    }
+    .stat-card-latency {
+      background: linear-gradient(140deg, rgba(245,158,11,0.08) 0%, transparent 60%) !important;
+    }
+    .stat-card-cost {
+      background: linear-gradient(140deg, rgba(16,185,129,0.08) 0%, transparent 60%) !important;
+    }
+    .stat-card-agents {
+      background: linear-gradient(140deg, rgba(139,92,246,0.08) 0%, transparent 60%) !important;
+    }
+
+    /* Accent icon boxes per card type */
+    .stat-icon-traces  { background: rgba(99,102,241,0.12); color: #818cf8; }
+    .stat-icon-errors  { background: rgba(239,68,68,0.12);  color: #f87171; }
+    .stat-icon-latency { background: rgba(245,158,11,0.12); color: #fbbf24; }
+    .stat-icon-cost    { background: rgba(16,185,129,0.12); color: #34d399; }
+    .stat-icon-agents  { background: rgba(139,92,246,0.12); color: #a78bfa; }
+    html:not(.dark) .stat-icon-traces  { background: rgba(99,102,241,0.08);  color: #4f46e5; }
+    html:not(.dark) .stat-icon-errors  { background: rgba(239,68,68,0.08);   color: #dc2626; }
+    html:not(.dark) .stat-icon-latency { background: rgba(245,158,11,0.08);  color: #d97706; }
+    html:not(.dark) .stat-icon-cost    { background: rgba(16,185,129,0.08);  color: #059669; }
+    html:not(.dark) .stat-icon-agents  { background: rgba(139,92,246,0.08);  color: #7c3aed; }
+
+    /* Trend indicator enhanced */
+    .stat-trend-up   { font-size: 11px; font-weight: 600; color: #34d399; }
+    .stat-trend-down { font-size: 11px; font-weight: 600; color: #f87171; }
+    html:not(.dark) .stat-trend-up   { color: #059669; }
+    html:not(.dark) .stat-trend-down { color: #dc2626; }
+
+    /* Stat sublabel */
+    .stat-sublabel {
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+      margin-top: 3px;
+    }
+    .dark .stat-sublabel { color: rgba(255,255,255,0.3); }
+    html:not(.dark) .stat-sublabel { color: rgba(0,0,0,0.38); }
+
+    /* ---------- Refresh icon button animation ---------- */
+    @keyframes spinOnce {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+    .spin-once { animation: spinOnce 0.5s ease-out; }
+
     /* Last node — no trailing gap */
     .session-timeline-node.last .session-timeline-content {
       margin-bottom: 0;
