@@ -299,6 +299,57 @@ function renderSparkline(canvasId, data, color) {
   });
 }
 
+/**
+ * Render a tiny inline SVG sparkline (60x20px, no axes).
+ * Color is sage (#81b29a) for upward trend, coral (#e07a5f) for downward.
+ * @param {string} containerId - element to inject SVG into
+ * @param {number[]} data - raw data array
+ */
+function renderSVGSparkline(containerId, data) {
+  const container = document.getElementById(containerId);
+  if (!container || !data || data.length < 2) return;
+
+  const W = 60, H = 20;
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1;
+
+  // Determine trend direction (last third vs first third)
+  const third = Math.max(1, Math.floor(data.length / 3));
+  const firstAvg = data.slice(0, third).reduce((a, b) => a + b, 0) / third;
+  const lastAvg  = data.slice(-third).reduce((a, b) => a + b, 0) / third;
+  const isUp = lastAvg >= firstAvg;
+  const strokeColor = isUp ? '#81b29a' : '#e07a5f';  // sage up, coral down
+  const fillColor   = isUp ? 'rgba(129,178,154,0.18)' : 'rgba(224,122,95,0.18)';
+
+  // Build polyline points
+  const step = (W - 2) / (data.length - 1);
+  const points = data.map((v, i) => {
+    const x = 1 + i * step;
+    const y = H - 2 - ((v - min) / range) * (H - 4);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+
+  // Area fill path (close to bottom)
+  const areaPath = `M${points[0]} L${points.join(' L')} L${(1 + (data.length - 1) * step).toFixed(1)},${H - 1} L1,${H - 1} Z`;
+
+  container.innerHTML = `<svg class="stat-sparkline" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+    <path d="${areaPath}" fill="${fillColor}" stroke="none"/>
+    <polyline points="${points.join(' ')}" fill="none" stroke="${strokeColor}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+  </svg>`;
+}
+
+/**
+ * Inject a secondary stat line below the primary number in a stat card.
+ * @param {string} elId - id of the element to inject into
+ * @param {string} text - secondary stat text (e.g. "avg 2.3/hr")
+ */
+function _setStatSecondary(elId, text) {
+  let el = document.getElementById(elId);
+  if (!el) return;
+  el.innerHTML = `<span class="stat-secondary">${escHtml(text)}</span>`;
+}
+
 async function loadSparklines() {
   try {
     const data = await apiFetch('/v1/stats/trends?hours=24&bucket_minutes=60');
@@ -310,10 +361,34 @@ async function loadSparklines() {
     const latencies = buckets.map(b => b.avg_duration_ms || 0);
     const costs = buckets.map(b => b.cost || b.total_cost || 0);
 
+    // Canvas sparklines (original, inside each card's canvas element)
     renderSparkline('sparkline-traces', traceCounts, '#6366f1');
     renderSparkline('sparkline-errors', errorCounts, '#ef4444');
     renderSparkline('sparkline-latency', latencies, '#f59e0b');
     renderSparkline('sparkline-cost', costs, '#10b981');
+
+    // Inline SVG sparklines in stat cards
+    renderSVGSparkline('stat-sparkline-traces', traceCounts);
+    renderSVGSparkline('stat-sparkline-errors', errorCounts);
+    renderSVGSparkline('stat-sparkline-latency', latencies);
+    renderSVGSparkline('stat-sparkline-cost', costs);
+
+    // Secondary stats: "avg X/hr" labels
+    const totalHours = buckets.length || 24;
+    const totalTraces = traceCounts.reduce((a, b) => a + b, 0);
+    const avgTracesHr = totalHours > 0 ? (totalTraces / totalHours).toFixed(1) : '0';
+    const totalErrors = errorCounts.reduce((a, b) => a + b, 0);
+    const errorRate = totalTraces > 0 ? ((totalErrors / totalTraces) * 100).toFixed(1) : '0';
+    const nonZeroLat = latencies.filter(v => v > 0);
+    const avgLat = nonZeroLat.length > 0 ? nonZeroLat.reduce((a, b) => a + b, 0) / nonZeroLat.length : 0;
+    const avgLatStr = avgLat >= 1000 ? (avgLat / 1000).toFixed(2) + 's avg' : avgLat.toFixed(0) + 'ms avg';
+    const totalCost = costs.reduce((a, b) => a + b, 0);
+    const avgCostHr = totalHours > 0 ? (totalCost / totalHours) : 0;
+
+    _setStatSecondary('stat-secondary-traces', `avg ${avgTracesHr}/hr`);
+    _setStatSecondary('stat-secondary-errors', `${errorRate}% of traces`);
+    _setStatSecondary('stat-secondary-latency', avgLatStr);
+    _setStatSecondary('stat-secondary-cost', `$${avgCostHr.toFixed(4)}/hr avg`);
   } catch (e) { /* sparklines are non-critical */ }
 }
 

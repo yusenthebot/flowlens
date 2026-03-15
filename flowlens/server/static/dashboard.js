@@ -1420,6 +1420,44 @@ function buildTraceSummary(trace) {
   return sorted.map(([tool, n]) => `${n} ${tool}`).join(', ');
 }
 
+/** Map a tool name to a CSS pill class */
+function _toolPillClass(toolName) {
+  const t = (toolName || '').toLowerCase();
+  if (t === 'read')    return 'tool-pill-read';
+  if (t === 'bash')    return 'tool-pill-bash';
+  if (t === 'edit')    return 'tool-pill-edit';
+  if (t === 'write')   return 'tool-pill-write';
+  if (t === 'glob')    return 'tool-pill-glob';
+  if (t === 'grep')    return 'tool-pill-grep';
+  if (t.includes('llm') || t.includes('chat') || t.includes('completion') || t.includes('claude') || t.includes('gpt')) return 'tool-pill-llm';
+  return 'tool-pill-default';
+}
+
+/** Build colored tool pill HTML from span counts (top 4) */
+function buildToolPillsHtml(trace) {
+  const spans = trace.spans || [];
+  if (spans.length === 0) return '';
+  const toolCounts = {};
+  spans.forEach(s => {
+    const slash = (s.name || '').lastIndexOf('/');
+    const tool = slash >= 0 ? s.name.substring(slash + 1) : (s.kind || 'span');
+    toolCounts[tool] = (toolCounts[tool] || 0) + 1;
+  });
+  if (Object.keys(toolCounts).length === 0) return '';
+  return Object.entries(toolCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4)
+    .map(([tool, n]) => `<span class="tool-pill ${_toolPillClass(tool)}">${n} ${escHtml(tool)}</span>`)
+    .join('');
+}
+
+/** Return CSS class for a duration dot based on ms value */
+function _durationDotClass(ms) {
+  if (ms >= 5000) return 'duration-dot-slow';
+  if (ms >= 1000) return 'duration-dot-medium';
+  return 'duration-dot-fast';
+}
+
 function renderTraceRow(trace, compact = false) {
   const hasErrors = trace.has_errors === true || trace.has_errors === 1;
   const isEmpty = (trace.span_count || 0) === 0 && !(trace.spans && trace.spans.length > 0);
@@ -1445,19 +1483,22 @@ function renderTraceRow(trace, compact = false) {
     displayName = projectName || trace.service_name || 'session';
   }
 
-  // Smart one-line summary
+  // Smart one-line summary — colored tool pills
+  const toolPillsHtml = buildToolPillsHtml(trace);
   const smartSummary = buildTraceSummary(trace);
-  const summaryHtml = smartSummary
-    ? `<span class="text-[11px] text-slate-500 truncate">${escHtml(smartSummary)}</span>`
-    : '';
+  const summaryHtml = toolPillsHtml
+    ? `<div class="flex flex-wrap gap-1 mt-1">${toolPillsHtml}</div>`
+    : (smartSummary ? `<span class="text-[11px] text-slate-500 truncate">${escHtml(smartSummary)}</span>` : '');
 
   // Time ago and span count
   const timeAgo = formatTimeAgo(trace.start_time);
   const spanCount = trace.span_count || (trace.spans || []).length;
   const spanOps = `${spanCount} ops`;
 
-  const duration = (trace.duration_ms || 0).toFixed(0);
+  const durationNum = trace.duration_ms || 0;
+  const duration = durationNum.toFixed(0);
   const cost = (trace.total_cost_usd || 0).toFixed(4);
+  const durationDotClass = _durationDotClass(durationNum);
 
   const isSelected = compareSelection.includes(trace.trace_id);
   const _previewAttrs = !compact
@@ -1483,7 +1524,6 @@ function renderTraceRow(trace, compact = false) {
     : '';
 
   // Mini duration bar (proportion of max 10s) — positioned as thin underline via CSS
-  const durationNum = trace.duration_ms || 0;
   const durationPct = Math.min((durationNum / 10000) * 100, 100);
   const durationBarColor = durationNum > 5000 ? '#e07a5f' : durationNum > 2000 ? '#e6a65d' : '#6b5ce7';
 
@@ -1506,12 +1546,15 @@ function renderTraceRow(trace, compact = false) {
           ${summaryHtml}
         </div>
       </div>
-      <div class="flex items-center gap-6 text-xs text-slate-500 trace-row-details">
-        <div class="text-right">
-          <div class="text-slate-400">${duration}ms</div>
-          ${!compact ? `<div>$${cost}</div>` : ''}
+      <div class="flex items-center gap-4 text-xs text-slate-500 trace-row-details flex-shrink-0">
+        <div class="text-right w-[68px] flex-shrink-0">
+          <div class="flex items-center justify-end gap-1">
+            <span class="duration-dot ${durationDotClass}"></span>
+            <span class="text-slate-400 tabular-nums">${duration}ms</span>
+          </div>
+          ${!compact ? `<div class="tabular-nums">$${cost}</div>` : ''}
         </div>
-        ${compact ? `<div class="text-right"><div class="text-slate-400">$${cost}</div></div>` : ''}
+        ${compact ? `<div class="text-right w-[68px] flex-shrink-0"><div class="tabular-nums text-slate-400">$${cost}</div></div>` : ''}
         <svg class="w-4 h-4 text-slate-600 group-hover:text-slate-400 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
       </div>
       ${!compact ? `<div class="trace-mini-duration" title="${duration}ms"><div class="trace-mini-duration-fill" style="width:${durationPct}%;background:${durationBarColor}"></div></div>` : ''}
@@ -2416,14 +2459,39 @@ function renderWaterfallTimeline(spans) {
   }
   rootSpans.forEach(s => dfs(s, 0));
 
-  // Time axis markers
-  const timeMarkers = 5;
-  let timeAxisHtml = '<div class="flex justify-between text-[10px] text-slate-600 mb-1 ml-[280px] mr-[70px]">';
-  for (let i = 0; i <= timeMarkers; i++) {
-    const ms = (totalDurationMs * i / timeMarkers);
-    timeAxisHtml += `<span>${formatDuration(ms)}</span>`;
+  // Time axis — proper ruler with adaptive tick spacing
+  // Choose tick interval based on total duration
+  let tickIntervalMs;
+  if (totalDurationMs <= 500)       tickIntervalMs = 50;
+  else if (totalDurationMs <= 2000) tickIntervalMs = 100;
+  else if (totalDurationMs <= 10000) tickIntervalMs = 500;
+  else if (totalDurationMs <= 30000) tickIntervalMs = 1000;
+  else if (totalDurationMs <= 120000) tickIntervalMs = 5000;
+  else tickIntervalMs = 10000;
+
+  // Generate tick positions (always include 0 and end)
+  const tickMs = [];
+  for (let t = 0; t <= totalDurationMs; t += tickIntervalMs) {
+    tickMs.push(t);
   }
+  if (tickMs[tickMs.length - 1] < totalDurationMs) tickMs.push(totalDurationMs);
+
+  // Build ruler HTML
+  let timeAxisHtml = '<div class="wf-time-ruler">';
+  tickMs.forEach((ms, idx) => {
+    const pct = (ms / totalDurationMs) * 100;
+    const label = formatDuration(ms);
+    const isFirst = idx === 0;
+    const isLast  = idx === tickMs.length - 1;
+    const align = isFirst ? 'left:0;transform:none' : isLast ? 'right:0;transform:none;left:auto' : `left:${pct}%`;
+    timeAxisHtml += `<div class="wf-ruler-tick" style="${align}">
+      <div class="wf-ruler-tick-mark"></div>
+      <div class="wf-ruler-label">${label}</div>
+    </div>`;
+  });
   timeAxisHtml += '</div>';
+
+  const timeMarkers = 5; // keep for grid lines
 
   // Collect agents present in these spans for the agent color legend
   const traceAgentTag = currentTraceData && (currentTraceData.tags || {}).agent || null;
@@ -2459,12 +2527,12 @@ function renderWaterfallTimeline(spans) {
     legendHtml += '</div>';
   }
 
-  // Vertical gridlines behind bars
+  // Vertical gridlines behind bars — aligned to ruler ticks
   let gridHtml = '<div class="absolute inset-0 ml-[280px] mr-[70px] pointer-events-none" style="top:0;bottom:0">';
-  for (let i = 1; i < timeMarkers; i++) {
-    const pct = (i / timeMarkers) * 100;
-    gridHtml += `<div class="absolute top-0 bottom-0 border-l border-white/[0.03]" style="left:${pct}%"></div>`;
-  }
+  tickMs.slice(1, -1).forEach(ms => {
+    const pct = (ms / totalDurationMs) * 100;
+    gridHtml += `<div class="wf-ruler-gridline" style="left:${pct}%"></div>`;
+  });
   gridHtml += '</div>';
 
   // Track which spans have children for collapse toggle
@@ -4825,7 +4893,8 @@ function renderSessionTraceNode(trace, idx, sessionStartTime, totalTraces) {
   const traceId = trace.trace_id || '';
   const spanCount = trace.span_count || 0;
   const cost = (trace.total_cost_usd || 0).toFixed(4);
-  const duration = formatDuration(trace.duration_ms || 0);
+  const durationMs = trace.duration_ms || 0;
+  const duration = formatDuration(durationMs);
 
   // Compute offset from session start
   const offsetMs = ((trace.start_time || 0) - sessionStartTime) * 1000;
@@ -4841,11 +4910,17 @@ function renderSessionTraceNode(trace, idx, sessionStartTime, totalTraces) {
   const agent = tags.agent || trace.service_name || '';
   const p = getAgentProfile(agent);
 
-  // Span kind summary
-  const spanSummary = getTraceSpanSummary(trace);
+  // Tool pills from spans
+  const toolPillsHtml = buildToolPillsHtml(trace);
+
+  // Duration color
+  const durDotClass = _durationDotClass(durationMs);
 
   const nodeColor = hasErrors ? '#ef4444' : p.color;
   const isLast = idx === totalTraces - 1;
+
+  // Agent avatar: colored circle with initial
+  const avatarLetter = (p.name || agent || '?').charAt(0).toUpperCase();
 
   return `
     <div class="session-timeline-node ${isLast ? 'last' : ''}">
@@ -4859,20 +4934,19 @@ function renderSessionTraceNode(trace, idx, sessionStartTime, totalTraces) {
            onclick="openTrace('${escHtml(traceId)}')" title="Click to open trace detail">
         <div class="flex items-start justify-between gap-3">
           <div class="flex items-start gap-3 min-w-0 flex-1">
-            <div class="flex-shrink-0 mt-0.5">
-              <div class="w-7 h-7 rounded-lg bg-gradient-to-br ${p.bgClass} flex items-center justify-center" style="color:${p.color}">
-                <span class="text-[9px] font-bold">${String(idx + 1).padStart(2, '0')}</span>
-              </div>
+            <!-- Agent avatar (colored dot with initial) -->
+            <div class="session-node-avatar flex-shrink-0 mt-0.5" style="background:${p.color};">
+              ${escHtml(avatarLetter)}
             </div>
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2 mb-1 flex-wrap">
-                <span class="text-xs font-medium" style="color:${p.color}">${escHtml(p.name || agent)}</span>
-                ${hasErrors ? '<span class="px-1.5 py-0.5 rounded text-[10px] bg-red-500/15 text-red-400 border border-red-500/25">error</span>' : ''}
+                <span class="text-xs font-semibold" style="color:${p.color}">${escHtml(p.name || agent)}</span>
+                ${hasErrors ? `<span class="session-node-error-dot" title="Has errors"></span>` : ''}
                 <span class="text-[10px] text-slate-500">${timeStr}</span>
                 <span class="text-[10px] text-slate-600">${offsetStr}</span>
               </div>
               <div class="font-mono text-[10px] text-slate-600 truncate">${escHtml(traceId)}</div>
-              ${spanSummary ? `<div class="text-[11px] text-slate-400 mt-1">${escHtml(spanSummary)}</div>` : ''}
+              ${toolPillsHtml ? `<div class="session-tool-pills">${toolPillsHtml}</div>` : ''}
             </div>
           </div>
           <div class="flex items-center gap-3 flex-shrink-0 text-right">
@@ -4882,7 +4956,9 @@ function renderSessionTraceNode(trace, idx, sessionStartTime, totalTraces) {
             </div>
             <div>
               <div class="text-[10px] text-slate-500">duration</div>
-              <div class="text-sm font-semibold text-white">${duration}</div>
+              <div class="text-sm font-semibold text-white flex items-center justify-end gap-1">
+                <span class="duration-dot ${durDotClass}"></span>${duration}
+              </div>
             </div>
             <div>
               <div class="text-[10px] text-slate-500">cost</div>

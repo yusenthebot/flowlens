@@ -201,8 +201,17 @@ function _buildSVGNetwork(container, data) {
 
     // Layer 4 — Core circle with radial gradient (lighter center)
     const nodeOpacity = isActive ? (dark ? '1' : '0.92') : (dark ? '0.65' : '0.55');
-    body += `<circle cx="${x}" cy="${y}" r="${r}" fill="url(#ng-${node.id})" opacity="${nodeOpacity}" class="node-core" onclick="openAgentDetailModal('${escHtml(node.id)}')">
-      <title>${escHtml(profile.name || node.id)}: ${node.trace_count || 0} traces</title>
+    // Encode node data for tooltip as JSON-safe attributes
+    const nodeTraces = node.trace_count || 0;
+    const nodeCost = node.cost != null ? Number(node.cost).toFixed(4) : null;
+    const nodeStatus = node.status || 'idle';
+    const nodeLastActive = node.last_active || '';
+    body += `<circle cx="${x}" cy="${y}" r="${r}" fill="url(#ng-${node.id})" opacity="${nodeOpacity}" class="node-core"
+      onclick="openAgentDetailModal('${escHtml(node.id)}')"
+      onmouseenter="_showNetworkNodeTooltip(event,'${escHtml(profile.name || node.id)}','${escHtml(profile.role || '')}',${nodeTraces},${nodeCost !== null ? `'$${nodeCost}'` : 'null'},'${escHtml(nodeStatus)}','${escHtml(nodeLastActive)}')"
+      onmousemove="_moveNetworkNodeTooltip(event)"
+      onmouseleave="_hideNetworkNodeTooltip()">
+      <title>${escHtml(profile.name || node.id)}: ${nodeTraces} traces</title>
     </circle>`;
 
     // Layer 5 — Soft inner glow overlay
@@ -467,4 +476,64 @@ async function loadOverviewGraph() {
     _buildSVGNetwork(container, data);
 
   } catch (e) { console.warn('Network graph:', e); }
+}
+
+
+// =========================================================================
+// Agent Network Node Tooltip
+// =========================================================================
+
+let _netTooltip = null;
+
+function _getOrCreateNetTooltip() {
+  if (_netTooltip) return _netTooltip;
+  _netTooltip = document.createElement('div');
+  _netTooltip.id = 'agent-node-tooltip';
+  document.body.appendChild(_netTooltip);
+  return _netTooltip;
+}
+
+function _showNetworkNodeTooltip(event, name, role, traceCount, cost, status, lastActive) {
+  const tip = _getOrCreateNetTooltip();
+
+  const costLine  = cost ? `<div class="agent-tooltip-row"><span>Cost</span><span>${cost}</span></div>` : '';
+  const lastLine  = lastActive
+    ? `<div class="agent-tooltip-row"><span>Last active</span><span>${(typeof formatTimeAgo === 'function' ? formatTimeAgo(parseFloat(lastActive)) : lastActive)}</span></div>`
+    : '';
+  const statusColor = status === 'active' ? '#34d399' : '#64748b';
+  const statusDot = `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${statusColor};margin-right:4px;vertical-align:middle;"></span>`;
+
+  tip.innerHTML = `
+    <div class="agent-tooltip-name">${escHtml(name)}</div>
+    ${role ? `<div style="font-size:10px;color:#64748b;margin-bottom:6px;">${escHtml(role)}</div>` : ''}
+    <div class="agent-tooltip-row"><span>${statusDot}Status</span><span>${escHtml(status)}</span></div>
+    <div class="agent-tooltip-row"><span>Traces</span><span>${traceCount}</span></div>
+    ${costLine}
+    ${lastLine}
+  `;
+
+  _positionNetTooltip(event);
+  tip.classList.add('visible');
+}
+
+function _moveNetworkNodeTooltip(event) {
+  if (_netTooltip) _positionNetTooltip(event);
+}
+
+function _positionNetTooltip(event) {
+  const tip = _netTooltip;
+  if (!tip) return;
+  const margin = 14;
+  let x = event.clientX + margin;
+  let y = event.clientY + margin;
+  // Keep in viewport
+  const r = tip.getBoundingClientRect();
+  if (x + r.width + margin > window.innerWidth)  x = event.clientX - r.width - margin;
+  if (y + r.height + margin > window.innerHeight) y = event.clientY - r.height - margin;
+  tip.style.left = x + 'px';
+  tip.style.top  = y + 'px';
+}
+
+function _hideNetworkNodeTooltip() {
+  if (_netTooltip) _netTooltip.classList.remove('visible');
 }
