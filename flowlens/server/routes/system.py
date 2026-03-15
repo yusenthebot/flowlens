@@ -224,6 +224,6 @@ def create_system_router(store: TraceStore, server_start_time: float) -> APIRout
         content_types = {".js": "application/javascript", ".css": "text/css"}
         ct = content_types.get(static_path.suffix, "application/octet-stream")
         return Response(content=static_path.read_bytes(), media_type=ct,
-                        headers={"Cache-Control": "public, max-age=86400"})
+                        headers={"Cache-Control": "no-cache, must-revalidate"})
 
     return router
