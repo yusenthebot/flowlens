@@ -57,7 +57,9 @@ def create_cost_router(store: TraceStore) -> APIRouter:
     @router.get("/v1/cost/forecast")
     async def cost_forecast(
         days: int = Query(30, ge=1, le=365, description="Forecast horizon in days"),
-        forecast_days: int = Query(7, ge=1, le=30, description="Number of days to forecast forward"),
+        forecast_days: int = Query(
+            7, ge=1, le=30, description="Number of days to forecast forward"
+        ),
     ) -> dict[str, Any]:
         """
         Project future costs using linear regression on daily cost data.
@@ -69,6 +71,7 @@ def create_cost_router(store: TraceStore) -> APIRouter:
         from datetime import datetime, timedelta, timezone
 
         from ...analysis.cost_forecast import CostForecaster
+
         try:
             history_days = max(days, 14)
             daily_records = store.get_daily_costs(days=history_days)
@@ -89,7 +92,9 @@ def create_cost_router(store: TraceStore) -> APIRouter:
             if daily_records:
                 last_date_str = daily_records[-1]["date"]
                 try:
-                    last_date = datetime.strptime(last_date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                    last_date = datetime.strptime(last_date_str, "%Y-%m-%d").replace(
+                        tzinfo=timezone.utc
+                    )
                 except (ValueError, TypeError):
                     last_date = datetime.now(timezone.utc)
             else:
@@ -105,12 +110,14 @@ def create_cost_router(store: TraceStore) -> APIRouter:
                 projected = max(0.0, base_cost + slope * i)
                 ci_lo = max(0.0, projected - half_range)
                 ci_hi = projected + half_range
-                forecast_list.append({
-                    "date": future_date.strftime("%Y-%m-%d"),
-                    "cost": round(projected, 6),
-                    "ci_lower": round(ci_lo, 6),
-                    "ci_upper": round(ci_hi, 6),
-                })
+                forecast_list.append(
+                    {
+                        "date": future_date.strftime("%Y-%m-%d"),
+                        "cost": round(projected, 6),
+                        "ci_lower": round(ci_lo, 6),
+                        "ci_upper": round(ci_hi, 6),
+                    }
+                )
             result["forecast"] = forecast_list
             result["daily_avg_usd"] = round(fc.projected_daily_cost, 6)
             result["monthly_projection_usd"] = round(fc.projected_monthly_cost, 6)
@@ -128,6 +135,7 @@ def create_cost_router(store: TraceStore) -> APIRouter:
         the current daily burn rate, and estimated days until the budget is exhausted.
         """
         from ...analysis.cost_forecast import CostForecaster
+
         try:
             daily_records = store.get_daily_costs(days=30)
             total_spent = sum(r.get("total_cost_usd", 0.0) or 0.0 for r in daily_records)
@@ -155,6 +163,7 @@ def create_cost_router(store: TraceStore) -> APIRouter:
     async def cost_optimization() -> dict[str, Any]:
         """Return actionable optimisation suggestions with estimated monthly savings."""
         from ...analysis.cost_breakdown import CostBreakdown
+
         try:
             # Fetch recent traces for analysis (lightweight — no spans loaded)
             traces = store.list_traces(limit=200)
@@ -172,9 +181,7 @@ def create_cost_router(store: TraceStore) -> APIRouter:
             by_service = breakdown.by_service(full_traces)
             by_kind = breakdown.by_span_kind(full_traces)
 
-            total_savings = sum(
-                s.get("estimated_monthly_savings_usd", 0.0) for s in suggestions
-            )
+            total_savings = sum(s.get("estimated_monthly_savings_usd", 0.0) for s in suggestions)
             return {
                 "suggestions": suggestions,
                 "total_estimated_monthly_savings_usd": round(total_savings, 4),

@@ -11,6 +11,7 @@ Covers:
 - SDK span-name validation and per-trace span limit
 - FlowLens singleton thread safety
 """
+
 from __future__ import annotations
 
 import json
@@ -33,6 +34,7 @@ from flowlens.server.storage import TraceStore
 # ===========================================================================
 # Helpers
 # ===========================================================================
+
 
 def _make_trace(
     trace_id: str = "sec-t1",
@@ -60,6 +62,7 @@ def _make_trace(
 # ===========================================================================
 # Fixtures
 # ===========================================================================
+
 
 @pytest.fixture()
 def client(tmp_path):
@@ -95,6 +98,7 @@ def import_client(tmp_path):
 # 1. Path Traversal Prevention
 # ===========================================================================
 
+
 class TestPathTraversal:
     def test_import_disabled_by_default(self, client):
         """Import endpoint returns 403 when _ALLOWED_IMPORT_DIRS is empty."""
@@ -115,6 +119,7 @@ class TestPathTraversal:
 
     def test_import_null_byte_blocked(self, import_client):
         import httpx
+
         client, tmp_path = import_client
         # Null bytes are rejected either by the HTTP client (httpx) or by our
         # server-side validation.  Both outcomes are acceptable.
@@ -152,9 +157,11 @@ class TestPathTraversal:
 # 2. Oversized Payload Rejection
 # ===========================================================================
 
+
 class TestOversizedPayloads:
     def test_too_many_spans_rejected(self, client):
         """Payloads with more than _MAX_SPANS_PER_INGEST spans are rejected."""
+
         # Build a minimal span template
         def _span(i: int) -> dict:
             return {
@@ -176,6 +183,7 @@ class TestOversizedPayloads:
 
     def test_exactly_max_spans_accepted(self, client):
         """A payload with exactly _MAX_SPANS_PER_INGEST spans must be accepted."""
+
         def _span(i: int) -> dict:
             return {
                 "span_id": f"s{i}",
@@ -217,6 +225,7 @@ class TestOversizedPayloads:
 # ===========================================================================
 # 3. SQL Injection Harmlessness
 # ===========================================================================
+
 
 class TestSQLInjection:
     """
@@ -281,6 +290,7 @@ class TestSQLInjection:
 # 4. Rate Limiting — 429 Response
 # ===========================================================================
 
+
 class TestRateLimiting:
     def _make_low_limit_client(self, tmp_path, limit: int = 3):
         """Create a client whose app has a very low rate limit."""
@@ -293,6 +303,7 @@ class TestRateLimiting:
     def test_rate_limiter_returns_429_when_exceeded(self, tmp_path):
         """_RateLimiter must return allowed=False once the budget is exhausted."""
         from flowlens.server.app import _RateLimiter
+
         rl = _RateLimiter(requests_per_minute=3)
         ip = "10.0.0.1"
         results = [rl.check(ip) for _ in range(5)]
@@ -305,6 +316,7 @@ class TestRateLimiting:
 
     def test_rate_limiter_retry_after_positive_when_denied(self, tmp_path):
         from flowlens.server.app import _RateLimiter
+
         rl = _RateLimiter(requests_per_minute=1)
         ip = "10.0.0.2"
         rl.check(ip)  # consume the only slot
@@ -329,6 +341,7 @@ class TestRateLimiting:
     def test_rate_limiter_different_keys_independent(self):
         """Per-endpoint rate-limit buckets must not interfere with each other."""
         from flowlens.server.app import _RateLimiter
+
         rl = _RateLimiter(requests_per_minute=2)
         ip = "10.0.0.3"
         # Exhaust the "search" bucket
@@ -344,6 +357,7 @@ class TestRateLimiting:
     def test_stale_cleanup_runs(self):
         """Stale entries older than the window must be purged during _maybe_cleanup."""
         from flowlens.server.app import _RateLimiter
+
         rl = _RateLimiter(requests_per_minute=100)
         rl._STALE_CLEANUP_INTERVAL = 0  # trigger cleanup on next check
         # Create a stale key that won't be refreshed
@@ -360,6 +374,7 @@ class TestRateLimiting:
 # ===========================================================================
 # 5. Invalid Inputs — Proper Error Codes
 # ===========================================================================
+
 
 class TestInvalidInputs:
     def test_ingest_missing_trace_id_returns_422(self, client):
@@ -436,6 +451,7 @@ class TestInvalidInputs:
 # 6. Security Response Headers
 # ===========================================================================
 
+
 class TestSecurityHeaders:
     ENDPOINTS = [
         ("/health", "GET"),
@@ -446,21 +462,17 @@ class TestSecurityHeaders:
     @pytest.mark.parametrize("path,method", ENDPOINTS)
     def test_security_headers_present(self, client, path, method):
         r = client.request(method, path)
-        assert r.headers.get("x-content-type-options") == "nosniff", (
-            f"Missing X-Content-Type-Options on {method} {path}"
-        )
-        assert r.headers.get("x-frame-options") == "DENY", (
-            f"Missing X-Frame-Options on {method} {path}"
-        )
-        assert "x-xss-protection" in r.headers, (
-            f"Missing X-XSS-Protection on {method} {path}"
-        )
-        assert "referrer-policy" in r.headers, (
-            f"Missing Referrer-Policy on {method} {path}"
-        )
-        assert "content-security-policy" in r.headers, (
-            f"Missing Content-Security-Policy on {method} {path}"
-        )
+        assert (
+            r.headers.get("x-content-type-options") == "nosniff"
+        ), f"Missing X-Content-Type-Options on {method} {path}"
+        assert (
+            r.headers.get("x-frame-options") == "DENY"
+        ), f"Missing X-Frame-Options on {method} {path}"
+        assert "x-xss-protection" in r.headers, f"Missing X-XSS-Protection on {method} {path}"
+        assert "referrer-policy" in r.headers, f"Missing Referrer-Policy on {method} {path}"
+        assert (
+            "content-security-policy" in r.headers
+        ), f"Missing Content-Security-Policy on {method} {path}"
 
     def test_error_response_has_security_headers(self, client):
         """Even 404 error responses must carry security headers."""
@@ -483,6 +495,7 @@ class TestSecurityHeaders:
 # ===========================================================================
 # 7. SDK — Span Name Validation
 # ===========================================================================
+
 
 class TestSpanNameValidation:
     def test_normal_name_unchanged(self):
@@ -520,6 +533,7 @@ class TestSpanNameValidation:
 # 8. SDK — Per-Trace Span Limit
 # ===========================================================================
 
+
 class TestSpanLimit:
     @pytest.fixture(autouse=True)
     def reset_instance(self):
@@ -534,6 +548,7 @@ class TestSpanLimit:
         trace = lens.start_trace()
 
         from flowlens.sdk.context import TraceContext
+
         with TraceContext(trace):
             for i in range(_MAX_SPANS_PER_TRACE + 10):
                 lens.start_span(f"span-{i}", kind=SpanKind.CUSTOM)
@@ -546,6 +561,7 @@ class TestSpanLimit:
         trace = lens.start_trace()
 
         from flowlens.sdk.context import TraceContext
+
         with TraceContext(trace):
             for i in range(10):
                 lens.start_span(f"span-{i}", kind=SpanKind.CUSTOM)
@@ -556,6 +572,7 @@ class TestSpanLimit:
 # ===========================================================================
 # 9. SDK — Thread Safety of Singleton
 # ===========================================================================
+
 
 class TestFlowLensThreadSafety:
     @pytest.fixture(autouse=True)
@@ -629,23 +646,26 @@ class TestFlowLensThreadSafety:
 # 10. Storage — SQL Injection via Storage Layer
 # ===========================================================================
 
+
 class TestStorageSQLInjection:
     def test_search_with_sql_metacharacters(self, store):
         """SQL metacharacters in the search query must not corrupt results."""
-        store.save_trace({
-            "trace_id": "safe",
-            "service_name": "test",
-            "start_time": 1000.0,
-            "end_time": 1001.0,
-            "duration_ms": 1.0,
-            "span_count": 0,
-            "total_tokens": 0,
-            "total_cost_usd": 0.0,
-            "has_errors": False,
-            "error_count": 0,
-            "metadata": {},
-            "spans": [],
-        })
+        store.save_trace(
+            {
+                "trace_id": "safe",
+                "service_name": "test",
+                "start_time": 1000.0,
+                "end_time": 1001.0,
+                "duration_ms": 1.0,
+                "span_count": 0,
+                "total_tokens": 0,
+                "total_cost_usd": 0.0,
+                "has_errors": False,
+                "error_count": 0,
+                "metadata": {},
+                "spans": [],
+            }
+        )
         # Should return empty (no matches), not crash
         result = store.search_traces("'; DROP TABLE traces; --")
         assert isinstance(result, list)
@@ -655,20 +675,22 @@ class TestStorageSQLInjection:
 
     def test_list_traces_with_injection_in_service_name(self, store):
         """Parameterised service_name filter must be safe from injection."""
-        store.save_trace({
-            "trace_id": "t1",
-            "service_name": "real-service",
-            "start_time": 1000.0,
-            "end_time": 1001.0,
-            "duration_ms": 1.0,
-            "span_count": 0,
-            "total_tokens": 0,
-            "total_cost_usd": 0.0,
-            "has_errors": False,
-            "error_count": 0,
-            "metadata": {},
-            "spans": [],
-        })
+        store.save_trace(
+            {
+                "trace_id": "t1",
+                "service_name": "real-service",
+                "start_time": 1000.0,
+                "end_time": 1001.0,
+                "duration_ms": 1.0,
+                "span_count": 0,
+                "total_tokens": 0,
+                "total_cost_usd": 0.0,
+                "has_errors": False,
+                "error_count": 0,
+                "metadata": {},
+                "spans": [],
+            }
+        )
         result = store.list_traces(service_name="' OR '1'='1")
         # Should return empty list — the injection string is not a valid service name
         assert result == []

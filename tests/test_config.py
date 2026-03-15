@@ -10,6 +10,7 @@ from flowlens.config import FlowLensConfig, load_config
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _cfg(**overrides: str) -> FlowLensConfig:
     """Build a FlowLensConfig by temporarily injecting env vars."""
     import os
@@ -52,6 +53,7 @@ def _cfg(**overrides: str) -> FlowLensConfig:
 # Default values
 # ---------------------------------------------------------------------------
 
+
 class TestDefaults:
     def test_default_db_path(self):
         cfg = _cfg()
@@ -81,6 +83,7 @@ class TestDefaults:
 # ---------------------------------------------------------------------------
 # Override via environment variables
 # ---------------------------------------------------------------------------
+
 
 class TestEnvOverrides:
     def test_override_db_path(self):
@@ -116,6 +119,7 @@ class TestEnvOverrides:
 # Validation errors
 # ---------------------------------------------------------------------------
 
+
 class TestValidation:
     def test_invalid_log_level_raises(self):
         with pytest.raises(ValueError, match="FLOWLENS_LOG_LEVEL"):
@@ -123,6 +127,7 @@ class TestValidation:
 
     def test_invalid_port_string_raises(self):
         import os
+
         os.environ["FLOWLENS_PORT"] = "not-a-number"
         try:
             with pytest.raises(ValueError, match="FLOWLENS_PORT"):
@@ -147,6 +152,7 @@ class TestValidation:
 # load_config helper
 # ---------------------------------------------------------------------------
 
+
 class TestLoadConfig:
     def test_returns_flowlens_config(self):
         cfg = load_config()
@@ -161,6 +167,7 @@ class TestLoadConfig:
 # ---------------------------------------------------------------------------
 # Module-level singleton
 # ---------------------------------------------------------------------------
+
 
 class TestModuleSingleton:
     def test_settings_importable(self):
@@ -182,6 +189,7 @@ class TestModuleSingleton:
 # ---------------------------------------------------------------------------
 # Pattern detection threshold defaults
 # ---------------------------------------------------------------------------
+
 
 class TestPatternThresholdDefaults:
     def test_default_pattern_retry_threshold(self):
@@ -213,6 +221,7 @@ class TestPatternThresholdDefaults:
 # Pattern detection threshold env var overrides
 # ---------------------------------------------------------------------------
 
+
 class TestPatternThresholdEnvOverrides:
     def test_override_pattern_retry_threshold(self):
         cfg = _cfg(pattern_retry_threshold="2")
@@ -240,6 +249,7 @@ class TestPatternThresholdEnvOverrides:
 
     def test_invalid_pattern_retry_threshold_raises(self):
         import os
+
         os.environ["FLOWLENS_PATTERN_RETRY_THRESHOLD"] = "not-a-number"
         try:
             with pytest.raises(ValueError, match="FLOWLENS_PATTERN_RETRY_THRESHOLD"):
@@ -249,6 +259,7 @@ class TestPatternThresholdEnvOverrides:
 
     def test_invalid_pattern_context_ratio_raises(self):
         import os
+
         os.environ["FLOWLENS_PATTERN_CONTEXT_RATIO"] = "not-a-float"
         try:
             with pytest.raises(ValueError, match="FLOWLENS_PATTERN_CONTEXT_RATIO"):

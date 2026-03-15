@@ -1,4 +1,5 @@
 """Tests for flowlens/sdk/context.py — context propagation, baggage, isolation, nesting, thread safety."""
+
 from __future__ import annotations
 
 import contextvars
@@ -21,6 +22,7 @@ from flowlens.sdk.models import Span, SpanKind, Trace
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_span(name: str = "span") -> Span:
     return Span(name=name, kind=SpanKind.CUSTOM)
 
@@ -32,6 +34,7 @@ def _make_trace(name: str = "svc") -> Trace:
 # ---------------------------------------------------------------------------
 # Context propagation across spans
 # ---------------------------------------------------------------------------
+
 
 class TestContextPropagation:
     def test_trace_context_sets_and_restores(self):
@@ -88,6 +91,7 @@ class TestContextPropagation:
 # Baggage get / set / delete
 # ---------------------------------------------------------------------------
 
+
 class TestBaggage:
     def setup_method(self):
         # Reset baggage before each test via ContextVar
@@ -130,6 +134,7 @@ class TestBaggage:
 # Context isolation between traces
 # ---------------------------------------------------------------------------
 
+
 class TestContextIsolation:
     def test_two_traces_are_independent(self):
         trace_a = _make_trace("svc-a")
@@ -139,16 +144,20 @@ class TestContextIsolation:
 
         def run_in_a():
             ctx = contextvars.copy_context()
+
             def _inner():
                 with TraceContext(trace_a):
                     results.append(get_current_trace())
+
             ctx.run(_inner)
 
         def run_in_b():
             ctx = contextvars.copy_context()
+
             def _inner():
                 with TraceContext(trace_b):
                     results.append(get_current_trace())
+
             ctx.run(_inner)
 
         run_in_a()
@@ -164,9 +173,11 @@ class TestContextIsolation:
         with TraceContext(outer):
             assert get_current_trace() is outer
             inner_ctx = contextvars.copy_context()
+
             def _run():
                 with TraceContext(inner):
                     assert get_current_trace() is inner
+
             inner_ctx.run(_run)
             # Outer context unchanged
             assert get_current_trace() is outer
@@ -175,6 +186,7 @@ class TestContextIsolation:
 # ---------------------------------------------------------------------------
 # Nested span context
 # ---------------------------------------------------------------------------
+
 
 class TestNestedSpanContext:
     def test_triple_nesting(self):
@@ -219,6 +231,7 @@ class TestNestedSpanContext:
 # Thread safety
 # ---------------------------------------------------------------------------
 
+
 class TestThreadSafety:
     def test_context_isolated_per_thread(self):
         """Each thread should see its own trace, not another thread's."""
@@ -228,20 +241,20 @@ class TestThreadSafety:
         def worker(tid: int, trace: Trace) -> None:
             try:
                 ctx = contextvars.copy_context()
+
                 def _run():
                     with TraceContext(trace):
                         import time
+
                         time.sleep(0.02)
                         results[tid] = get_current_trace()
+
                 ctx.run(_run)
             except Exception as e:
                 errors.append(e)
 
         traces = [_make_trace(f"svc-{i}") for i in range(5)]
-        threads = [
-            threading.Thread(target=worker, args=(i, traces[i]))
-            for i in range(5)
-        ]
+        threads = [threading.Thread(target=worker, args=(i, traces[i])) for i in range(5)]
         for t in threads:
             t.start()
         for t in threads:
@@ -259,19 +272,19 @@ class TestThreadSafety:
         def worker(tid: int, value: str) -> None:
             try:
                 ctx = contextvars.copy_context()
+
                 def _run():
                     set_baggage_item("thread_val", value)
                     import time
+
                     time.sleep(0.02)
                     seen[tid] = get_baggage_item("thread_val")
+
                 ctx.run(_run)
             except Exception as e:
                 errors.append(e)
 
-        threads = [
-            threading.Thread(target=worker, args=(i, f"val-{i}"))
-            for i in range(4)
-        ]
+        threads = [threading.Thread(target=worker, args=(i, f"val-{i}")) for i in range(4)]
         for t in threads:
             t.start()
         for t in threads:

@@ -16,17 +16,19 @@ from typing import Any
 
 class SpanKind(Enum):
     """Span 类型 — 对应 Agent 执行的不同阶段"""
-    AGENT = "agent"         # Agent 主循环
-    LLM = "llm"             # LLM 调用
-    TOOL = "tool"           # Tool/Skill 执行
-    CHAIN = "chain"         # 多步链 / LangChain chains
+
+    AGENT = "agent"  # Agent 主循环
+    LLM = "llm"  # LLM 调用
+    TOOL = "tool"  # Tool/Skill 执行
+    CHAIN = "chain"  # 多步链 / LangChain chains
     RETRIEVAL = "retrieval"  # RAG 检索
     EMBEDDING = "embedding"  # Embedding 操作
-    CUSTOM = "custom"       # 用户自定义
+    CUSTOM = "custom"  # 用户自定义
 
 
 class SpanStatus(Enum):
     """Span 执行状态"""
+
     UNSET = "unset"
     OK = "ok"
     ERROR = "error"
@@ -35,6 +37,7 @@ class SpanStatus(Enum):
 @dataclass
 class SpanEvent:
     """Span 内的离散事件（如 checkpoint、异常）"""
+
     name: str
     timestamp: float = field(default_factory=time.time)
     attributes: dict[str, Any] = field(default_factory=dict)
@@ -43,6 +46,7 @@ class SpanEvent:
 @dataclass
 class TokenUsage:
     """LLM Token 用量"""
+
     input_tokens: int = 0
     output_tokens: int = 0
     total_tokens: int = 0
@@ -58,6 +62,7 @@ class Span:
 
     设计参考：OpenTelemetry Span 模型 + GenAI Semantic Conventions
     """
+
     # 标识
     span_id: str = field(default_factory=lambda: uuid.uuid4().hex[:16])
     trace_id: str = ""
@@ -128,7 +133,9 @@ class Span:
         """
         self.attributes[key] = value
 
-    def add_link(self, trace_id: str, span_id: str, attributes: dict[str, Any] | None = None) -> None:
+    def add_link(
+        self, trace_id: str, span_id: str, attributes: dict[str, Any] | None = None
+    ) -> None:
         """Add a cross-trace link to another span.
 
         Links are stored as span events with the name ``"span_link"`` and the
@@ -204,6 +211,7 @@ class Span:
 @dataclass
 class Trace:
     """一次完整的 Agent 执行追踪"""
+
     trace_id: str = field(default_factory=lambda: uuid.uuid4().hex)
     service_name: str = ""
     root_span_id: str | None = None
@@ -225,19 +233,11 @@ class Trace:
 
     @property
     def total_tokens(self) -> int:
-        return sum(
-            s.token_usage.total_tokens
-            for s in self.spans
-            if s.token_usage
-        )
+        return sum(s.token_usage.total_tokens for s in self.spans if s.token_usage)
 
     @property
     def total_cost_usd(self) -> float:
-        return sum(
-            s.token_usage.total_cost_usd
-            for s in self.spans
-            if s.token_usage
-        )
+        return sum(s.token_usage.total_cost_usd for s in self.spans if s.token_usage)
 
     @property
     def has_errors(self) -> bool:
@@ -287,11 +287,11 @@ class Trace:
 _MODEL_PRICING: dict[str, tuple[float, float]] = {
     # ---- Anthropic Claude 4 family ----
     "claude-opus-4-20250514": (15.0, 75.0),
-    "claude-opus-4": (15.0, 75.0),           # short alias
+    "claude-opus-4": (15.0, 75.0),  # short alias
     "claude-sonnet-4-20250514": (3.0, 15.0),
-    "claude-sonnet-4": (3.0, 15.0),           # short alias
+    "claude-sonnet-4": (3.0, 15.0),  # short alias
     "claude-haiku-4-20250514": (0.25, 1.25),
-    "claude-haiku-4": (0.25, 1.25),           # short alias
+    "claude-haiku-4": (0.25, 1.25),  # short alias
     # ---- Anthropic Claude 3.x ----
     "claude-3.5-haiku": (0.8, 4.0),
     "claude-3.5-sonnet": (3.0, 15.0),
@@ -374,9 +374,7 @@ _MODEL_CONTEXT_WINDOWS: dict[str, int] = {
 _DEFAULT_PRICING = (3.0, 15.0)
 
 
-def _estimate_cost(
-    model: str, input_tokens: int, output_tokens: int
-) -> dict[str, float]:
+def _estimate_cost(model: str, input_tokens: int, output_tokens: int) -> dict[str, float]:
     """估算 LLM 调用成本"""
     # Longest-match-first strategy: among all pricing keys that are a substring
     # of the model name, pick the longest one.  This prevents "gpt-4" from

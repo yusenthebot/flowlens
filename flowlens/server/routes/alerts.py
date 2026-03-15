@@ -30,8 +30,10 @@ logger = logging.getLogger(__name__)
 # Pydantic models
 # ---------------------------------------------------------------------------
 
+
 class AlertRuleCreate(BaseModel):
     """Payload for POST /v1/alerts/rules."""
+
     name: str = Field(..., min_length=1, max_length=256)
     condition: str = Field(..., min_length=1, max_length=512)
     severity: str = Field("warning", pattern="^(critical|warning|info)$")
@@ -42,6 +44,7 @@ class AlertRuleCreate(BaseModel):
 
 class AlertWebhookTest(BaseModel):
     """Payload for POST /v1/alerts/test."""
+
     webhook_url: str = Field(..., min_length=1, max_length=2048)
 
 

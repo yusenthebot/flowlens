@@ -50,9 +50,13 @@ logger = logging.getLogger(__name__)
 # Pydantic models
 # ---------------------------------------------------------------------------
 
+
 class TraceIngestRequest(BaseModel):
     """Payload for POST /v1/traces/ingest."""
-    trace_id: str = Field(..., min_length=1, max_length=_MAX_ID_LENGTH, description="Unique trace identifier")
+
+    trace_id: str = Field(
+        ..., min_length=1, max_length=_MAX_ID_LENGTH, description="Unique trace identifier"
+    )
     service_name: str = Field("", max_length=_MAX_ID_LENGTH)
     start_time: float = 0
     end_time: float = 0
@@ -87,6 +91,7 @@ class TraceIngestRequest(BaseModel):
 
 class FeedbackRequest(BaseModel):
     """Payload for POST /v1/traces/{trace_id}/feedback."""
+
     rating: int = Field(..., ge=1, le=5, description="Rating from 1 (worst) to 5 (best)")
     comment: str | None = Field(None, max_length=4096)
     metadata: dict[str, Any] = {}
@@ -94,6 +99,7 @@ class FeedbackRequest(BaseModel):
 
 class BatchDeleteRequest(BaseModel):
     """Payload for POST /v1/traces/batch-delete."""
+
     trace_ids: list[str] = Field(
         ...,
         min_length=1,
@@ -104,6 +110,7 @@ class BatchDeleteRequest(BaseModel):
 
 class CleanupRequest(BaseModel):
     """Payload for POST /v1/traces/cleanup."""
+
     days: int = Field(30, ge=1, description="Delete traces older than this many days")
 
 
@@ -160,11 +167,21 @@ def create_traces_router(
 
         # Broadcast lightweight summary (not full spans) to WS clients
         if ws_manager.connection_count:
-            summary = {k: payload[k] for k in (
-                "trace_id", "service_name", "start_time", "end_time",
-                "duration_ms", "total_tokens", "total_cost_usd",
-                "has_errors", "error_count", "span_count",
-            )}
+            summary = {
+                k: payload[k]
+                for k in (
+                    "trace_id",
+                    "service_name",
+                    "start_time",
+                    "end_time",
+                    "duration_ms",
+                    "total_tokens",
+                    "total_cost_usd",
+                    "has_errors",
+                    "error_count",
+                    "span_count",
+                )
+            }
             await ws_manager.broadcast({"event": "trace_ingested", "data": summary})
 
         # Evaluate alert rules (non-blocking; errors are swallowed)
@@ -201,10 +218,7 @@ def create_traces_router(
 
         # If allowed directories are configured, enforce membership
         if _ALLOWED_IMPORT_DIRS:
-            if not any(
-                _is_subpath(resolved, allowed)
-                for allowed in _ALLOWED_IMPORT_DIRS
-            ):
+            if not any(_is_subpath(resolved, allowed) for allowed in _ALLOWED_IMPORT_DIRS):
                 raise HTTPException(
                     403,
                     "Access denied: file_path is outside the allowed directories",
@@ -262,9 +276,7 @@ def create_traces_router(
         except Exception:
             logger.exception("Failed to list error traces")
             raise HTTPException(500, "Failed to retrieve error traces")
-        return TraceListResponse(
-            traces=traces, total=len(traces), limit=limit, offset=offset
-        )
+        return TraceListResponse(traces=traces, total=len(traces), limit=limit, offset=offset)
 
     @router.get("/v1/traces/search")
     async def search_traces(
@@ -282,9 +294,7 @@ def create_traces_router(
         except Exception:
             logger.exception("Search failed for query: %s", q_stripped[:50])
             raise HTTPException(500, "Search failed")
-        return TraceListResponse(
-            traces=traces, total=len(traces), limit=limit, offset=offset
-        )
+        return TraceListResponse(traces=traces, total=len(traces), limit=limit, offset=offset)
 
     @router.post("/v1/traces/batch-delete", status_code=200)
     async def batch_delete_traces(req: BatchDeleteRequest) -> dict[str, Any]:
@@ -373,9 +383,7 @@ def create_traces_router(
         except Exception:
             logger.exception("Failed to list traces")
             raise HTTPException(500, "Failed to retrieve traces")
-        return TraceListResponse(
-            traces=traces, total=len(traces), limit=limit, offset=offset
-        )
+        return TraceListResponse(traces=traces, total=len(traces), limit=limit, offset=offset)
 
     @router.get("/v1/traces/{trace_id}/dag")
     async def get_trace_dag(trace_id: str) -> dict[str, Any]:

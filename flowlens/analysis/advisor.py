@@ -295,8 +295,7 @@ class TraceAdvisor:
             return "Trace executed successfully with no errors."
 
         parts = [
-            f"Detected {error_count}/{total_spans} error spans "
-            f"(error rate {error_rate:.0%})"
+            f"Detected {error_count}/{total_spans} error spans " f"(error rate {error_rate:.0%})"
         ]
         if root_causes > 0:
             parts.append(f"{root_causes} root cause(s)")
@@ -314,10 +313,7 @@ class TraceAdvisor:
         for p in self.patterns:
             by_type[p.pattern_type] = by_type.get(p.pattern_type, 0) + 1
 
-        return [
-            f"Detected {count}x {ptype.value}"
-            for ptype, count in by_type.items()
-        ]
+        return [f"Detected {count}x {ptype.value}" for ptype, count in by_type.items()]
 
     def _generate_recommendations(self) -> list[Recommendation]:
         """
@@ -340,14 +336,18 @@ class TraceAdvisor:
         _order = {"critical": 0, "warning": 1, "info": 2}
         recommendations.sort(key=lambda r: _order.get(r.severity, 3))
 
-        return recommendations if recommendations else [
-            Recommendation(
-                pattern_type=PatternType.REDUNDANT_CALLS,  # placeholder
-                title="No optimisation recommendations.",
-                description="This trace looks healthy — no significant issues found.",
-                severity="info",
-            )
-        ]
+        return (
+            recommendations
+            if recommendations
+            else [
+                Recommendation(
+                    pattern_type=PatternType.REDUNDANT_CALLS,  # placeholder
+                    title="No optimisation recommendations.",
+                    description="This trace looks healthy — no significant issues found.",
+                    severity="info",
+                )
+            ]
+        )
 
     def _recommendation_for(self, pattern: DetectedPattern) -> Recommendation | None:  # noqa: C901
         """Map a single :class:`DetectedPattern` to a :class:`Recommendation`."""

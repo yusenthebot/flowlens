@@ -19,6 +19,7 @@ from ..sdk.models import Span, Trace
 @dataclass
 class SpanDiff:
     """单个 span 的变化"""
+
     span_id: str
     span_name: str
     change_type: str  # "added" / "removed" / "changed"
@@ -38,6 +39,7 @@ class SpanDiff:
 @dataclass
 class TraceDiff:
     """两个 traces 之间的差异"""
+
     trace_a_id: str
     trace_b_id: str
 
@@ -117,22 +119,26 @@ def _compare_spans(trace_a: Trace, trace_b: Trace, diff: TraceDiff) -> None:
     # 找新增 spans
     for name, span_b in span_map_b.items():
         if name not in span_map_a:
-            diff.added_spans.append(SpanDiff(
-                span_id=span_b.span_id,
-                span_name=name,
-                change_type="added",
-                new_span=span_b,
-            ))
+            diff.added_spans.append(
+                SpanDiff(
+                    span_id=span_b.span_id,
+                    span_name=name,
+                    change_type="added",
+                    new_span=span_b,
+                )
+            )
 
     # 找删除 spans
     for name, span_a in span_map_a.items():
         if name not in span_map_b:
-            diff.removed_spans.append(SpanDiff(
-                span_id=span_a.span_id,
-                span_name=name,
-                change_type="removed",
-                old_span=span_a,
-            ))
+            diff.removed_spans.append(
+                SpanDiff(
+                    span_id=span_a.span_id,
+                    span_name=name,
+                    change_type="removed",
+                    old_span=span_a,
+                )
+            )
 
     # 找修改 spans（只看持续时间）
     for name in span_map_a:
@@ -143,13 +149,15 @@ def _compare_spans(trace_a: Trace, trace_b: Trace, diff: TraceDiff) -> None:
             if span_a.duration_ms > 0:
                 duration_change = (span_b.duration_ms - span_a.duration_ms) / span_a.duration_ms
                 if abs(duration_change) > 0.1:
-                    diff.changed_spans.append(SpanDiff(
-                        span_id=span_b.span_id,
-                        span_name=name,
-                        change_type="changed",
-                        old_span=span_a,
-                        new_span=span_b,
-                    ))
+                    diff.changed_spans.append(
+                        SpanDiff(
+                            span_id=span_b.span_id,
+                            span_name=name,
+                            change_type="changed",
+                            old_span=span_a,
+                            new_span=span_b,
+                        )
+                    )
 
 
 def _evaluate_improvement(trace_a: Trace, trace_b: Trace, diff: TraceDiff) -> None:
@@ -162,23 +170,15 @@ def _evaluate_improvement(trace_a: Trace, trace_b: Trace, diff: TraceDiff) -> No
 
     # Cost 改进
     if diff.cost_diff_usd < -0.0001:
-        improvements.append(
-            f"成本降低 ${abs(diff.cost_diff_usd):.4f}"
-        )
+        improvements.append(f"成本降低 ${abs(diff.cost_diff_usd):.4f}")
     elif diff.cost_diff_usd > 0.0001:
-        regressions.append(
-            f"成本增加 ${diff.cost_diff_usd:.4f}"
-        )
+        regressions.append(f"成本增加 ${diff.cost_diff_usd:.4f}")
 
     # Time 改进
     if diff.duration_diff_ms < -50:
-        improvements.append(
-            f"执行时间减少 {abs(diff.duration_diff_ms):.0f}ms"
-        )
+        improvements.append(f"执行时间减少 {abs(diff.duration_diff_ms):.0f}ms")
     elif diff.duration_diff_ms > 50:
-        regressions.append(
-            f"执行时间增加 {diff.duration_diff_ms:.0f}ms"
-        )
+        regressions.append(f"执行时间增加 {diff.duration_diff_ms:.0f}ms")
 
     # Error 改进
     error_diff = trace_b.error_count - trace_a.error_count

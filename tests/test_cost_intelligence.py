@@ -158,8 +158,15 @@ class TestCostForecaster:
     def test_to_dict_keys(self):
         records = _daily_records([1.0, 2.0])
         d = self.fc.forecast(records).to_dict()
-        for key in ("projected_daily_cost", "projected_monthly_cost", "trend",
-                    "confidence_interval", "days_of_data", "slope", "r_squared"):
+        for key in (
+            "projected_daily_cost",
+            "projected_monthly_cost",
+            "trend",
+            "confidence_interval",
+            "days_of_data",
+            "slope",
+            "r_squared",
+        ):
             assert key in d
 
     def test_linear_forecast_accuracy(self):
@@ -204,20 +211,14 @@ class TestAnomalyDetection:
     def test_no_anomaly_uniform(self):
         # All same cost → no anomaly
         now = time.time()
-        traces = [
-            {"start_time": now - i * 3600, "total_cost_usd": 1.0}
-            for i in range(5)
-        ]
+        traces = [{"start_time": now - i * 3600, "total_cost_usd": 1.0} for i in range(5)]
         result = self.fc.detect_cost_anomaly_window(traces, window_hours=1)
         assert result == []
 
     def test_detects_spike(self):
         now = time.time()
         # 10 normal hours, 1 spike hour
-        traces = [
-            {"start_time": now - i * 3600, "total_cost_usd": 1.0}
-            for i in range(10)
-        ]
+        traces = [{"start_time": now - i * 3600, "total_cost_usd": 1.0} for i in range(10)]
         # Add a spike in a distinct window
         traces.append({"start_time": now - 11 * 3600, "total_cost_usd": 100.0})
         result = self.fc.detect_cost_anomaly_window(traces, window_hours=1)
@@ -268,7 +269,11 @@ class TestCostBreakdownByModel:
                         "duration_ms": 1000,
                         "attributes": {"model": "gpt-4"},
                         "events": [],
-                        "token_usage": {"input_tokens": 80, "output_tokens": 20, "total_cost_usd": 0.01},
+                        "token_usage": {
+                            "input_tokens": 80,
+                            "output_tokens": 20,
+                            "total_cost_usd": 0.01,
+                        },
                     }
                 ],
             ),
@@ -289,7 +294,11 @@ class TestCostBreakdownByModel:
                         "duration_ms": 500,
                         "attributes": {"model": "claude-haiku"},
                         "events": [],
-                        "token_usage": {"input_tokens": 40, "output_tokens": 10, "total_cost_usd": 0.002},
+                        "token_usage": {
+                            "input_tokens": 40,
+                            "output_tokens": 10,
+                            "total_cost_usd": 0.002,
+                        },
                     }
                 ],
             ),
@@ -392,7 +401,11 @@ class TestCostBreakdownBySpanKind:
                         "duration_ms": 1000,
                         "attributes": {},
                         "events": [],
-                        "token_usage": {"input_tokens": 100, "output_tokens": 50, "total_cost_usd": 0.01},
+                        "token_usage": {
+                            "input_tokens": 100,
+                            "output_tokens": 50,
+                            "total_cost_usd": 0.01,
+                        },
                     },
                     {
                         "span_id": "s2",
@@ -446,7 +459,11 @@ class TestOptimizationSuggestions:
                     "duration_ms": 2000,
                     "attributes": {"model": "claude-3-opus"},
                     "events": [],
-                    "token_usage": {"input_tokens": 4800, "output_tokens": 50, "total_cost_usd": 1.0},
+                    "token_usage": {
+                        "input_tokens": 4800,
+                        "output_tokens": 50,
+                        "total_cost_usd": 1.0,
+                    },
                 }
             ],
         )
@@ -571,27 +588,40 @@ class TestStorageCostMethods:
         # May be empty if no token_usage recorded (depends on span data)
 
     def test_get_cost_by_model_fields(self, store):
-        trace = _make_trace("tm2", spans=[
-            {
-                "span_id": "sm1",
-                "trace_id": "tm2",
-                "parent_span_id": None,
-                "name": "llm_call",
-                "kind": "llm",
-                "status": "ok",
-                "start_time": time.time(),
-                "end_time": time.time() + 1,
-                "duration_ms": 1000,
-                "attributes": {"model": "gpt-4"},
-                "events": [],
-                "token_usage": {"input_tokens": 100, "output_tokens": 50, "total_cost_usd": 0.01},
-            }
-        ])
+        trace = _make_trace(
+            "tm2",
+            spans=[
+                {
+                    "span_id": "sm1",
+                    "trace_id": "tm2",
+                    "parent_span_id": None,
+                    "name": "llm_call",
+                    "kind": "llm",
+                    "status": "ok",
+                    "start_time": time.time(),
+                    "end_time": time.time() + 1,
+                    "duration_ms": 1000,
+                    "attributes": {"model": "gpt-4"},
+                    "events": [],
+                    "token_usage": {
+                        "input_tokens": 100,
+                        "output_tokens": 50,
+                        "total_cost_usd": 0.01,
+                    },
+                }
+            ],
+        )
         store.save_trace(trace)
         result = store.get_cost_by_model(days=30)
         if result:
             for row in result:
-                for key in ("model", "total_cost_usd", "total_tokens", "call_count", "avg_cost_per_call"):
+                for key in (
+                    "model",
+                    "total_cost_usd",
+                    "total_tokens",
+                    "call_count",
+                    "avg_cost_per_call",
+                ):
                     assert key in row
 
 
@@ -719,7 +749,13 @@ class TestCostBudgetEndpoint:
         resp = populated_client.get("/v1/cost/budget?budget=100")
         assert resp.status_code == 200
         data = resp.json()
-        for key in ("budget_usd", "total_spent_usd", "remaining_usd", "burn_rate_daily_usd", "trend"):
+        for key in (
+            "budget_usd",
+            "total_spent_usd",
+            "remaining_usd",
+            "burn_rate_daily_usd",
+            "trend",
+        ):
             assert key in data
 
     def test_budget_remaining_calculation(self, client):
@@ -745,8 +781,13 @@ class TestCostOptimizationEndpoint:
 
     def test_optimization_fields(self, client):
         data = client.get("/v1/cost/optimization").json()
-        for key in ("suggestions", "total_estimated_monthly_savings_usd",
-                    "by_model", "by_service", "by_span_kind"):
+        for key in (
+            "suggestions",
+            "total_estimated_monthly_savings_usd",
+            "by_model",
+            "by_service",
+            "by_span_kind",
+        ):
             assert key in data
 
     def test_optimization_suggestions_is_list(self, client):

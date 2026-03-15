@@ -28,6 +28,7 @@ from flowlens.sdk.models import Span, SpanKind, SpanStatus, TokenUsage, Trace
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_trace_data(
     service: str = "test-service",
     has_error: bool = False,
@@ -104,6 +105,7 @@ def _make_sdk_trace(
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def collector(tmp_path: Path) -> LocalCollector:
     """Fresh LocalCollector backed by a temp SQLite file."""
@@ -116,6 +118,7 @@ def collector(tmp_path: Path) -> LocalCollector:
 # ---------------------------------------------------------------------------
 # Basic ingest + query roundtrip
 # ---------------------------------------------------------------------------
+
 
 class TestIngestAndQuery:
     def test_ingest_returns_trace_id(self, collector: LocalCollector) -> None:
@@ -161,6 +164,7 @@ class TestIngestAndQuery:
 # ---------------------------------------------------------------------------
 # list_traces pagination
 # ---------------------------------------------------------------------------
+
 
 class TestListTraces:
     def test_list_returns_all_traces(self, collector: LocalCollector) -> None:
@@ -224,6 +228,7 @@ class TestListTraces:
 # Search
 # ---------------------------------------------------------------------------
 
+
 class TestSearch:
     def test_search_by_span_name(self, collector: LocalCollector) -> None:
         collector.ingest(_make_trace_data(span_name="call-claude"))
@@ -263,6 +268,7 @@ class TestSearch:
 # ---------------------------------------------------------------------------
 # Stats
 # ---------------------------------------------------------------------------
+
 
 class TestStats:
     def test_stats_empty_db(self, collector: LocalCollector) -> None:
@@ -306,6 +312,7 @@ class TestStats:
 # Context manager
 # ---------------------------------------------------------------------------
 
+
 class TestContextManager:
     def test_context_manager_returns_self(self, tmp_path: Path) -> None:
         db = tmp_path / "ctx.db"
@@ -345,6 +352,7 @@ class TestContextManager:
 # ---------------------------------------------------------------------------
 # Thread safety
 # ---------------------------------------------------------------------------
+
 
 class TestThreadSafety:
     def test_concurrent_ingest_10_threads(self, tmp_path: Path) -> None:
@@ -405,10 +413,9 @@ class TestThreadSafety:
                 with threading.Lock():
                     errors.append(exc)
 
-        threads = (
-            [threading.Thread(target=write_worker, args=(i,)) for i in range(5)]
-            + [threading.Thread(target=read_worker) for _ in range(5)]
-        )
+        threads = [threading.Thread(target=write_worker, args=(i,)) for i in range(5)] + [
+            threading.Thread(target=read_worker) for _ in range(5)
+        ]
         for t in threads:
             t.start()
         for t in threads:
@@ -421,6 +428,7 @@ class TestThreadSafety:
 # ---------------------------------------------------------------------------
 # LocalExporter integration
 # ---------------------------------------------------------------------------
+
 
 class TestLocalExporter:
     def test_export_persists_trace(self, tmp_path: Path) -> None:

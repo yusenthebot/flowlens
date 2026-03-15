@@ -17,17 +17,15 @@ class CostBreakdown:
     """
 
     # Thresholds for suggestion triggers
-    _REDUNDANT_CALL_THRESHOLD = 3      # same span name called >= N times with same input hash
-    _TOKEN_WASTE_INPUT_RATIO = 10      # input:output ratio >= N → warn
+    _REDUNDANT_CALL_THRESHOLD = 3  # same span name called >= N times with same input hash
+    _TOKEN_WASTE_INPUT_RATIO = 10  # input:output ratio >= N → warn
     _MODEL_EXPENSIVE_PREFIX = ("gpt-4", "claude-3-opus", "claude-opus")
 
     # ---------------------------------------------------------------------------
     # Breakdown methods
     # ---------------------------------------------------------------------------
 
-    def by_model(
-        self, traces: list[dict[str, Any]]
-    ) -> dict[str, dict[str, Any]]:
+    def by_model(self, traces: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         """
         Aggregate cost by LLM model.
 
@@ -56,16 +54,12 @@ class CostBreakdown:
         # Compute avg_cost_per_call
         for model_data in result.values():
             cnt = model_data["count"]
-            model_data["avg_cost_per_call"] = (
-                round(model_data["cost"] / cnt, 8) if cnt > 0 else 0.0
-            )
+            model_data["avg_cost_per_call"] = round(model_data["cost"] / cnt, 8) if cnt > 0 else 0.0
             model_data["cost"] = round(model_data["cost"], 6)
 
         return dict(result)
 
-    def by_service(
-        self, traces: list[dict[str, Any]]
-    ) -> dict[str, dict[str, Any]]:
+    def by_service(self, traces: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         """
         Aggregate cost by service name.
 
@@ -93,16 +87,12 @@ class CostBreakdown:
         for svc_data in result.values():
             trace_cnt = svc_data["traces"]
             error_cnt = svc_data.pop("error_count")
-            svc_data["error_rate"] = (
-                round(error_cnt / trace_cnt, 4) if trace_cnt > 0 else 0.0
-            )
+            svc_data["error_rate"] = round(error_cnt / trace_cnt, 4) if trace_cnt > 0 else 0.0
             svc_data["cost"] = round(svc_data["cost"], 6)
 
         return dict(result)
 
-    def by_span_kind(
-        self, traces: list[dict[str, Any]]
-    ) -> dict[str, dict[str, Any]]:
+    def by_span_kind(self, traces: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         """
         Aggregate cost by span kind (llm, tool, agent, etc.).
 
@@ -133,9 +123,7 @@ class CostBreakdown:
     # Optimization suggestions
     # ---------------------------------------------------------------------------
 
-    def optimization_suggestions(
-        self, traces: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def optimization_suggestions(self, traces: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """
         Produce a list of actionable, quantified optimisation suggestions.
 
@@ -163,9 +151,7 @@ class CostBreakdown:
     # Suggestion generators
     # ---------------------------------------------------------------------------
 
-    def _suggest_model_switch(
-        self, traces: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def _suggest_model_switch(self, traces: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Flag expensive model usage and suggest a cheaper alternative."""
         model_stats: dict[str, dict[str, Any]] = defaultdict(
             lambda: {"cost": 0.0, "count": 0, "span_names": set()}
@@ -206,9 +192,7 @@ class CostBreakdown:
             )
         return suggestions
 
-    def _suggest_context_reduction(
-        self, traces: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def _suggest_context_reduction(self, traces: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Flag spans where input tokens vastly outnumber output tokens."""
         suggestions = []
         seen_spans: set[str] = set()
@@ -231,7 +215,7 @@ class CostBreakdown:
                 cost = tu.get("total_cost_usd", 0.0) or 0.0
                 # Input tokens are typically cheaper but still significant
                 input_fraction = input_tok / (input_tok + output_tok)
-                wasted_fraction = (input_fraction - 0.5)  # assume 50 % is necessary
+                wasted_fraction = input_fraction - 0.5  # assume 50 % is necessary
                 monthly_savings = cost * 30 * max(0.0, wasted_fraction)
                 suggestions.append(
                     {
@@ -251,9 +235,7 @@ class CostBreakdown:
                 )
         return suggestions
 
-    def _suggest_caching(
-        self, traces: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def _suggest_caching(self, traces: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Flag spans called multiple times with the same effective input."""
         # Count span name occurrences per trace (proxy for redundant calls)
         span_call_counts: dict[str, int] = defaultdict(int)
@@ -313,7 +295,13 @@ class CostBreakdown:
     @staticmethod
     def _is_expensive_model(model: str) -> bool:
         model_lower = model.lower()
-        expensive_prefixes = ("gpt-4", "claude-3-opus", "claude-opus", "claude-3-5-sonnet", "claude-sonnet")
+        expensive_prefixes = (
+            "gpt-4",
+            "claude-3-opus",
+            "claude-opus",
+            "claude-3-5-sonnet",
+            "claude-sonnet",
+        )
         return any(model_lower.startswith(p) for p in expensive_prefixes)
 
     @staticmethod

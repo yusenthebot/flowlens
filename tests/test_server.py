@@ -1,4 +1,5 @@
 """Tests for FlowLens API Server and Storage."""
+
 import json
 import time
 
@@ -11,7 +12,10 @@ from flowlens.server.storage import TraceStore
 # Shared fixture helpers
 # ===========================================================================
 
-def _make_trace_data(trace_id="t1", has_errors=False, service_name="test-svc", start_time=1000.0, tags=None):
+
+def _make_trace_data(
+    trace_id="t1", has_errors=False, service_name="test-svc", start_time=1000.0, tags=None
+):
     """Build a minimal but fully valid trace dict for testing."""
     return {
         "trace_id": trace_id,
@@ -66,6 +70,7 @@ def _make_trace_data(trace_id="t1", has_errors=False, service_name="test-svc", s
 # ===========================================================================
 # Storage Tests
 # ===========================================================================
+
 
 class TestTraceStore:
     @pytest.fixture
@@ -299,16 +304,22 @@ class TestTraceStore:
 # API Tests
 # ===========================================================================
 
+
 class TestAPI:
     @pytest.fixture
     def client(self, tmp_path):
         app = create_app(db_path=str(tmp_path / "api_test.db"))
         from fastapi.testclient import TestClient
+
         return TestClient(app)
 
     # Reuse the same helper
-    def _trace(self, trace_id="api-t1", has_errors=False, service_name="api-test", start_time=1000.0):
-        return _make_trace_data(trace_id, has_errors=has_errors, service_name=service_name, start_time=start_time)
+    def _trace(
+        self, trace_id="api-t1", has_errors=False, service_name="api-test", start_time=1000.0
+    ):
+        return _make_trace_data(
+            trace_id, has_errors=has_errors, service_name=service_name, start_time=start_time
+        )
 
     def _ingest(self, client, trace_id="api-t1", **kwargs):
         r = client.post("/v1/traces/ingest", json=self._trace(trace_id, **kwargs))
@@ -440,12 +451,18 @@ class TestAPI:
         try:
             app = create_app(db_path=str(tmp_path / "import_api_test.db"))
             from fastapi.testclient import TestClient
+
             c = TestClient(app)
 
             jsonl_file = tmp_path / "traces.jsonl"
             with open(jsonl_file, "w") as f:
                 f.write(json.dumps(_make_trace_data("jsonl-1", service_name="import-test")) + "\n")
-                f.write(json.dumps(_make_trace_data("jsonl-2", service_name="import-test", start_time=1001.0)) + "\n")
+                f.write(
+                    json.dumps(
+                        _make_trace_data("jsonl-2", service_name="import-test", start_time=1001.0)
+                    )
+                    + "\n"
+                )
 
             r = c.post(f"/v1/traces/import?file_path={jsonl_file}")
             assert r.status_code == 201
@@ -533,6 +550,7 @@ class TestAPI:
         db_path = str(tmp_path / "cleanup_test.db")
         app = create_app(db_path=db_path)
         from fastapi.testclient import TestClient
+
         c = TestClient(app)
 
         # Ingest a fresh trace (will have current created_at)
@@ -676,9 +694,9 @@ class TestAPI:
         event regardless of API-key configuration."""
         with client.websocket_connect("/ws/traces") as ws:
             msg = ws.receive_json()
-            assert msg["event"] == "connected", (
-                "Middleware blocked WebSocket upgrade — check early-return guards"
-            )
+            assert (
+                msg["event"] == "connected"
+            ), "Middleware blocked WebSocket upgrade — check early-return guards"
 
     # ------------------------------------------------------------------
     # Production Hardening: Health Check Improvements
@@ -700,6 +718,7 @@ class TestAPI:
     def test_health_check_uptime_increases(self, client):
         """Uptime should increase across calls."""
         import time as time_module
+
         r1 = client.get("/health")
         uptime1 = r1.json()["uptime_seconds"]
         time_module.sleep(0.1)
@@ -742,6 +761,7 @@ class TestAPI:
     def test_max_traces_config_default(self):
         """FLOWLENS_MAX_TRACES should default to 100000."""
         from flowlens.config import FlowLensConfig
+
         cfg = FlowLensConfig()
         assert cfg.max_traces == 100000
 
@@ -750,22 +770,28 @@ class TestAPI:
         import os
 
         from flowlens.server.storage import TraceStore
+
         # Temporarily set a low max_traces limit for testing
         os.environ["FLOWLENS_MAX_TRACES"] = "5"
         try:
             from importlib import reload
 
             import flowlens.config
+
             reload(flowlens.config)
 
             db_path = str(tmp_path / "max_traces_test.db")
             app = create_app(db_path=db_path)
             from fastapi.testclient import TestClient
+
             c = TestClient(app)
 
             # Ingest 7 traces (more than the limit of 5)
             for i in range(7):
-                c.post("/v1/traces/ingest", json=_make_trace_data(f"cleanup-{i}", start_time=1000.0 + i))
+                c.post(
+                    "/v1/traces/ingest",
+                    json=_make_trace_data(f"cleanup-{i}", start_time=1000.0 + i),
+                )
 
             # Manually call cleanup_excess_traces to enforce the limit
             store = TraceStore(db_path=db_path)
@@ -782,6 +808,7 @@ class TestAPI:
             if "FLOWLENS_MAX_TRACES" in os.environ:
                 del os.environ["FLOWLENS_MAX_TRACES"]
             import flowlens.config
+
             reload(flowlens.config)
 
     # ------------------------------------------------------------------
@@ -822,7 +849,9 @@ class TestAPI:
     def test_agents_summary_sorted_by_trace_count(self, client):
         """Agents with more traces should appear first."""
         for i in range(3):
-            client.post("/v1/traces/ingest", json=_make_trace_data(f"a{i}", tags={"agent": "heavy-agent"}))
+            client.post(
+                "/v1/traces/ingest", json=_make_trace_data(f"a{i}", tags={"agent": "heavy-agent"})
+            )
         client.post("/v1/traces/ingest", json=_make_trace_data("b1", tags={"agent": "light-agent"}))
 
         resp = client.get("/v1/agents/summary")
@@ -849,7 +878,10 @@ class TestAPI:
     def test_agents_summary_error_rate(self, client):
         """Error rate is computed correctly."""
         client.post("/v1/traces/ingest", json=_make_trace_data("ok1", tags={"agent": "bot"}))
-        client.post("/v1/traces/ingest", json=_make_trace_data("err1", has_errors=True, tags={"agent": "bot"}))
+        client.post(
+            "/v1/traces/ingest",
+            json=_make_trace_data("err1", has_errors=True, tags={"agent": "bot"}),
+        )
 
         resp = client.get("/v1/agents/summary")
         assert resp.status_code == 200
@@ -895,9 +927,10 @@ class TestAPI:
     def test_agents_activity_has_required_fields(self, client):
         """Each agent entry has all required fields."""
         now = time.time()
-        client.post("/v1/traces/ingest", json=_make_trace_data(
-            "act-fields", tags={"agent": "test-bot"}, start_time=now - 30
-        ))
+        client.post(
+            "/v1/traces/ingest",
+            json=_make_trace_data("act-fields", tags={"agent": "test-bot"}, start_time=now - 30),
+        )
         resp = client.get("/v1/agents/activity")
         assert resp.status_code == 200
         agents = resp.json()["agents"]
@@ -914,9 +947,12 @@ class TestAPI:
         """Status is 'active' when last trace is within 5 minutes."""
         now = time.time()
         # Ingest a very recent trace (30 seconds ago)
-        client.post("/v1/traces/ingest", json=_make_trace_data(
-            "active-trace", tags={"agent": "live-agent"}, start_time=now - 30
-        ))
+        client.post(
+            "/v1/traces/ingest",
+            json=_make_trace_data(
+                "active-trace", tags={"agent": "live-agent"}, start_time=now - 30
+            ),
+        )
         resp = client.get("/v1/agents/activity")
         assert resp.status_code == 200
         agents = resp.json()["agents"]
@@ -932,6 +968,7 @@ class TestAPI:
         from fastapi.testclient import TestClient
 
         from flowlens.server.app import create_app
+
         app = create_app(db_path=db_path)
         c = TestClient(app)
 
@@ -951,9 +988,12 @@ class TestAPI:
         """trace_count_1h reflects traces ingested in the last hour."""
         now = time.time()
         for i in range(3):
-            client.post("/v1/traces/ingest", json=_make_trace_data(
-                f"cnt-{i}", tags={"agent": "counter-agent"}, start_time=now - (i * 100)
-            ))
+            client.post(
+                "/v1/traces/ingest",
+                json=_make_trace_data(
+                    f"cnt-{i}", tags={"agent": "counter-agent"}, start_time=now - (i * 100)
+                ),
+            )
         resp = client.get("/v1/agents/activity")
         assert resp.status_code == 200
         agents = resp.json()["agents"]
@@ -1033,7 +1073,9 @@ class TestAPI:
 
     def test_activity_stream_limit(self, client):
         for i in range(5):
-            client.post("/v1/traces/ingest", json=_make_trace_data(f"lim-{i}", tags={"agent": "bot"}))
+            client.post(
+                "/v1/traces/ingest", json=_make_trace_data(f"lim-{i}", tags={"agent": "bot"})
+            )
         resp = client.get("/v1/activity/stream?limit=3")
         assert len(resp.json()["events"]) <= 3
 
@@ -1062,7 +1104,10 @@ class TestAPI:
         now = time.time()
         # Ingest one normal trace and one error trace in the current window
         client.post("/v1/traces/ingest", json=_make_trace_data("trend-ok", start_time=now - 10))
-        client.post("/v1/traces/ingest", json=_make_trace_data("trend-err", has_errors=True, start_time=now - 5))
+        client.post(
+            "/v1/traces/ingest",
+            json=_make_trace_data("trend-err", has_errors=True, start_time=now - 5),
+        )
 
         resp = client.get("/v1/stats/trends?hours=1&bucket_minutes=60")
         assert resp.status_code == 200
@@ -1121,15 +1166,20 @@ class TestAPI:
         """Per-agent breakdown is populated from trace tags."""
         now = time.time()
         # Ingest traces for two distinct agents
-        client.post("/v1/traces/ingest", json=_make_trace_data(
-            "sum-a1", tags={"agent": "agent-alpha"}, start_time=now - 20
-        ))
-        client.post("/v1/traces/ingest", json=_make_trace_data(
-            "sum-a2", tags={"agent": "agent-alpha"}, start_time=now - 15
-        ))
-        client.post("/v1/traces/ingest", json=_make_trace_data(
-            "sum-b1", tags={"agent": "agent-beta"}, has_errors=True, start_time=now - 10
-        ))
+        client.post(
+            "/v1/traces/ingest",
+            json=_make_trace_data("sum-a1", tags={"agent": "agent-alpha"}, start_time=now - 20),
+        )
+        client.post(
+            "/v1/traces/ingest",
+            json=_make_trace_data("sum-a2", tags={"agent": "agent-alpha"}, start_time=now - 15),
+        )
+        client.post(
+            "/v1/traces/ingest",
+            json=_make_trace_data(
+                "sum-b1", tags={"agent": "agent-beta"}, has_errors=True, start_time=now - 10
+            ),
+        )
 
         resp = client.get("/v1/stats/summary")
         assert resp.status_code == 200
@@ -1244,10 +1294,14 @@ class TestAPI:
         """Detects '<parent>/Agent/<something>' naming pattern."""
         trace = self._make_spawn_trace(
             "rel-agent-1",
-            spans=[self._make_span(
-                "s3", "rel-agent-1", "main/Agent/run",
-                attributes={"tool.input": '{"subagent_type": "vr-beta", "task": "test"}'},
-            )],
+            spans=[
+                self._make_span(
+                    "s3",
+                    "rel-agent-1",
+                    "main/Agent/run",
+                    attributes={"tool.input": '{"subagent_type": "vr-beta", "task": "test"}'},
+                )
+            ],
             tags={"agent": "main"},
         )
         client.post("/v1/traces/ingest", json=trace)
@@ -1286,7 +1340,9 @@ class TestAPI:
 
     def test_agents_relationships_always_includes_discovered_agents(self, client):
         """Agents tagged in trace data always appear as nodes, even without spawn spans."""
-        client.post("/v1/traces/ingest", json=_make_trace_data("disc-1", tags={"agent": "custom-bot"}))
+        client.post(
+            "/v1/traces/ingest", json=_make_trace_data("disc-1", tags={"agent": "custom-bot"})
+        )
         r = client.get("/v1/agents/relationships")
         assert r.status_code == 200
         data = r.json()
@@ -1348,11 +1404,15 @@ class TestAPI:
     def test_agents_network_discovered_agent_appears_as_node(self, client):
         """An agent discovered only from trace tags still appears as a network node."""
         import time as _time
-        client.post("/v1/traces/ingest", json=_make_trace_data(
-            "net-disc-1",
-            tags={"agent": "discovered-agent"},
-            start_time=_time.time() - 30,
-        ))
+
+        client.post(
+            "/v1/traces/ingest",
+            json=_make_trace_data(
+                "net-disc-1",
+                tags={"agent": "discovered-agent"},
+                start_time=_time.time() - 30,
+            ),
+        )
         r = client.get("/v1/agents/network")
         assert r.status_code == 200
         node_ids = {n["id"] for n in r.json()["nodes"]}
@@ -1385,7 +1445,8 @@ class TestAPI:
         now = time.time()
         # Ingest a trace with start_time within the last 24 hours
         trace = _make_trace_data(
-            "report-recent", has_errors=False,
+            "report-recent",
+            has_errors=False,
             service_name="rep-svc",
             start_time=now - 3600,  # 1 hour ago
             tags={"agent": "report-agent"},
@@ -1413,15 +1474,20 @@ class TestAPI:
     def test_export_report_per_agent_stats(self, client):
         """Per-agent breakdown is populated correctly."""
         now = time.time()
-        client.post("/v1/traces/ingest", json=_make_trace_data(
-            "rep-a1", tags={"agent": "alpha"}, start_time=now - 100
-        ))
-        client.post("/v1/traces/ingest", json=_make_trace_data(
-            "rep-a2", tags={"agent": "alpha"}, has_errors=True, start_time=now - 90
-        ))
-        client.post("/v1/traces/ingest", json=_make_trace_data(
-            "rep-b1", tags={"agent": "beta"}, start_time=now - 80
-        ))
+        client.post(
+            "/v1/traces/ingest",
+            json=_make_trace_data("rep-a1", tags={"agent": "alpha"}, start_time=now - 100),
+        )
+        client.post(
+            "/v1/traces/ingest",
+            json=_make_trace_data(
+                "rep-a2", tags={"agent": "alpha"}, has_errors=True, start_time=now - 90
+            ),
+        )
+        client.post(
+            "/v1/traces/ingest",
+            json=_make_trace_data("rep-b1", tags={"agent": "beta"}, start_time=now - 80),
+        )
 
         r = client.get("/v1/export/report?hours=1")
         assert r.status_code == 200
@@ -1441,15 +1507,18 @@ class TestAPI:
     def test_export_report_error_rate(self, client):
         """Error rate is calculated correctly."""
         now = time.time()
-        client.post("/v1/traces/ingest", json=_make_trace_data(
-            "err-rate-1", has_errors=True, start_time=now - 50
-        ))
-        client.post("/v1/traces/ingest", json=_make_trace_data(
-            "err-rate-2", has_errors=False, start_time=now - 40
-        ))
-        client.post("/v1/traces/ingest", json=_make_trace_data(
-            "err-rate-3", has_errors=False, start_time=now - 30
-        ))
+        client.post(
+            "/v1/traces/ingest",
+            json=_make_trace_data("err-rate-1", has_errors=True, start_time=now - 50),
+        )
+        client.post(
+            "/v1/traces/ingest",
+            json=_make_trace_data("err-rate-2", has_errors=False, start_time=now - 40),
+        )
+        client.post(
+            "/v1/traces/ingest",
+            json=_make_trace_data("err-rate-3", has_errors=False, start_time=now - 30),
+        )
 
         r = client.get("/v1/export/report?hours=1")
         assert r.status_code == 200
@@ -1457,7 +1526,9 @@ class TestAPI:
         assert summary["total_traces"] >= 3
         assert summary["total_errors"] >= 1
         # error_rate = errors / total
-        assert abs(summary["error_rate"] - summary["total_errors"] / summary["total_traces"]) < 0.001
+        assert (
+            abs(summary["error_rate"] - summary["total_errors"] / summary["total_traces"]) < 0.001
+        )
 
     def test_export_report_hours_parameter(self, client):
         """Custom hours parameter is reflected in the report."""
@@ -1521,9 +1592,18 @@ class TestAPI:
         matching = [s for s in sessions if s["session_id"] == sid]
         assert len(matching) == 1
         s = matching[0]
-        for field in ("session_id", "trace_count", "total_spans", "total_cost_usd",
-                      "first_trace_time", "last_trace_time", "agents", "has_errors",
-                      "error_count", "project"):
+        for field in (
+            "session_id",
+            "trace_count",
+            "total_spans",
+            "total_cost_usd",
+            "first_trace_time",
+            "last_trace_time",
+            "agents",
+            "has_errors",
+            "error_count",
+            "project",
+        ):
             assert field in s, f"Missing field: {field}"
 
     def test_sessions_ordered_by_most_recent(self, client):
@@ -1592,9 +1672,18 @@ class TestAPI:
         r = client.get(f"/v1/sessions/{sid}")
         assert r.status_code == 200
         summary = r.json()["summary"]
-        for field in ("trace_count", "total_spans", "total_cost_usd", "total_duration_ms",
-                      "agents", "has_errors", "error_count", "project",
-                      "first_trace_time", "last_trace_time"):
+        for field in (
+            "trace_count",
+            "total_spans",
+            "total_cost_usd",
+            "total_duration_ms",
+            "agents",
+            "has_errors",
+            "error_count",
+            "project",
+            "first_trace_time",
+            "last_trace_time",
+        ):
             assert field in summary, f"Missing summary field: {field}"
         assert summary["trace_count"] == 1
         assert summary["has_errors"] is True

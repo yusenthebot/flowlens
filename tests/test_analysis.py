@@ -41,10 +41,12 @@ class TestNewPatternDetectors:
 
         # Tool consumes it and fails
         s2 = Span(
-            span_id="s2", name="web_search",
-            kind=SpanKind.TOOL, parent_span_id="s1",
+            span_id="s2",
+            name="web_search",
+            kind=SpanKind.TOOL,
+            parent_span_id="s1",
             start_time=1.6,
-            attributes={"query": "from_llm_output"}
+            attributes={"query": "from_llm_output"},
         )
         s2.finish(error="Invalid query format from LLM")
         s2.end_time = 2.0
@@ -54,8 +56,7 @@ class TestNewPatternDetectors:
         patterns = detect_patterns(trace, dag)
 
         halluc_patterns = [
-            p for p in patterns
-            if p.pattern_type == PatternType.HALLUCINATION_CASCADE
+            p for p in patterns if p.pattern_type == PatternType.HALLUCINATION_CASCADE
         ]
         assert len(halluc_patterns) >= 0  # May or may not detect based on heuristics
         if halluc_patterns:
@@ -76,10 +77,7 @@ class TestNewPatternDetectors:
         dag = build_causal_dag(trace)
         patterns = detect_patterns(trace, dag)
 
-        cost_spikes = [
-            p for p in patterns
-            if p.pattern_type == PatternType.COST_SPIKE
-        ]
+        cost_spikes = [p for p in patterns if p.pattern_type == PatternType.COST_SPIKE]
         assert len(cost_spikes) == 1
         assert cost_spikes[0].details["cost_pct"] > 50
 
@@ -103,10 +101,7 @@ class TestNewPatternDetectors:
         dag = build_causal_dag(trace)
         patterns = detect_patterns(trace, dag)
 
-        slow_patterns = [
-            p for p in patterns
-            if p.pattern_type == PatternType.SLOW_TOOL
-        ]
+        slow_patterns = [p for p in patterns if p.pattern_type == PatternType.SLOW_TOOL]
         assert len(slow_patterns) == 1
         assert slow_patterns[0].details["slowness_factor"] > 3.0
 
@@ -116,10 +111,11 @@ class TestNewPatternDetectors:
         spans = []
         for i in range(3):
             s = Span(
-                span_id=f"s{i}", name="search_api",
+                span_id=f"s{i}",
+                name="search_api",
                 kind=SpanKind.TOOL,
                 start_time=float(i),
-                attributes={"query": "python tutorial", "limit": 10}
+                attributes={"query": "python tutorial", "limit": 10},
             )
             s.finish()
             spans.append(s)
@@ -128,10 +124,7 @@ class TestNewPatternDetectors:
         dag = build_causal_dag(trace)
         patterns = detect_patterns(trace, dag)
 
-        redundant = [
-            p for p in patterns
-            if p.pattern_type == PatternType.REDUNDANT_CALLS
-        ]
+        redundant = [p for p in patterns if p.pattern_type == PatternType.REDUNDANT_CALLS]
         assert len(redundant) == 1
         assert redundant[0].details["call_count"] == 3
 
@@ -148,16 +141,14 @@ class TestCriticalPath:
 
         # Cascaded child
         s2 = Span(
-            span_id="s2", name="child",
-            kind=SpanKind.TOOL, parent_span_id="s1", start_time=1.2
+            span_id="s2", name="child", kind=SpanKind.TOOL, parent_span_id="s1", start_time=1.2
         )
         s2.finish(error="e")
         s2.end_time = 1.3
 
         # Cascaded grandchild
         s3 = Span(
-            span_id="s3", name="grandchild",
-            kind=SpanKind.TOOL, parent_span_id="s2", start_time=1.4
+            span_id="s3", name="grandchild", kind=SpanKind.TOOL, parent_span_id="s2", start_time=1.4
         )
         s3.finish(error="e")
 
@@ -191,15 +182,13 @@ class TestErrorPropagationChain:
 
         # Two cascaded children
         s2 = Span(
-            span_id="s2", name="child1",
-            kind=SpanKind.TOOL, parent_span_id="s1", start_time=1.2
+            span_id="s2", name="child1", kind=SpanKind.TOOL, parent_span_id="s1", start_time=1.2
         )
         s2.finish(error="e")
         s2.end_time = 1.3
 
         s3 = Span(
-            span_id="s3", name="child2",
-            kind=SpanKind.TOOL, parent_span_id="s1", start_time=1.4
+            span_id="s3", name="child2", kind=SpanKind.TOOL, parent_span_id="s1", start_time=1.4
         )
         s3.finish(error="e")
 
@@ -219,15 +208,13 @@ class TestErrorPropagationChain:
         s1.end_time = 1.1
 
         s2 = Span(
-            span_id="s2", name="child",
-            kind=SpanKind.TOOL, parent_span_id="s1", start_time=1.2
+            span_id="s2", name="child", kind=SpanKind.TOOL, parent_span_id="s1", start_time=1.2
         )
         s2.finish(error="e")
         s2.end_time = 1.3
 
         s3 = Span(
-            span_id="s3", name="grandchild",
-            kind=SpanKind.TOOL, parent_span_id="s2", start_time=1.4
+            span_id="s3", name="grandchild", kind=SpanKind.TOOL, parent_span_id="s2", start_time=1.4
         )
         s3.finish(error="e")
 
@@ -263,18 +250,17 @@ class TestTraceAdvisor:
         """Errors increase severity"""
         # Multiple errors
         for i in range(3):
-            s = Span(
-                span_id=f"s{i}", name="flaky_tool",
-                kind=SpanKind.TOOL, start_time=float(i)
-            )
+            s = Span(span_id=f"s{i}", name="flaky_tool", kind=SpanKind.TOOL, start_time=float(i))
             s.finish(error="timeout")
             if i == 0:
                 pass
 
-        trace = _make_trace(*[
-            Span(span_id=f"s{i}", name="flaky_tool", kind=SpanKind.TOOL, start_time=float(i))
-            for i in range(3)
-        ])
+        trace = _make_trace(
+            *[
+                Span(span_id=f"s{i}", name="flaky_tool", kind=SpanKind.TOOL, start_time=float(i))
+                for i in range(3)
+            ]
+        )
         for s in trace.spans:
             s.finish(error="timeout")
 
@@ -289,10 +275,7 @@ class TestTraceAdvisor:
         # Create a retry storm
         spans = []
         for i in range(6):
-            s = Span(
-                span_id=f"s{i}", name="api_call",
-                kind=SpanKind.TOOL, start_time=float(i)
-            )
+            s = Span(span_id=f"s{i}", name="api_call", kind=SpanKind.TOOL, start_time=float(i))
             s.finish(error="timeout")
             spans.append(s)
 
@@ -312,10 +295,11 @@ class TestTraceAdvisor:
         spans = []
         for i in range(3):
             s = Span(
-                span_id=f"s{i}", name="search",
+                span_id=f"s{i}",
+                name="search",
                 kind=SpanKind.TOOL,
                 start_time=float(i),
-                attributes={"query": "same query"}
+                attributes={"query": "same query"},
             )
             s.finish()
             spans.append(s)
@@ -529,15 +513,21 @@ class TestSequentialBottleneckDetector:
         parent.end_time = 2.0
 
         tool_a = Span(
-            span_id="t1", name="search_a", kind=SpanKind.TOOL,
-            parent_span_id="p1", start_time=0.1,
+            span_id="t1",
+            name="search_a",
+            kind=SpanKind.TOOL,
+            parent_span_id="p1",
+            start_time=0.1,
         )
         tool_a.finish()
         tool_a.end_time = 0.6  # 500 ms
 
         tool_b = Span(
-            span_id="t2", name="search_b", kind=SpanKind.TOOL,
-            parent_span_id="p1", start_time=0.7,  # starts after tool_a ends
+            span_id="t2",
+            name="search_b",
+            kind=SpanKind.TOOL,
+            parent_span_id="p1",
+            start_time=0.7,  # starts after tool_a ends
         )
         tool_b.finish()
         tool_b.end_time = 1.2  # 500 ms
@@ -546,9 +536,7 @@ class TestSequentialBottleneckDetector:
         dag = build_causal_dag(trace)
         patterns = detect_patterns(trace, dag)
 
-        bottleneck = [
-            p for p in patterns if p.pattern_type == PatternType.SEQUENTIAL_BOTTLENECK
-        ]
+        bottleneck = [p for p in patterns if p.pattern_type == PatternType.SEQUENTIAL_BOTTLENECK]
         assert len(bottleneck) >= 1
         found = bottleneck[0]
         assert found.details["sequential_count"] >= 2
@@ -560,8 +548,11 @@ class TestSequentialBottleneckDetector:
         parent.finish()
 
         tool = Span(
-            span_id="t1", name="search", kind=SpanKind.TOOL,
-            parent_span_id="p1", start_time=0.1,
+            span_id="t1",
+            name="search",
+            kind=SpanKind.TOOL,
+            parent_span_id="p1",
+            start_time=0.1,
         )
         tool.finish()
         tool.end_time = 0.5
@@ -570,9 +561,7 @@ class TestSequentialBottleneckDetector:
         dag = build_causal_dag(trace)
         patterns = detect_patterns(trace, dag)
 
-        bottleneck = [
-            p for p in patterns if p.pattern_type == PatternType.SEQUENTIAL_BOTTLENECK
-        ]
+        bottleneck = [p for p in patterns if p.pattern_type == PatternType.SEQUENTIAL_BOTTLENECK]
         assert len(bottleneck) == 0
 
 
@@ -586,16 +575,22 @@ class TestErrorRecoveryDetector:
 
         # First attempt fails
         attempt1 = Span(
-            span_id="a1", name="fetch_data", kind=SpanKind.TOOL,
-            parent_span_id="p1", start_time=0.1,
+            span_id="a1",
+            name="fetch_data",
+            kind=SpanKind.TOOL,
+            parent_span_id="p1",
+            start_time=0.1,
         )
         attempt1.finish(error="Connection refused")
         attempt1.end_time = 0.3
 
         # Second attempt succeeds
         attempt2 = Span(
-            span_id="a2", name="fetch_data", kind=SpanKind.TOOL,
-            parent_span_id="p1", start_time=0.4,
+            span_id="a2",
+            name="fetch_data",
+            kind=SpanKind.TOOL,
+            parent_span_id="p1",
+            start_time=0.4,
         )
         attempt2.finish()
         attempt2.end_time = 0.7
@@ -604,9 +599,7 @@ class TestErrorRecoveryDetector:
         dag = build_causal_dag(trace)
         patterns = detect_patterns(trace, dag)
 
-        recovery = [
-            p for p in patterns if p.pattern_type == PatternType.ERROR_RECOVERY
-        ]
+        recovery = [p for p in patterns if p.pattern_type == PatternType.ERROR_RECOVERY]
         assert len(recovery) >= 1
         r = recovery[0]
         assert r.severity == "info"
@@ -618,13 +611,15 @@ class TestErrorRecoveryDetector:
         parent = Span(span_id="p1", name="agent", kind=SpanKind.AGENT, start_time=0.0)
         parent.finish()
 
-        fail1 = Span(span_id="a1", name="fetch_data", kind=SpanKind.TOOL,
-                     parent_span_id="p1", start_time=0.0)
+        fail1 = Span(
+            span_id="a1", name="fetch_data", kind=SpanKind.TOOL, parent_span_id="p1", start_time=0.0
+        )
         fail1.finish(error="Connection refused")
         fail1.end_time = 0.2
 
-        fail2 = Span(span_id="a2", name="fetch_data", kind=SpanKind.TOOL,
-                     parent_span_id="p1", start_time=0.3)
+        fail2 = Span(
+            span_id="a2", name="fetch_data", kind=SpanKind.TOOL, parent_span_id="p1", start_time=0.3
+        )
         fail2.finish(error="Connection refused")
         fail2.end_time = 0.5
 
@@ -632,9 +627,7 @@ class TestErrorRecoveryDetector:
         dag = build_causal_dag(trace)
         patterns = detect_patterns(trace, dag)
 
-        recovery = [
-            p for p in patterns if p.pattern_type == PatternType.ERROR_RECOVERY
-        ]
+        recovery = [p for p in patterns if p.pattern_type == PatternType.ERROR_RECOVERY]
         assert len(recovery) == 0
 
     def test_no_recovery_when_only_success(self):
@@ -642,17 +635,16 @@ class TestErrorRecoveryDetector:
         parent = Span(span_id="p1", name="agent", kind=SpanKind.AGENT, start_time=0.0)
         parent.finish()
 
-        s = Span(span_id="t1", name="fetch_data", kind=SpanKind.TOOL,
-                 parent_span_id="p1", start_time=0.1)
+        s = Span(
+            span_id="t1", name="fetch_data", kind=SpanKind.TOOL, parent_span_id="p1", start_time=0.1
+        )
         s.finish()
 
         trace = _make_trace(parent, s)
         dag = build_causal_dag(trace)
         patterns = detect_patterns(trace, dag)
 
-        recovery = [
-            p for p in patterns if p.pattern_type == PatternType.ERROR_RECOVERY
-        ]
+        recovery = [p for p in patterns if p.pattern_type == PatternType.ERROR_RECOVERY]
         assert len(recovery) == 0
 
 
@@ -681,13 +673,15 @@ class TestAdvisorNewPatterns:
         parent = Span(span_id="p1", name="agent", kind=SpanKind.AGENT, start_time=0.0)
         parent.finish()
 
-        tool_a = Span(span_id="t1", name="tool_x", kind=SpanKind.TOOL,
-                      parent_span_id="p1", start_time=0.1)
+        tool_a = Span(
+            span_id="t1", name="tool_x", kind=SpanKind.TOOL, parent_span_id="p1", start_time=0.1
+        )
         tool_a.finish()
         tool_a.end_time = 0.6
 
-        tool_b = Span(span_id="t2", name="tool_y", kind=SpanKind.TOOL,
-                      parent_span_id="p1", start_time=0.7)
+        tool_b = Span(
+            span_id="t2", name="tool_y", kind=SpanKind.TOOL, parent_span_id="p1", start_time=0.7
+        )
         tool_b.finish()
         tool_b.end_time = 1.2
 
@@ -698,9 +692,7 @@ class TestAdvisorNewPatterns:
         report = advisor.generate_report()
 
         recs = report["recommendations_detail"]
-        bottleneck_recs = [
-            r for r in recs if r["pattern_type"] == "sequential_bottleneck"
-        ]
+        bottleneck_recs = [r for r in recs if r["pattern_type"] == "sequential_bottleneck"]
         if bottleneck_recs:
             assert "asyncio" in bottleneck_recs[0]["code_snippet"]
 
@@ -709,13 +701,15 @@ class TestAdvisorNewPatterns:
         parent = Span(span_id="p1", name="agent", kind=SpanKind.AGENT, start_time=0.0)
         parent.finish()
 
-        attempt1 = Span(span_id="a1", name="call_api", kind=SpanKind.TOOL,
-                        parent_span_id="p1", start_time=0.1)
+        attempt1 = Span(
+            span_id="a1", name="call_api", kind=SpanKind.TOOL, parent_span_id="p1", start_time=0.1
+        )
         attempt1.finish(error="timeout")
         attempt1.end_time = 0.3
 
-        attempt2 = Span(span_id="a2", name="call_api", kind=SpanKind.TOOL,
-                        parent_span_id="p1", start_time=0.4)
+        attempt2 = Span(
+            span_id="a2", name="call_api", kind=SpanKind.TOOL, parent_span_id="p1", start_time=0.4
+        )
         attempt2.finish()
         attempt2.end_time = 0.6
 
@@ -735,8 +729,10 @@ class TestAdvisorNewPatterns:
         spans = []
         for i in range(3):
             s = Span(
-                span_id=f"s{i}", name="dedup_tool",
-                kind=SpanKind.TOOL, start_time=float(i),
+                span_id=f"s{i}",
+                name="dedup_tool",
+                kind=SpanKind.TOOL,
+                start_time=float(i),
                 attributes={"q": "same"},
             )
             s.finish()
@@ -746,10 +742,10 @@ class TestAdvisorNewPatterns:
         dag = build_causal_dag(trace)
         patterns = detect_patterns(trace, dag)
 
-        advisor_low = TraceAdvisor(trace=trace, dag=dag, patterns=patterns,
-                                   traces_per_month=100)
-        advisor_high = TraceAdvisor(trace=trace, dag=dag, patterns=patterns,
-                                    traces_per_month=10_000)
+        advisor_low = TraceAdvisor(trace=trace, dag=dag, patterns=patterns, traces_per_month=100)
+        advisor_high = TraceAdvisor(
+            trace=trace, dag=dag, patterns=patterns, traces_per_month=10_000
+        )
 
         low_monthly = advisor_low.estimated_monthly_savings["cost_savings_usd_monthly"]
         high_monthly = advisor_high.estimated_monthly_savings["cost_savings_usd_monthly"]
@@ -765,13 +761,15 @@ class TestAdvisorNewPatterns:
         parent = Span(span_id="p1", name="agent", kind=SpanKind.AGENT, start_time=0.0)
         parent.finish()
 
-        attempt1 = Span(span_id="a1", name="call_api", kind=SpanKind.TOOL,
-                        parent_span_id="p1", start_time=0.1)
+        attempt1 = Span(
+            span_id="a1", name="call_api", kind=SpanKind.TOOL, parent_span_id="p1", start_time=0.1
+        )
         attempt1.finish(error="timeout")
         attempt1.end_time = 0.2
 
-        attempt2 = Span(span_id="a2", name="call_api", kind=SpanKind.TOOL,
-                        parent_span_id="p1", start_time=0.3)
+        attempt2 = Span(
+            span_id="a2", name="call_api", kind=SpanKind.TOOL, parent_span_id="p1", start_time=0.3
+        )
         attempt2.finish()
         attempt2.end_time = 0.5
 
@@ -788,7 +786,9 @@ class TestAdvisorNewPatterns:
         """High per-trace cost should push severity score upward."""
         # Very expensive LLM call
         s = Span(span_id="s1", name="expensive", kind=SpanKind.LLM)
-        s.set_token_usage(input_tokens=100_000, output_tokens=20_000, model="claude-opus-4-20250514")
+        s.set_token_usage(
+            input_tokens=100_000, output_tokens=20_000, model="claude-opus-4-20250514"
+        )
         s.finish()
 
         trace = _make_trace(s)
@@ -873,8 +873,9 @@ class TestCausalDAGMarkdownAndJSON:
         s1.finish(error="child failed")
         s1.end_time = 2.0
 
-        s2 = Span(span_id="s2", name="tool_call", kind=SpanKind.TOOL,
-                  parent_span_id="s1", start_time=1.1)
+        s2 = Span(
+            span_id="s2", name="tool_call", kind=SpanKind.TOOL, parent_span_id="s1", start_time=1.1
+        )
         s2.finish(error="timeout")
         s2.end_time = 1.5
 
@@ -922,8 +923,10 @@ class TestCausalDAGMarkdownAndJSON:
         spans = []
         for i in range(6):
             s = Span(
-                span_id=f"s{i}", name="flaky_api",
-                kind=SpanKind.TOOL, start_time=float(i),
+                span_id=f"s{i}",
+                name="flaky_api",
+                kind=SpanKind.TOOL,
+                start_time=float(i),
             )
             s.finish(error="timeout")
             spans.append(s)
@@ -966,8 +969,7 @@ class TestCorrelator:
         """Error in 3/4 traces → recurring failure (> 50%)."""
         traces = []
         for i in range(4):
-            s = Span(span_id=f"s{i}", name="flaky", kind=SpanKind.TOOL,
-                     start_time=float(i))
+            s = Span(span_id=f"s{i}", name="flaky", kind=SpanKind.TOOL, start_time=float(i))
             if i < 3:
                 s.finish(error="Connection refused")
             else:
@@ -1013,9 +1015,7 @@ class TestCorrelator:
 
         report = correlate_traces(traces, trend_min_traces=3)
 
-        duration_trends = [
-            tr for tr in report.performance_trends if tr.metric == "duration_ms"
-        ]
+        duration_trends = [tr for tr in report.performance_trends if tr.metric == "duration_ms"]
         assert len(duration_trends) == 1
         assert duration_trends[0].direction == "increasing"
         assert duration_trends[0].slope > 0
@@ -1042,8 +1042,9 @@ class TestCorrelator:
         for _ in range(3):
             spans = []
             for j in range(6):
-                s = Span(span_id=f"s{j}_{_}", name="flaky_api",
-                         kind=SpanKind.TOOL, start_time=float(j))
+                s = Span(
+                    span_id=f"s{j}_{_}", name="flaky_api", kind=SpanKind.TOOL, start_time=float(j)
+                )
                 s.finish(error="timeout")
                 spans.append(s)
             traces.append(_make_trace(*spans))
@@ -1103,8 +1104,7 @@ class TestCorrelator:
         """RecurringFailure.affected_span_names must list the failing spans."""
         traces = []
         for i in range(3):
-            s = Span(span_id=f"s{i}", name="my_tool", kind=SpanKind.TOOL,
-                     start_time=float(i))
+            s = Span(span_id=f"s{i}", name="my_tool", kind=SpanKind.TOOL, start_time=float(i))
             s.finish(error="boom")
             traces.append(_make_trace(s))
 
@@ -1123,8 +1123,7 @@ class TestConfigurablePatternThresholds:
 
         spans = []
         for i in range(3):
-            s = Span(span_id=f"s{i}", name="api_call", kind=SpanKind.TOOL,
-                     start_time=float(i))
+            s = Span(span_id=f"s{i}", name="api_call", kind=SpanKind.TOOL, start_time=float(i))
             s.finish()
             spans.append(s)
 
@@ -1147,8 +1146,7 @@ class TestConfigurablePatternThresholds:
         tool_names = ["tool_a", "tool_b", "tool_a", "tool_b"]
         spans = []
         for i, name in enumerate(tool_names):
-            s = Span(span_id=f"s{i}", name=name, kind=SpanKind.TOOL,
-                     start_time=float(i))
+            s = Span(span_id=f"s{i}", name=name, kind=SpanKind.TOOL, start_time=float(i))
             s.finish()
             spans.append(s)
 
@@ -1169,8 +1167,7 @@ class TestConfigurablePatternThresholds:
 
         # 120,000 tokens out of 200,000 = 60% usage
         s = Span(span_id="s1", name="llm_call", kind=SpanKind.LLM)
-        s.set_token_usage(input_tokens=100_000, output_tokens=20_000,
-                          model="claude-sonnet-4")
+        s.set_token_usage(input_tokens=100_000, output_tokens=20_000, model="claude-sonnet-4")
         s.finish()
 
         trace = _make_trace(s)

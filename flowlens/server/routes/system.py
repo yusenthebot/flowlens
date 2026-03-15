@@ -108,24 +108,27 @@ def create_system_router(store: TraceStore, server_start_time: float) -> APIRout
             bucket["cost"] = round(bucket["cost"], 6)
             bucket["avg_duration_ms"] = (
                 round(bucket["total_duration_ms"] / bucket["traces"], 2)
-                if bucket["traces"] else 0.0
+                if bucket["traces"]
+                else 0.0
             )
             del bucket["total_duration_ms"]
 
-        return JSONResponse({
-            "report": {
-                "period_hours": hours,
-                "generated_at": now,
-                "summary": {
-                    "total_traces": total_traces,
-                    "total_errors": total_errors,
-                    "error_rate": round(total_errors / max(1, total_traces), 4),
-                    "total_cost_usd": round(total_cost, 4),
-                    "total_spans": total_spans,
-                },
-                "agents": agent_stats,
+        return JSONResponse(
+            {
+                "report": {
+                    "period_hours": hours,
+                    "generated_at": now,
+                    "summary": {
+                        "total_traces": total_traces,
+                        "total_errors": total_errors,
+                        "error_rate": round(total_errors / max(1, total_traces), 4),
+                        "total_cost_usd": round(total_cost, 4),
+                        "total_spans": total_spans,
+                    },
+                    "agents": agent_stats,
+                }
             }
-        })
+        )
 
     @router.get("/v1/activity/stream")
     async def activity_stream(limit: int = 50) -> JSONResponse:
@@ -161,15 +164,18 @@ def create_system_router(store: TraceStore, server_start_time: float) -> APIRout
                 if "/" in tool_name:
                     tool_name = tool_name.split("/", 1)[1]
 
-                events.append({
-                    "agent": span_agent,
-                    "tool": tool_name,
-                    "status": span.get("status", "ok"),
-                    "timestamp": span.get("start_time", 0),
-                    "duration_ms": span.get("duration_ms", 0),
-                    "trace_id": trace_id,
-                    "error": span.get("error_message") or (span.get("error", {}) or {}).get("message"),
-                })
+                events.append(
+                    {
+                        "agent": span_agent,
+                        "tool": tool_name,
+                        "status": span.get("status", "ok"),
+                        "timestamp": span.get("start_time", 0),
+                        "duration_ms": span.get("duration_ms", 0),
+                        "trace_id": trace_id,
+                        "error": span.get("error_message")
+                        or (span.get("error", {}) or {}).get("message"),
+                    }
+                )
 
         # Sort by timestamp descending and limit
         events.sort(key=lambda e: e["timestamp"], reverse=True)
@@ -208,7 +214,7 @@ def create_system_router(store: TraceStore, server_start_time: float) -> APIRout
         then falls back to the parent ``server/`` directory (for legacy .min.js
         bundles that were placed there before the modular split).
         """
-        if not re.match(r'^[a-zA-Z0-9._-]+$', filename):
+        if not re.match(r"^[a-zA-Z0-9._-]+$", filename):
             return JSONResponse({"detail": "invalid filename"}, status_code=400)
         server_dir = Path(__file__).parent.parent
         # Prefer files in the static/ sub-directory (modular assets)
@@ -223,7 +229,10 @@ def create_system_router(store: TraceStore, server_start_time: float) -> APIRout
             return JSONResponse({"detail": "not found"}, status_code=404)
         content_types = {".js": "application/javascript", ".css": "text/css"}
         ct = content_types.get(static_path.suffix, "application/octet-stream")
-        return Response(content=static_path.read_bytes(), media_type=ct,
-                        headers={"Cache-Control": "no-cache, must-revalidate"})
+        return Response(
+            content=static_path.read_bytes(),
+            media_type=ct,
+            headers={"Cache-Control": "no-cache, must-revalidate"},
+        )
 
     return router

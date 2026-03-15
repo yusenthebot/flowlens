@@ -60,6 +60,7 @@ class LangChainPlugin(BasePlugin):
         langchain_present = False
         try:
             import langchain_core  # type: ignore  # noqa: F401
+
             langchain_present = True
         except ImportError:
             pass
@@ -67,12 +68,15 @@ class LangChainPlugin(BasePlugin):
         if not langchain_present:
             try:
                 import langchain  # type: ignore  # noqa: F401
+
                 langchain_present = True
             except ImportError:
                 pass
 
         if not langchain_present:
-            logger.debug("[LangChainPlugin] langchain / langchain_core not installed — nothing to unpatch")
+            logger.debug(
+                "[LangChainPlugin] langchain / langchain_core not installed — nothing to unpatch"
+            )
             return
 
         _ai_module._patched.discard("langchain")

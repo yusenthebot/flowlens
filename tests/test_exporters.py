@@ -86,7 +86,6 @@ class TestOTLPBatchExporterAccumulation:
         exp = self._make_exporter(batch_size=3)
         sent_batches: list[list[Trace]] = []
 
-
         def capturing_send(traces):
             sent_batches.append(list(traces))
 
@@ -354,7 +353,9 @@ class TestOTLPBatchExporterPayload:
 
     def test_multiple_traces_multiple_resource_spans(self):
         exp = OTLPBatchExporter(endpoint="http://localhost:4318/v1/traces")
-        traces = [_make_trace(_make_span(name=f"s{i}", span_id=f"{'a'*14}{i:02x}")) for i in range(3)]
+        traces = [
+            _make_trace(_make_span(name=f"s{i}", span_id=f"{'a'*14}{i:02x}")) for i in range(3)
+        ]
         payload = exp._build_payload(traces)
         assert len(payload["resourceSpans"]) == 3
 
@@ -383,10 +384,12 @@ class TestOTLPBatchExporterPayload:
 class TestOTLPBatchExporterPublicAPI:
     def test_importable_from_flowlens(self):
         from flowlens import OTLPBatchExporter as OBE
+
         assert OBE is OTLPBatchExporter
 
     def test_in_all(self):
         import flowlens
+
         assert "OTLPBatchExporter" in flowlens.__all__
 
     def test_default_parameters(self):
@@ -565,10 +568,12 @@ class TestCSVExporterFileOutput:
 class TestCSVExporterPublicAPI:
     def test_importable_from_flowlens(self):
         from flowlens import CSVExporter as CE
+
         assert CE is CSVExporter
 
     def test_in_all(self):
         import flowlens
+
         assert "CSVExporter" in flowlens.__all__
 
 
@@ -714,10 +719,12 @@ class TestJSONLStreamExporterStdout:
 class TestJSONLStreamExporterPublicAPI:
     def test_importable_from_flowlens(self):
         from flowlens import JSONLStreamExporter as JLE
+
         assert JLE is JSONLStreamExporter
 
     def test_in_all(self):
         import flowlens
+
         assert "JSONLStreamExporter" in flowlens.__all__
 
 
@@ -731,10 +738,12 @@ class TestOTLPExporterNotBroken:
 
     def test_import(self):
         from flowlens.sdk.exporters import OTLPExporter
+
         assert OTLPExporter is not None
 
     def test_export_with_mock(self):
         from flowlens.sdk.exporters import OTLPExporter
+
         exp = OTLPExporter(endpoint="http://localhost:4318/v1/traces")
         exp._available = True
         with patch.object(exp, "_send") as mock_send:
@@ -783,11 +792,13 @@ class TestJSONLExporterThreadSafety:
         assert errors == [], f"Threads raised exceptions: {errors}"
 
         file_path = output_dir / "traces.jsonl"
-        raw_lines = [line for line in file_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        raw_lines = [
+            line for line in file_path.read_text(encoding="utf-8").splitlines() if line.strip()
+        ]
 
-        assert len(raw_lines) == num_threads * traces_per_thread, (
-            f"Expected {num_threads * traces_per_thread} lines, got {len(raw_lines)}"
-        )
+        assert (
+            len(raw_lines) == num_threads * traces_per_thread
+        ), f"Expected {num_threads * traces_per_thread} lines, got {len(raw_lines)}"
 
         # Every line must be valid JSON with a trace_id field — no interleaving
         for line in raw_lines:
@@ -834,9 +845,9 @@ class TestCSVExporterThreadSafety:
         reader = csv.DictReader(io.StringIO(exp.get_csv_string()))
         rows = list(reader)
 
-        assert len(rows) == num_threads * traces_per_thread, (
-            f"Expected {num_threads * traces_per_thread} data rows, got {len(rows)}"
-        )
+        assert (
+            len(rows) == num_threads * traces_per_thread
+        ), f"Expected {num_threads * traces_per_thread} data rows, got {len(rows)}"
 
         # Every row must have parseable columns — no interleaving corruption
         for row in rows:

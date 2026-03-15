@@ -35,11 +35,11 @@ _RESET = "\033[0m"
 _BOLD = "\033[1m"
 
 _LEVEL_COLORS: dict[str, str] = {
-    "DEBUG": "\033[36m",       # cyan
-    "INFO": "\033[32m",        # green
-    "WARNING": "\033[33m",     # yellow
-    "ERROR": "\033[31m",       # red
-    "CRITICAL": "\033[35m",    # magenta
+    "DEBUG": "\033[36m",  # cyan
+    "INFO": "\033[32m",  # green
+    "WARNING": "\033[33m",  # yellow
+    "ERROR": "\033[31m",  # red
+    "CRITICAL": "\033[35m",  # magenta
 }
 
 
@@ -53,6 +53,7 @@ def _is_dev_mode() -> bool:
 # ---------------------------------------------------------------------------
 # Formatters
 # ---------------------------------------------------------------------------
+
 
 class _JsonFormatter(logging.Formatter):
     """Emit one JSON object per log record — suitable for log aggregators."""
@@ -70,7 +71,11 @@ class _JsonFormatter(logging.Formatter):
 
         # Attach any extra fields passed via the `extra` kwarg to logger calls.
         standard_attrs = logging.LogRecord.__dict__.keys() | {
-            "message", "asctime", "args", "exc_text", "stack_info",
+            "message",
+            "asctime",
+            "args",
+            "exc_text",
+            "stack_info",
         }
         for key, value in record.__dict__.items():
             if key not in standard_attrs and not key.startswith("_"):
@@ -114,6 +119,7 @@ class _PrettyFormatter(logging.Formatter):
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def configure_logging(
     level: str | None = None,

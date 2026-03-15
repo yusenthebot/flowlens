@@ -40,9 +40,7 @@ logger = logging.getLogger(__name__)
 
 # Matches "metric_name operator value"
 # e.g. "error_rate > 0.1", "latency >= 5000"
-_THRESHOLD_RE = re.compile(
-    r"^(?P<metric>[\w_]+)\s*(?P<op>[><=!]+)\s*(?P<value>[\d.]+)$"
-)
+_THRESHOLD_RE = re.compile(r"^(?P<metric>[\w_]+)\s*(?P<op>[><=!]+)\s*(?P<value>[\d.]+)$")
 
 # Matches "pattern:name"  e.g. "pattern:retry_storm"
 _PATTERN_RE = re.compile(r"^pattern:(?P<name>[\w_]+)$")
@@ -205,8 +203,7 @@ class AlertEngine:
             pattern_name = m.group("name")
             matched = _check_pattern(trace, pattern_name)
             message = (
-                f"Pattern '{pattern_name}' detected in trace "
-                f"{trace.get('trace_id', 'unknown')}"
+                f"Pattern '{pattern_name}' detected in trace " f"{trace.get('trace_id', 'unknown')}"
             )
             metrics = {"pattern": pattern_name}
             return matched, message, metrics
@@ -261,10 +258,7 @@ class AlertEngine:
         # --- Compound AND condition ---
         if " AND " in condition:
             parts = condition.split(" AND ")
-            results = [
-                self._evaluate_single(p.strip(), trace, patterns)
-                for p in parts
-            ]
+            results = [self._evaluate_single(p.strip(), trace, patterns) for p in parts]
             # All parts must match
             all_matched = all(r[0] for r in results)
             if not all_matched:
@@ -307,9 +301,7 @@ class AlertEngine:
     # Main entry point
     # ------------------------------------------------------------------
 
-    async def check_trace(
-        self, trace: dict[str, Any]
-    ) -> list[Alert]:
+    async def check_trace(self, trace: dict[str, Any]) -> list[Alert]:
         """
         Evaluate all enabled rules against *trace* and fire webhooks.
 
@@ -330,17 +322,13 @@ class AlertEngine:
                 continue
 
             if self._is_on_cooldown(rule):
-                logger.debug(
-                    "Rule %s is on cooldown, skipping", rule.name
-                )
+                logger.debug("Rule %s is on cooldown, skipping", rule.name)
                 continue
 
             try:
                 matched, message, metrics = self._evaluate_condition(rule, trace)
             except Exception as exc:
-                logger.warning(
-                    "Rule %s condition evaluation failed: %s", rule.name, exc
-                )
+                logger.warning("Rule %s condition evaluation failed: %s", rule.name, exc)
                 continue
 
             if not matched:
@@ -365,16 +353,12 @@ class AlertEngine:
 
             # Fire webhook asynchronously (non-blocking, best-effort)
             if rule.webhook_url:
-                asyncio.ensure_future(
-                    _fire_webhook_safe(rule.webhook_url, alert, trace)
-                )
+                asyncio.ensure_future(_fire_webhook_safe(rule.webhook_url, alert, trace))
 
         return fired
 
 
-async def _fire_webhook_safe(
-    url: str, alert: Alert, trace: dict[str, Any]
-) -> None:
+async def _fire_webhook_safe(url: str, alert: Alert, trace: dict[str, Any]) -> None:
     """Wrapper that catches all exceptions so webhook errors never crash ingest."""
     try:
         await send_webhook(url=url, alert_dict=alert.to_dict(), trace_context=trace)

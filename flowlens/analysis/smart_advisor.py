@@ -31,7 +31,7 @@ from ..sdk.models import SpanStatus, Trace
 class FleetRecommendation:
     """A single actionable fleet-wide recommendation."""
 
-    category: str          # "cost", "reliability", "performance", "model"
+    category: str  # "cost", "reliability", "performance", "model"
     title: str
     description: str
     severity: str = "info"  # "info" | "warning" | "critical"
@@ -56,11 +56,11 @@ class FleetRecommendation:
 class RegressionReport:
     """Summary of a detected regression between recent and baseline traces."""
 
-    metric: str           # "error_rate" | "latency" | "cost"
+    metric: str  # "error_rate" | "latency" | "cost"
     service_name: str
     baseline_value: float
     recent_value: float
-    change_pct: float     # positive = worsened
+    change_pct: float  # positive = worsened
     description: str
     severity: str = "warning"
 
@@ -160,9 +160,7 @@ class SmartAdvisor:
         summary_parts = []
         if top_spans:
             span_names = ", ".join(f"'{s['name']}'" for s in top_spans[:3])
-            summary_parts.append(
-                f"Top expensive spans: {span_names}."
-            )
+            summary_parts.append(f"Top expensive spans: {span_names}.")
         if failure_info:
             summary_parts.append(
                 f"Most common failure: '{failure_info['error_message']}' "
@@ -182,9 +180,7 @@ class SmartAdvisor:
     # Pipeline reorder suggestions
     # ------------------------------------------------------------------
 
-    def suggest_pipeline_reorder(
-        self, traces: list[Trace]
-    ) -> list[PipelineReorderSuggestion]:
+    def suggest_pipeline_reorder(self, traces: list[Trace]) -> list[PipelineReorderSuggestion]:
         """
         Analyse span sequences in successful vs failed traces.
 
@@ -382,9 +378,7 @@ class SmartAdvisor:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _top_expensive_spans(
-        self, traces: list[Trace]
-    ) -> list[dict[str, Any]]:
+    def _top_expensive_spans(self, traces: list[Trace]) -> list[dict[str, Any]]:
         """Return the top-N most expensive span names by total cost."""
         cost_by_name: dict[str, float] = defaultdict(float)
         count_by_name: dict[str, int] = defaultdict(int)
@@ -406,9 +400,7 @@ class SmartAdvisor:
             for name, cost in ranked[: self._COST_TOP_N]
         ]
 
-    def _most_common_failure(
-        self, traces: list[Trace]
-    ) -> dict[str, Any] | None:
+    def _most_common_failure(self, traces: list[Trace]) -> dict[str, Any] | None:
         """Find the single most common error message across all traces."""
         error_counts: Counter[str] = Counter()
         total_traces = len(traces)
@@ -427,8 +419,7 @@ class SmartAdvisor:
             1
             for t in traces
             if any(
-                s.status == SpanStatus.ERROR and s.error_message == most_common_msg
-                for s in t.spans
+                s.status == SpanStatus.ERROR and s.error_message == most_common_msg for s in t.spans
             )
         )
         rate = affected_traces / total_traces if total_traces > 0 else 0.0
@@ -440,9 +431,7 @@ class SmartAdvisor:
             "rate": rate,
         }
 
-    def _model_downgrade_suggestions(
-        self, traces: list[Trace]
-    ) -> list[FleetRecommendation]:
+    def _model_downgrade_suggestions(self, traces: list[Trace]) -> list[FleetRecommendation]:
         """
         Suggest cheaper model alternatives for spans using expensive models.
 
@@ -492,9 +481,7 @@ class SmartAdvisor:
 
         return recs
 
-    def _cost_recommendations(
-        self, top_spans: list[dict[str, Any]]
-    ) -> list[FleetRecommendation]:
+    def _cost_recommendations(self, top_spans: list[dict[str, Any]]) -> list[FleetRecommendation]:
         recs: list[FleetRecommendation] = []
         for span_info in top_spans:
             recs.append(

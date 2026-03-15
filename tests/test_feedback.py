@@ -17,6 +17,7 @@ from flowlens.server.storage import TraceStore
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture()
 def store(tmp_path):
     s = TraceStore(db_path=str(tmp_path / "test.db"))
@@ -57,23 +58,26 @@ def _ingest_trace(client, **kwargs) -> str:
 # Part 1: Storage-level CRUD
 # ---------------------------------------------------------------------------
 
+
 class TestFeedbackStorage:
     def _save_trace(self, store, trace_id: str | None = None) -> str:
         tid = trace_id or uuid.uuid4().hex
-        store.save_trace({
-            "trace_id": tid,
-            "service_name": "svc",
-            "start_time": time.time(),
-            "end_time": time.time() + 1,
-            "duration_ms": 1000.0,
-            "total_tokens": 0,
-            "total_cost_usd": 0.0,
-            "has_errors": False,
-            "error_count": 0,
-            "span_count": 0,
-            "metadata": {},
-            "spans": [],
-        })
+        store.save_trace(
+            {
+                "trace_id": tid,
+                "service_name": "svc",
+                "start_time": time.time(),
+                "end_time": time.time() + 1,
+                "duration_ms": 1000.0,
+                "total_tokens": 0,
+                "total_cost_usd": 0.0,
+                "has_errors": False,
+                "error_count": 0,
+                "span_count": 0,
+                "metadata": {},
+                "spans": [],
+            }
+        )
         return tid
 
     def test_save_and_get_feedback(self, store):
@@ -194,6 +198,7 @@ class TestFeedbackStorage:
 # ---------------------------------------------------------------------------
 # Part 2: API endpoints
 # ---------------------------------------------------------------------------
+
 
 class TestFeedbackAPI:
     def test_submit_feedback(self, client):
@@ -348,4 +353,3 @@ class TestFeedbackAPI:
         assert "comment" in entry
         assert entry["comment"] == "great"
         assert "created_at" in entry
-

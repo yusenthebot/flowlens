@@ -1,4 +1,5 @@
 """Tests for SDK data models."""
+
 import pytest
 
 from flowlens.sdk.models import (
@@ -156,9 +157,9 @@ class TestCostEstimation:
         # "gpt-4o-mini" must use gpt-4o-mini pricing (0.15, 0.6),
         # NOT gpt-4o (2.5, 10.0) and NOT gpt-4.1 (2.0, 8.0).
         costs = _estimate_cost("gpt-4o-mini", 1_000_000, 1_000_000)
-        assert costs["input_cost_usd"] == pytest.approx(0.15), (
-            "gpt-4o-mini should match gpt-4o-mini pricing, not a shorter key"
-        )
+        assert costs["input_cost_usd"] == pytest.approx(
+            0.15
+        ), "gpt-4o-mini should match gpt-4o-mini pricing, not a shorter key"
         assert costs["output_cost_usd"] == pytest.approx(0.6)
 
         # "claude-sonnet-4-20250514" must use the full versioned key (3.0, 15.0)
@@ -170,9 +171,9 @@ class TestCostEstimation:
         # "gpt-4.1-nano" must match gpt-4.1-nano (0.1, 0.4),
         # NOT the shorter gpt-4.1 (2.0, 8.0).
         costs = _estimate_cost("gpt-4.1-nano", 1_000_000, 1_000_000)
-        assert costs["input_cost_usd"] == pytest.approx(0.1), (
-            "gpt-4.1-nano should match gpt-4.1-nano pricing, not gpt-4.1"
-        )
+        assert costs["input_cost_usd"] == pytest.approx(
+            0.1
+        ), "gpt-4.1-nano should match gpt-4.1-nano pricing, not gpt-4.1"
         assert costs["output_cost_usd"] == pytest.approx(0.4)
 
 
@@ -251,7 +252,7 @@ class TestTraceEdgeCases:
 
         assert trace.error_count == 1
         assert len(trace.spans) == 3
-        assert trace.error_rate == pytest.approx(1/3, rel=1e-5)
+        assert trace.error_rate == pytest.approx(1 / 3, rel=1e-5)
 
     def test_trace_with_multiple_token_usage_spans(self):
         """Sum token usage across multiple LLM spans"""

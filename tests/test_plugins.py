@@ -21,6 +21,7 @@ from flowlens.sdk import auto_instrument as _ai_module
 # Helpers / fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(autouse=True)
 def reset_registry():
     """Isolate each test: give it a fresh PluginRegistry singleton."""
@@ -43,6 +44,7 @@ def reset_patched():
 # Concrete stub plugin used throughout the tests
 # ---------------------------------------------------------------------------
 
+
 class StubPlugin(BasePlugin):
     name = "stub"
     version = "1.2.3"
@@ -61,6 +63,7 @@ class StubPlugin(BasePlugin):
 # ---------------------------------------------------------------------------
 # BasePlugin interface
 # ---------------------------------------------------------------------------
+
 
 class TestBasePlugin:
     def test_cannot_instantiate_abstract_base(self):
@@ -98,6 +101,7 @@ class TestBasePlugin:
         """BasePlugin and PluginRegistry are importable from the top-level package."""
         from flowlens import BasePlugin as BP
         from flowlens import PluginRegistry as PR
+
         assert BP is BasePlugin
         assert PR is PluginRegistry
 
@@ -105,6 +109,7 @@ class TestBasePlugin:
 # ---------------------------------------------------------------------------
 # PluginRegistry
 # ---------------------------------------------------------------------------
+
 
 class TestPluginRegistry:
     def test_instance_returns_singleton(self):
@@ -157,6 +162,7 @@ class TestPluginRegistry:
 # load_plugin — built-in names
 # ---------------------------------------------------------------------------
 
+
 class TestLoadPlugin:
     def test_load_anthropic_plugin(self):
         plugin = load_plugin("anthropic")
@@ -204,9 +210,11 @@ class TestLoadPlugin:
 # AnthropicPlugin
 # ---------------------------------------------------------------------------
 
+
 class TestAnthropicPlugin:
     def test_plugin_loads(self):
         from flowlens.plugins.anthropic_plugin import AnthropicPlugin
+
         p = AnthropicPlugin()
         assert p.name == "anthropic"
         assert p.version == "0.1.0"
@@ -232,6 +240,7 @@ class TestAnthropicPlugin:
     def test_patch_is_idempotent(self):
         """Calling patch() when already patched is a no-op."""
         from flowlens.plugins.anthropic_plugin import AnthropicPlugin
+
         _ai_module._patched.add("anthropic")
 
         called = []
@@ -250,6 +259,7 @@ class TestAnthropicPlugin:
 
     def test_unpatch_removes_from_registry(self):
         from flowlens.plugins.anthropic_plugin import AnthropicPlugin
+
         _ai_module._patched.add("anthropic")
 
         # Stub out the anthropic import so unpatch doesn't fail
@@ -262,6 +272,7 @@ class TestAnthropicPlugin:
     def test_unpatch_without_library_is_silent(self):
         """If anthropic is not installed, unpatch() does not raise."""
         from flowlens.plugins.anthropic_plugin import AnthropicPlugin
+
         with patch.dict(sys.modules, {"anthropic": None}):
             AnthropicPlugin().unpatch()  # should not raise
 
@@ -270,9 +281,11 @@ class TestAnthropicPlugin:
 # OpenAIPlugin
 # ---------------------------------------------------------------------------
 
+
 class TestOpenAIPlugin:
     def test_plugin_loads(self):
         from flowlens.plugins.openai_plugin import OpenAIPlugin
+
         p = OpenAIPlugin()
         assert p.name == "openai"
         assert p.version == "0.1.0"
@@ -298,6 +311,7 @@ class TestOpenAIPlugin:
     def test_patch_is_idempotent(self):
         """Calling patch() when already patched is a no-op."""
         from flowlens.plugins.openai_plugin import OpenAIPlugin
+
         _ai_module._patched.add("openai")
 
         called = []
@@ -316,6 +330,7 @@ class TestOpenAIPlugin:
 
     def test_unpatch_removes_from_registry(self):
         from flowlens.plugins.openai_plugin import OpenAIPlugin
+
         _ai_module._patched.add("openai")
 
         fake_openai = types.ModuleType("openai")
@@ -327,6 +342,7 @@ class TestOpenAIPlugin:
     def test_unpatch_without_library_is_silent(self):
         """If openai is not installed, unpatch() does not raise."""
         from flowlens.plugins.openai_plugin import OpenAIPlugin
+
         with patch.dict(sys.modules, {"openai": None}):
             OpenAIPlugin().unpatch()  # should not raise
 
@@ -335,9 +351,11 @@ class TestOpenAIPlugin:
 # LangChainPlugin
 # ---------------------------------------------------------------------------
 
+
 class TestLangChainPlugin:
     def test_plugin_loads(self):
         from flowlens.plugins.langchain_plugin import LangChainPlugin
+
         p = LangChainPlugin()
         assert p.name == "langchain"
         assert p.version == "0.1.0"
@@ -363,6 +381,7 @@ class TestLangChainPlugin:
     def test_patch_is_idempotent(self):
         """Calling patch() when already patched is a no-op."""
         from flowlens.plugins.langchain_plugin import LangChainPlugin
+
         _ai_module._patched.add("langchain")
 
         called = []
@@ -381,6 +400,7 @@ class TestLangChainPlugin:
 
     def test_unpatch_removes_from_registry(self):
         from flowlens.plugins.langchain_plugin import LangChainPlugin
+
         _ai_module._patched.add("langchain")
 
         fake_langchain_core = types.ModuleType("langchain_core")
@@ -392,6 +412,7 @@ class TestLangChainPlugin:
     def test_unpatch_without_library_is_silent(self):
         """If neither langchain nor langchain_core is installed, unpatch() does not raise."""
         from flowlens.plugins.langchain_plugin import LangChainPlugin
+
         with patch.dict(sys.modules, {"langchain": None, "langchain_core": None}):
             LangChainPlugin().unpatch()  # should not raise
 
@@ -400,23 +421,28 @@ class TestLangChainPlugin:
 # Top-level package exports
 # ---------------------------------------------------------------------------
 
+
 class TestTopLevelExports:
     def test_base_plugin_exported(self):
         import flowlens
+
         assert hasattr(flowlens, "BasePlugin")
         assert flowlens.BasePlugin is BasePlugin
 
     def test_plugin_registry_exported(self):
         import flowlens
+
         assert hasattr(flowlens, "PluginRegistry")
         assert flowlens.PluginRegistry is PluginRegistry
 
     def test_discover_plugins_exported(self):
         import flowlens
+
         assert hasattr(flowlens, "discover_plugins")
         assert callable(flowlens.discover_plugins)
 
     def test_load_plugin_exported(self):
         import flowlens
+
         assert hasattr(flowlens, "load_plugin")
         assert callable(flowlens.load_plugin)

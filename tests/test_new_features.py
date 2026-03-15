@@ -5,6 +5,7 @@ Tests for new features added in Cycle 4:
 - API key authentication middleware
 - storage.batch_delete_traces method
 """
+
 from __future__ import annotations
 
 import os
@@ -26,6 +27,7 @@ from flowlens.server.storage import TraceStore
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_trace(trace_id: str = "t1", service_name: str = "test-svc") -> dict:
     return {
         "trace_id": trace_id,
@@ -46,6 +48,7 @@ def _make_trace(trace_id: str = "t1", service_name: str = "test-svc") -> dict:
 # ---------------------------------------------------------------------------
 # 1. Exception hierarchy
 # ---------------------------------------------------------------------------
+
 
 class TestExceptionHierarchy:
     def test_base_is_exception(self):
@@ -95,6 +98,7 @@ class TestExceptionHierarchy:
 # 2. Storage — batch_delete_traces
 # ---------------------------------------------------------------------------
 
+
 class TestBatchDeleteStorage:
     @pytest.fixture
     def store(self, tmp_path):
@@ -129,22 +133,22 @@ class TestBatchDeleteStorage:
     def test_batch_delete_cascades_spans(self, store):
         """Deleting via batch-delete must also remove child spans."""
         trace = _make_trace("casc")
-        trace["spans"] = [{
-            "span_id": "casc_s1",
-            "trace_id": "casc",
-            "name": "test",
-            "kind": "tool",
-            "status": "ok",
-            "start_time": 1000.0,
-            "end_time": 1001.0,
-            "attributes": {},
-            "events": [],
-        }]
+        trace["spans"] = [
+            {
+                "span_id": "casc_s1",
+                "trace_id": "casc",
+                "name": "test",
+                "kind": "tool",
+                "status": "ok",
+                "start_time": 1000.0,
+                "end_time": 1001.0,
+                "attributes": {},
+                "events": [],
+            }
+        ]
         store.save_trace(trace)
         store.batch_delete_traces(["casc"])
-        rows = store._conn.execute(
-            "SELECT count(*) FROM spans WHERE trace_id = 'casc'"
-        ).fetchone()
+        rows = store._conn.execute("SELECT count(*) FROM spans WHERE trace_id = 'casc'").fetchone()
         assert rows[0] == 0
 
     def test_batch_delete_large_list(self, store):
@@ -159,6 +163,7 @@ class TestBatchDeleteStorage:
 # ---------------------------------------------------------------------------
 # 3. API — POST /v1/traces/batch-delete
 # ---------------------------------------------------------------------------
+
 
 class TestBatchDeleteEndpoint:
     @pytest.fixture
@@ -246,6 +251,7 @@ class TestBatchDeleteEndpoint:
 # ---------------------------------------------------------------------------
 # 4. API key authentication middleware
 # ---------------------------------------------------------------------------
+
 
 class TestApiKeyAuth:
     def _make_client_with_key(self, tmp_path, api_key: str) -> TestClient:

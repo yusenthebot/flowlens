@@ -32,6 +32,7 @@ SCHEMA_VERSION = 6
 # Connection pool
 # ---------------------------------------------------------------------------
 
+
 class _ConnectionPool:
     """
     Thread-local SQLite connection pool.
@@ -60,10 +61,10 @@ class _ConnectionPool:
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA foreign_keys=ON")
         # Performance tuning
-        conn.execute("PRAGMA cache_size=-32000")       # 32 MB page cache per connection
-        conn.execute("PRAGMA mmap_size=268435456")     # 256 MB memory-mapped I/O
-        conn.execute("PRAGMA synchronous=NORMAL")      # Faster than FULL; safe with WAL
-        conn.execute("PRAGMA temp_store=MEMORY")       # Keep temp tables in RAM
+        conn.execute("PRAGMA cache_size=-32000")  # 32 MB page cache per connection
+        conn.execute("PRAGMA mmap_size=268435456")  # 256 MB memory-mapped I/O
+        conn.execute("PRAGMA synchronous=NORMAL")  # Faster than FULL; safe with WAL
+        conn.execute("PRAGMA temp_store=MEMORY")  # Keep temp tables in RAM
         return conn
 
     @property
@@ -137,6 +138,7 @@ class _SimpleCache:
 
 class _CacheMiss:
     """Sentinel object distinguishing a missing cache entry from a ``None`` value."""
+
     def __repr__(self) -> str:
         return "<CACHE_MISS>"
 
@@ -147,6 +149,7 @@ _CACHE_MISS = _CacheMiss()
 # ---------------------------------------------------------------------------
 # TraceStore
 # ---------------------------------------------------------------------------
+
 
 class TraceStore:
     """
@@ -302,7 +305,9 @@ class TraceStore:
 
         if current < 4:
             # v4 → user/session/experiment context columns + feedback table
-            logger.info("DB schema: migrating to version 4 (user/session/experiment context + feedback)")
+            logger.info(
+                "DB schema: migrating to version 4 (user/session/experiment context + feedback)"
+            )
             conn.executescript("""
                 ALTER TABLE traces ADD COLUMN user_id    TEXT;
                 ALTER TABLE traces ADD COLUMN session_id TEXT;
@@ -451,34 +456,34 @@ class TraceStore:
                 for span in spans:
                     token_usage = span.get("token_usage") or {}
                     error = span.get("error")
-                    error_msg = (
-                        error.get("message")
-                        if isinstance(error, dict)
-                        else None
+                    error_msg = error.get("message") if isinstance(error, dict) else None
+                    span_params.append(
+                        (
+                            span["span_id"],
+                            span["trace_id"],
+                            span.get("parent_span_id"),
+                            span["name"],
+                            span["kind"],
+                            span["status"],
+                            span.get("start_time", 0),
+                            span.get("end_time", 0),
+                            span.get("duration_ms", 0),
+                            token_usage.get("input_tokens", 0),
+                            token_usage.get("output_tokens", 0),
+                            token_usage.get("total_cost_usd", 0),
+                            error_msg,
+                            json.dumps(span.get("attributes", {})),
+                            json.dumps(span.get("events", [])),
+                        )
                     )
-                    span_params.append((
-                        span["span_id"],
-                        span["trace_id"],
-                        span.get("parent_span_id"),
-                        span["name"],
-                        span["kind"],
-                        span["status"],
-                        span.get("start_time", 0),
-                        span.get("end_time", 0),
-                        span.get("duration_ms", 0),
-                        token_usage.get("input_tokens", 0),
-                        token_usage.get("output_tokens", 0),
-                        token_usage.get("total_cost_usd", 0),
-                        error_msg,
-                        json.dumps(span.get("attributes", {})),
-                        json.dumps(span.get("events", [])),
-                    ))
-                    fts_params.append((
-                        span["span_id"],
-                        expected_trace_id,
-                        span.get("name", ""),
-                        error_msg or "",
-                    ))
+                    fts_params.append(
+                        (
+                            span["span_id"],
+                            expected_trace_id,
+                            span.get("name", ""),
+                            error_msg or "",
+                        )
+                    )
 
                 conn.executemany(
                     """INSERT OR REPLACE INTO spans
@@ -544,9 +549,7 @@ class TraceStore:
         conn = self._pool.primary
         # Remove FTS entries before the CASCADE delete removes the spans rows
         conn.execute("DELETE FROM spans_fts WHERE trace_id = ?", (trace_id,))
-        cursor = conn.execute(
-            "DELETE FROM traces WHERE trace_id = ?", (trace_id,)
-        )
+        cursor = conn.execute("DELETE FROM traces WHERE trace_id = ?", (trace_id,))
         conn.commit()
         deleted = cursor.rowcount > 0
         if deleted:
@@ -571,9 +574,7 @@ class TraceStore:
         for i in range(0, len(trace_ids), _CHUNK):
             chunk = trace_ids[i : i + _CHUNK]
             placeholders = ",".join("?" * len(chunk))
-            cursor = conn.execute(
-                f"DELETE FROM traces WHERE trace_id IN ({placeholders})", chunk
-            )
+            cursor = conn.execute(f"DELETE FROM traces WHERE trace_id IN ({placeholders})", chunk)
             total_deleted += cursor.rowcount
         conn.commit()
         if total_deleted:
@@ -589,9 +590,7 @@ class TraceStore:
         """
         conn = self._pool.primary
         cutoff = time.time() - days * 86_400
-        cursor = conn.execute(
-            "DELETE FROM traces WHERE created_at < ?", (cutoff,)
-        )
+        cursor = conn.execute("DELETE FROM traces WHERE created_at < ?", (cutoff,))
         conn.commit()
         count = cursor.rowcount
         if count:
@@ -687,9 +686,7 @@ class TraceStore:
     def get_trace(self, trace_id: str) -> dict[str, Any] | None:
         """Fetch a single trace with all its spans."""
         conn = self._pool.primary
-        row = conn.execute(
-            "SELECT * FROM traces WHERE trace_id = ?", (trace_id,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM traces WHERE trace_id = ?", (trace_id,)).fetchone()
         if not row:
             return None
 
@@ -863,32 +860,26 @@ class TraceStore:
 
         conn = self._pool.primary
         if group_by == "service_name":
-            rows = conn.execute(
-                """SELECT service_name as dimension,
+            rows = conn.execute("""SELECT service_name as dimension,
                    COUNT(*) as trace_count,
                    SUM(total_tokens) as total_tokens,
                    SUM(total_cost_usd) as total_cost_usd
                    FROM traces GROUP BY service_name
-                   ORDER BY total_cost_usd DESC"""
-            ).fetchall()
+                   ORDER BY total_cost_usd DESC""").fetchall()
         elif group_by == "kind":
-            rows = conn.execute(
-                """SELECT kind as dimension,
+            rows = conn.execute("""SELECT kind as dimension,
                    COUNT(*) as span_count,
                    SUM(input_tokens + output_tokens) as total_tokens,
                    SUM(total_cost_usd) as total_cost_usd
                    FROM spans WHERE input_tokens > 0
-                   GROUP BY kind ORDER BY total_cost_usd DESC"""
-            ).fetchall()
+                   GROUP BY kind ORDER BY total_cost_usd DESC""").fetchall()
         elif group_by == "name":
-            rows = conn.execute(
-                """SELECT name as dimension,
+            rows = conn.execute("""SELECT name as dimension,
                    COUNT(*) as call_count,
                    SUM(input_tokens + output_tokens) as total_tokens,
                    SUM(total_cost_usd) as total_cost_usd
                    FROM spans WHERE input_tokens > 0
-                   GROUP BY name ORDER BY total_cost_usd DESC"""
-            ).fetchall()
+                   GROUP BY name ORDER BY total_cost_usd DESC""").fetchall()
         else:
             return []
 
@@ -953,16 +944,14 @@ class TraceStore:
             return cached
 
         conn = self._pool.primary
-        kind_rows = conn.execute(
-            """SELECT kind,
+        kind_rows = conn.execute("""SELECT kind,
                    COUNT(*)             AS span_count,
                    SUM(input_tokens + output_tokens) AS total_tokens,
                    SUM(total_cost_usd)  AS total_cost_usd,
                    AVG(duration_ms)     AS avg_duration_ms
                FROM spans
                GROUP BY kind
-               ORDER BY span_count DESC"""
-        ).fetchall()
+               ORDER BY span_count DESC""").fetchall()
 
         name_rows = conn.execute(
             """SELECT name,
@@ -977,14 +966,12 @@ class TraceStore:
             (limit,),
         ).fetchall()
 
-        error_rows = conn.execute(
-            """SELECT error_message, COUNT(*) AS occurrences
+        error_rows = conn.execute("""SELECT error_message, COUNT(*) AS occurrences
                FROM spans
                WHERE error_message IS NOT NULL
                GROUP BY error_message
                ORDER BY occurrences DESC
-               LIMIT 20"""
-        ).fetchall()
+               LIMIT 20""").fetchall()
 
         result = {
             "by_kind": [dict(r) for r in kind_rows],
@@ -1002,16 +989,14 @@ class TraceStore:
             return cached
 
         conn = self._pool.primary
-        row = conn.execute(
-            """SELECT
+        row = conn.execute("""SELECT
                COUNT(*) as total_traces,
                SUM(span_count) as total_spans,
                SUM(total_tokens) as total_tokens,
                SUM(total_cost_usd) as total_cost,
                SUM(has_errors) as error_traces,
                AVG(duration_ms) as avg_duration_ms
-               FROM traces"""
-        ).fetchone()
+               FROM traces""").fetchone()
         result = dict(row) if row else {}
         self._cache.set(cache_key, result)
         return result
@@ -1111,15 +1096,15 @@ class TraceStore:
         for r in dist_rows:
             distribution[str(r["rating"])] = r["cnt"]
 
-        low_rows = conn.execute(
-            """SELECT trace_id, AVG(rating) as avg_r
+        low_rows = conn.execute("""SELECT trace_id, AVG(rating) as avg_r
                FROM feedback
                GROUP BY trace_id
                HAVING avg_r <= 2
                ORDER BY avg_r ASC
-               LIMIT 20"""
-        ).fetchall()
-        low_rating_traces = [{"trace_id": r["trace_id"], "avg_rating": r["avg_r"]} for r in low_rows]
+               LIMIT 20""").fetchall()
+        low_rating_traces = [
+            {"trace_id": r["trace_id"], "avg_rating": r["avg_r"]} for r in low_rows
+        ]
 
         result: dict[str, Any] = {
             "total_count": total_count,
@@ -1142,8 +1127,7 @@ class TraceStore:
             return cached
 
         conn = self._pool.primary
-        rows = conn.execute(
-            """SELECT
+        rows = conn.execute("""SELECT
                    user_id,
                    COUNT(*)                     AS trace_count,
                    SUM(has_errors)              AS error_traces,
@@ -1153,8 +1137,7 @@ class TraceStore:
                FROM traces
                WHERE user_id IS NOT NULL
                GROUP BY user_id
-               ORDER BY trace_count DESC"""
-        ).fetchall()
+               ORDER BY trace_count DESC""").fetchall()
         result = [dict(r) for r in rows]
         self._cache.set(cache_key, result)
         return result
@@ -1167,8 +1150,7 @@ class TraceStore:
             return cached
 
         conn = self._pool.primary
-        rows = conn.execute(
-            """SELECT
+        rows = conn.execute("""SELECT
                    experiment,
                    COUNT(*)                     AS trace_count,
                    SUM(has_errors)              AS error_traces,
@@ -1179,8 +1161,7 @@ class TraceStore:
                FROM traces
                WHERE experiment IS NOT NULL
                GROUP BY experiment
-               ORDER BY trace_count DESC"""
-        ).fetchall()
+               ORDER BY trace_count DESC""").fetchall()
         result = [dict(r) for r in rows]
         self._cache.set(cache_key, result)
         return result
@@ -1212,9 +1193,7 @@ class TraceStore:
     def get_alert_rule(self, name: str) -> dict[str, Any] | None:
         """Return a single alert rule by name, or None."""
         conn = self._pool.primary
-        row = conn.execute(
-            "SELECT * FROM alert_rules WHERE name = ?", (name,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM alert_rules WHERE name = ?", (name,)).fetchone()
         if row is None:
             return None
         d = dict(row)
@@ -1224,9 +1203,7 @@ class TraceStore:
     def list_alert_rules(self) -> list[dict[str, Any]]:
         """Return all alert rules ordered by creation time."""
         conn = self._pool.primary
-        rows = conn.execute(
-            "SELECT * FROM alert_rules ORDER BY created_at ASC"
-        ).fetchall()
+        rows = conn.execute("SELECT * FROM alert_rules ORDER BY created_at ASC").fetchall()
         result = []
         for row in rows:
             d = dict(row)
@@ -1237,9 +1214,7 @@ class TraceStore:
     def delete_alert_rule(self, name: str) -> bool:
         """Delete an alert rule by name.  Returns True if it existed."""
         conn = self._pool.primary
-        cursor = conn.execute(
-            "DELETE FROM alert_rules WHERE name = ?", (name,)
-        )
+        cursor = conn.execute("DELETE FROM alert_rules WHERE name = ?", (name,))
         conn.commit()
         return cursor.rowcount > 0
 
@@ -1357,19 +1332,21 @@ class TraceStore:
             if not project and services_raw:
                 project = services_raw.split(",")[0]
 
-            result.append({
-                "session_id": d["session_id"],
-                "trace_count": d["trace_count"] or 0,
-                "total_spans": d["total_spans"] or 0,
-                "total_cost_usd": round(d["total_cost_usd"] or 0.0, 6),
-                "total_duration_ms": d["total_duration_ms"] or 0,
-                "first_trace_time": d["first_trace_time"],
-                "last_trace_time": d["last_trace_time"],
-                "agents": agents,
-                "has_errors": bool(d["has_errors"]),
-                "error_count": d["error_count"] or 0,
-                "project": project,
-            })
+            result.append(
+                {
+                    "session_id": d["session_id"],
+                    "trace_count": d["trace_count"] or 0,
+                    "total_spans": d["total_spans"] or 0,
+                    "total_cost_usd": round(d["total_cost_usd"] or 0.0, 6),
+                    "total_duration_ms": d["total_duration_ms"] or 0,
+                    "first_trace_time": d["first_trace_time"],
+                    "last_trace_time": d["last_trace_time"],
+                    "agents": agents,
+                    "has_errors": bool(d["has_errors"]),
+                    "error_count": d["error_count"] or 0,
+                    "project": project,
+                }
+            )
         return result
 
     def get_session(self, session_id: str) -> dict[str, Any] | None:

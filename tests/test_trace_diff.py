@@ -309,10 +309,17 @@ class TestExperimentDiff:
 
         d = TraceDiff().diff_experiments(group_a, group_b).to_dict()
         required_keys = [
-            "experiment_a", "experiment_b",
-            "avg_duration_diff_ms", "avg_cost_diff_usd", "avg_token_diff",
-            "p95_duration_a_ms", "p95_duration_b_ms", "p95_duration_diff_ms",
-            "error_rate_a", "error_rate_b", "error_rate_diff",
+            "experiment_a",
+            "experiment_b",
+            "avg_duration_diff_ms",
+            "avg_cost_diff_usd",
+            "avg_token_diff",
+            "p95_duration_a_ms",
+            "p95_duration_b_ms",
+            "p95_duration_diff_ms",
+            "error_rate_a",
+            "error_rate_b",
+            "error_rate_diff",
             "summary",
         ]
         for key in required_keys:

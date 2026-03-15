@@ -16,6 +16,7 @@ from flowlens.server.storage import TraceStore
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture()
 def runner() -> CliRunner:
     """Return an isolated Click test runner."""
@@ -217,6 +218,7 @@ def multi_trace_jsonl(tmp_path: Path) -> Path:
 # `flowlens version`
 # ---------------------------------------------------------------------------
 
+
 class TestVersionCommand:
     def test_prints_version(self, runner: CliRunner) -> None:
         result = runner.invoke(cli, ["version"])
@@ -231,6 +233,7 @@ class TestVersionCommand:
 # ---------------------------------------------------------------------------
 # `flowlens --help` / root group
 # ---------------------------------------------------------------------------
+
 
 class TestHelpOutput:
     def test_root_help(self, runner: CliRunner) -> None:
@@ -258,6 +261,7 @@ class TestHelpOutput:
 # ---------------------------------------------------------------------------
 # `flowlens analyze` — text output
 # ---------------------------------------------------------------------------
+
 
 class TestAnalyzeCommand:
     def test_analyze_single_trace_text(self, runner: CliRunner, sample_jsonl: Path) -> None:
@@ -360,9 +364,16 @@ class TestAnalyzeCommand:
         reports = json.loads(result.output)
         report = reports[0]
         expected_keys = {
-            "severity_score", "severity_level", "error_summary",
-            "recommendations", "estimated_savings", "trace_id",
-            "service_name", "duration_ms", "total_tokens", "total_cost_usd",
+            "severity_score",
+            "severity_level",
+            "error_summary",
+            "recommendations",
+            "estimated_savings",
+            "trace_id",
+            "service_name",
+            "duration_ms",
+            "total_tokens",
+            "total_cost_usd",
             "error_count",
         }
         assert expected_keys.issubset(report.keys())
@@ -371,6 +382,7 @@ class TestAnalyzeCommand:
 # ---------------------------------------------------------------------------
 # `flowlens serve` — startup validation (no actual binding)
 # ---------------------------------------------------------------------------
+
 
 class TestServeCommand:
     def test_serve_help_exits_zero(self, runner: CliRunner) -> None:
@@ -382,6 +394,7 @@ class TestServeCommand:
     ) -> None:
         """When uvicorn is not installed the command should fail gracefully."""
         import builtins
+
         real_import = builtins.__import__
 
         def mock_import(name: str, *args, **kwargs):  # type: ignore[no-untyped-def]
@@ -398,6 +411,7 @@ class TestServeCommand:
 # ---------------------------------------------------------------------------
 # `flowlens demo` — enhanced command
 # ---------------------------------------------------------------------------
+
 
 class TestDemoCommand:
     def test_demo_help(self, runner: CliRunner) -> None:
@@ -437,9 +451,9 @@ class TestDemoCommand:
         result = runner.invoke(cli, ["demo"])
         assert result.exit_code == 0
         # At least one subprocess.run call must reference quickstart.py
-        assert any("quickstart.py" in " ".join(c) for c in calls), (
-            f"Expected quickstart.py call, got: {calls}"
-        )
+        assert any(
+            "quickstart.py" in " ".join(c) for c in calls
+        ), f"Expected quickstart.py call, got: {calls}"
 
     def test_demo_all_runs_runner_script(
         self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch
@@ -457,9 +471,9 @@ class TestDemoCommand:
 
         result = runner.invoke(cli, ["demo", "--all"])
         assert result.exit_code == 0
-        assert any("run_all_demos.py" in " ".join(c) for c in calls), (
-            f"Expected run_all_demos.py call, got: {calls}"
-        )
+        assert any(
+            "run_all_demos.py" in " ".join(c) for c in calls
+        ), f"Expected run_all_demos.py call, got: {calls}"
 
     def test_demo_all_quick_passes_flag(
         self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch
@@ -478,8 +492,7 @@ class TestDemoCommand:
         result = runner.invoke(cli, ["demo", "--all", "--quick"])
         assert result.exit_code == 0
         assert any(
-            "run_all_demos.py" in " ".join(c) and "--quick" in c
-            for c in calls
+            "run_all_demos.py" in " ".join(c) and "--quick" in c for c in calls
         ), f"Expected --quick forwarded, got: {calls}"
 
     def test_demo_dashboard_missing_script_exits_nonzero(
@@ -540,6 +553,7 @@ class TestDemoCommand:
 # `flowlens export`
 # ---------------------------------------------------------------------------
 
+
 class TestExportCommand:
     def test_export_help(self, runner: CliRunner) -> None:
         result = runner.invoke(cli, ["export", "--help"])
@@ -578,7 +592,9 @@ class TestExportCommand:
         assert "export-test-t1" in result.output
 
     def test_export_filter_by_service(self, runner: CliRunner, populated_db: Path) -> None:
-        result = runner.invoke(cli, ["export", "--db", str(populated_db), "--service", "svc-export"])
+        result = runner.invoke(
+            cli, ["export", "--db", str(populated_db), "--service", "svc-export"]
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert len(data) == 1
@@ -593,33 +609,54 @@ class TestExportCommand:
     def test_export_since_filters_old_traces(self, runner: CliRunner, populated_db: Path) -> None:
         # Use a timestamp after both traces; should return zero results
         future_ts = 1_900_000_000.0
-        result = runner.invoke(cli, ["export", "--db", str(populated_db), "--since", str(future_ts)])
+        result = runner.invoke(
+            cli, ["export", "--db", str(populated_db), "--since", str(future_ts)]
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data == []
 
     def test_export_since_iso_format(self, runner: CliRunner, populated_db: Path) -> None:
         # ISO timestamp before both traces — should return all
-        result = runner.invoke(cli, [
-            "export", "--db", str(populated_db),
-            "--since", "2000-01-01T00:00:00",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "export",
+                "--db",
+                str(populated_db),
+                "--since",
+                "2000-01-01T00:00:00",
+            ],
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert len(data) == 2
 
     def test_export_since_bad_value(self, runner: CliRunner, populated_db: Path) -> None:
-        result = runner.invoke(cli, [
-            "export", "--db", str(populated_db),
-            "--since", "not-a-date",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "export",
+                "--db",
+                str(populated_db),
+                "--since",
+                "not-a-date",
+            ],
+        )
         assert result.exit_code != 0
 
     def test_export_to_file(self, runner: CliRunner, populated_db: Path, tmp_path: Path) -> None:
         out = tmp_path / "out.json"
-        result = runner.invoke(cli, [
-            "export", "--db", str(populated_db), "--output", str(out),
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "export",
+                "--db",
+                str(populated_db),
+                "--output",
+                str(out),
+            ],
+        )
         assert result.exit_code == 0
         assert out.exists()
         data = json.loads(out.read_text())
@@ -630,6 +667,7 @@ class TestExportCommand:
 # ---------------------------------------------------------------------------
 # `flowlens import`
 # ---------------------------------------------------------------------------
+
 
 class TestImportCommand:
     def test_import_help(self, runner: CliRunner) -> None:
@@ -645,9 +683,7 @@ class TestImportCommand:
         assert result.exit_code == 0
         assert "2" in result.output  # "Imported 2 trace(s)"
 
-    def test_import_jsonl(
-        self, runner: CliRunner, import_jsonl_file: Path, tmp_path: Path
-    ) -> None:
+    def test_import_jsonl(self, runner: CliRunner, import_jsonl_file: Path, tmp_path: Path) -> None:
         db = tmp_path / "import_jsonl.db"
         result = runner.invoke(cli, ["import", str(import_jsonl_file), "--db", str(db)])
         assert result.exit_code == 0
@@ -695,6 +731,7 @@ class TestImportCommand:
 # ---------------------------------------------------------------------------
 # `flowlens stats`
 # ---------------------------------------------------------------------------
+
 
 class TestStatsCommand:
     def test_stats_help(self, runner: CliRunner) -> None:
@@ -750,6 +787,7 @@ class TestStatsCommand:
 # `flowlens health`
 # ---------------------------------------------------------------------------
 
+
 class TestHealthCommand:
     def test_health_help(self, runner: CliRunner) -> None:
         result = runner.invoke(cli, ["health", "--help"])
@@ -798,6 +836,7 @@ class TestHealthCommand:
 # ---------------------------------------------------------------------------
 # Root help shows new commands
 # ---------------------------------------------------------------------------
+
 
 class TestNewCommandsInHelp:
     def test_export_in_help(self, runner: CliRunner) -> None:

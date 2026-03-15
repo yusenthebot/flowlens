@@ -49,6 +49,7 @@ class LocalCollector:
     def __init__(self, db_path: str | Path = "./flowlens.db") -> None:
         expanded = Path(db_path).expanduser()
         from flowlens.server.storage import TraceStore
+
         self._store = TraceStore(db_path=str(expanded))
         # Serialise all DB access from multiple threads.  TraceStore's
         # primary connection is a single sqlite3.Connection shared across

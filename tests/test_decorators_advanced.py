@@ -1,4 +1,5 @@
 """Advanced decorator tests for flowlens/sdk/decorators.py."""
+
 from __future__ import annotations
 
 import contextlib
@@ -13,6 +14,7 @@ from flowlens.sdk.models import SpanKind, SpanStatus, Trace
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def captured_traces():
@@ -30,6 +32,7 @@ def captured_traces():
 # ---------------------------------------------------------------------------
 # @trace_llm_stream with streaming=True (sync generator)
 # ---------------------------------------------------------------------------
+
 
 class TestTraceLLMStream:
     def test_sync_stream_yields_all_chunks(self, captured_traces):
@@ -135,6 +138,7 @@ class TestTraceLLMStream:
 # @trace_tool with exception handling
 # ---------------------------------------------------------------------------
 
+
 class TestTraceToolExceptions:
     def test_exception_is_re_raised(self, captured_traces):
         @trace_agent(name="agent")
@@ -188,6 +192,7 @@ class TestTraceToolExceptions:
 # ---------------------------------------------------------------------------
 # Nested decorators: agent → llm → tool
 # ---------------------------------------------------------------------------
+
 
 class TestNestedDecorators:
     @pytest.mark.asyncio
@@ -258,6 +263,7 @@ class TestNestedDecorators:
 # Async decorators
 # ---------------------------------------------------------------------------
 
+
 class TestAsyncDecorators:
     @pytest.mark.asyncio
     async def test_async_trace_agent(self, captured_traces):
@@ -282,6 +288,7 @@ class TestAsyncDecorators:
             @trace_llm(model="gpt-4o", name="async_llm")
             async def llm():
                 return Resp()
+
             return await llm()
 
         await agent()
@@ -296,6 +303,7 @@ class TestAsyncDecorators:
             @trace_tool(name="calc")
             async def calc(x: int, y: int) -> int:
                 return x + y
+
             return await calc(3, 4)
 
         result = await agent()
@@ -310,6 +318,7 @@ class TestAsyncDecorators:
 # Decorator with custom attributes
 # ---------------------------------------------------------------------------
 
+
 class TestCustomAttributes:
     def test_trace_llm_custom_attributes(self, captured_traces):
         @trace_agent(name="ag")
@@ -317,6 +326,7 @@ class TestCustomAttributes:
             @trace_llm(model="gpt-4o", name="llm_custom", temperature=0.7, top_p=0.9)
             def llm():
                 return "hello"
+
             return llm()
 
         agent()
@@ -331,6 +341,7 @@ class TestCustomAttributes:
             @trace_tool(name="search", source="web", max_results=5)
             def search(query: str):
                 return []
+
             return search("flowlens")
 
         agent()
@@ -345,6 +356,7 @@ class TestCustomAttributes:
             @trace_tool(name="greet")
             def greet(name: str, greeting: str = "Hello") -> str:
                 return f"{greeting}, {name}!"
+
             return greet("Alice", greeting="Hi")
 
         result = agent()
@@ -361,6 +373,7 @@ class TestCustomAttributes:
             @trace_llm(model="claude-sonnet-4-20250514", name="claude_call")
             def llm():
                 return "ok"
+
             return llm()
 
         agent()
@@ -374,6 +387,7 @@ class TestCustomAttributes:
             @trace_llm(model="gpt-4o", name="openai_call")
             def llm():
                 return "ok"
+
             return llm()
 
         agent()

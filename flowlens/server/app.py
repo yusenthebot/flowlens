@@ -80,6 +80,7 @@ __all__ = [
 # WebSocket connection manager
 # ---------------------------------------------------------------------------
 
+
 class ConnectionManager:
     """
     Manages active WebSocket connections for the /ws/traces endpoint.
@@ -120,6 +121,7 @@ class ConnectionManager:
 # Rate-limit helper (simple in-process token bucket per IP)
 # ---------------------------------------------------------------------------
 
+
 class _RateLimiter:
     """
     Lightweight per-IP rate limiter using a sliding-window counter.
@@ -146,8 +148,7 @@ class _RateLimiter:
             return
         window_start = now - self._window
         stale_keys = [
-            k for k, hits in self._counts.items()
-            if not any(t > window_start for t in hits)
+            k for k, hits in self._counts.items() if not any(t > window_start for t in hits)
         ]
         for k in stale_keys:
             del self._counts[k]
@@ -186,17 +187,14 @@ class _RateLimiter:
             used += 1
 
         remaining = max(0, limit - used)
-        retry_after = (
-            0
-            if allowed
-            else int(self._window - (now - self._counts[key][0]))
-        )
+        retry_after = 0 if allowed else int(self._window - (now - self._counts[key][0]))
         return allowed, remaining, limit, retry_after
 
 
 # ---------------------------------------------------------------------------
 # App factory
 # ---------------------------------------------------------------------------
+
 
 def create_app(db_path: str | None = None) -> FastAPI:
     """Create and return the configured FastAPI application instance."""
@@ -300,7 +298,9 @@ def create_app(db_path: str | None = None) -> FastAPI:
         if not allowed:
             logger.warning(
                 "Rate limit exceeded for %s on %s (key=%s)",
-                client_ip, path, limit_key,
+                client_ip,
+                path,
+                limit_key,
             )
             response = JSONResponse(
                 status_code=429,

@@ -1,4 +1,5 @@
 """Tests for _extract_llm_usage — improved token extraction in decorators.py."""
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock
@@ -16,6 +17,7 @@ def _make_span() -> Span:
 # ---------------------------------------------------------------------------
 # Anthropic SDK format
 # ---------------------------------------------------------------------------
+
 
 class TestAnthropicFormat:
     def test_anthropic_usage_object(self):
@@ -47,6 +49,7 @@ class TestAnthropicFormat:
 # OpenAI SDK — object format
 # ---------------------------------------------------------------------------
 
+
 class TestOpenAIObjectFormat:
     def test_openai_object_usage(self):
         span = _make_span()
@@ -67,6 +70,7 @@ class TestOpenAIObjectFormat:
 # ---------------------------------------------------------------------------
 # OpenAI SDK — dict format
 # ---------------------------------------------------------------------------
+
 
 class TestOpenAIDictFormat:
     def test_openai_dict_usage(self):
@@ -91,6 +95,7 @@ class TestOpenAIDictFormat:
 # ---------------------------------------------------------------------------
 # Google Generative AI format
 # ---------------------------------------------------------------------------
+
 
 class TestGoogleFormat:
     def test_google_usage_metadata(self):
@@ -120,6 +125,7 @@ class TestGoogleFormat:
 # LiteLLM format
 # ---------------------------------------------------------------------------
 
+
 class TestLiteLLMFormat:
     def test_litellm_object_usage(self):
         """LiteLLM ModelResponse uses prompt_tokens / completion_tokens on .usage."""
@@ -146,6 +152,7 @@ class TestLiteLLMFormat:
 # ---------------------------------------------------------------------------
 # Amazon Bedrock format
 # ---------------------------------------------------------------------------
+
 
 class TestBedrockFormat:
     def test_bedrock_converse_api(self):
@@ -174,6 +181,7 @@ class TestBedrockFormat:
 # ---------------------------------------------------------------------------
 # Fallback — estimate from text
 # ---------------------------------------------------------------------------
+
 
 class TestFallbackEstimation:
     def test_fallback_from_string_response(self):
@@ -208,6 +216,7 @@ class TestFallbackEstimation:
 # ---------------------------------------------------------------------------
 # _extract_output_text helper
 # ---------------------------------------------------------------------------
+
 
 class TestExtractOutputText:
     def test_anthropic_content_blocks(self):

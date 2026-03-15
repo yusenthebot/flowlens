@@ -520,7 +520,9 @@ class TestPatternDetectionE2E:
         recs = report["recommendations_detail"]
         retry_recs = [r for r in recs if r["pattern_type"] == PatternType.RETRY_STORM.value]
         assert len(retry_recs) >= 1
-        assert "backoff" in retry_recs[0]["title"].lower() or "retry" in retry_recs[0]["title"].lower()
+        assert (
+            "backoff" in retry_recs[0]["title"].lower() or "retry" in retry_recs[0]["title"].lower()
+        )
 
     def test_advisor_context_overflow_recommendation(self):
         trace = self._make_context_overflow_trace()
@@ -539,9 +541,13 @@ class TestPatternDetectionE2E:
         """Retry storm (critical) should push severity score higher than a clean trace."""
         clean_trace = Trace(trace_id="clean", service_name="test")
         clean_agent = Span(
-            span_id="a1", trace_id="clean", name="agent",
-            kind=SpanKind.AGENT, status=SpanStatus.OK,
-            start_time=1000.0, end_time=1001.0,
+            span_id="a1",
+            trace_id="clean",
+            name="agent",
+            kind=SpanKind.AGENT,
+            status=SpanStatus.OK,
+            start_time=1000.0,
+            end_time=1001.0,
         )
         clean_trace.spans = [clean_agent]
         clean_trace.finish()
@@ -672,10 +678,7 @@ class TestMultiTraceCorrelationE2E:
 
         report = correlate_traces(traces, failure_threshold=0.5)
         # 6/16 ≈ 37.5% < 50% → should not appear as recurring failure
-        assert all(
-            f.occurrence_rate > 0.5
-            for f in report.recurring_failures
-        )
+        assert all(f.occurrence_rate > 0.5 for f in report.recurring_failures)
 
 
 # ===========================================================================
@@ -732,9 +735,17 @@ class TestExportPipelineE2E:
 
         # Required top-level keys
         required_keys = {
-            "trace_id", "service_name", "start_time", "end_time",
-            "duration_ms", "total_tokens", "total_cost_usd",
-            "has_errors", "error_count", "span_count", "spans",
+            "trace_id",
+            "service_name",
+            "start_time",
+            "end_time",
+            "duration_ms",
+            "total_tokens",
+            "total_cost_usd",
+            "has_errors",
+            "error_count",
+            "span_count",
+            "spans",
         }
         assert required_keys.issubset(d.keys())
 
@@ -807,6 +818,7 @@ class TestServerAPIE2E:
     @pytest.fixture
     def sync_client(self, app):
         from fastapi.testclient import TestClient
+
         return TestClient(app)
 
     @pytest.mark.asyncio
@@ -1114,6 +1126,7 @@ class TestConfigAndCLISmokeTests:
         monkeypatch.setenv("FLOWLENS_RATE_LIMIT", "60")
 
         from flowlens.config import FlowLensConfig
+
         cfg = FlowLensConfig()
         assert cfg.port == 9999
         assert cfg.log_level == "DEBUG"

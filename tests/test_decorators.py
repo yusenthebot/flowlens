@@ -1,4 +1,5 @@
 """Tests for FlowLens decorators — trace_agent, trace_llm, trace_tool."""
+
 import contextlib
 
 import pytest
@@ -180,6 +181,7 @@ class TestNoLensGraceful:
 class TestSyncFunctions:
     def test_trace_agent_sync_function(self, captured_traces):
         """@trace_agent works with sync functions"""
+
         @trace_agent(name="sync_bot")
         def sync_agent():
             return "sync_result"
@@ -192,6 +194,7 @@ class TestSyncFunctions:
 
     def test_trace_llm_sync_function(self, captured_traces):
         """@trace_llm works with sync functions"""
+
         class FakeResponse:
             class usage:
                 input_tokens = 100
@@ -214,6 +217,7 @@ class TestSyncFunctions:
 
     def test_trace_tool_sync_function(self, captured_traces):
         """@trace_tool works with sync functions"""
+
         @trace_agent(name="agent")
         def agent():
             @trace_tool(name="sync_tool")
@@ -260,6 +264,7 @@ class TestDecoratorExceptions:
     @pytest.mark.asyncio
     async def test_async_decorator_exception_propagation(self, captured_traces):
         """Exceptions in decorated async functions are re-raised"""
+
         @trace_agent(name="failing_agent")
         async def failing():
             raise ValueError("test error")
@@ -274,6 +279,7 @@ class TestDecoratorExceptions:
 
     def test_sync_decorator_exception_propagation(self, captured_traces):
         """Exceptions in decorated sync functions are re-raised"""
+
         @trace_agent(name="sync_fail")
         def failing_sync():
             raise RuntimeError("sync error")
@@ -287,6 +293,7 @@ class TestDecoratorExceptions:
     @pytest.mark.asyncio
     async def test_llm_decorator_exception_caught(self, captured_traces):
         """LLM decorator records exception and re-raises"""
+
         @trace_agent(name="agent")
         async def agent():
             @trace_llm(model="test")
@@ -306,6 +313,7 @@ class TestDecoratorExceptions:
     @pytest.mark.asyncio
     async def test_tool_decorator_exception_caught(self, captured_traces):
         """Tool decorator records exception and re-raises"""
+
         @trace_agent(name="agent")
         async def agent():
             @trace_tool(name="bad_tool")
@@ -327,6 +335,7 @@ class TestDecoratorMetadata:
     @pytest.mark.asyncio
     async def test_agent_with_metadata(self, captured_traces):
         """@trace_agent accepts metadata parameter"""
+
         @trace_agent(name="bot", metadata={"env": "test", "version": "1.0"})
         async def bot():
             return "done"
@@ -340,6 +349,7 @@ class TestDecoratorMetadata:
     @pytest.mark.asyncio
     async def test_agent_with_attributes(self, captured_traces):
         """@trace_agent passes **attrs as span attributes"""
+
         @trace_agent(name="bot", custom_attr="value", flag=True)
         async def bot():
             return "done"
@@ -354,6 +364,7 @@ class TestDecoratorMetadata:
     @pytest.mark.asyncio
     async def test_llm_with_attributes(self, captured_traces):
         """@trace_llm passes **attrs as span attributes"""
+
         class FakeResponse:
             class usage:
                 input_tokens = 100

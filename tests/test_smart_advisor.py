@@ -220,8 +220,15 @@ class TestRegressionDetection:
         assert len(reports) > 0
 
         d = reports[0].to_dict()
-        required = ["metric", "service_name", "baseline_value", "recent_value",
-                    "change_pct", "description", "severity"]
+        required = [
+            "metric",
+            "service_name",
+            "baseline_value",
+            "recent_value",
+            "change_pct",
+            "description",
+            "severity",
+        ]
         for key in required:
             assert key in d, f"Missing key: {key}"
 
@@ -296,17 +303,11 @@ class TestPipelineReorder:
         traces = []
         # 9 traces with search → generate (success)
         for i in range(9):
-            traces.append(
-                self._make_ordered_trace(f"ab-{i}", ["search", "generate"], success=True)
-            )
+            traces.append(self._make_ordered_trace(f"ab-{i}", ["search", "generate"], success=True))
         # 1 trace with search → generate (fail)
-        traces.append(
-            self._make_ordered_trace("ab-fail", ["search", "generate"], success=False)
-        )
+        traces.append(self._make_ordered_trace("ab-fail", ["search", "generate"], success=False))
         # 1 trace with generate → search (success)
-        traces.append(
-            self._make_ordered_trace("ba-ok", ["generate", "search"], success=True)
-        )
+        traces.append(self._make_ordered_trace("ba-ok", ["generate", "search"], success=True))
         # 9 traces with generate → search (fail)
         for i in range(9):
             traces.append(
@@ -328,6 +329,11 @@ class TestPipelineReorder:
         suggestions = SmartAdvisor().suggest_pipeline_reorder(traces)
         if suggestions:
             d = suggestions[0].to_dict()
-            for key in ["current_sequence", "suggested_sequence",
-                        "success_rate_current", "success_rate_suggested", "description"]:
+            for key in [
+                "current_sequence",
+                "suggested_sequence",
+                "success_rate_current",
+                "success_rate_suggested",
+                "description",
+            ]:
                 assert key in d

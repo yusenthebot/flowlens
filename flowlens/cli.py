@@ -31,6 +31,7 @@ from flowlens.logging_config import configure_logging
 # Root group
 # ---------------------------------------------------------------------------
 
+
 @click.group()
 def cli() -> None:
     """FlowLens — Agent Observability Platform."""
@@ -39,6 +40,7 @@ def cli() -> None:
 # ---------------------------------------------------------------------------
 # `flowlens version`
 # ---------------------------------------------------------------------------
+
 
 @cli.command()
 def version() -> None:
@@ -49,6 +51,7 @@ def version() -> None:
 # ---------------------------------------------------------------------------
 # `flowlens serve`
 # ---------------------------------------------------------------------------
+
 
 @cli.command()
 @click.option(
@@ -96,8 +99,7 @@ def serve(
         import uvicorn
     except ImportError:
         click.echo(
-            "uvicorn is required to run the server.  Install it with:\n"
-            "    pip install uvicorn",
+            "uvicorn is required to run the server.  Install it with:\n" "    pip install uvicorn",
             err=True,
         )
         sys.exit(1)
@@ -132,6 +134,7 @@ def serve(
 # ---------------------------------------------------------------------------
 # `flowlens analyze`
 # ---------------------------------------------------------------------------
+
 
 @cli.command()
 @click.argument("trace_file", type=click.Path(exists=True, readable=True, path_type=Path))
@@ -241,11 +244,13 @@ def analyze(trace_file: Path, output_format: str) -> None:
 # `flowlens export`
 # ---------------------------------------------------------------------------
 
+
 def _resolve_db_path(db_path: str | None) -> str:
     """Return db_path from argument or fall back to configured default."""
     if db_path:
         return db_path
     from flowlens.config import settings
+
     return settings.db_path
 
 
@@ -347,13 +352,22 @@ def export_cmd(
 
     # Serialise
     if output_format == "jsonl":
-        content = "\n".join(json.dumps(t, ensure_ascii=False) for t in traces) + ("\n" if traces else "")
+        content = "\n".join(json.dumps(t, ensure_ascii=False) for t in traces) + (
+            "\n" if traces else ""
+        )
     elif output_format == "csv":
         buf = io.StringIO()
         fieldnames = [
-            "trace_id", "service_name", "start_time", "end_time",
-            "duration_ms", "span_count", "total_tokens", "total_cost_usd",
-            "has_errors", "error_count",
+            "trace_id",
+            "service_name",
+            "start_time",
+            "end_time",
+            "duration_ms",
+            "span_count",
+            "total_tokens",
+            "total_cost_usd",
+            "has_errors",
+            "error_count",
         ]
         writer = csv.DictWriter(buf, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
@@ -372,6 +386,7 @@ def export_cmd(
 # ---------------------------------------------------------------------------
 # `flowlens import`
 # ---------------------------------------------------------------------------
+
 
 @cli.command("import")
 @click.argument("json_file", type=click.Path(exists=True, readable=True, path_type=Path))
@@ -438,12 +453,16 @@ def import_cmd(json_file: Path, db_path: str | None) -> None:
             click.echo(f"Failed to import trace {td.get('trace_id', '?')}: {exc}", err=True)
             failed += 1
 
-    click.echo(f"Imported {imported} trace(s) into {resolved_db}" + (f"  ({failed} failed)" if failed else ""))
+    click.echo(
+        f"Imported {imported} trace(s) into {resolved_db}"
+        + (f"  ({failed} failed)" if failed else "")
+    )
 
 
 # ---------------------------------------------------------------------------
 # `flowlens stats`
 # ---------------------------------------------------------------------------
+
 
 @cli.command()
 @click.option(
@@ -475,6 +494,7 @@ def stats(db_path: str | None) -> None:
 
     # Date range
     import sqlite3
+
     conn = sqlite3.connect(str(db_file))
     conn.row_factory = sqlite3.Row
     date_row = conn.execute(
@@ -482,10 +502,8 @@ def stats(db_path: str | None) -> None:
     ).fetchone()
 
     # Top services
-    service_rows = conn.execute(
-        """SELECT service_name, COUNT(*) as cnt FROM traces
-           GROUP BY service_name ORDER BY cnt DESC LIMIT 10"""
-    ).fetchall()
+    service_rows = conn.execute("""SELECT service_name, COUNT(*) as cnt FROM traces
+           GROUP BY service_name ORDER BY cnt DESC LIMIT 10""").fetchall()
     conn.close()
 
     earliest = date_row["earliest"]
@@ -517,6 +535,7 @@ def stats(db_path: str | None) -> None:
 # ---------------------------------------------------------------------------
 # `flowlens health`
 # ---------------------------------------------------------------------------
+
 
 @cli.command()
 @click.option(
@@ -550,6 +569,7 @@ def health(db_path: str | None, host: str | None, port: int | None) -> None:
 
     # --- Server connectivity ---
     import socket
+
     server_ok = False
     try:
         with socket.create_connection((resolved_host, resolved_port), timeout=2):
@@ -573,6 +593,7 @@ def health(db_path: str | None, host: str | None, port: int | None) -> None:
 
         try:
             from flowlens.server.storage import TraceStore
+
             store = TraceStore(db_path=resolved_db)
             s = store.get_stats()
             trace_count = s.get("total_traces") or 0
@@ -601,14 +622,14 @@ def health(db_path: str | None, host: str | None, port: int | None) -> None:
 # ---------------------------------------------------------------------------
 
 # ANSI colour helpers (no external deps required)
-_RESET  = "\033[0m"
-_BOLD   = "\033[1m"
-_DIM    = "\033[2m"
-_CYAN   = "\033[96m"
-_GREEN  = "\033[92m"
+_RESET = "\033[0m"
+_BOLD = "\033[1m"
+_DIM = "\033[2m"
+_CYAN = "\033[96m"
+_GREEN = "\033[92m"
 _YELLOW = "\033[93m"
-_RED    = "\033[91m"
-_BLUE   = "\033[94m"
+_RED = "\033[91m"
+_BLUE = "\033[94m"
 
 
 def _demo_banner(title: str, subtitle: str = "") -> None:
@@ -698,7 +719,9 @@ def demo(run_all: bool, run_dashboard: bool, quick: bool) -> None:
             _demo_warn("examples/server_demo.py not found. Make sure you are in the project root.")
             sys.exit(1)
         try:
-            subprocess.run([sys.executable, str(dashboard_script)], cwd=str(project_root), check=True)
+            subprocess.run(
+                [sys.executable, str(dashboard_script)], cwd=str(project_root), check=True
+            )
         except KeyboardInterrupt:
             click.echo("\n\nDashboard stopped.")
         except subprocess.CalledProcessError as exc:
@@ -774,6 +797,7 @@ def demo(run_all: bool, run_dashboard: bool, quick: bool) -> None:
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
 
 def main() -> None:
     """Console-script entry point registered in pyproject.toml."""

@@ -1,5 +1,6 @@
 """Tests for new Span methods: set_attribute, add_link, add_event (updated),
 and updated MODEL_PRICING / _MODEL_CONTEXT_WINDOWS in models.py."""
+
 from __future__ import annotations
 
 import pytest
@@ -17,6 +18,7 @@ from flowlens.sdk.models import (
 # SpanEvent public export
 # ---------------------------------------------------------------------------
 
+
 class TestSpanEventPublicExport:
     def test_span_event_importable_from_flowlens(self):
         """SpanEvent must be importable from the top-level flowlens package."""
@@ -30,6 +32,7 @@ class TestSpanEventPublicExport:
 
     def test_span_event_default_timestamp(self):
         import time
+
         before = time.time()
         ev = SpanEvent(name="ev")
         after = time.time()
@@ -39,6 +42,7 @@ class TestSpanEventPublicExport:
 # ---------------------------------------------------------------------------
 # Span.set_attribute
 # ---------------------------------------------------------------------------
+
 
 class TestSetAttribute:
     def test_set_single_attribute(self):
@@ -73,6 +77,7 @@ class TestSetAttribute:
 # ---------------------------------------------------------------------------
 # Span.add_event (updated signature)
 # ---------------------------------------------------------------------------
+
 
 class TestAddEvent:
     def test_add_event_with_kwargs(self):
@@ -130,6 +135,7 @@ class TestAddEvent:
 # Span.add_link
 # ---------------------------------------------------------------------------
 
+
 class TestAddLink:
     def test_add_link_creates_event(self):
         span = Span(name="consumer")
@@ -180,6 +186,7 @@ class TestAddLink:
 # ---------------------------------------------------------------------------
 # MODEL_PRICING — 2026 model coverage
 # ---------------------------------------------------------------------------
+
 
 class TestModelPricing2026:
     def _check_model(self, model_key: str):
@@ -247,6 +254,7 @@ class TestModelPricing2026:
 # _MODEL_CONTEXT_WINDOWS — sanity
 # ---------------------------------------------------------------------------
 
+
 class TestContextWindows:
     def test_claude_4_large_context(self):
         assert _MODEL_CONTEXT_WINDOWS.get("claude-sonnet-4-20250514", 0) >= 200_000
@@ -261,6 +269,7 @@ class TestContextWindows:
 # ---------------------------------------------------------------------------
 # _estimate_cost — extended coverage
 # ---------------------------------------------------------------------------
+
 
 class TestEstimateCostExtended:
     def test_claude_4_opus_short_alias(self):

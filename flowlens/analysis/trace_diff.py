@@ -331,43 +331,29 @@ class TraceDiff:
         # Duration
         if abs(r.duration_diff_ms) >= 10:
             direction = "faster" if r.duration_diff_ms < 0 else "slower"
-            parts.append(
-                f"Trace B is {abs(r.duration_diff_ms):.1f} ms {direction} than trace A."
-            )
+            parts.append(f"Trace B is {abs(r.duration_diff_ms):.1f} ms {direction} than trace A.")
 
         # Cost
         if abs(r.cost_diff_usd) >= 0.000001:
             direction = "cheaper" if r.cost_diff_usd < 0 else "more expensive"
-            parts.append(
-                f"Trace B costs ${abs(r.cost_diff_usd):.6f} {direction} than trace A."
-            )
+            parts.append(f"Trace B costs ${abs(r.cost_diff_usd):.6f} {direction} than trace A.")
 
         # Tokens
         if r.token_diff != 0:
             direction = "fewer" if r.token_diff < 0 else "more"
-            parts.append(
-                f"Trace B uses {abs(r.token_diff):,} {direction} tokens."
-            )
+            parts.append(f"Trace B uses {abs(r.token_diff):,} {direction} tokens.")
 
         # Span changes
         if r.only_in_a:
-            parts.append(
-                f"Spans only in A: {', '.join(r.only_in_a)}."
-            )
+            parts.append(f"Spans only in A: {', '.join(r.only_in_a)}.")
         if r.only_in_b:
-            parts.append(
-                f"Spans only in B: {', '.join(r.only_in_b)}."
-            )
+            parts.append(f"Spans only in B: {', '.join(r.only_in_b)}.")
 
         # Pattern changes
         if r.patterns_only_in_a:
-            parts.append(
-                f"Patterns resolved in B: {', '.join(r.patterns_only_in_a)}."
-            )
+            parts.append(f"Patterns resolved in B: {', '.join(r.patterns_only_in_a)}.")
         if r.patterns_only_in_b:
-            parts.append(
-                f"New patterns in B: {', '.join(r.patterns_only_in_b)}."
-            )
+            parts.append(f"New patterns in B: {', '.join(r.patterns_only_in_b)}.")
 
         if not parts:
             parts.append("Traces are effectively identical.")

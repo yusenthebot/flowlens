@@ -175,6 +175,7 @@ class HTTPExporter(TraceExporter):
         # MVP: 同步 POST（生产环境应改为异步批量）
         try:
             import urllib.request
+
             data = json.dumps(trace.to_dict(), ensure_ascii=False).encode("utf-8")
             req = urllib.request.Request(
                 self.endpoint,
@@ -233,6 +234,7 @@ class BatchHTTPExporter(TraceExporter):
         # 在锁外执行网络 I/O
         try:
             import urllib.request
+
             data = json.dumps(
                 {"traces": [t.to_dict() for t in batch_to_send]},
                 ensure_ascii=False,
@@ -406,6 +408,7 @@ class OTLPExporter(TraceExporter):
         """Return True if the opentelemetry packages are importable."""
         try:
             import opentelemetry  # noqa: F401
+
             return True
         except ImportError:
             logger.warning(
@@ -563,7 +566,11 @@ class OTLPExporter(TraceExporter):
                 method="POST",
             )
             urllib.request.urlopen(req, timeout=self.timeout)
-            logger.debug("OTLPExporter: exported %d span(s) to %s", len(payload.get("resourceSpans", [])), self.endpoint)
+            logger.debug(
+                "OTLPExporter: exported %d span(s) to %s",
+                len(payload.get("resourceSpans", [])),
+                self.endpoint,
+            )
         except Exception as exc:
             logger.warning("OTLPExporter: failed to export to %s — %s", self.endpoint, exc)
 
@@ -803,7 +810,7 @@ class OTLPBatchExporter(TraceExporter):
                 return
             except Exception as exc:
                 last_exc = exc
-                backoff = (2 ** attempt) * 0.5  # 0.5s, 1s, 2s
+                backoff = (2**attempt) * 0.5  # 0.5s, 1s, 2s
                 logger.warning(
                     "OTLPBatchExporter: attempt %d/%d failed — %s; retrying in %.1fs",
                     attempt + 1,
@@ -954,6 +961,7 @@ class CSVExporter(TraceExporter):
 # under the name JSONLExporter2 internally but re-exported as JSONLExporter2.
 # The original JSONLExporter stays unchanged to avoid breaking existing users.
 
+
 class JSONLStreamExporter(TraceExporter):
     """
     Export traces as newline-delimited JSON (JSONL / ndjson).
@@ -1006,6 +1014,7 @@ class JSONLStreamExporter(TraceExporter):
 # OTLP attribute helpers
 # ---------------------------------------------------------------------------
 
+
 def _pad_hex(value: str | None, length: int) -> str:
     """Ensure a hex string has exactly *length* characters (pad or truncate)."""
     if not value:
@@ -1044,10 +1053,7 @@ def _to_otel_value(value: Any) -> dict[str, Any]:
     if isinstance(value, dict):
         return {
             "kvlistValue": {
-                "values": [
-                    {"key": str(k), "value": _to_otel_value(v)}
-                    for k, v in value.items()
-                ]
+                "values": [{"key": str(k), "value": _to_otel_value(v)} for k, v in value.items()]
             }
         }
     # Fallback: stringify
@@ -1068,6 +1074,7 @@ class LocalExporter(TraceExporter):
 
     def __init__(self, db_path: str = "./flowlens.db") -> None:
         from flowlens.local import LocalCollector
+
         self._collector = LocalCollector(db_path=db_path)
 
     def export(self, trace: Trace) -> None:
@@ -1094,11 +1101,7 @@ def create_exporter(
     elif export_to == "console":
         return ConsoleExporter(verbose=verbose)
     elif export_to == "local":
-        db_path = (
-            output_dir + "/flowlens.db"
-            if output_dir != "./traces"
-            else "./flowlens.db"
-        )
+        db_path = output_dir + "/flowlens.db" if output_dir != "./traces" else "./flowlens.db"
         return LocalExporter(db_path=db_path)
     else:
         raise ValueError(

@@ -62,8 +62,12 @@ def create_agents_router(store: TraceStore) -> APIRouter:
                         for a in found:
                             if a not in agent_stats:
                                 agent_stats[a] = {
-                                    "agent": a, "trace_count": 0, "error_count": 0,
-                                    "total_duration_ms": 0.0, "total_cost_usd": 0.0, "total_spans": 0,
+                                    "agent": a,
+                                    "trace_count": 0,
+                                    "error_count": 0,
+                                    "total_duration_ms": 0.0,
+                                    "total_cost_usd": 0.0,
+                                    "total_spans": 0,
                                 }
                             bucket = agent_stats[a]
                             bucket["trace_count"] += 1
@@ -94,15 +98,17 @@ def create_agents_router(store: TraceStore) -> APIRouter:
         result = []
         for bucket in agent_stats.values():
             tc = bucket["trace_count"]
-            result.append({
-                "agent": bucket["agent"],
-                "trace_count": tc,
-                "error_count": bucket["error_count"],
-                "error_rate": round(bucket["error_count"] / tc, 4) if tc else 0.0,
-                "avg_duration_ms": round(bucket["total_duration_ms"] / tc, 2) if tc else 0.0,
-                "total_cost_usd": round(bucket["total_cost_usd"], 6),
-                "total_spans": bucket["total_spans"],
-            })
+            result.append(
+                {
+                    "agent": bucket["agent"],
+                    "trace_count": tc,
+                    "error_count": bucket["error_count"],
+                    "error_rate": round(bucket["error_count"] / tc, 4) if tc else 0.0,
+                    "avg_duration_ms": round(bucket["total_duration_ms"] / tc, 2) if tc else 0.0,
+                    "total_cost_usd": round(bucket["total_cost_usd"], 6),
+                    "total_spans": bucket["total_spans"],
+                }
+            )
 
         result.sort(key=lambda x: x["trace_count"], reverse=True)
         return JSONResponse({"agents": result})
@@ -188,22 +194,28 @@ def create_agents_router(store: TraceStore) -> APIRouter:
                             attrs = last_span.get("attributes") or {}
                             current_task = attrs.get("description") or attrs.get("task") or None
                 except Exception:
-                    logger.debug("Failed to fetch spans for agent %s trace %s", agent_name, latest_tid)
+                    logger.debug(
+                        "Failed to fetch spans for agent %s trace %s", agent_name, latest_tid
+                    )
 
             last_seen = bucket["last_seen"]
             status = "active" if last_seen >= active_threshold else "idle"
 
-            result.append({
-                "agent": agent_name,
-                "last_seen": last_seen if last_seen > 0 else None,
-                "status": status,
-                "recent_tools": recent_tools,
-                "current_task": current_task,
-                "trace_count_1h": bucket["trace_count_1h"],
-            })
+            result.append(
+                {
+                    "agent": agent_name,
+                    "last_seen": last_seen if last_seen > 0 else None,
+                    "status": status,
+                    "recent_tools": recent_tools,
+                    "current_task": current_task,
+                    "trace_count_1h": bucket["trace_count_1h"],
+                }
+            )
 
         # Sort: active first, then by last_seen desc, then alphabetical
-        result.sort(key=lambda x: (0 if x["status"] == "active" else 1, -(x["last_seen"] or 0), x["agent"]))
+        result.sort(
+            key=lambda x: (0 if x["status"] == "active" else 1, -(x["last_seen"] or 0), x["agent"])
+        )
         return JSONResponse({"agents": result})
 
     @router.get("/v1/agents/profiles")
@@ -224,23 +236,27 @@ def create_agents_router(store: TraceStore) -> APIRouter:
         result = []
         # Add all built-in profiles
         for agent_name, profile in _AGENT_PROFILES.items():
-            result.append({
-                "agent": agent_name,
-                "known": True,
-                **profile,
-            })
+            result.append(
+                {
+                    "agent": agent_name,
+                    "known": True,
+                    **profile,
+                }
+            )
 
         # Add any discovered agents not in built-in
         for agent_name in discovered:
             if agent_name not in _AGENT_PROFILES:
-                result.append({
-                    "agent": agent_name,
-                    "name": agent_name,
-                    "role": "Agent",
-                    "color": "#9ca3af",
-                    "icon": "user",
-                    "known": False,
-                })
+                result.append(
+                    {
+                        "agent": agent_name,
+                        "name": agent_name,
+                        "role": "Agent",
+                        "color": "#9ca3af",
+                        "icon": "user",
+                        "known": False,
+                    }
+                )
 
         return JSONResponse({"agents": result})
 
@@ -281,7 +297,7 @@ def create_agents_router(store: TraceStore) -> APIRouter:
 
                 # Pattern 1: "subagent/<child>" — subagent lifecycle span
                 if name_lower.startswith("subagent/"):
-                    child = name[len("subagent/"):]
+                    child = name[len("subagent/") :]
                     if child:
                         key = f"{trace_agent}->{child}"
                         relationships[key] = relationships.get(key, 0) + 1
@@ -396,17 +412,19 @@ def create_agents_router(store: TraceStore) -> APIRouter:
             summary = summary_by_agent.get(agent, {})
             activity = activity_by_agent.get(agent, {})
 
-            nodes.append({
-                "id": agent,
-                "label": profile.get("name", agent),
-                "role": profile.get("role", "Agent"),
-                "color": profile.get("color", "#9ca3af"),
-                "size": _normalize_size(summary.get("trace_count", 0)),
-                "status": activity.get("status", "idle") if activity else "idle",
-                "trace_count": summary.get("trace_count", 0),
-                "error_rate": summary.get("error_rate", 0),
-                "cost": summary.get("total_cost_usd", 0),
-            })
+            nodes.append(
+                {
+                    "id": agent,
+                    "label": profile.get("name", agent),
+                    "role": profile.get("role", "Agent"),
+                    "color": profile.get("color", "#9ca3af"),
+                    "size": _normalize_size(summary.get("trace_count", 0)),
+                    "status": activity.get("status", "idle") if activity else "idle",
+                    "trace_count": summary.get("trace_count", 0),
+                    "error_rate": summary.get("error_rate", 0),
+                    "cost": summary.get("total_cost_usd", 0),
+                }
+            )
 
         edges = rel_data.get("edges", [])
         return JSONResponse({"nodes": nodes, "edges": edges})

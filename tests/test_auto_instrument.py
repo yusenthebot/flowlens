@@ -1,4 +1,5 @@
 """Tests for flowlens.sdk.auto_instrument — monkey-patching LLM libraries."""
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
@@ -13,6 +14,7 @@ from flowlens.sdk.models import SpanKind, SpanStatus, Trace
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(autouse=True)
 def reset_patched_registry():
@@ -42,9 +44,11 @@ def captured_traces():
 # auto_instrument() — unknown / idempotency
 # ---------------------------------------------------------------------------
 
+
 class TestAutoInstrumentBasic:
     def test_unknown_library_logs_warning(self):
         import logging
+
         logger = logging.getLogger("flowlens.sdk.auto_instrument")
         with patch.object(logger, "warning") as mock_warn:
             auto_instrument(["not_a_real_library"])
@@ -70,15 +74,18 @@ class TestAutoInstrumentBasic:
 # _build_span_attrs
 # ---------------------------------------------------------------------------
 
+
 class TestBuildSpanAttrs:
     def test_basic_attrs(self):
         from flowlens.sdk.auto_instrument import _build_span_attrs
+
         attrs = _build_span_attrs("gpt-4.1", "openai", {"model": "gpt-4.1"})
         assert attrs["gen_ai.system"] == "openai"
         assert attrs["gen_ai.request.model"] == "gpt-4.1"
 
     def test_messages_captured_and_truncated(self):
         from flowlens.sdk.auto_instrument import _build_span_attrs
+
         long_messages = [{"role": "user", "content": "x" * 1000}]
         attrs = _build_span_attrs("gpt-4.1", "openai", {"messages": long_messages})
         assert "gen_ai.request.messages" in attrs
@@ -86,6 +93,7 @@ class TestBuildSpanAttrs:
 
     def test_temperature_and_max_tokens_captured(self):
         from flowlens.sdk.auto_instrument import _build_span_attrs
+
         attrs = _build_span_attrs(
             "claude-sonnet-4",
             "anthropic",
@@ -99,13 +107,16 @@ class TestBuildSpanAttrs:
 # _extract_usage_from_response (used by the wrap helpers)
 # ---------------------------------------------------------------------------
 
+
 class TestExtractUsageFromResponse:
     def _make_span(self):
         from flowlens.sdk.models import Span
+
         return Span(name="test_span", kind=SpanKind.LLM)
 
     def test_anthropic_usage(self):
         from flowlens.sdk.auto_instrument import _extract_usage_from_response
+
         span = self._make_span()
         response = MagicMock()
         response.usage.input_tokens = 100
@@ -117,6 +128,7 @@ class TestExtractUsageFromResponse:
 
     def test_openai_dict_usage(self):
         from flowlens.sdk.auto_instrument import _extract_usage_from_response
+
         span = self._make_span()
         response = {"usage": {"prompt_tokens": 200, "completion_tokens": 80}}
         _extract_usage_from_response(response, "gpt-4.1", span)
@@ -126,12 +138,11 @@ class TestExtractUsageFromResponse:
 
     def test_langchain_response_metadata(self):
         from flowlens.sdk.auto_instrument import _extract_usage_from_response
+
         span = self._make_span()
         response = MagicMock()
         del response.usage  # ensure no .usage
-        response.response_metadata = {
-            "token_usage": {"prompt_tokens": 30, "completion_tokens": 10}
-        }
+        response.response_metadata = {"token_usage": {"prompt_tokens": 30, "completion_tokens": 10}}
         _extract_usage_from_response(response, "gpt-4o", span)
         assert span.token_usage is not None
         assert span.token_usage.input_tokens == 30
@@ -139,6 +150,7 @@ class TestExtractUsageFromResponse:
 
     def test_no_usage_records_nothing(self):
         from flowlens.sdk.auto_instrument import _extract_usage_from_response
+
         span = self._make_span()
         response = "plain string response"
         _extract_usage_from_response(response, "model", span)
@@ -148,6 +160,7 @@ class TestExtractUsageFromResponse:
 # ---------------------------------------------------------------------------
 # _wrap_sync_llm_call
 # ---------------------------------------------------------------------------
+
 
 class TestWrapSyncLlmCall:
     def test_creates_llm_span(self, captured_traces):
@@ -196,8 +209,12 @@ class TestWrapSyncLlmCall:
 
         with TraceContext(trace), pytest.raises(ValueError, match="API error"):
             _wrap_sync_llm_call(
-                bad_fn, args=(), kwargs={}, model="gpt-4.1",
-                system="openai", span_name="bad.create",
+                bad_fn,
+                args=(),
+                kwargs={},
+                model="gpt-4.1",
+                system="openai",
+                span_name="bad.create",
             )
 
         lens.end_trace(trace)
@@ -209,6 +226,7 @@ class TestWrapSyncLlmCall:
 # ---------------------------------------------------------------------------
 # _wrap_async_llm_call
 # ---------------------------------------------------------------------------
+
 
 class TestWrapAsyncLlmCall:
     @pytest.mark.asyncio
@@ -257,8 +275,12 @@ class TestWrapAsyncLlmCall:
 
         with TraceContext(trace), pytest.raises(RuntimeError, match="async error"):
             await _wrap_async_llm_call(
-                bad_async_fn, args=(), kwargs={}, model="claude-sonnet-4",
-                system="anthropic", span_name="anthropic.messages.create",
+                bad_async_fn,
+                args=(),
+                kwargs={},
+                model="claude-sonnet-4",
+                system="anthropic",
+                span_name="anthropic.messages.create",
             )
 
         lens.end_trace(trace)
@@ -270,6 +292,7 @@ class TestWrapAsyncLlmCall:
 # ---------------------------------------------------------------------------
 # No FlowLens instance — passthrough mode
 # ---------------------------------------------------------------------------
+
 
 class TestAutoInstrumentNoInstance:
     def test_sync_wrap_without_instance_passes_through(self):
@@ -300,23 +323,37 @@ class TestAutoInstrumentNoInstance:
 # OpenAI patching — legacy ChatCompletion API (sync)
 # ---------------------------------------------------------------------------
 
+
 class TestOpenAILegacyPatch:
     def test_patch_openai_legacy_create_skipped_gracefully(self):
         """If openai.ChatCompletion does not exist, no exception is raised."""
         import sys
         import types
+
         fake_openai = types.ModuleType("openai")
         # Expose OpenAI / AsyncOpenAI stubs so attribute access doesn't blow up
-        fake_openai.OpenAI = type("OpenAI", (), {
-            "chat": type("chat", (), {
-                "completions": type("completions", (), {"create": lambda *a, **kw: None})()
-            })()
-        })
-        fake_openai.AsyncOpenAI = type("AsyncOpenAI", (), {
-            "chat": type("chat", (), {
-                "completions": type("completions", (), {"create": lambda *a, **kw: None})()
-            })()
-        })
+        fake_openai.OpenAI = type(
+            "OpenAI",
+            (),
+            {
+                "chat": type(
+                    "chat",
+                    (),
+                    {"completions": type("completions", (), {"create": lambda *a, **kw: None})()},
+                )()
+            },
+        )
+        fake_openai.AsyncOpenAI = type(
+            "AsyncOpenAI",
+            (),
+            {
+                "chat": type(
+                    "chat",
+                    (),
+                    {"completions": type("completions", (), {"create": lambda *a, **kw: None})()},
+                )()
+            },
+        )
         # No ChatCompletion attr  → legacy patch must be silently skipped
         with patch.dict(sys.modules, {"openai": fake_openai}):
             ai_module._patched.discard("openai")
@@ -327,6 +364,7 @@ class TestOpenAILegacyPatch:
         """If openai.ChatCompletion.create exists it is wrapped."""
         import sys
         import types
+
         call_log: list[dict] = []
 
         def original_create(*args, **kwargs):
@@ -335,16 +373,28 @@ class TestOpenAILegacyPatch:
 
         fake_chat_completion = type("ChatCompletion", (), {"create": staticmethod(original_create)})
         fake_openai = types.ModuleType("openai")
-        fake_openai.OpenAI = type("OpenAI", (), {
-            "chat": type("chat", (), {
-                "completions": type("completions", (), {"create": lambda *a, **kw: None})()
-            })()
-        })
-        fake_openai.AsyncOpenAI = type("AsyncOpenAI", (), {
-            "chat": type("chat", (), {
-                "completions": type("completions", (), {"create": lambda *a, **kw: None})()
-            })()
-        })
+        fake_openai.OpenAI = type(
+            "OpenAI",
+            (),
+            {
+                "chat": type(
+                    "chat",
+                    (),
+                    {"completions": type("completions", (), {"create": lambda *a, **kw: None})()},
+                )()
+            },
+        )
+        fake_openai.AsyncOpenAI = type(
+            "AsyncOpenAI",
+            (),
+            {
+                "chat": type(
+                    "chat",
+                    (),
+                    {"completions": type("completions", (), {"create": lambda *a, **kw: None})()},
+                )()
+            },
+        )
         fake_openai.ChatCompletion = fake_chat_completion
 
         with patch.dict(sys.modules, {"openai": fake_openai}):
@@ -358,6 +408,7 @@ class TestOpenAILegacyPatch:
 # ---------------------------------------------------------------------------
 # OpenAI sync streaming
 # ---------------------------------------------------------------------------
+
 
 class TestOpenAISyncStreaming:
     def test_wrap_sync_stream_yields_chunks(self, captured_traces):
@@ -426,8 +477,12 @@ class TestOpenAISyncStreaming:
 
         with TraceContext(trace):
             gen = _wrap_sync_stream_call(
-                bad_stream, args=(), kwargs={"stream": True},
-                model="gpt-4.1", system="openai", span_name="test.stream",
+                bad_stream,
+                args=(),
+                kwargs={"stream": True},
+                model="gpt-4.1",
+                system="openai",
+                span_name="test.stream",
             )
             with pytest.raises(ConnectionError, match="stream broken"):
                 list(gen)
@@ -440,6 +495,7 @@ class TestOpenAISyncStreaming:
 # ---------------------------------------------------------------------------
 # OpenAI async streaming
 # ---------------------------------------------------------------------------
+
 
 class TestOpenAIAsyncStreaming:
     @pytest.mark.asyncio
@@ -490,14 +546,23 @@ class TestOpenAIAsyncStreaming:
 # LangChain Chain.__call__ and AgentExecutor._call patching
 # ---------------------------------------------------------------------------
 
+
 class TestLangChainChainPatching:
     def test_patch_langchain_chain_call_graceful_without_langchain(self):
         """If langchain is not installed, no exception is raised."""
         import sys
-        with patch.dict(sys.modules, {"langchain": None, "langchain_core": None,
-                                       "langchain.chains": None, "langchain.chains.base": None,
-                                       "langchain_core.language_models": None,
-                                       "langchain_core.language_models.base": None}):
+
+        with patch.dict(
+            sys.modules,
+            {
+                "langchain": None,
+                "langchain_core": None,
+                "langchain.chains": None,
+                "langchain.chains.base": None,
+                "langchain_core.language_models": None,
+                "langchain_core.language_models.base": None,
+            },
+        ):
             ai_module._patched.discard("langchain")
             # Should silently skip, not raise
             auto_instrument(["langchain"])
@@ -588,23 +653,28 @@ class TestLangChainChainPatching:
 # SpanKind.EMBEDDING and SpanKind.CHAIN exposed in models
 # ---------------------------------------------------------------------------
 
+
 class TestSpanKindExtensions:
     def test_span_kind_embedding_exists(self):
         from flowlens.sdk.models import SpanKind
+
         assert SpanKind.EMBEDDING.value == "embedding"
 
     def test_span_kind_chain_exists(self):
         from flowlens.sdk.models import SpanKind
+
         assert SpanKind.CHAIN.value == "chain"
 
     def test_span_kind_embedding_exported_from_top_level(self):
         from flowlens import SpanKind
+
         assert SpanKind.EMBEDDING.value == "embedding"
 
 
 # ---------------------------------------------------------------------------
 # trace_embedding decorator
 # ---------------------------------------------------------------------------
+
 
 class TestTraceEmbeddingDecorator:
     def test_trace_embedding_sync(self, captured_traces):
@@ -706,6 +776,7 @@ class TestTraceEmbeddingDecorator:
     def test_trace_embedding_exported_from_top_level(self):
         """trace_embedding is importable from the flowlens package."""
         from flowlens import trace_embedding
+
         assert callable(trace_embedding)
 
     def test_trace_embedding_dict_response(self, captured_traces):

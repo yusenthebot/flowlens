@@ -30,9 +30,7 @@ def _env_int(key: str, default: int) -> int:
     try:
         return int(raw)
     except ValueError as exc:
-        raise ValueError(
-            f"Environment variable {key!r} must be an integer, got {raw!r}"
-        ) from exc
+        raise ValueError(f"Environment variable {key!r} must be an integer, got {raw!r}") from exc
 
 
 def _env_float(key: str, default: float) -> float:
@@ -42,9 +40,7 @@ def _env_float(key: str, default: float) -> float:
     try:
         return float(raw)
     except ValueError as exc:
-        raise ValueError(
-            f"Environment variable {key!r} must be a float, got {raw!r}"
-        ) from exc
+        raise ValueError(f"Environment variable {key!r} must be a float, got {raw!r}") from exc
 
 
 def _env_list(key: str, default: str) -> list[str]:
@@ -73,9 +69,7 @@ class FlowLensConfig:
     log_level: str = field(default_factory=lambda: _env("FLOWLENS_LOG_LEVEL", "INFO").upper())
 
     # CORS
-    cors_origins: list[str] = field(
-        default_factory=lambda: _env_list("FLOWLENS_CORS_ORIGINS", "*")
-    )
+    cors_origins: list[str] = field(default_factory=lambda: _env_list("FLOWLENS_CORS_ORIGINS", "*"))
 
     # Rate limiting (requests per minute per IP)
     rate_limit: int = field(default_factory=lambda: _env_int("FLOWLENS_RATE_LIMIT", 120))
@@ -112,21 +106,14 @@ class FlowLensConfig:
         valid_log_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
         if self.log_level not in valid_log_levels:
             raise ValueError(
-                f"FLOWLENS_LOG_LEVEL must be one of {valid_log_levels}, "
-                f"got {self.log_level!r}"
+                f"FLOWLENS_LOG_LEVEL must be one of {valid_log_levels}, " f"got {self.log_level!r}"
             )
         if not (1 <= self.port <= 65535):
-            raise ValueError(
-                f"FLOWLENS_PORT must be between 1 and 65535, got {self.port}"
-            )
+            raise ValueError(f"FLOWLENS_PORT must be between 1 and 65535, got {self.port}")
         if self.rate_limit < 1:
-            raise ValueError(
-                f"FLOWLENS_RATE_LIMIT must be >= 1, got {self.rate_limit}"
-            )
+            raise ValueError(f"FLOWLENS_RATE_LIMIT must be >= 1, got {self.rate_limit}")
         if self.max_traces < 1:
-            raise ValueError(
-                f"FLOWLENS_MAX_TRACES must be >= 1, got {self.max_traces}"
-            )
+            raise ValueError(f"FLOWLENS_MAX_TRACES must be >= 1, got {self.max_traces}")
 
 
 def load_config() -> FlowLensConfig:

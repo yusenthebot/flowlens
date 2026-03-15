@@ -96,7 +96,7 @@ def _extract_agents_from_trace(trace: dict[str, Any], spans: list[dict] | None =
         agents.add(tags["agent"])
 
     # 2. Check span-level attributes
-    for span in (spans or trace.get("spans") or []):
+    for span in spans or trace.get("spans") or []:
         attrs = span.get("attributes") or {}
         if attrs.get("agent.name"):
             agents.add(attrs["agent.name"])

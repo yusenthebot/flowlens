@@ -1,4 +1,5 @@
 """Tests for @trace_llm_stream — streaming LLM decorator."""
+
 from __future__ import annotations
 
 import contextlib
@@ -14,6 +15,7 @@ from flowlens.sdk.models import SpanKind, SpanStatus, Trace
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def captured_traces():
@@ -31,6 +33,7 @@ def captured_traces():
 # ---------------------------------------------------------------------------
 # Helpers — fake streaming chunks
 # ---------------------------------------------------------------------------
+
 
 def _anthropic_chunks(input_toks: int = 100, output_toks: int = 50):
     """Yield fake Anthropic stream chunks in canonical order."""
@@ -83,6 +86,7 @@ def _openai_chunks(prompt_toks: int = 80, completion_toks: int = 30):
 # ---------------------------------------------------------------------------
 # Async generator tests
 # ---------------------------------------------------------------------------
+
 
 class TestTraceLlmStreamAsync:
     @pytest.mark.asyncio
@@ -211,6 +215,7 @@ class TestTraceLlmStreamAsync:
     @pytest.mark.asyncio
     async def test_stream_fallback_token_estimation(self, captured_traces):
         """When no usage chunks are present, tokens are estimated from text."""
+
         @trace_agent(name="agent")
         async def agent():
             @trace_llm_stream(model="gpt-4o")
@@ -236,6 +241,7 @@ class TestTraceLlmStreamAsync:
 # ---------------------------------------------------------------------------
 # Sync generator tests
 # ---------------------------------------------------------------------------
+
 
 class TestTraceLlmStreamSync:
     def test_sync_stream_anthropic_tokens(self, captured_traces):
@@ -288,6 +294,7 @@ class TestTraceLlmStreamSync:
 # ---------------------------------------------------------------------------
 # _estimate_tokens_from_text
 # ---------------------------------------------------------------------------
+
 
 class TestEstimateTokensFromText:
     def test_empty_string(self):

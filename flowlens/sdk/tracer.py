@@ -54,7 +54,8 @@ def _validate_span_name(name: str) -> str:
     if len(name) > _MAX_SPAN_NAME_LEN:
         logger.warning(
             "[FlowLens] Span name truncated from %d to %d characters",
-            len(name), _MAX_SPAN_NAME_LEN,
+            len(name),
+            _MAX_SPAN_NAME_LEN,
         )
         name = name[:_MAX_SPAN_NAME_LEN]
     if not _SPAN_NAME_RE.match(name):
@@ -241,9 +242,11 @@ class FlowLens:
         # Try to post via the HTTP exporter's endpoint
         try:
             from .exporters import HttpExporter  # local import to avoid circular
+
             if isinstance(self._exporter, HttpExporter):
                 import json as _json
                 import urllib.request
+
                 url = self._exporter.endpoint.replace(
                     "/v1/traces/ingest",
                     f"/v1/traces/{trace_id}/feedback",
@@ -314,7 +317,9 @@ class FlowLens:
                 logger.warning(
                     "[FlowLens] Trace %s has reached the maximum of %d spans; "
                     "new span %r will not be recorded",
-                    trace.trace_id[:12], _MAX_SPANS_PER_TRACE, name,
+                    trace.trace_id[:12],
+                    _MAX_SPANS_PER_TRACE,
+                    name,
                 )
                 # Return the span un-attached so the decorated function still runs
                 return span
@@ -390,6 +395,7 @@ def get_current_trace() -> Trace | None:
             trace.metadata["user_id"] = "123"
     """
     from .context import get_current_trace as _get_current_trace
+
     return _get_current_trace()
 
 
@@ -402,4 +408,5 @@ def get_current_span() -> Span | None:
             span.attributes["custom_key"] = "value"
     """
     from .context import get_current_span as _get_current_span
+
     return _get_current_span()

@@ -15,6 +15,7 @@ Design philosophy:
 - Lenient on optional fields (missing end_time, timestamps = 0 are allowed)
   so that existing traces ingested by the test suite continue to pass.
 """
+
 from __future__ import annotations
 
 import os
@@ -43,9 +44,7 @@ _MAX_SPANS_PER_TRACE: int = int(
 _MAX_PAYLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
 
 # Valid span kinds (mirrors SpanKind enum in sdk/models.py)
-_VALID_KINDS = frozenset(
-    {"agent", "llm", "tool", "chain", "retrieval", "embedding", "custom"}
-)
+_VALID_KINDS = frozenset({"agent", "llm", "tool", "chain", "retrieval", "embedding", "custom"})
 
 
 # ---------------------------------------------------------------------------
@@ -85,9 +84,7 @@ def validate_trace(
         return False, "trace_id is required and must be a non-empty string"
 
     if len(trace_id) > _MAX_TRACE_ID_LEN:
-        return False, (
-            f"trace_id exceeds maximum length of {_MAX_TRACE_ID_LEN} characters"
-        )
+        return False, (f"trace_id exceeds maximum length of {_MAX_TRACE_ID_LEN} characters")
 
     if not _SAFE_ID_RE.match(trace_id):
         return False, (

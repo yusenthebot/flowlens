@@ -16,6 +16,7 @@ from flowlens.server.storage import TraceStore
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture()
 def store(tmp_path):
     s = TraceStore(db_path=str(tmp_path / "test.db"))
@@ -34,6 +35,7 @@ def _make_trace_payload(**kwargs) -> dict:
     """Build a minimal valid ingest payload."""
     import time
     import uuid
+
     payload = {
         "trace_id": uuid.uuid4().hex,
         "service_name": "test-svc",
@@ -55,6 +57,7 @@ def _make_trace_payload(**kwargs) -> dict:
 # ---------------------------------------------------------------------------
 # Part 1: Model round-trip
 # ---------------------------------------------------------------------------
+
 
 class TestTraceModel:
     def test_default_fields_are_none(self):
@@ -105,10 +108,12 @@ class TestTraceModel:
 # Part 2: Storage round-trip
 # ---------------------------------------------------------------------------
 
+
 class TestStorageUserContext:
     def test_save_and_retrieve_user_context(self, store):
         import time
         import uuid
+
         trace_id = uuid.uuid4().hex
         payload = {
             "trace_id": trace_id,
@@ -139,22 +144,25 @@ class TestStorageUserContext:
     def test_filter_by_user_id(self, store):
         import time
         import uuid
+
         for user in ("alice", "bob", "alice"):
-            store.save_trace({
-                "trace_id": uuid.uuid4().hex,
-                "service_name": "svc",
-                "start_time": time.time(),
-                "end_time": time.time() + 1,
-                "duration_ms": 100.0,
-                "total_tokens": 0,
-                "total_cost_usd": 0.0,
-                "has_errors": False,
-                "error_count": 0,
-                "span_count": 0,
-                "metadata": {},
-                "user_id": user,
-                "spans": [],
-            })
+            store.save_trace(
+                {
+                    "trace_id": uuid.uuid4().hex,
+                    "service_name": "svc",
+                    "start_time": time.time(),
+                    "end_time": time.time() + 1,
+                    "duration_ms": 100.0,
+                    "total_tokens": 0,
+                    "total_cost_usd": 0.0,
+                    "has_errors": False,
+                    "error_count": 0,
+                    "span_count": 0,
+                    "metadata": {},
+                    "user_id": user,
+                    "spans": [],
+                }
+            )
         alice_traces = store.list_traces(user_id="alice")
         assert len(alice_traces) == 2
         bob_traces = store.list_traces(user_id="bob")
@@ -163,44 +171,50 @@ class TestStorageUserContext:
     def test_filter_by_session_id(self, store):
         import time
         import uuid
+
         for sess in ("s1", "s2", "s1"):
-            store.save_trace({
-                "trace_id": uuid.uuid4().hex,
-                "service_name": "svc",
-                "start_time": time.time(),
-                "end_time": time.time() + 1,
-                "duration_ms": 100.0,
-                "total_tokens": 0,
-                "total_cost_usd": 0.0,
-                "has_errors": False,
-                "error_count": 0,
-                "span_count": 0,
-                "metadata": {},
-                "session_id": sess,
-                "spans": [],
-            })
+            store.save_trace(
+                {
+                    "trace_id": uuid.uuid4().hex,
+                    "service_name": "svc",
+                    "start_time": time.time(),
+                    "end_time": time.time() + 1,
+                    "duration_ms": 100.0,
+                    "total_tokens": 0,
+                    "total_cost_usd": 0.0,
+                    "has_errors": False,
+                    "error_count": 0,
+                    "span_count": 0,
+                    "metadata": {},
+                    "session_id": sess,
+                    "spans": [],
+                }
+            )
         assert len(store.list_traces(session_id="s1")) == 2
         assert len(store.list_traces(session_id="s2")) == 1
 
     def test_filter_by_experiment(self, store):
         import time
         import uuid
+
         for exp in ("ctrl", "variant-A", "ctrl"):
-            store.save_trace({
-                "trace_id": uuid.uuid4().hex,
-                "service_name": "svc",
-                "start_time": time.time(),
-                "end_time": time.time() + 1,
-                "duration_ms": 100.0,
-                "total_tokens": 0,
-                "total_cost_usd": 0.0,
-                "has_errors": False,
-                "error_count": 0,
-                "span_count": 0,
-                "metadata": {},
-                "experiment": exp,
-                "spans": [],
-            })
+            store.save_trace(
+                {
+                    "trace_id": uuid.uuid4().hex,
+                    "service_name": "svc",
+                    "start_time": time.time(),
+                    "end_time": time.time() + 1,
+                    "duration_ms": 100.0,
+                    "total_tokens": 0,
+                    "total_cost_usd": 0.0,
+                    "has_errors": False,
+                    "error_count": 0,
+                    "span_count": 0,
+                    "metadata": {},
+                    "experiment": exp,
+                    "spans": [],
+                }
+            )
         assert len(store.list_traces(experiment="ctrl")) == 2
         assert len(store.list_traces(experiment="variant-A")) == 1
 
@@ -208,6 +222,7 @@ class TestStorageUserContext:
 # ---------------------------------------------------------------------------
 # Part 3: API endpoints
 # ---------------------------------------------------------------------------
+
 
 class TestAPIFilters:
     def test_ingest_with_user_context(self, client):
@@ -290,6 +305,7 @@ class TestAPIFilters:
 # ---------------------------------------------------------------------------
 # Part 4: SDK start_trace() with context fields
 # ---------------------------------------------------------------------------
+
 
 class TestSDKUserContext:
     def test_start_trace_with_user_fields(self, tmp_path):

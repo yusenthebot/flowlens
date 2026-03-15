@@ -830,7 +830,12 @@ def _extract_llm_usage(span: Span, result: Any, model: str) -> None:
 
         # ----- Amazon Bedrock Converse API -----
         # Detected by "inputTokens" key (vs OpenAI's "prompt_tokens")
-        elif isinstance(result, dict) and "usage" in result and isinstance(result["usage"], dict) and "inputTokens" in result["usage"]:
+        elif (
+            isinstance(result, dict)
+            and "usage" in result
+            and isinstance(result["usage"], dict)
+            and "inputTokens" in result["usage"]
+        ):
             usage = result["usage"]
             input_tokens = usage.get("inputTokens", 0)
             output_tokens = usage.get("outputTokens", 0)

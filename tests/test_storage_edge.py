@@ -1,4 +1,5 @@
 """Edge case tests for flowlens/server/storage.py."""
+
 from __future__ import annotations
 
 import threading
@@ -13,6 +14,7 @@ from flowlens.server.storage import TraceStore
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def store(tmp_path: Path) -> TraceStore:
@@ -30,21 +32,23 @@ def _make_trace(
     trace_id = uuid.uuid4().hex
     spans = []
     for i in range(n_spans):
-        spans.append({
-            "span_id": uuid.uuid4().hex[:16],
-            "trace_id": trace_id,
-            "parent_span_id": None,
-            "name": span_name if i == 0 else f"{span_name}_{i}",
-            "kind": "llm",
-            "status": "error" if (has_error and i == 0) else "ok",
-            "start_time": time.time(),
-            "end_time": time.time() + 0.1 * i,
-            "duration_ms": 100.0 * (i + 1),
-            "attributes": {},
-            "events": [],
-            "token_usage": {"input_tokens": 10, "output_tokens": 5, "total_cost_usd": 0.001},
-            "error": {"message": "something failed"} if (has_error and i == 0) else None,
-        })
+        spans.append(
+            {
+                "span_id": uuid.uuid4().hex[:16],
+                "trace_id": trace_id,
+                "parent_span_id": None,
+                "name": span_name if i == 0 else f"{span_name}_{i}",
+                "kind": "llm",
+                "status": "error" if (has_error and i == 0) else "ok",
+                "start_time": time.time(),
+                "end_time": time.time() + 0.1 * i,
+                "duration_ms": 100.0 * (i + 1),
+                "attributes": {},
+                "events": [],
+                "token_usage": {"input_tokens": 10, "output_tokens": 5, "total_cost_usd": 0.001},
+                "error": {"message": "something failed"} if (has_error and i == 0) else None,
+            }
+        )
     return {
         "trace_id": trace_id,
         "service_name": service,
@@ -64,6 +68,7 @@ def _make_trace(
 # ---------------------------------------------------------------------------
 # Unicode service names and span names
 # ---------------------------------------------------------------------------
+
 
 class TestUnicode:
     def test_unicode_service_name(self, store: TraceStore):
@@ -105,6 +110,7 @@ class TestUnicode:
 # ---------------------------------------------------------------------------
 # Very large traces (100+ spans)
 # ---------------------------------------------------------------------------
+
 
 class TestLargeTraces:
     def test_save_and_retrieve_100_spans(self, store: TraceStore):
@@ -149,6 +155,7 @@ class TestLargeTraces:
 # ---------------------------------------------------------------------------
 # Concurrent writes (use threading)
 # ---------------------------------------------------------------------------
+
 
 class TestConcurrentWrites:
     def test_concurrent_saves_from_multiple_threads(self, tmp_path: Path):
@@ -220,10 +227,9 @@ class TestConcurrentWrites:
             except Exception as e:
                 errors.append(e)
 
-        threads = (
-            [threading.Thread(target=writer) for _ in range(3)]
-            + [threading.Thread(target=reader) for _ in range(3)]
-        )
+        threads = [threading.Thread(target=writer) for _ in range(3)] + [
+            threading.Thread(target=reader) for _ in range(3)
+        ]
         for th in threads:
             th.start()
         for th in threads:
@@ -237,32 +243,37 @@ class TestConcurrentWrites:
 # Schema migration (v0 → current)
 # ---------------------------------------------------------------------------
 
+
 class TestSchemaMigration:
     def test_schema_version_is_current(self, store: TraceStore):
         from flowlens.server.storage import SCHEMA_VERSION
+
         version = store._get_version()
         assert version == SCHEMA_VERSION
 
     def test_fresh_db_is_migrated_to_latest(self, tmp_path: Path):
         from flowlens.server.storage import SCHEMA_VERSION
+
         s = TraceStore(db_path=str(tmp_path / "fresh.db"))
         assert s._get_version() == SCHEMA_VERSION
         s.close()
 
     def test_tables_exist_after_migration(self, store: TraceStore):
         conn = store._conn
-        tables = {row[0] for row in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall()}
+        tables = {
+            row[0]
+            for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+        }
         assert "traces" in tables
         assert "spans" in tables
         assert "schema_version" in tables
 
     def test_indexes_exist_after_migration(self, store: TraceStore):
         conn = store._conn
-        indexes = {row[0] for row in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='index'"
-        ).fetchall()}
+        indexes = {
+            row[0]
+            for row in conn.execute("SELECT name FROM sqlite_master WHERE type='index'").fetchall()
+        }
         # v2 indexes
         assert "idx_traces_has_errors" in indexes
         assert "idx_traces_created_at" in indexes
@@ -281,6 +292,7 @@ class TestSchemaMigration:
 # ---------------------------------------------------------------------------
 # Search with special characters
 # ---------------------------------------------------------------------------
+
 
 class TestSearchSpecialChars:
     def test_search_plain_term(self, store: TraceStore):
@@ -335,6 +347,7 @@ class TestSearchSpecialChars:
 # FK constraint resilience: mismatched span trace_ids
 # ---------------------------------------------------------------------------
 
+
 class TestFKConstraintResilience:
     def test_save_trace_with_mismatched_span_trace_id(self, store: TraceStore):
         """Spans with a different trace_id than the parent trace must not
@@ -368,7 +381,11 @@ class TestFKConstraintResilience:
                     "duration_ms": 500.0,
                     "attributes": {},
                     "events": [],
-                    "token_usage": {"input_tokens": 10, "output_tokens": 5, "total_cost_usd": 0.001},
+                    "token_usage": {
+                        "input_tokens": 10,
+                        "output_tokens": 5,
+                        "total_cost_usd": 0.001,
+                    },
                     "error": None,
                 },
                 {
@@ -383,7 +400,11 @@ class TestFKConstraintResilience:
                     "duration_ms": 200.0,
                     "attributes": {},
                     "events": [],
-                    "token_usage": {"input_tokens": 10, "output_tokens": 5, "total_cost_usd": 0.001},
+                    "token_usage": {
+                        "input_tokens": 10,
+                        "output_tokens": 5,
+                        "total_cost_usd": 0.001,
+                    },
                     "error": None,
                 },
             ],
@@ -404,15 +425,16 @@ class TestFKConstraintResilience:
 # FTS5 full-text search
 # ---------------------------------------------------------------------------
 
+
 class TestFTSSearch:
     def test_fts_search_by_span_name(self, store: TraceStore):
         """Searching for a unique span name should return the owning trace."""
         t = _make_trace(service="fts-svc", span_name="embedding_lookup")
         store.save_trace(t)
         results = store.search_traces("embedding_lookup")
-        assert any(r["trace_id"] == t["trace_id"] for r in results), (
-            "Expected trace not found in FTS results"
-        )
+        assert any(
+            r["trace_id"] == t["trace_id"] for r in results
+        ), "Expected trace not found in FTS results"
 
     def test_fts_search_by_error_message(self, store: TraceStore):
         """Searching for an error keyword should surface traces with matching error spans."""
@@ -421,9 +443,9 @@ class TestFTSSearch:
         t["spans"][0]["error"] = {"message": "tokenizer_overflow detected"}
         store.save_trace(t)
         results = store.search_traces("tokenizer_overflow")
-        assert any(r["trace_id"] == t["trace_id"] for r in results), (
-            "Expected error trace not found via FTS on error_message"
-        )
+        assert any(
+            r["trace_id"] == t["trace_id"] for r in results
+        ), "Expected error trace not found via FTS on error_message"
 
     def test_fts_search_no_results(self, store: TraceStore):
         """Searching for a term that does not exist should return an empty list."""
@@ -439,16 +461,16 @@ class TestFTSSearch:
 
         # Verify it appears before deletion
         before = store.search_traces("ephemeral_op")
-        assert any(r["trace_id"] == t["trace_id"] for r in before), (
-            "Trace should appear in FTS results before deletion"
-        )
+        assert any(
+            r["trace_id"] == t["trace_id"] for r in before
+        ), "Trace should appear in FTS results before deletion"
 
         store.delete_trace(t["trace_id"])
 
         after = store.search_traces("ephemeral_op")
-        assert not any(r["trace_id"] == t["trace_id"] for r in after), (
-            "Deleted trace should not appear in FTS results"
-        )
+        assert not any(
+            r["trace_id"] == t["trace_id"] for r in after
+        ), "Deleted trace should not appear in FTS results"
 
     def test_fts_fallback_on_invalid_syntax(self, store: TraceStore):
         """An invalid FTS query (e.g. unmatched quote) must not raise — fallback to LIKE."""

@@ -57,11 +57,11 @@ class RecurringFailure:
 class PerformanceTrend:
     """Latency or cost metric that is trending upward across traces."""
 
-    metric: str                # "duration_ms" | "total_tokens" | "total_cost_usd"
-    direction: str             # "increasing" | "decreasing"
-    values: list[float]        # one value per trace (in the same order as input)
+    metric: str  # "duration_ms" | "total_tokens" | "total_cost_usd"
+    direction: str  # "increasing" | "decreasing"
+    values: list[float]  # one value per trace (in the same order as input)
     trace_ids: list[str]
-    slope: float               # average delta per trace step
+    slope: float  # average delta per trace step
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -108,7 +108,7 @@ class CorrelationReport:
     common_anti_patterns: list[CommonAntiPattern] = field(default_factory=list)
 
     # Summary metrics
-    overall_error_rate: float = 0.0        # fraction of traces with at least one error
+    overall_error_rate: float = 0.0  # fraction of traces with at least one error
     avg_duration_ms: float = 0.0
     avg_total_tokens: float = 0.0
     avg_total_cost_usd: float = 0.0
@@ -137,15 +137,13 @@ class CorrelationReport:
         if self.recurring_failures:
             lines.append(
                 f"  Recurring failures : {len(self.recurring_failures)} "
-                f"(top: \"{self.recurring_failures[0].error_message[:60]}\")"
+                f'(top: "{self.recurring_failures[0].error_message[:60]}")'
             )
         if self.performance_trends:
             trend_names = ", ".join(t.metric for t in self.performance_trends)
             lines.append(f"  Performance trends : {trend_names}")
         if self.common_anti_patterns:
-            ap_names = ", ".join(
-                p.pattern_type.value for p in self.common_anti_patterns
-            )
+            ap_names = ", ".join(p.pattern_type.value for p in self.common_anti_patterns)
             lines.append(f"  Common anti-patterns: {ap_names}")
         return "\n".join(lines)
 
@@ -219,9 +217,7 @@ def correlate_traces(
     )
 
     # --- Recurring failures ---
-    report.recurring_failures = _detect_recurring_failures(
-        traces, threshold=failure_threshold
-    )
+    report.recurring_failures = _detect_recurring_failures(traces, threshold=failure_threshold)
 
     # --- Performance trends ---
     report.performance_trends = _detect_performance_trends(
@@ -276,13 +272,15 @@ def _detect_recurring_failures(
     for norm, trace_ids in error_to_traces.items():
         rate = len(trace_ids) / n
         if rate > threshold:
-            results.append(RecurringFailure(
-                error_message=raw_message[norm],
-                occurrence_count=len(trace_ids),
-                total_traces=n,
-                affected_trace_ids=sorted(trace_ids),
-                affected_span_names=list(dict.fromkeys(error_to_spans[norm])),
-            ))
+            results.append(
+                RecurringFailure(
+                    error_message=raw_message[norm],
+                    occurrence_count=len(trace_ids),
+                    total_traces=n,
+                    affected_trace_ids=sorted(trace_ids),
+                    affected_span_names=list(dict.fromkeys(error_to_spans[norm])),
+                )
+            )
 
     # Sort by occurrence rate descending
     results.sort(key=lambda r: r.occurrence_rate, reverse=True)
@@ -322,13 +320,15 @@ def _detect_performance_trends(
 
         # Only report if there's a meaningful upward trend (degradation)
         if slope > 0 and _is_monotonic_trend(values):
-            results.append(PerformanceTrend(
-                metric=metric,
-                direction=direction,
-                values=values,
-                trace_ids=trace_ids,
-                slope=slope,
-            ))
+            results.append(
+                PerformanceTrend(
+                    metric=metric,
+                    direction=direction,
+                    values=values,
+                    trace_ids=trace_ids,
+                    slope=slope,
+                )
+            )
 
     return results
 
@@ -357,12 +357,14 @@ def _detect_common_anti_patterns(
     for ptype, trace_ids in ptype_to_trace_ids.items():
         rate = len(trace_ids) / n
         if rate > threshold:
-            results.append(CommonAntiPattern(
-                pattern_type=ptype,
-                occurrence_count=len(trace_ids),
-                total_traces=n,
-                affected_trace_ids=sorted(trace_ids),
-            ))
+            results.append(
+                CommonAntiPattern(
+                    pattern_type=ptype,
+                    occurrence_count=len(trace_ids),
+                    total_traces=n,
+                    affected_trace_ids=sorted(trace_ids),
+                )
+            )
 
     results.sort(key=lambda p: p.occurrence_rate, reverse=True)
     return results

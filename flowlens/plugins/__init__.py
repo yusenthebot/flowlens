@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 # BasePlugin
 # ---------------------------------------------------------------------------
 
+
 class BasePlugin(abc.ABC):
     """Abstract base class for all FlowLens instrumentation plugins.
 
@@ -55,6 +56,7 @@ class BasePlugin(abc.ABC):
 # ---------------------------------------------------------------------------
 # PluginRegistry
 # ---------------------------------------------------------------------------
+
 
 class PluginRegistry:
     """Singleton registry for FlowLens plugins.
@@ -206,9 +208,7 @@ def load_plugin(name: str) -> BasePlugin | None:
         module = importlib.import_module(module_path)
         plugin_cls = getattr(module, class_name)
         if not (isinstance(plugin_cls, type) and issubclass(plugin_cls, BasePlugin)):
-            logger.warning(
-                f"[FlowLens] {qualified!r} is not a BasePlugin subclass — skipping"
-            )
+            logger.warning(f"[FlowLens] {qualified!r} is not a BasePlugin subclass — skipping")
             return None
         plugin = plugin_cls()
         registry.register(plugin)

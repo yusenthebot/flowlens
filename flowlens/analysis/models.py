@@ -14,35 +14,38 @@ from typing import Any
 
 class ErrorRole(Enum):
     """错误在因果链中的角色"""
-    ROOT_CAUSE = "root_cause"      # 根因：没有 error 父节点的 error span
-    CASCADED = "cascaded"          # 级联：由上游错误引起的
-    INDEPENDENT = "independent"    # 独立：与其他错误无因果关系
+
+    ROOT_CAUSE = "root_cause"  # 根因：没有 error 父节点的 error span
+    CASCADED = "cascaded"  # 级联：由上游错误引起的
+    INDEPENDENT = "independent"  # 独立：与其他错误无因果关系
 
 
 class PatternType(Enum):
     """已知的错误 Pattern"""
-    RETRY_STORM = "retry_storm"                # 同一操作被大量重试
-    INFINITE_LOOP = "infinite_loop"            # Agent 在相同 tool 间循环
-    CONTEXT_OVERFLOW = "context_overflow"      # Token 接近/超过模型上限
+
+    RETRY_STORM = "retry_storm"  # 同一操作被大量重试
+    INFINITE_LOOP = "infinite_loop"  # Agent 在相同 tool 间循环
+    CONTEXT_OVERFLOW = "context_overflow"  # Token 接近/超过模型上限
     HALLUCINATION_CASCADE = "hallucination_cascade"  # 幻觉输出被下游消费
-    TIMEOUT_CASCADE = "timeout_cascade"        # 超时导致下游连锁失败
-    EMPTY_RESPONSE = "empty_response"          # LLM 返回空内容
-    COST_SPIKE = "cost_spike"                  # 单次 LLM 调用消耗超过总 token 的 50%
-    SLOW_TOOL = "slow_tool"                    # Tool 耗时超过平均值的 3 倍
-    REDUNDANT_CALLS = "redundant_calls"        # 相同 tool 用相同参数调用多次
+    TIMEOUT_CASCADE = "timeout_cascade"  # 超时导致下游连锁失败
+    EMPTY_RESPONSE = "empty_response"  # LLM 返回空内容
+    COST_SPIKE = "cost_spike"  # 单次 LLM 调用消耗超过总 token 的 50%
+    SLOW_TOOL = "slow_tool"  # Tool 耗时超过平均值的 3 倍
+    REDUNDANT_CALLS = "redundant_calls"  # 相同 tool 用相同参数调用多次
     # New patterns
-    TOKEN_WASTE = "token_waste"                # High input tokens with very few output tokens
+    TOKEN_WASTE = "token_waste"  # High input tokens with very few output tokens
     SEQUENTIAL_BOTTLENECK = "sequential_bottleneck"  # Independent tool calls run sequentially
-    ERROR_RECOVERY = "error_recovery"          # Positive: agent recovered from an error
+    ERROR_RECOVERY = "error_recovery"  # Positive: agent recovered from an error
 
 
 @dataclass
 class CausalNode:
     """因果图中的节点（对应一个 span）"""
+
     span_id: str
     name: str
-    kind: str                  # agent / llm / tool
-    status: str                # ok / error
+    kind: str  # agent / llm / tool
+    status: str  # ok / error
     error_message: str | None = None
     error_role: ErrorRole = ErrorRole.INDEPENDENT
     duration_ms: float = 0.0
@@ -64,8 +67,9 @@ class CausalNode:
 @dataclass
 class CausalEdge:
     """因果图中的边（表示错误传播方向）"""
-    source_id: str        # 上游 span
-    target_id: str        # 下游 span
+
+    source_id: str  # 上游 span
+    target_id: str  # 下游 span
     relation: str = "caused_by"  # caused_by / preceded_by
 
     def to_dict(self) -> dict[str, Any]:
@@ -79,8 +83,9 @@ class CausalEdge:
 @dataclass
 class DetectedPattern:
     """检测到的已知错误 Pattern"""
+
     pattern_type: PatternType
-    severity: str = "warning"    # info / warning / critical
+    severity: str = "warning"  # info / warning / critical
     description: str = ""
     involved_spans: list[str] = field(default_factory=list)
     details: dict[str, Any] = field(default_factory=dict)
@@ -106,6 +111,7 @@ class CausalDAG:
     - root cause 标注
     - 检测到的 pattern
     """
+
     trace_id: str
     nodes: list[CausalNode] = field(default_factory=list)
     edges: list[CausalEdge] = field(default_factory=list)
@@ -263,9 +269,7 @@ class CausalDAG:
                 tgt = node_map.get(edge.target_id)
                 src_label = src.name if src else edge.source_id
                 tgt_label = tgt.name if tgt else edge.target_id
-                lines.append(
-                    f"- `{src_label}` —[{edge.relation}]→ `{tgt_label}`"
-                )
+                lines.append(f"- `{src_label}` —[{edge.relation}]→ `{tgt_label}`")
             lines.append("")
 
         # --- Detected patterns ---
@@ -278,8 +282,7 @@ class CausalDAG:
                     "info": "🔵",
                 }.get(pat.severity, "")
                 lines.append(
-                    f"### {severity_badge} `{pat.pattern_type.value}` "
-                    f"({pat.severity})\n"
+                    f"### {severity_badge} `{pat.pattern_type.value}` " f"({pat.severity})\n"
                 )
                 lines.append(f"{pat.description}\n")
                 if pat.involved_spans:

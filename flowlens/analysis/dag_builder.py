@@ -34,15 +34,17 @@ def build_causal_dag(trace: Trace) -> CausalDAG:
     span_map: dict[str, Span] = {}
     for span in trace.spans:
         span_map[span.span_id] = span
-        dag.nodes.append(CausalNode(
-            span_id=span.span_id,
-            name=span.name,
-            kind=span.kind.value,
-            status=span.status.value,
-            error_message=span.error_message,
-            duration_ms=span.duration_ms,
-            token_count=span.token_usage.total_tokens if span.token_usage else 0,
-        ))
+        dag.nodes.append(
+            CausalNode(
+                span_id=span.span_id,
+                name=span.name,
+                kind=span.kind.value,
+                status=span.status.value,
+                error_message=span.error_message,
+                duration_ms=span.duration_ms,
+                token_count=span.token_usage.total_tokens if span.token_usage else 0,
+            )
+        )
 
     # Step 2: 构建 parent-child 索引
     children_of: dict[str, list[str]] = {}
@@ -61,10 +63,7 @@ def build_causal_dag(trace: Trace) -> CausalDAG:
         sibling_groups.setdefault(key, []).append(span.span_id)
 
     # Step 4: 识别 error spans 和错误传播
-    error_span_ids = {
-        s.span_id for s in trace.spans
-        if s.status == SpanStatus.ERROR
-    }
+    error_span_ids = {s.span_id for s in trace.spans if s.status == SpanStatus.ERROR}
 
     if not error_span_ids:
         return dag  # 无错误，直接返回
@@ -73,9 +72,7 @@ def build_causal_dag(trace: Trace) -> CausalDAG:
     node_map = {n.span_id: n for n in dag.nodes}
 
     for span_id in error_span_ids:
-        has_error_ancestor = _has_error_ancestor(
-            span_id, parent_of, error_span_ids
-        )
+        has_error_ancestor = _has_error_ancestor(span_id, parent_of, error_span_ids)
         has_error_predecessor = _has_error_predecessor(
             span_id, sibling_groups, error_span_ids, parent_of
         )
@@ -91,11 +88,13 @@ def build_causal_dag(trace: Trace) -> CausalDAG:
         # 从 error parent 到 error child
         p_id = parent_of.get(span_id)
         if p_id and p_id in error_span_ids:
-            dag.edges.append(CausalEdge(
-                source_id=p_id,
-                target_id=span_id,
-                relation="caused_by",
-            ))
+            dag.edges.append(
+                CausalEdge(
+                    source_id=p_id,
+                    target_id=span_id,
+                    relation="caused_by",
+                )
+            )
 
         # 从前一个 error sibling 到当前
         group_key = parent_of.get(span_id, "__root__")
@@ -104,11 +103,13 @@ def build_causal_dag(trace: Trace) -> CausalDAG:
         if idx > 0:
             prev_id = siblings[idx - 1]
             if prev_id in error_span_ids:
-                dag.edges.append(CausalEdge(
-                    source_id=prev_id,
-                    target_id=span_id,
-                    relation="preceded_by",
-                ))
+                dag.edges.append(
+                    CausalEdge(
+                        source_id=prev_id,
+                        target_id=span_id,
+                        relation="preceded_by",
+                    )
+                )
 
     return dag
 

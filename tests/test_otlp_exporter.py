@@ -26,6 +26,7 @@ from flowlens.sdk.models import Span, SpanEvent, SpanKind, SpanStatus, Trace
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_trace(*spans: Span, service_name: str = "test-svc") -> Trace:
     """Build a minimal Trace containing the given spans."""
     trace = Trace(trace_id="abcdef1234567890abcdef1234567890", service_name=service_name)
@@ -55,7 +56,9 @@ def _make_span(
     return span
 
 
-def _make_exporter(available: bool = True, endpoint: str = "http://localhost:4318/v1/traces") -> OTLPExporter:
+def _make_exporter(
+    available: bool = True, endpoint: str = "http://localhost:4318/v1/traces"
+) -> OTLPExporter:
     """Create an OTLPExporter with mocked availability."""
     exporter = OTLPExporter(endpoint=endpoint)
     exporter._available = available
@@ -65,6 +68,7 @@ def _make_exporter(available: bool = True, endpoint: str = "http://localhost:431
 # ---------------------------------------------------------------------------
 # Helper utilities
 # ---------------------------------------------------------------------------
+
 
 class TestPadHex:
     def test_exact_length(self):
@@ -148,6 +152,7 @@ class TestDictToOtelAttrs:
 # OTLPExporter — availability
 # ---------------------------------------------------------------------------
 
+
 class TestOTLPExporterAvailability:
     def test_unavailable_exporter_does_not_send(self):
         exporter = _make_exporter(available=False)
@@ -176,6 +181,7 @@ class TestOTLPExporterAvailability:
 # ---------------------------------------------------------------------------
 # OTLPExporter — payload construction
 # ---------------------------------------------------------------------------
+
 
 class TestOTLPPayloadStructure:
     def setup_method(self):
@@ -231,6 +237,7 @@ class TestOTLPPayloadStructure:
 # OTLPExporter — span conversion
 # ---------------------------------------------------------------------------
 
+
 class TestSpanConversion:
     def setup_method(self):
         self.exporter = _make_exporter(available=True)
@@ -284,25 +291,31 @@ class TestSpanConversion:
         assert result["endTimeUnixNano"] == result["startTimeUnixNano"]
 
     # SpanKind mapping
-    @pytest.mark.parametrize("fl_kind, expected_otel", [
-        (SpanKind.AGENT, OTLPExporter._OTEL_SPAN_KIND_INTERNAL),
-        (SpanKind.LLM, OTLPExporter._OTEL_SPAN_KIND_CLIENT),
-        (SpanKind.TOOL, OTLPExporter._OTEL_SPAN_KIND_INTERNAL),
-        (SpanKind.CHAIN, OTLPExporter._OTEL_SPAN_KIND_INTERNAL),
-        (SpanKind.RETRIEVAL, OTLPExporter._OTEL_SPAN_KIND_CLIENT),
-        (SpanKind.CUSTOM, OTLPExporter._OTEL_SPAN_KIND_INTERNAL),
-    ])
+    @pytest.mark.parametrize(
+        "fl_kind, expected_otel",
+        [
+            (SpanKind.AGENT, OTLPExporter._OTEL_SPAN_KIND_INTERNAL),
+            (SpanKind.LLM, OTLPExporter._OTEL_SPAN_KIND_CLIENT),
+            (SpanKind.TOOL, OTLPExporter._OTEL_SPAN_KIND_INTERNAL),
+            (SpanKind.CHAIN, OTLPExporter._OTEL_SPAN_KIND_INTERNAL),
+            (SpanKind.RETRIEVAL, OTLPExporter._OTEL_SPAN_KIND_CLIENT),
+            (SpanKind.CUSTOM, OTLPExporter._OTEL_SPAN_KIND_INTERNAL),
+        ],
+    )
     def test_span_kind_mapping(self, fl_kind: SpanKind, expected_otel: int):
         span = _make_span(kind=fl_kind)
         result = self._convert(span)
         assert result["kind"] == expected_otel
 
     # SpanStatus mapping
-    @pytest.mark.parametrize("fl_status, expected_code", [
-        (SpanStatus.UNSET, OTLPExporter._STATUS_CODE_UNSET),
-        (SpanStatus.OK, OTLPExporter._STATUS_CODE_OK),
-        (SpanStatus.ERROR, OTLPExporter._STATUS_CODE_ERROR),
-    ])
+    @pytest.mark.parametrize(
+        "fl_status, expected_code",
+        [
+            (SpanStatus.UNSET, OTLPExporter._STATUS_CODE_UNSET),
+            (SpanStatus.OK, OTLPExporter._STATUS_CODE_OK),
+            (SpanStatus.ERROR, OTLPExporter._STATUS_CODE_ERROR),
+        ],
+    )
     def test_span_status_mapping(self, fl_status: SpanStatus, expected_code: int):
         span = _make_span(status=fl_status)
         result = self._convert(span)
@@ -324,6 +337,7 @@ class TestSpanConversion:
 # ---------------------------------------------------------------------------
 # OTLPExporter — attribute building
 # ---------------------------------------------------------------------------
+
 
 class TestAttributeBuilding:
     def setup_method(self):
@@ -393,6 +407,7 @@ class TestAttributeBuilding:
 # OTLPExporter — events
 # ---------------------------------------------------------------------------
 
+
 class TestEventConversion:
     def setup_method(self):
         self.exporter = _make_exporter(available=True)
@@ -437,6 +452,7 @@ class TestEventConversion:
 # ---------------------------------------------------------------------------
 # OTLPExporter — HTTP transport
 # ---------------------------------------------------------------------------
+
 
 class TestOTLPHTTPTransport:
     def test_send_posts_json_to_endpoint(self):
@@ -507,6 +523,7 @@ class TestOTLPHTTPTransport:
 # OTLPExporter — async export
 # ---------------------------------------------------------------------------
 
+
 class TestOTLPAsyncExport:
     @pytest.mark.asyncio
     async def test_export_async_calls_send(self):
@@ -531,6 +548,7 @@ class TestOTLPAsyncExport:
 # create_exporter factory
 # ---------------------------------------------------------------------------
 
+
 class TestCreateExporterFactory:
     def test_otlp_creates_otlp_exporter(self):
         exporter = create_exporter(export_to="otlp")
@@ -550,17 +568,20 @@ class TestCreateExporterFactory:
 
     def test_console_still_works(self):
         from flowlens.sdk.exporters import ConsoleExporter
+
         exporter = create_exporter(export_to="console")
         assert isinstance(exporter, ConsoleExporter)
 
     def test_jsonl_still_works(self, tmp_path):
         from flowlens.sdk.exporters import JSONLExporter
+
         exporter = create_exporter(export_to="jsonl", output_dir=str(tmp_path))
         assert isinstance(exporter, JSONLExporter)
         exporter.shutdown()
 
     def test_http_still_works(self):
         from flowlens.sdk.exporters import HTTPExporter
+
         exporter = create_exporter(export_to="http")
         assert isinstance(exporter, HTTPExporter)
 
@@ -569,19 +590,23 @@ class TestCreateExporterFactory:
 # Public API export
 # ---------------------------------------------------------------------------
 
+
 class TestPublicAPIExport:
     def test_otlp_exporter_importable_from_flowlens(self):
         from flowlens import OTLPExporter as OE
+
         assert OE is OTLPExporter
 
     def test_otlp_exporter_in_all(self):
         import flowlens
+
         assert "OTLPExporter" in flowlens.__all__
 
 
 # ---------------------------------------------------------------------------
 # Integration: full trace round-trip
 # ---------------------------------------------------------------------------
+
 
 class TestFullTraceRoundTrip:
     """Build a realistic multi-span trace and verify the full OTLP payload."""

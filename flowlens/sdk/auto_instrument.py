@@ -63,6 +63,7 @@ def auto_instrument(libraries: list[str]) -> None:
 
 # ===== Anthropic =====
 
+
 def _patch_anthropic() -> None:
     """Monkey-patch anthropic.Anthropic and anthropic.AsyncAnthropic."""
     try:
@@ -111,13 +112,16 @@ def _patch_anthropic() -> None:
         anthropic.AsyncAnthropic.messages.create = patched_acreate  # type: ignore[attr-defined]
         logger.debug("[FlowLens] Patched anthropic.AsyncAnthropic.messages.create")
     except AttributeError as exc:
-        logger.warning(f"[FlowLens] Could not patch anthropic.AsyncAnthropic.messages.create: {exc}")
+        logger.warning(
+            f"[FlowLens] Could not patch anthropic.AsyncAnthropic.messages.create: {exc}"
+        )
 
     _patched.add("anthropic")
     logger.info("[FlowLens] anthropic auto-instrumentation enabled")
 
 
 # ===== OpenAI =====
+
 
 def _patch_openai() -> None:
     """Monkey-patch OpenAI chat completions (new client API + legacy API).
@@ -211,7 +215,9 @@ def _patch_openai() -> None:
         openai.AsyncOpenAI.chat.completions.create = patched_acreate  # type: ignore[attr-defined]
         logger.debug("[FlowLens] Patched openai.AsyncOpenAI.chat.completions.create")
     except AttributeError as exc:
-        logger.warning(f"[FlowLens] Could not patch openai.AsyncOpenAI.chat.completions.create: {exc}")
+        logger.warning(
+            f"[FlowLens] Could not patch openai.AsyncOpenAI.chat.completions.create: {exc}"
+        )
 
     # ---- Legacy API: openai.ChatCompletion.create / acreate (openai < 1.0) ----
     try:
@@ -273,6 +279,7 @@ def _patch_openai() -> None:
 
 # ===== LangChain =====
 
+
 def _patch_langchain() -> None:
     """Monkey-patch LangChain LLMs, Chains, and AgentExecutors.
 
@@ -290,6 +297,7 @@ def _patch_langchain() -> None:
     langchain_core_available = False
     try:
         from langchain_core.language_models.base import BaseLanguageModel  # type: ignore
+
         langchain_core_available = True
     except ImportError:
         pass
@@ -298,23 +306,29 @@ def _patch_langchain() -> None:
     langchain_available = False
     try:
         import langchain  # type: ignore  # noqa: F401
+
         langchain_available = True
     except ImportError:
         pass
 
     if not langchain_core_available and not langchain_available:
-        logger.debug("[FlowLens] langchain / langchain_core not installed — skipping auto-instrumentation")
+        logger.debug(
+            "[FlowLens] langchain / langchain_core not installed — skipping auto-instrumentation"
+        )
         return
 
     # ---- 1. BaseLanguageModel.invoke / ainvoke ----
     if langchain_core_available:
         try:
             from langchain_core.language_models.base import BaseLanguageModel  # type: ignore
+
             original_invoke = BaseLanguageModel.invoke
 
             @functools.wraps(original_invoke)
             def patched_invoke(self: Any, *args: Any, **kwargs: Any) -> Any:
-                model = getattr(self, "model_name", None) or getattr(self, "model", "") or "langchain"
+                model = (
+                    getattr(self, "model_name", None) or getattr(self, "model", "") or "langchain"
+                )
                 return _wrap_sync_llm_call(
                     original_invoke,
                     args=(self,) + args,
@@ -331,11 +345,14 @@ def _patch_langchain() -> None:
 
         try:
             from langchain_core.language_models.base import BaseLanguageModel  # type: ignore
+
             original_ainvoke = BaseLanguageModel.ainvoke
 
             @functools.wraps(original_ainvoke)
             async def patched_ainvoke(self: Any, *args: Any, **kwargs: Any) -> Any:
-                model = getattr(self, "model_name", None) or getattr(self, "model", "") or "langchain"
+                model = (
+                    getattr(self, "model_name", None) or getattr(self, "model", "") or "langchain"
+                )
                 return await _wrap_async_llm_call(
                     original_ainvoke,
                     args=(self,) + args,
@@ -353,6 +370,7 @@ def _patch_langchain() -> None:
     # ---- 2. langchain.chains.base.Chain.__call__ ----
     try:
         from langchain.chains.base import Chain  # type: ignore
+
         original_chain_call = Chain.__call__
 
         @functools.wraps(original_chain_call)
@@ -374,6 +392,7 @@ def _patch_langchain() -> None:
     # ---- 3. langchain.agents.agent.AgentExecutor._call ----
     try:
         from langchain.agents.agent import AgentExecutor  # type: ignore
+
         original_agent_call = AgentExecutor._call
 
         @functools.wraps(original_agent_call)
@@ -397,6 +416,7 @@ def _patch_langchain() -> None:
 
 
 # ===== Shared wrap helpers =====
+
 
 def _build_span_attrs(
     model: str,
@@ -435,7 +455,9 @@ def _extract_usage_from_response(response: Any, model: str, span: Any) -> None:
         if hasattr(response, "usage"):
             usage = response.usage
             input_tokens = getattr(usage, "input_tokens", 0) or getattr(usage, "prompt_tokens", 0)
-            output_tokens = getattr(usage, "output_tokens", 0) or getattr(usage, "completion_tokens", 0)
+            output_tokens = getattr(usage, "output_tokens", 0) or getattr(
+                usage, "completion_tokens", 0
+            )
 
         # OpenAI dict-style response
         elif isinstance(response, dict) and "usage" in response:
@@ -448,8 +470,12 @@ def _extract_usage_from_response(response: Any, model: str, span: Any) -> None:
             meta = response.response_metadata or {}
             token_usage = meta.get("token_usage") or meta.get("usage", {})
             if isinstance(token_usage, dict):
-                input_tokens = token_usage.get("prompt_tokens", 0) or token_usage.get("input_tokens", 0)
-                output_tokens = token_usage.get("completion_tokens", 0) or token_usage.get("output_tokens", 0)
+                input_tokens = token_usage.get("prompt_tokens", 0) or token_usage.get(
+                    "input_tokens", 0
+                )
+                output_tokens = token_usage.get("completion_tokens", 0) or token_usage.get(
+                    "output_tokens", 0
+                )
 
         # Record output content summary
         output_text = _extract_output_text(response)

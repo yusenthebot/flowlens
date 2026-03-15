@@ -87,7 +87,12 @@ def create_stats_router(store: TraceStore) -> APIRouter:
             bucket_key = int((t["start_time"] - start) / bucket_size)
             bucket_time = start + bucket_key * bucket_size
             if bucket_time not in buckets:
-                buckets[bucket_time] = {"timestamp": bucket_time, "traces": 0, "errors": 0, "cost": 0.0}
+                buckets[bucket_time] = {
+                    "timestamp": bucket_time,
+                    "traces": 0,
+                    "errors": 0,
+                    "cost": 0.0,
+                }
             buckets[bucket_time]["traces"] += 1
             if t.get("has_errors"):
                 buckets[bucket_time]["errors"] += 1
@@ -133,10 +138,12 @@ def create_stats_router(store: TraceStore) -> APIRouter:
             agent_stats[agent]["cost"] += t.get("total_cost_usd", 0)
             agent_stats[agent]["spans"] += t.get("span_count", 0)
 
-        return JSONResponse({
-            **basic,
-            "agent_breakdown": agent_stats,
-        })
+        return JSONResponse(
+            {
+                **basic,
+                "agent_breakdown": agent_stats,
+            }
+        )
 
     @router.get("/v1/patterns/summary")
     async def patterns_summary(
@@ -163,7 +170,9 @@ def create_stats_router(store: TraceStore) -> APIRouter:
 
     @router.get("/v1/feedback/recent")
     async def feedback_recent(
-        limit: int = Query(10, ge=1, le=100, description="Max number of feedback entries to return"),
+        limit: int = Query(
+            10, ge=1, le=100, description="Max number of feedback entries to return"
+        ),
     ) -> list[dict[str, Any]]:
         """Return the most recent feedback entries across all traces, newest first."""
         try:

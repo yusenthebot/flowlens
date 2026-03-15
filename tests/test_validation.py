@@ -17,6 +17,7 @@ Covers:
 - Integration: ingest endpoint rejects invalid traces (422)
 - Integration: import endpoint skips invalid traces
 """
+
 from __future__ import annotations
 
 import json
@@ -37,6 +38,7 @@ from flowlens.server.validation import (
 # ===========================================================================
 # Helpers
 # ===========================================================================
+
 
 def _make_span(
     span_id: str = "s1",
@@ -84,6 +86,7 @@ def _make_trace(
 # ===========================================================================
 # Unit tests for validate_trace()
 # ===========================================================================
+
 
 class TestValidTracePassesValidation:
     """A well-formed trace should pass without errors."""
@@ -281,9 +284,11 @@ class TestSpanCountExceedingLimitFails:
         importlib.reload(val_module)
 
         # 6 spans should now fail
-        spans = [val_module._make_span_for_test(i) for i in range(6)] if hasattr(val_module, "_make_span_for_test") else [
-            {"span_id": f"s{i}", "name": f"span-{i}", "kind": "tool"} for i in range(6)
-        ]
+        spans = (
+            [val_module._make_span_for_test(i) for i in range(6)]
+            if hasattr(val_module, "_make_span_for_test")
+            else [{"span_id": f"s{i}", "name": f"span-{i}", "kind": "tool"} for i in range(6)]
+        )
         trace = {"trace_id": "t1", "spans": spans}
         ok, err = val_module.validate_trace(trace)
         assert ok is False
@@ -430,6 +435,7 @@ class TestCheckPayloadSize:
 # Integration tests — HTTP endpoint behaviour
 # ===========================================================================
 
+
 @pytest.fixture()
 def client(tmp_path):
     """TestClient backed by a fresh temporary DB."""
@@ -523,10 +529,7 @@ class TestImportEndpointValidation:
 
     def test_valid_jsonl_all_imported(self, import_client):
         client, tmp_path = import_client
-        lines = [
-            json.dumps(_make_trace(f"t{i}"))
-            for i in range(3)
-        ]
+        lines = [json.dumps(_make_trace(f"t{i}")) for i in range(3)]
         jsonl_file = tmp_path / "valid.jsonl"
         jsonl_file.write_text("\n".join(lines))
 

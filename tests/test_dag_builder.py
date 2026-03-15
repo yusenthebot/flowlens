@@ -1,4 +1,5 @@
 """Tests for flowlens/analysis/dag_builder.py — DAG construction and root cause identification."""
+
 from __future__ import annotations
 
 import time
@@ -14,6 +15,7 @@ from flowlens.sdk.models import Span, SpanKind, SpanStatus, Trace
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _span(
     name: str,
@@ -51,6 +53,7 @@ def _trace_with_spans(*spans: Span) -> Trace:
 # Empty trace
 # ---------------------------------------------------------------------------
 
+
 class TestEmptyTrace:
     def test_empty_trace_returns_empty_dag(self):
         trace = Trace(service_name="empty")
@@ -69,6 +72,7 @@ class TestEmptyTrace:
 # ---------------------------------------------------------------------------
 # Single-node DAG
 # ---------------------------------------------------------------------------
+
 
 class TestSingleNodeDAG:
     def test_single_ok_span(self):
@@ -99,6 +103,7 @@ class TestSingleNodeDAG:
 # ---------------------------------------------------------------------------
 # Simple linear DAG (A → B → C, no errors)
 # ---------------------------------------------------------------------------
+
 
 class TestLinearDAG:
     def test_linear_no_errors(self):
@@ -145,6 +150,7 @@ class TestLinearDAG:
 # Branching / merging DAG
 # ---------------------------------------------------------------------------
 
+
 class TestBranchingDAG:
     def test_parallel_branches_independent_errors(self):
         root = _span("root", SpanKind.AGENT, SpanStatus.OK, offset=0.0)
@@ -180,14 +186,14 @@ class TestBranchingDAG:
         # There should be a "caused_by" edge from root → child
         caused_by_edges = [e for e in dag.edges if e.relation == "caused_by"]
         assert any(
-            e.source_id == root.span_id and e.target_id == child.span_id
-            for e in caused_by_edges
+            e.source_id == root.span_id and e.target_id == child.span_id for e in caused_by_edges
         )
 
 
 # ---------------------------------------------------------------------------
 # Circular dependency handling
 # ---------------------------------------------------------------------------
+
 
 class TestCircularDependency:
     def test_no_infinite_loop_with_shared_parent_key(self):
@@ -230,6 +236,7 @@ class TestCircularDependency:
 # ---------------------------------------------------------------------------
 # Root cause identification
 # ---------------------------------------------------------------------------
+
 
 class TestRootCauseIdentification:
     def test_multiple_independent_root_causes(self):
@@ -291,7 +298,13 @@ class TestRootCauseIdentification:
         dag = build_causal_dag(trace)
 
         stats = dag.summary_stats()
-        for key in ("total_nodes", "total_errors", "root_cause_count", "cascade_depth", "patterns_found"):
+        for key in (
+            "total_nodes",
+            "total_errors",
+            "root_cause_count",
+            "cascade_depth",
+            "patterns_found",
+        ):
             assert key in stats
 
     def test_dag_to_dict_round_trip(self):

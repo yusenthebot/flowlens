@@ -68,9 +68,7 @@ class CostForecast:
 # ---------------------------------------------------------------------------
 
 
-def _linear_regression(
-    x: list[float], y: list[float]
-) -> tuple[float, float, float]:
+def _linear_regression(x: list[float], y: list[float]) -> tuple[float, float, float]:
     """
     Fit y = slope * x + intercept using OLS.
 
@@ -101,9 +99,7 @@ def _linear_regression(
     return slope, intercept, r_squared
 
 
-def _residual_std(
-    x: list[float], y: list[float], slope: float, intercept: float
-) -> float:
+def _residual_std(x: list[float], y: list[float], slope: float, intercept: float) -> float:
     """Standard error of regression residuals."""
     n = len(x)
     if n < 3:

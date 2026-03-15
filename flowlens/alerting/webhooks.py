@@ -172,9 +172,7 @@ async def send_webhook(
             async with httpx.AsyncClient(timeout=timeout) as client:
                 resp = await client.post(url, json=payload)
                 if resp.status_code < 300:
-                    logger.debug(
-                        "Webhook delivered to %s (status %d)", url, resp.status_code
-                    )
+                    logger.debug("Webhook delivered to %s (status %d)", url, resp.status_code)
                     return True
                 logger.warning(
                     "Webhook attempt %d to %s returned HTTP %d",
