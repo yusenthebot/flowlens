@@ -1,6 +1,137 @@
 /* FlowLens Dashboard — WebSocket real-time update handling */
 'use strict';
 
+// =========================================================================
+// Smart Notification State — Burst, Error-Rate, Cost-Anomaly tracking
+// =========================================================================
+
+/**
+ * Per-agent ring buffer of recent trace timestamps (epoch seconds).
+ * Used for burst detection: >5 traces in the last 60s fires a notification.
+ * Map<agentName, number[]>
+ */
+const _agentTraceTimes = new Map();
+
+/**
+ * Per-agent ring buffer of the last 10 trace outcomes (boolean: true = error).
+ * Used for error-rate change detection.
+ * Map<agentName, boolean[]>
+ */
+const _agentTraceErrors = new Map();
+/** Last error-rate notified per agent so we don't re-fire every trace. */
+const _agentLastErrorRateNotif = new Map();
+
+/**
+ * Rolling 60-minute cost window: array of { ts, cost } records.
+ * Used for cost-anomaly detection: current-hour cost vs baseline.
+ */
+const _costWindow = [];
+/** Smoothed baseline cost-per-hour (EMA, α=0.2). Updated each full minute. */
+let _costBaseline = null;
+/** Timestamp (ms) of last cost-anomaly notification — throttle to 1 per 5 min. */
+let _lastCostNotifMs = 0;
+
+/**
+ * Push a new trace event into the smart-notification tracking state and
+ * fire any appropriate notifications.
+ *
+ * @param {object} traceData  Raw trace payload from the WS message.
+ */
+function _smartNotify(traceData) {
+  const now = Date.now() / 1000; // epoch seconds
+  const agentName = traceData.service_name || 'unknown';
+  const hasError   = !!traceData.has_errors;
+  const traceCost  = traceData.total_cost || traceData.cost || 0;
+  const traceId    = traceData.trace_id || null;
+
+  // --- 1. Burst detection -------------------------------------------
+  if (!_agentTraceTimes.has(agentName)) _agentTraceTimes.set(agentName, []);
+  const times = _agentTraceTimes.get(agentName);
+  times.push(now);
+  // Evict entries older than 60 seconds
+  const cutoff60 = now - 60;
+  while (times.length > 0 && times[0] < cutoff60) times.shift();
+
+  if (times.length >= 5) {
+    // Check if this specific count crossed the threshold (fire once per 5-count step)
+    if (times.length % 5 === 0) {
+      addNotification(
+        'info',
+        `Burst: ${agentName}`,
+        `${agentName} completed ${times.length} traces in the last minute`,
+        traceId
+      );
+    }
+  }
+
+  // --- 2. Error-rate spike detection ---------------------------------
+  if (!_agentTraceErrors.has(agentName)) _agentTraceErrors.set(agentName, []);
+  const errors = _agentTraceErrors.get(agentName);
+  errors.push(hasError);
+  // Keep only the last 10 outcomes
+  if (errors.length > 10) errors.shift();
+
+  if (errors.length >= 5) {
+    const errorCount = errors.filter(Boolean).length;
+    const errorRate  = errorCount / errors.length; // 0..1
+    const lastRate   = _agentLastErrorRateNotif.get(agentName) || 0;
+
+    // Fire if rate ≥ 40% AND it increased meaningfully vs last notified rate
+    if (errorRate >= 0.4 && errorRate >= lastRate + 0.15) {
+      _agentLastErrorRateNotif.set(agentName, errorRate);
+      addNotification(
+        'warning',
+        `Error spike: ${agentName}`,
+        `${agentName}'s error rate spiked to ${Math.round(errorRate * 100)}% in the last ${errors.length} traces`,
+        traceId
+      );
+    } else if (errorRate < 0.15 && lastRate >= 0.4) {
+      // Recovery — reset so a future spike can re-fire
+      _agentLastErrorRateNotif.set(agentName, errorRate);
+    }
+  }
+
+  // --- 3. Cost anomaly detection -------------------------------------
+  if (traceCost > 0) {
+    const nowMs = Date.now();
+    // Evict entries older than 1 hour
+    const cutoffMs = nowMs - 3600 * 1000;
+    while (_costWindow.length > 0 && _costWindow[0].ts < cutoffMs) _costWindow.shift();
+    _costWindow.push({ ts: nowMs, cost: traceCost });
+
+    const hourTotal = _costWindow.reduce((s, r) => s + r.cost, 0);
+
+    // Seed baseline on first data point, otherwise update EMA every minute
+    if (_costBaseline === null) {
+      _costBaseline = hourTotal;
+    } else {
+      // Update baseline roughly every 60 s (when a new trace arrives after a minute gap)
+      const lastEntry = _costWindow[_costWindow.length - 1];
+      const prevEntry = _costWindow.length > 1 ? _costWindow[_costWindow.length - 2] : null;
+      if (!prevEntry || (lastEntry.ts - prevEntry.ts) >= 60000) {
+        // EMA α=0.2: gently pull baseline toward current hour total
+        _costBaseline = 0.8 * _costBaseline + 0.2 * hourTotal;
+      }
+    }
+
+    // Fire if current hour is ≥3× baseline, baseline is meaningful (>$0.01),
+    // and we haven't notified in the last 5 minutes.
+    const notifThrottleMs = 5 * 60 * 1000;
+    if (
+      _costBaseline > 0.01 &&
+      hourTotal >= _costBaseline * 3 &&
+      nowMs - _lastCostNotifMs > notifThrottleMs
+    ) {
+      _lastCostNotifMs = nowMs;
+      addNotification(
+        'warning',
+        'Cost spike detected',
+        `Cost spike: $${hourTotal.toFixed(2)} in the last hour (${Math.round(hourTotal / _costBaseline)}x normal)`,
+        traceId
+      );
+    }
+  }
+}
 
 // =========================================================================
 // WebSocket — Real-time trace stream
@@ -199,6 +330,9 @@ function handleLiveTraceUpdate(traceData) {
 
   // Toast for new trace (existing showToast signature: message, type, duration)
   showToast(`New trace from ${traceData.service_name || 'agent'}`, 'info', 3000);
+
+  // --- Smart notification checks (burst, error-rate, cost anomaly) ---
+  _smartNotify(traceData);
 
   // --- Notification hooks ---
   const agentName = traceData.service_name || 'unknown';
