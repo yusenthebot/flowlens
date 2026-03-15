@@ -1,5 +1,14 @@
 # Agent Status — 2026-03-15
 
+## Cycle 15: Visual Polish Phase 2 — COMPLETE (Alpha, 2026-03-15)
+
+**Alpha**: Polished Sessions, Cost Analysis, Patterns, Span Detail panel, Agent Modal
+- Files: `flowlens/server/static/dashboard.css`, `flowlens/server/dashboard.html` (version bump)
+- Status: complete — 1156 tests passing (unchanged)
+- CSS additions: ~370 lines for Sessions, Cost, Patterns, Span Detail, Agent Modal in both dark+light themes
+
+---
+
 ## Cycle 14: Visual Polish — COMPLETE (Gamma, 2026-03-14)
 
 **Gamma**: Chart.js global styling + specific chart improvements + waterfall upgrades + animations + empty states

@@ -2189,3 +2189,780 @@
     .dark .doughnut-center-sub    { color: #64748b; }
     html:not(.dark) .doughnut-center-value { color: #2c2c2a; }
     html:not(.dark) .doughnut-center-sub   { color: #8a8a86; }
+
+    /* =====================================================================
+       Cycle 15: Visual Polish Phase 2
+       Sessions, Cost Analysis, Patterns, Span Detail, Agent Modal
+    ===================================================================== */
+
+    /* ---------- Sessions Tab ---------- */
+
+    /* Session list header label */
+    #view-sessions .card-section-label {
+      display: block;
+      margin-bottom: 10px;
+    }
+
+    /* Session card: warm glass with prominent project name */
+    .session-card {
+      border: 1px solid rgba(255,255,255,0.06);
+      transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+    }
+    .dark .session-card {
+      background: rgba(15, 23, 42, 0.55);
+    }
+    html:not(.dark) .session-card {
+      background: rgba(255,255,255,0.88);
+      border-color: #e8e6e1;
+    }
+    .session-card:hover {
+      border-color: rgba(107,92,231,0.35) !important;
+      box-shadow: 0 2px 12px rgba(107,92,231,0.08);
+    }
+    html:not(.dark) .session-card:hover {
+      background: rgba(255,255,255,0.97) !important;
+    }
+
+    /* Project name inside session card — prominent */
+    .session-card .session-project-name {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+    .dark .session-card .session-project-name { color: #f0eeff; }
+    html:not(.dark) .session-card .session-project-name { color: #1a1730; }
+
+    /* Agent color dots in session card (rendered via JS agent color) */
+    .session-agent-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      border: 1.5px solid rgba(255,255,255,0.2);
+    }
+    html:not(.dark) .session-agent-dot {
+      border-color: rgba(0,0,0,0.12);
+    }
+
+    /* Status indicator — colored ring */
+    .session-status-indicator {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      box-shadow: 0 0 6px currentColor;
+    }
+
+    /* Session card stat columns */
+    .session-card-stat-label {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      font-weight: 600;
+    }
+    .dark .session-card-stat-label { color: rgba(255,255,255,0.28); }
+    html:not(.dark) .session-card-stat-label { color: rgba(0,0,0,0.32); }
+
+    .session-card-stat-value {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+    .dark .session-card-stat-value { color: #f0eeff; }
+    html:not(.dark) .session-card-stat-value { color: #1a1730; }
+
+    /* Session timeline: cleaner vertical line */
+    .session-timeline-line {
+      background: linear-gradient(to bottom, var(--color-indigo-warm), rgba(107,92,231,0.08)) !important;
+      width: 2px !important;
+    }
+
+    /* Session timeline dot: larger, clearer color */
+    .session-timeline-dot {
+      width: 12px !important;
+      height: 12px !important;
+      border-width: 2px !important;
+    }
+
+    /* Session timeline content card: indigo left border when active/hovered */
+    .session-timeline-content {
+      border-left: 3px solid transparent !important;
+      padding: 14px 16px !important;
+      transition: border-left-color 0.15s ease, background-color 0.15s ease !important;
+    }
+    .session-timeline-content:hover {
+      border-left-color: var(--color-indigo-warm) !important;
+    }
+    html:not(.dark) .session-timeline-content {
+      background: rgba(255,255,255,0.88);
+    }
+
+    /* Expanded session panel: subtle left border indent */
+    #session-timeline-panel .glass {
+      border-left: 3px solid var(--color-indigo-warm);
+    }
+    html:not(.dark) #session-timeline-panel .glass {
+      background: rgba(255,255,255,0.95);
+    }
+
+    /* Session timeline section header */
+    #session-timeline-panel .px-5.py-4.border-b {
+      background: rgba(107,92,231,0.04);
+    }
+    html:not(.dark) #session-timeline-panel .px-5.py-4.border-b {
+      background: rgba(107,92,231,0.03);
+    }
+
+    /* Section label for sessions list */
+    #view-sessions .space-y-3 {
+      gap: 10px;
+    }
+
+    /* ---- light theme overrides for session tab ---- */
+    html:not(.dark) #view-sessions .text-white { color: #1a1730 !important; }
+    html:not(.dark) #view-sessions .text-slate-300 { color: #374151 !important; }
+    html:not(.dark) #view-sessions .text-slate-400 { color: #6b7280 !important; }
+    html:not(.dark) #view-sessions .text-slate-500 { color: #9ca3af !important; }
+    html:not(.dark) #view-sessions .text-slate-600 { color: #d1d5db !important; }
+    html:not(.dark) #view-sessions .text-indigo-400 { color: var(--color-indigo-warm) !important; }
+    html:not(.dark) .session-timeline-content .text-white { color: #1a1730 !important; }
+    html:not(.dark) .session-timeline-content .text-slate-300 { color: #374151 !important; }
+    html:not(.dark) .session-timeline-content .text-slate-400 { color: #6b7280 !important; }
+    html:not(.dark) .session-timeline-content .text-slate-500 { color: #9ca3af !important; }
+    html:not(.dark) .session-timeline-content .text-slate-600 { color: #d1d5db !important; }
+
+    /* ---------- Cost Analysis Tab ---------- */
+
+    /* Cost summary cards: match stat card visual style */
+    .cost-summary-card {
+      position: relative;
+      overflow: hidden;
+      border-radius: 14px !important;
+      padding: 18px 20px !important;
+      transition: box-shadow 0.2s ease, transform 0.2s ease;
+      border: 1px solid;
+    }
+    .cost-summary-card:hover {
+      transform: translateY(-1px);
+    }
+    .dark .cost-summary-card {
+      background: rgba(15,23,42,0.6) !important;
+      border-color: rgba(255,255,255,0.07) !important;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.06);
+    }
+    html:not(.dark) .cost-summary-card {
+      background: rgba(255,255,255,0.92) !important;
+      border-color: #e8e6e1 !important;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03);
+    }
+    .cost-summary-card:hover {
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+
+    /* Subtle gradient tints per card (applied to first 4 .cost-summary-card) */
+    .cost-summary-card:nth-child(1) { background: linear-gradient(135deg, rgba(129,178,154,0.06), transparent) !important; }
+    .cost-summary-card:nth-child(2) { background: linear-gradient(135deg, rgba(107,92,231,0.06), transparent) !important; }
+    .cost-summary-card:nth-child(3) { background: linear-gradient(135deg, rgba(107,92,231,0.05), transparent) !important; }
+    .cost-summary-card:nth-child(4) { background: linear-gradient(135deg, rgba(230,166,93,0.06), transparent) !important; }
+    .dark .cost-summary-card:nth-child(1) { background: linear-gradient(135deg, rgba(129,178,154,0.07), rgba(15,23,42,0.6)) !important; }
+    .dark .cost-summary-card:nth-child(2) { background: linear-gradient(135deg, rgba(107,92,231,0.08), rgba(15,23,42,0.6)) !important; }
+    .dark .cost-summary-card:nth-child(3) { background: linear-gradient(135deg, rgba(107,92,231,0.07), rgba(15,23,42,0.6)) !important; }
+    .dark .cost-summary-card:nth-child(4) { background: linear-gradient(135deg, rgba(230,166,93,0.07), rgba(15,23,42,0.6)) !important; }
+
+    .cost-summary-card .card-value {
+      font-size: 22px !important;
+      font-weight: 700 !important;
+      letter-spacing: -0.03em !important;
+      line-height: 1.15 !important;
+    }
+    .cost-summary-card .card-label {
+      font-size: 10px !important;
+      font-weight: 600 !important;
+      text-transform: uppercase !important;
+      letter-spacing: 0.07em !important;
+      margin-top: 4px !important;
+    }
+    .dark .cost-summary-card .card-label { color: rgba(255,255,255,0.3) !important; }
+    html:not(.dark) .cost-summary-card .card-label { color: rgba(0,0,0,0.35) !important; }
+
+    /* Forecast projection cards: visually distinct with gradient */
+    .forecast-projection-card {
+      border-radius: 14px !important;
+      padding: 18px 20px !important;
+      transition: box-shadow 0.2s ease, transform 0.15s ease;
+    }
+    .forecast-projection-card:hover {
+      transform: translateY(-1px);
+    }
+    /* Card 1: Monthly — indigo tint */
+    .forecast-projection-card:nth-child(1) {
+      background: linear-gradient(135deg, rgba(107,92,231,0.15), rgba(107,92,231,0.06)) !important;
+      border: 1px solid rgba(107,92,231,0.25) !important;
+    }
+    html:not(.dark) .forecast-projection-card:nth-child(1) {
+      background: linear-gradient(135deg, rgba(107,92,231,0.08), rgba(107,92,231,0.03)) !important;
+      border-color: rgba(107,92,231,0.2) !important;
+    }
+    /* Card 2: Daily — amber tint */
+    .forecast-projection-card:nth-child(2) {
+      background: linear-gradient(135deg, rgba(230,166,93,0.12), rgba(230,166,93,0.04)) !important;
+      border: 1px solid rgba(230,166,93,0.22) !important;
+    }
+    html:not(.dark) .forecast-projection-card:nth-child(2) {
+      background: linear-gradient(135deg, rgba(230,166,93,0.07), rgba(230,166,93,0.02)) !important;
+      border-color: rgba(230,166,93,0.18) !important;
+    }
+    /* Card 3: Confidence — sage tint */
+    .forecast-projection-card:nth-child(3) {
+      background: linear-gradient(135deg, rgba(129,178,154,0.12), rgba(129,178,154,0.04)) !important;
+      border: 1px solid rgba(129,178,154,0.22) !important;
+    }
+    html:not(.dark) .forecast-projection-card:nth-child(3) {
+      background: linear-gradient(135deg, rgba(129,178,154,0.07), rgba(129,178,154,0.02)) !important;
+      border-color: rgba(129,178,154,0.18) !important;
+    }
+
+    /* Forecast card value labels */
+    .forecast-projection-card .text-\[10px\].text-slate-500 {
+      font-size: 10px !important;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+
+    /* Most Expensive Traces: agent color bar left border */
+    #cost-top-traces .flex.items-center.gap-3 {
+      border-radius: 8px;
+      padding: 8px 10px !important;
+      margin: 0 -10px;
+      transition: background-color 0.15s ease;
+    }
+    .dark #cost-top-traces .flex.items-center.gap-3:hover {
+      background: rgba(255,255,255,0.03) !important;
+    }
+    html:not(.dark) #cost-top-traces .flex.items-center.gap-3:hover {
+      background: rgba(0,0,0,0.025) !important;
+    }
+
+    /* Optimization suggestions: amber left border */
+    #cost-optimization-tips .flex.items-start.gap-2 {
+      border-left: 2px solid var(--color-amber-warm);
+      padding-left: 10px;
+      margin-left: -2px;
+    }
+    html:not(.dark) #cost-optimization-tips .flex.items-start.gap-2 {
+      border-left-color: var(--color-amber-warm);
+    }
+    /* Icon box: amber tint for optimization */
+    #cost-optimization-tips .tip-icon-box,
+    #cost-optimization-tips .w-6.h-6.rounded-lg {
+      background: rgba(230,166,93,0.14) !important;
+    }
+    html:not(.dark) #cost-optimization-tips .tip-icon-box,
+    html:not(.dark) #cost-optimization-tips .w-6.h-6.rounded-lg {
+      background: rgba(230,166,93,0.10) !important;
+    }
+    /* Icon inside amber box */
+    #cost-optimization-tips .w-6.h-6.rounded-lg svg {
+      color: var(--color-amber-warm) !important;
+    }
+
+    /* Savings badge: sage green pill */
+    .cost-savings-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+      background: var(--color-sage-bg);
+      color: var(--color-sage);
+      border: 1px solid var(--color-sage-border);
+    }
+    html:not(.dark) .cost-savings-badge {
+      background: rgba(129,178,154,0.1);
+      color: #4d8b72;
+      border-color: rgba(129,178,154,0.22);
+    }
+
+    /* Make existing savings text styled like badge */
+    #cost-optimization-tips .text-emerald-400 {
+      background: rgba(129,178,154,0.12);
+      color: var(--color-sage) !important;
+      border: 1px solid rgba(129,178,154,0.22);
+      padding: 1px 7px;
+      border-radius: 999px;
+      font-size: 10px;
+    }
+    html:not(.dark) #cost-optimization-tips .text-emerald-400 {
+      color: #4d8b72 !important;
+    }
+
+    /* Cost view light mode text fixes */
+    html:not(.dark) #view-cost .text-white { color: #1a1730 !important; }
+    html:not(.dark) #view-cost .text-slate-300 { color: #374151 !important; }
+    html:not(.dark) #view-cost .text-slate-400 { color: #6b7280 !important; }
+    html:not(.dark) #view-cost .text-slate-500 { color: #9ca3af !important; }
+    html:not(.dark) #view-cost .text-slate-600 { color: #d1d5db !important; }
+    html:not(.dark) #view-cost .text-indigo-300 { color: var(--color-indigo-warm) !important; }
+    html:not(.dark) #view-cost .text-indigo-400 { color: var(--color-indigo-warm) !important; }
+    html:not(.dark) #view-cost .text-emerald-300 { color: #059669 !important; }
+    html:not(.dark) #view-cost .text-emerald-400 { color: #059669 !important; }
+    html:not(.dark) #view-cost .text-amber-400 { color: #b45309 !important; }
+
+    /* ---------- Patterns Tab ---------- */
+
+    /* Patterns view header */
+    #view-patterns h2 {
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: -0.025em;
+    }
+    .dark #view-patterns h2 { color: #f0eeff; }
+    html:not(.dark) #view-patterns h2 { color: #1a1730; }
+
+    /* Severity group pills — styled headers */
+    .pattern-group-header {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 10px;
+      margin-top: 4px;
+    }
+    .pattern-group-header-critical {
+      background: var(--color-coral-bg);
+      color: var(--color-coral);
+      border: 1px solid var(--color-coral-border);
+    }
+    .pattern-group-header-warning {
+      background: rgba(230,166,93,0.12);
+      color: var(--color-amber-warm);
+      border: 1px solid rgba(230,166,93,0.28);
+    }
+    .pattern-group-header-info {
+      background: rgba(107,92,231,0.12);
+      color: var(--color-indigo-warm);
+      border: 1px solid rgba(107,92,231,0.28);
+    }
+    html:not(.dark) .pattern-group-header-critical {
+      background: rgba(224,122,95,0.08);
+      border-color: rgba(224,122,95,0.2);
+      color: #c0563a;
+    }
+    html:not(.dark) .pattern-group-header-warning {
+      background: rgba(230,166,93,0.08);
+      border-color: rgba(230,166,93,0.2);
+      color: #9a6c1e;
+    }
+    html:not(.dark) .pattern-group-header-info {
+      background: rgba(107,92,231,0.07);
+      border-color: rgba(107,92,231,0.2);
+      color: #4f46e5;
+    }
+
+    /* Pattern cards: thicker left border, better spacing */
+    .pattern-card-critical {
+      border-left: 4px solid var(--color-coral) !important;
+      background: rgba(224,122,95,0.05) !important;
+      border-radius: 12px;
+    }
+    .pattern-card-warning {
+      border-left: 4px solid var(--color-amber-warm) !important;
+      background: rgba(230,166,93,0.05) !important;
+      border-radius: 12px;
+    }
+    .pattern-card-info {
+      border-left: 4px solid var(--color-indigo-warm) !important;
+      background: rgba(107,92,231,0.05) !important;
+      border-radius: 12px;
+    }
+    html:not(.dark) .pattern-card-critical {
+      background: rgba(224,122,95,0.04) !important;
+    }
+    html:not(.dark) .pattern-card-warning {
+      background: rgba(230,166,93,0.04) !important;
+    }
+    html:not(.dark) .pattern-card-info {
+      background: rgba(107,92,231,0.04) !important;
+    }
+
+    /* Pattern card top-level padding */
+    #patterns-list .pattern-card-critical,
+    #patterns-list .pattern-card-warning,
+    #patterns-list .pattern-card-info {
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      transition: box-shadow 0.18s ease, transform 0.15s ease;
+    }
+    #patterns-list .pattern-card-critical:hover,
+    #patterns-list .pattern-card-warning:hover,
+    #patterns-list .pattern-card-info:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 18px rgba(0,0,0,0.1);
+    }
+
+    /* "Show Code Fix" / detail section: dark code block */
+    .pattern-detail-section pre,
+    .pattern-detail-section code {
+      background: rgba(10,12,24,0.85) !important;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-family: 'SF Mono','Fira Code','JetBrains Mono','Cascadia Code','Menlo',monospace;
+      font-size: 11px;
+      line-height: 1.6;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: #c4b8ff;
+      border: 1px solid rgba(107,92,231,0.2);
+    }
+    html:not(.dark) .pattern-detail-section pre,
+    html:not(.dark) .pattern-detail-section code {
+      background: #1a1730 !important;
+      color: #c4b8ff;
+      border-color: rgba(107,92,231,0.25);
+    }
+
+    /* "View Trace" button in patterns: warm indigo pill */
+    .pattern-view-trace-btn,
+    #patterns-list .flex.items-center.gap-1.text-\[10px\].text-indigo-400 {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 600;
+      background: rgba(107,92,231,0.12);
+      color: var(--color-indigo-warm) !important;
+      border: 1px solid rgba(107,92,231,0.25);
+      transition: background-color 0.15s ease, color 0.15s ease;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .pattern-view-trace-btn:hover,
+    #patterns-list .flex.items-center.gap-1.text-\[10px\].text-indigo-400:hover {
+      background: rgba(107,92,231,0.2);
+      color: #c4b8ff !important;
+    }
+    html:not(.dark) .pattern-view-trace-btn,
+    html:not(.dark) #patterns-list .flex.items-center.gap-1.text-\[10px\].text-indigo-400 {
+      background: rgba(107,92,231,0.07);
+      color: #4f46e5 !important;
+      border-color: rgba(107,92,231,0.18);
+    }
+    html:not(.dark) .pattern-view-trace-btn:hover,
+    html:not(.dark) #patterns-list .flex.items-center.gap-1.text-\[10px\].text-indigo-400:hover {
+      background: rgba(107,92,231,0.12);
+    }
+
+    /* Estimated savings badge: sage green pill */
+    #patterns-list .text-emerald-400 {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+      background: var(--color-sage-bg) !important;
+      color: var(--color-sage) !important;
+      border: 1px solid var(--color-sage-border);
+    }
+    html:not(.dark) #patterns-list .text-emerald-400 {
+      background: rgba(129,178,154,0.1) !important;
+      color: #4d8b72 !important;
+      border-color: rgba(129,178,154,0.22);
+    }
+
+    /* Pattern count badge: match severity color */
+    .pattern-card-critical .pattern-count-badge {
+      background: rgba(224,122,95,0.15) !important;
+      color: var(--color-coral) !important;
+    }
+    .pattern-card-warning .pattern-count-badge {
+      background: rgba(230,166,93,0.15) !important;
+      color: var(--color-amber-warm) !important;
+    }
+    .pattern-card-info .pattern-count-badge {
+      background: rgba(107,92,231,0.15) !important;
+      color: var(--color-indigo-warm) !important;
+    }
+
+    /* Pattern light mode text fixes */
+    html:not(.dark) #view-patterns .text-white { color: #1a1730 !important; }
+    html:not(.dark) #view-patterns .text-slate-300 { color: #374151 !important; }
+    html:not(.dark) #view-patterns .text-slate-400 { color: #6b7280 !important; }
+    html:not(.dark) #view-patterns .text-slate-500 { color: #9ca3af !important; }
+    html:not(.dark) #view-patterns .text-red-400 { color: #c0563a !important; }
+    html:not(.dark) #view-patterns .text-amber-400 { color: #9a6c1e !important; }
+    html:not(.dark) #view-patterns .text-blue-400 { color: #4f46e5 !important; }
+    html:not(.dark) #view-patterns .text-indigo-400 { color: var(--color-indigo-warm) !important; }
+
+    /* ---------- Span Detail Panel ---------- */
+
+    /* Panel header: cleaner background */
+    #span-detail-panel > .p-5 > .flex.items-center.justify-between.mb-4 {
+      padding: 14px 16px;
+      margin: -20px -20px 16px -20px;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+    .dark #span-detail-panel > .p-5 > .flex.items-center.justify-between.mb-4 {
+      background: rgba(107,92,231,0.05);
+    }
+    html:not(.dark) #span-detail-panel > .p-5 > .flex.items-center.justify-between.mb-4 {
+      background: rgba(107,92,231,0.03);
+      border-bottom-color: rgba(0,0,0,0.07);
+    }
+
+    /* Span kind badge: colored pill style */
+    #span-detail-content .px-2.py-0\.5.text-xs.font-medium.rounded {
+      border-radius: 999px !important;
+      padding: 3px 10px !important;
+      font-size: 10px !important;
+      font-weight: 700 !important;
+      letter-spacing: 0.04em !important;
+      border: 1px solid !important;
+    }
+
+    /* Tool input/output: dark code block style */
+    #span-detail-content pre {
+      border-radius: 8px;
+    }
+    #span-detail-content .rounded-lg.overflow-hidden.border {
+      border-radius: 8px !important;
+    }
+    .dark #span-detail-content pre {
+      background: rgba(10,12,24,0.8) !important;
+      color: #c4b8ff !important;
+    }
+    html:not(.dark) #span-detail-content pre {
+      background: #1a1730 !important;
+      color: #c4b8ff !important;
+    }
+    /* Tool output: emerald tint for success results */
+    .dark #span-detail-content pre.text-emerald-300\/90 {
+      background: rgba(10,24,18,0.8) !important;
+      color: #6ee7b7 !important;
+    }
+    html:not(.dark) #span-detail-content pre.text-emerald-300\/90 {
+      background: rgba(5,20,14,0.9) !important;
+      color: #6ee7b7 !important;
+    }
+
+    /* LLM token bar: warm indigo/sage colors */
+    #span-detail-content .bg-blue-500\/60 {
+      background: var(--color-indigo-warm) !important;
+      opacity: 0.7;
+    }
+    #span-detail-content .bg-emerald-500\/60 {
+      background: var(--color-sage) !important;
+      opacity: 0.8;
+    }
+    #span-detail-content .w-2.h-2.rounded-sm.inline-block.bg-blue-500\/60 {
+      background: var(--color-indigo-warm) !important;
+    }
+    #span-detail-content .w-2.h-2.rounded-sm.inline-block.bg-emerald-500\/60 {
+      background: var(--color-sage) !important;
+    }
+
+    /* Timing bar: warm indigo fill */
+    #span-detail-content .relative.h-4.rounded {
+      background: rgba(107,92,231,0.12) !important;
+    }
+
+    /* Error section: coral background */
+    #span-detail-content .mb-4.rounded-xl.p-3.border-2 {
+      background: rgba(224,122,95,0.1) !important;
+      border-color: rgba(224,122,95,0.4) !important;
+      border-radius: 12px !important;
+    }
+    html:not(.dark) #span-detail-content .mb-4.rounded-xl.p-3.border-2 {
+      background: rgba(224,122,95,0.07) !important;
+      border-color: rgba(224,122,95,0.3) !important;
+    }
+    #span-detail-content .mb-4.rounded-xl.p-3.border-2 .text-red-400 {
+      color: var(--color-coral) !important;
+    }
+    #span-detail-content .mb-4.rounded-xl.p-3.border-2 .text-red-300 {
+      color: var(--color-coral) !important;
+      opacity: 0.9;
+    }
+
+    /* Metadata table: alternating row backgrounds */
+    #span-detail-content table tr:nth-child(even) {
+      background: rgba(255,255,255,0.025);
+    }
+    html:not(.dark) #span-detail-content table tr:nth-child(even) {
+      background: rgba(0,0,0,0.025);
+    }
+    #span-detail-content table tr {
+      border-bottom: 1px solid rgba(255,255,255,0.05) !important;
+      transition: background-color 0.1s ease;
+    }
+    html:not(.dark) #span-detail-content table tr {
+      border-bottom-color: rgba(0,0,0,0.05) !important;
+    }
+    #span-detail-content table tr:hover {
+      background: rgba(107,92,231,0.05) !important;
+    }
+    #span-detail-content table td:first-child {
+      font-weight: 500;
+    }
+    .dark #span-detail-content table td:first-child { color: rgba(255,255,255,0.45); }
+    html:not(.dark) #span-detail-content table td:first-child { color: rgba(0,0,0,0.45); }
+
+    /* Collapsible section headers in span detail */
+    #span-detail-content .collapsible-header {
+      border-radius: 8px;
+      padding: 7px 10px;
+      margin: 0 -10px;
+    }
+    .dark #span-detail-content .collapsible-header:hover {
+      background: rgba(255,255,255,0.04);
+    }
+    html:not(.dark) #span-detail-content .collapsible-header:hover {
+      background: rgba(0,0,0,0.03);
+    }
+
+    /* Span detail light mode overrides */
+    html:not(.dark) #span-detail-panel { border-left-color: #e8e6e1 !important; }
+    html:not(.dark) #span-detail-content .text-white { color: #1a1730 !important; }
+    html:not(.dark) #span-detail-content .text-slate-300 { color: #374151 !important; }
+    html:not(.dark) #span-detail-content .text-slate-400 { color: #6b7280 !important; }
+    html:not(.dark) #span-detail-content .text-slate-500 { color: #9ca3af !important; }
+    html:not(.dark) #span-detail-content .text-slate-600 { color: #d1d5db !important; }
+    html:not(.dark) #span-detail-content .text-amber-300 { color: #b45309 !important; }
+    html:not(.dark) #span-detail-content .text-emerald-300 { color: #059669 !important; }
+    html:not(.dark) #span-detail-content .text-indigo-400 { color: var(--color-indigo-warm) !important; }
+    html:not(.dark) #span-detail-content .text-indigo-300 { color: var(--color-indigo-warm) !important; }
+
+    /* ---------- Agent Detail Modal ---------- */
+
+    /* Modal overlay — warm backdrop */
+    #agent-detail-modal.shortcuts-modal-overlay {
+      background: rgba(10,8,30,0.6);
+      backdrop-filter: blur(6px) saturate(1.3);
+    }
+    html:not(.dark) #agent-detail-modal.shortcuts-modal-overlay {
+      background: rgba(30,26,60,0.35);
+    }
+
+    /* Modal container: wider, taller, more padding */
+    #agent-detail-modal .shortcuts-modal {
+      max-width: 540px !important;
+      border-radius: 20px !important;
+      padding: 0 !important;
+      overflow: hidden;
+    }
+
+    /* Modal header: gradient band */
+    #agent-detail-modal .flex.items-center.justify-between.mb-4 {
+      padding: 20px 24px 18px;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      margin-bottom: 0;
+    }
+    .dark #agent-detail-modal .flex.items-center.justify-between.mb-4 {
+      background: rgba(107,92,231,0.07);
+    }
+    html:not(.dark) #agent-detail-modal .flex.items-center.justify-between.mb-4 {
+      background: rgba(107,92,231,0.04);
+      border-bottom-color: rgba(0,0,0,0.07);
+    }
+
+    /* Modal title */
+    #agent-modal-title {
+      font-size: 16px !important;
+      font-weight: 600 !important;
+      letter-spacing: -0.02em;
+    }
+    .dark #agent-modal-title { color: #f0eeff !important; }
+    html:not(.dark) #agent-modal-title { color: #1a1730 !important; }
+
+    /* Modal body padding */
+    #agent-modal-body {
+      padding: 20px 24px 24px;
+    }
+
+    /* Modal close button: styled pill */
+    #agent-detail-modal button[onclick="closeAgentDetailModal()"] {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background-color 0.15s ease;
+    }
+    .dark #agent-detail-modal button[onclick="closeAgentDetailModal()"] {
+      background: rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.4);
+    }
+    .dark #agent-detail-modal button[onclick="closeAgentDetailModal()"]:hover {
+      background: rgba(224,122,95,0.15);
+      color: var(--color-coral);
+    }
+    html:not(.dark) #agent-detail-modal button[onclick="closeAgentDetailModal()"] {
+      background: rgba(0,0,0,0.05);
+      color: rgba(0,0,0,0.4);
+    }
+    html:not(.dark) #agent-detail-modal button[onclick="closeAgentDetailModal()"]:hover {
+      background: rgba(224,122,95,0.1);
+      color: var(--color-coral);
+    }
+
+    /* Agent modal stats: horizontal layout with dividers */
+    #agent-modal-body .grid {
+      gap: 16px !important;
+    }
+    #agent-modal-body .glass,
+    #agent-modal-body .rounded-lg {
+      border-radius: 12px !important;
+    }
+
+    /* Agent modal avatar: larger */
+    #agent-modal-body .w-12.h-12,
+    #agent-modal-body .w-14.h-14 {
+      width: 60px !important;
+      height: 60px !important;
+      font-size: 22px !important;
+    }
+
+    /* Agent modal metric rows */
+    #agent-modal-body .text-xs.font-medium {
+      font-size: 12px !important;
+    }
+    #agent-modal-body .text-lg.font-bold {
+      font-size: 18px !important;
+      letter-spacing: -0.03em !important;
+    }
+
+    /* Agent modal light mode text */
+    html:not(.dark) #agent-detail-modal .shortcuts-modal {
+      background: rgba(255,255,255,0.98) !important;
+    }
+    html:not(.dark) #agent-modal-body .text-white { color: #1a1730 !important; }
+    html:not(.dark) #agent-modal-body .text-slate-200 { color: #374151 !important; }
+    html:not(.dark) #agent-modal-body .text-slate-300 { color: #374151 !important; }
+    html:not(.dark) #agent-modal-body .text-slate-400 { color: #6b7280 !important; }
+    html:not(.dark) #agent-modal-body .text-slate-500 { color: #9ca3af !important; }
+    html:not(.dark) #agent-modal-body .text-slate-600 { color: #d1d5db !important; }
+
+    /* ---------- General spacing consistency: Cost + Patterns sections ---------- */
+    #view-cost .glass.rounded-xl {
+      margin-bottom: 16px;
+    }
+    #view-cost .grid.grid-cols-1.lg\:grid-cols-2 {
+      gap: 16px;
+    }
+    #view-patterns .glass.rounded-xl {
+      margin-bottom: 10px;
+    }
