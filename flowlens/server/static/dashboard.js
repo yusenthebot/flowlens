@@ -906,7 +906,8 @@ async function loadAgentData() {
       // Mini activity bar: 24 dots representing last 24h — taller + fully rounded
       const activityDots = [];
       for (let h = 0; h < 24; h++) {
-        const hasActivity = activity && activity.hourly_counts ? (activity.hourly_counts[h] || 0) > 0 : (Math.random() < Math.min(0.7, (a.trace_count || 1) / 100));
+        // Only show real data: hourly_counts from API, or show all inactive if unavailable
+        const hasActivity = activity && activity.hourly_counts ? (activity.hourly_counts[h] || 0) > 0 : false;
         const dotColor = hasActivity ? (isActive ? '#81b29a' : '#6b5ce7') : (isDarkTheme ? '#1e293b' : '#e2e8f0');
         const dotOpacity = hasActivity ? '1' : '0.5';
         activityDots.push(`<span class="activity-dot-v14" style="background:${dotColor};opacity:${dotOpacity}" title="Hour ${h}"></span>`);
@@ -1418,6 +1419,12 @@ function formatTimeAgo(timestamp) {
 
 /** Build a smart one-line summary from spans array (e.g. "3 Read, 2 Bash, 1 Edit") */
 function buildTraceSummary(trace) {
+  // Prefer tool_summary from API when available
+  const toolSummary = trace.tool_summary || [];
+  if (toolSummary.length > 0) {
+    return toolSummary.slice(0, 4).map(ts => `${ts.count} ${ts.tool}`).join(', ');
+  }
+
   const spans = trace.spans || [];
   if (spans.length === 0 && (trace.span_count || 0) === 0) return null;
 
@@ -1454,6 +1461,14 @@ function _toolPillClass(toolName) {
 
 /** Build colored tool pill HTML from span counts (top 4) */
 function buildToolPillsHtml(trace) {
+  // Prefer tool_summary from API (lightweight span summary) over full spans array
+  const toolSummary = trace.tool_summary || [];
+  if (toolSummary.length > 0) {
+    return toolSummary.slice(0, 4)
+      .map(ts => `<span class="tool-pill ${_toolPillClass(ts.tool)}">${ts.count} ${escHtml(ts.tool)}</span>`)
+      .join('');
+  }
+
   const spans = trace.spans || [];
   if (spans.length === 0) return '';
   const toolCounts = {};

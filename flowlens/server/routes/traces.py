@@ -383,6 +383,20 @@ def create_traces_router(
         except Exception:
             logger.exception("Failed to list traces")
             raise HTTPException(500, "Failed to retrieve traces")
+
+        # Enrich traces with lightweight span tool summaries for the dashboard.
+        # This avoids sending full span data while still enabling tool pills.
+        try:
+            trace_ids = [t["trace_id"] for t in traces if t.get("span_count", 0) > 0]
+            if trace_ids:
+                tool_summaries = store.get_span_tool_summaries(trace_ids)
+                for t in traces:
+                    tid = t["trace_id"]
+                    if tid in tool_summaries:
+                        t["tool_summary"] = tool_summaries[tid]
+        except Exception:
+            pass  # Non-critical: tool summaries are a UI convenience
+
         return TraceListResponse(traces=traces, total=len(traces), limit=limit, offset=offset)
 
     @router.get("/v1/traces/{trace_id}/dag")

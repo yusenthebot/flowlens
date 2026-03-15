@@ -720,12 +720,28 @@ async function loadCostData() {
 function _renderModelCostChart(canvasId, byModel) {
   if (chartInstances[canvasId]) { chartInstances[canvasId].destroy(); delete chartInstances[canvasId]; }
   const canvas = document.getElementById(canvasId);
-  if (!canvas || !byModel || byModel.length === 0) return;
+  if (!canvas || !byModel) return;
 
-  const sorted = [...byModel].sort((a, b) => (b.total_cost_usd || 0) - (a.total_cost_usd || 0));
+  // byModel may be an object {model_name: {cost, tokens, count}} or an array
+  let modelArray;
+  if (Array.isArray(byModel)) {
+    modelArray = byModel;
+  } else if (typeof byModel === 'object') {
+    modelArray = Object.entries(byModel).map(([model, data]) => ({
+      model,
+      total_cost_usd: data.cost || data.total_cost_usd || 0,
+      total_tokens: data.tokens || data.total_tokens || 0,
+      count: data.count || 0,
+    }));
+  } else {
+    return;
+  }
+  if (modelArray.length === 0) return;
+
+  const sorted = [...modelArray].sort((a, b) => (b.count || b.total_cost_usd || 0) - (a.count || a.total_cost_usd || 0));
   const labels = sorted.map(m => m.model || m.dimension || 'unknown');
-  const costs = sorted.map(m => m.total_cost_usd || 0);
-  const tokens = sorted.map(m => m.total_tokens || 0);
+  const costs = sorted.map(m => m.total_cost_usd || m.cost || 0);
+  const tokens = sorted.map(m => m.total_tokens || m.tokens || 0);
 
   // Warm color palette for models
   const MODEL_COLORS = ['#6b5ce7', '#e07a5f', '#81b29a', '#e6a65d', '#a78bfa', '#9ca3af'];
@@ -733,10 +749,15 @@ function _renderModelCostChart(canvasId, byModel) {
   const borders = labels.map((_, i) => MODEL_COLORS[i % MODEL_COLORS.length]);
   const tc = _chartTickColor();
   const tt = _chartTooltipConfig();
+  const counts = sorted.map(m => m.count || 0);
+
+  // Use call counts as chart data when all costs are zero (common for span-level model tracking)
+  const hasCostData = costs.some(c => c > 0);
+  const chartData = hasCostData ? costs : counts;
 
   chartInstances[canvasId] = new Chart(canvas.getContext('2d'), {
     type: 'doughnut',
-    data: { labels, datasets: [{ data: costs, backgroundColor: colors, borderColor: borders, borderWidth: 1.5, borderRadius: 4, hoverOffset: 8 }] },
+    data: { labels, datasets: [{ data: chartData, backgroundColor: colors, borderColor: borders, borderWidth: 1.5, borderRadius: 4, hoverOffset: 8 }] },
     options: {
       responsive: true,
       maintainAspectRatio: false,
@@ -748,9 +769,13 @@ function _renderModelCostChart(canvasId, byModel) {
           callbacks: {
             label: (ctx) => {
               const idx = ctx.dataIndex;
-              const total = costs.reduce((s, c) => s + c, 0);
-              const pct = total > 0 ? ((costs[idx] / total) * 100).toFixed(1) : 0;
-              return ` $${costs[idx].toFixed(6)} (${pct}%) | ${tokens[idx].toLocaleString()} tokens`;
+              const total = chartData.reduce((s, c) => s + c, 0);
+              const pct = total > 0 ? ((chartData[idx] / total) * 100).toFixed(1) : 0;
+              const costStr = `$${costs[idx].toFixed(6)}`;
+              const callStr = `${counts[idx].toLocaleString()} calls`;
+              return hasCostData
+                ? ` ${costStr} (${pct}%) | ${tokens[idx].toLocaleString()} tokens`
+                : ` ${callStr} (${pct}%) | ${costStr}`;
             }
           }
         }
@@ -758,9 +783,16 @@ function _renderModelCostChart(canvasId, byModel) {
       animation: { duration: 600, easing: 'easeOutQuart' },
     }
   });
-  // Center label: total
+  // Center label: total cost, or total call count if costs are all zero
   const modelTotal = costs.reduce((s, c) => s + c, 0);
-  _addDoughnutCenterLabel(canvasId, `$${modelTotal.toFixed(4)}`, 'total');
+  const totalCalls = sorted.reduce((s, m) => s + (m.count || 0), 0);
+  if (modelTotal > 0) {
+    _addDoughnutCenterLabel(canvasId, `$${modelTotal.toFixed(4)}`, 'total');
+  } else if (totalCalls > 0) {
+    _addDoughnutCenterLabel(canvasId, totalCalls.toLocaleString(), 'calls');
+  } else {
+    _addDoughnutCenterLabel(canvasId, `$${modelTotal.toFixed(4)}`, 'total');
+  }
 }
 
 function _renderTopExpensiveTraces(traces) {

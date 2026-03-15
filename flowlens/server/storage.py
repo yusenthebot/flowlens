@@ -1265,6 +1265,63 @@ class TraceStore:
         self._pool.close_all()
 
     # ------------------------------------------------------------------
+    # Span tool summaries (lightweight, for trace list enrichment)
+    # ------------------------------------------------------------------
+
+    def get_span_tool_summaries(self, trace_ids: list[str]) -> dict[str, list[dict[str, Any]]]:
+        """Return per-trace tool usage summaries from spans.
+
+        For each trace, returns a list of {tool, count} dicts sorted by
+        count descending (top 6 tools).  This is much lighter than sending
+        full span arrays and enables the dashboard to render tool pills in
+        the trace list view.
+
+        Args:
+            trace_ids: List of trace IDs to summarise.
+
+        Returns:
+            Dict mapping trace_id to list of {tool: str, count: int}.
+        """
+        if not trace_ids:
+            return {}
+
+        conn = self._pool.primary
+        # Batch query: count span names grouped by trace_id
+        placeholders = ",".join("?" for _ in trace_ids)
+        rows = conn.execute(
+            f"""SELECT trace_id, name, COUNT(*) AS cnt
+                FROM spans
+                WHERE trace_id IN ({placeholders})
+                GROUP BY trace_id, name
+                ORDER BY trace_id, cnt DESC""",
+            trace_ids,
+        ).fetchall()
+
+        result: dict[str, list[dict[str, Any]]] = {}
+        for row in rows:
+            tid = row[0] if isinstance(row, tuple) else row["trace_id"]
+            name = row[1] if isinstance(row, tuple) else row["name"]
+            cnt = row[2] if isinstance(row, tuple) else row["cnt"]
+            # Extract tool name from "agent/Tool" format
+            slash = (name or "").rfind("/")
+            tool = name[slash + 1 :] if slash >= 0 else (name or "span")
+            if tid not in result:
+                result[tid] = []
+            # Merge same tool names (e.g. "vr-alpha/Read" and "vr-beta/Read" -> "Read")
+            existing = next((e for e in result[tid] if e["tool"] == tool), None)
+            if existing:
+                existing["count"] += cnt
+            else:
+                result[tid].append({"tool": tool, "count": cnt})
+
+        # Sort each trace's tools by count descending and limit to top 6
+        for tid in result:
+            result[tid].sort(key=lambda x: x["count"], reverse=True)
+            result[tid] = result[tid][:6]
+
+        return result
+
+    # ------------------------------------------------------------------
     # Session grouping queries
     # ------------------------------------------------------------------
 
@@ -1328,6 +1385,32 @@ class TraceStore:
                         project = tags.get("project", "")
                 except (json.JSONDecodeError, AttributeError):
                     pass
+
+            # If no agents found from tags, extract from span attributes.
+            # This handles traces from claude-code hooks where agent names
+            # are in span attributes (agent.name) rather than trace tags.
+            if not agents:
+                session_id = d["session_id"]
+                try:
+                    span_rows = conn.execute(
+                        """SELECT DISTINCT
+                               json_extract(attributes_json, '$."agent.name"') AS agent_name
+                           FROM spans
+                           WHERE trace_id IN (
+                               SELECT trace_id FROM traces
+                               WHERE session_id = ?
+                           )
+                           AND json_extract(attributes_json, '$."agent.name"') IS NOT NULL
+                           AND json_extract(attributes_json, '$."agent.name"') != ''
+                           LIMIT 20""",
+                        (session_id,),
+                    ).fetchall()
+                    for sr in span_rows:
+                        aname = sr[0] if isinstance(sr, tuple) else sr["agent_name"]
+                        if aname and aname not in agents:
+                            agents.append(aname)
+                except Exception:
+                    pass  # Non-critical: skip if spans table doesn't exist
 
             services_raw = d.pop("services", "") or ""
             # Use first service_name as project fallback
