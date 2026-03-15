@@ -28,6 +28,22 @@
 
 # Agent Status — 2026-03-15
 
+## Cycle 24: API Enrichment — COMPLETE (Beta, 2026-03-15)
+
+**Beta**: Enhanced API layer with richer data for the dashboard
+- Branch: `worktree-agent-a328be41`
+- Commit: 0091c84
+- Tests: 1170 passing (14 new tests added)
+- CI: ruff, black, mypy all pass
+- Delivered:
+  - `/v1/agents/summary`: added `models_used` dict (calls + cost per model from `gen_ai.request.model` span attributes) and `top_tools` list (sorted descending by call count)
+  - `/v1/activity/stream`: added `file_path`, `command`, `model` fields parsed from `span.attributes['tool.input']` and `gen_ai.request.model`; keys omitted when absent
+  - NEW `/v1/agents/{agent_name}/timeline`: chronological tool-call events for a specific agent; supports `limit` param; extracts `file_path`, `command`, `model` per event
+  - `/health`: bumped version from `"0.5.0"` to `"1.0.0"`
+- Files: `flowlens/server/routes/agents.py`, `flowlens/server/routes/system.py`, `tests/test_server.py`
+
+---
+
 ## Cycle 23: UI Animation Polish — COMPLETE (Gamma, 2026-03-15)
 
 **Gamma**: Final polish pass — animations, transitions, micro-interactions

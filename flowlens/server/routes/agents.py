@@ -7,6 +7,7 @@ Endpoints:
 - GET /v1/agents/profiles
 - GET /v1/agents/relationships
 - GET /v1/agents/network
+- GET /v1/agents/{agent_name}/timeline
 """
 
 from __future__ import annotations
@@ -30,13 +31,64 @@ def create_agents_router(store: TraceStore) -> APIRouter:
     """Create and return the agents router."""
     router = APIRouter()
 
+    def _make_agent_bucket(agent_name: str) -> dict[str, Any]:
+        """Create a fresh per-agent stats accumulator."""
+        return {
+            "agent": agent_name,
+            "trace_count": 0,
+            "error_count": 0,
+            "total_duration_ms": 0.0,
+            "total_cost_usd": 0.0,
+            "total_spans": 0,
+            # models_used: {model_name: {"calls": int, "cost": float}}
+            "models_used": {},
+            # tool_counts: {tool_name: count}
+            "tool_counts": {},
+        }
+
+    def _accumulate_trace_into_bucket(
+        bucket: dict[str, Any],
+        trace: dict[str, Any],
+        spans: list[dict[str, Any]],
+    ) -> None:
+        """Accumulate trace-level + span-level metrics into a bucket."""
+        bucket["trace_count"] += 1
+        if trace.get("has_errors"):
+            bucket["error_count"] += 1
+        bucket["total_duration_ms"] += trace.get("duration_ms") or 0.0
+        bucket["total_cost_usd"] += trace.get("total_cost_usd") or 0.0
+        bucket["total_spans"] += trace.get("span_count") or 0
+
+        # Aggregate per-span model usage and tool counts
+        for span in spans:
+            attrs = span.get("attributes") or {}
+            span_name: str = span.get("name") or ""
+            # Determine tool name (strip "agent/" prefix)
+            tool_name = span_name.split("/")[-1] if "/" in span_name else span_name
+            if tool_name:
+                bucket["tool_counts"][tool_name] = bucket["tool_counts"].get(tool_name, 0) + 1
+
+            # Model usage: look for gen_ai.request.model attribute
+            model = attrs.get("gen_ai.request.model") or attrs.get("llm.model") or ""
+            if model:
+                span_cost = 0.0
+                tok = span.get("token_usage") or {}
+                if isinstance(tok, dict):
+                    span_cost = float(tok.get("total_cost_usd") or 0.0)
+                if model not in bucket["models_used"]:
+                    bucket["models_used"][model] = {"calls": 0, "cost": 0.0}
+                bucket["models_used"][model]["calls"] += 1
+                bucket["models_used"][model]["cost"] = round(
+                    bucket["models_used"][model]["cost"] + span_cost, 8
+                )
+
     @router.get("/v1/agents/summary")
     async def agents_summary() -> JSONResponse:
         """Aggregate trace statistics grouped by agent name.
 
         Extracts agent info from trace tags (tags.agent) or span attributes.
         Returns a list of agent summaries with trace count, error rate,
-        avg latency, total cost, and span count.
+        avg latency, total cost, span count, per-model usage, and top tools.
         """
         try:
             traces = store.list_traces(limit=10_000)
@@ -51,53 +103,34 @@ def create_agents_router(store: TraceStore) -> APIRouter:
             tags = _parse_tags(trace.get("tags") or {})
             agent_name: str = tags.get("agent") or "unknown"
 
+            # Fetch full trace once to get spans (needed for model/tool aggregation)
+            full = store.get_trace(trace["trace_id"])
+            spans: list[dict[str, Any]] = (full or {}).get("spans") or []
+
             # If still unknown, check span attributes for agent.name
-            if agent_name == "unknown":
-                full = store.get_trace(trace["trace_id"])
-                if full and full.get("spans"):
-                    found = _extract_agents_from_trace(trace, full["spans"])
-                    found.discard("unknown")
-                    if found:
-                        # Attribute this trace to ALL agents found in spans
-                        for a in found:
-                            if a not in agent_stats:
-                                agent_stats[a] = {
-                                    "agent": a,
-                                    "trace_count": 0,
-                                    "error_count": 0,
-                                    "total_duration_ms": 0.0,
-                                    "total_cost_usd": 0.0,
-                                    "total_spans": 0,
-                                }
-                            bucket = agent_stats[a]
-                            bucket["trace_count"] += 1
-                            if trace.get("has_errors"):
-                                bucket["error_count"] += 1
-                            bucket["total_duration_ms"] += trace.get("duration_ms") or 0.0
-                            bucket["total_cost_usd"] += trace.get("total_cost_usd") or 0.0
-                            bucket["total_spans"] += trace.get("span_count") or 0
-                        continue
+            if agent_name == "unknown" and spans:
+                found = _extract_agents_from_trace(trace, spans)
+                found.discard("unknown")
+                if found:
+                    # Attribute this trace to ALL agents found in spans
+                    for a in found:
+                        if a not in agent_stats:
+                            agent_stats[a] = _make_agent_bucket(a)
+                        _accumulate_trace_into_bucket(agent_stats[a], trace, spans)
+                    continue
 
             if agent_name not in agent_stats:
-                agent_stats[agent_name] = {
-                    "agent": agent_name,
-                    "trace_count": 0,
-                    "error_count": 0,
-                    "total_duration_ms": 0.0,
-                    "total_cost_usd": 0.0,
-                    "total_spans": 0,
-                }
-            bucket = agent_stats[agent_name]
-            bucket["trace_count"] += 1
-            if trace.get("has_errors"):
-                bucket["error_count"] += 1
-            bucket["total_duration_ms"] += trace.get("duration_ms") or 0.0
-            bucket["total_cost_usd"] += trace.get("total_cost_usd") or 0.0
-            bucket["total_spans"] += trace.get("span_count") or 0
+                agent_stats[agent_name] = _make_agent_bucket(agent_name)
+            _accumulate_trace_into_bucket(agent_stats[agent_name], trace, spans)
 
         result = []
         for bucket in agent_stats.values():
             tc = bucket["trace_count"]
+            # Build sorted top_tools list
+            top_tools = sorted(
+                [{"name": t, "count": c} for t, c in bucket["tool_counts"].items()],
+                key=lambda x: -x["count"],
+            )
             result.append(
                 {
                     "agent": bucket["agent"],
@@ -107,6 +140,8 @@ def create_agents_router(store: TraceStore) -> APIRouter:
                     "avg_duration_ms": round(bucket["total_duration_ms"] / tc, 2) if tc else 0.0,
                     "total_cost_usd": round(bucket["total_cost_usd"], 6),
                     "total_spans": bucket["total_spans"],
+                    "models_used": bucket["models_used"],
+                    "top_tools": top_tools,
                 }
             )
 
@@ -428,5 +463,108 @@ def create_agents_router(store: TraceStore) -> APIRouter:
 
         edges = rel_data.get("edges", [])
         return JSONResponse({"nodes": nodes, "edges": edges})
+
+    @router.get("/v1/agents/{agent_name}/timeline")
+    async def agent_timeline(agent_name: str, limit: int = 100) -> JSONResponse:
+        """Return chronological tool calls for a specific agent.
+
+        Scans recent traces attributed to the given agent and returns a flat
+        list of span events ordered by start_time ascending (oldest first).
+        Each event includes the tool name, optional file path (for Read/Edit/
+        Write/Glob/Grep tools), optional command (for Bash), optional model
+        name (for LLM spans), duration, and status.
+
+        Query parameters:
+        - ``limit`` (int, default 100): maximum events to return.
+        """
+        limit = max(1, min(limit, 500))
+
+        try:
+            traces = store.list_traces(limit=500)
+        except Exception:
+            logger.exception("Failed to list traces for agent timeline: %s", agent_name)
+            raise HTTPException(500, "Failed to retrieve traces")
+
+        events: list[dict[str, Any]] = []
+
+        for trace_meta in traces:
+            tags = _parse_tags(trace_meta.get("tags") or {})
+            trace_agent: str = tags.get("agent") or "unknown"
+
+            # Only look at traces that might belong to this agent
+            # (direct tag match, or we'll check spans for attribute match)
+            if trace_agent != agent_name and trace_agent != "unknown":
+                continue
+
+            full = store.get_trace(trace_meta["trace_id"])
+            if not full:
+                continue
+            spans: list[dict[str, Any]] = full.get("spans") or []
+
+            for span in spans:
+                attrs = span.get("attributes") or {}
+                span_name: str = span.get("name") or ""
+
+                # Determine which agent this span belongs to
+                span_agent = (
+                    attrs.get("agent.name")
+                    or (span_name.split("/", 1)[0] if "/" in span_name else None)
+                    or trace_agent
+                )
+                if span_agent != agent_name:
+                    continue
+
+                # Extract tool name (strip agent prefix)
+                tool = span_name.split("/")[-1] if "/" in span_name else span_name
+
+                # Extract file_path from tool.input for file-based tools
+                file_path: str | None = None
+                command: str | None = None
+                model: str | None = None
+
+                tool_input = attrs.get("tool.input") or attrs.get("input") or ""
+                if isinstance(tool_input, str) and tool_input:
+                    try:
+                        tool_input = json.loads(tool_input)
+                    except (ValueError, TypeError):
+                        pass
+
+                if isinstance(tool_input, dict):
+                    # File-based tools: Read, Edit, Write, Glob, Grep
+                    file_path = (
+                        tool_input.get("file_path")
+                        or tool_input.get("path")
+                        or tool_input.get("pattern")
+                        or None
+                    )
+                    # Bash: command
+                    command = tool_input.get("command") or None
+                elif isinstance(tool_input, str) and tool_input:
+                    # Some exporters emit the raw file path as a plain string
+                    file_path = tool_input if "\n" not in tool_input else None
+
+                # Model for LLM spans
+                model = attrs.get("gen_ai.request.model") or attrs.get("llm.model") or None
+
+                event: dict[str, Any] = {
+                    "timestamp": span.get("start_time") or 0,
+                    "tool": tool,
+                    "duration_ms": span.get("duration_ms") or 0,
+                    "status": span.get("status") or "ok",
+                }
+                if file_path:
+                    event["file_path"] = file_path
+                if command:
+                    event["command"] = command
+                if model:
+                    event["model"] = model
+
+                events.append(event)
+
+        # Sort chronologically (oldest first)
+        events.sort(key=lambda e: e["timestamp"])
+        events = events[:limit]
+
+        return JSONResponse({"agent": agent_name, "events": events, "total": len(events)})
 
     return router
