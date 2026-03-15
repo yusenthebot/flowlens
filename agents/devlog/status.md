@@ -1,5 +1,21 @@
 # Agent Status — 2026-03-15
 
+## Cycle 27: Advanced Features — COMPLETE (PM/Opus, 2026-03-15)
+
+**PM (Opus)**: Four intelligent features — all client-side, no new backend endpoints
+- Commit: eb8e869
+- Branch: `feat/pm-cycle27-advanced-features`
+- Tests: 1208 passing (unchanged)
+- CI: ruff, black, mypy all pass
+- Delivered:
+  - **Smart Agent Recommendations**: contextual tips on agent cards (error rate >10%, cost >$0.05/trace, latency >30s)
+  - **Trace Comparison Insights**: automated analysis showing speed differences, cost ratios, savings projections, error resolution, token usage
+  - **Dashboard Summary Widget**: "Today's Summary" card on Overview with traces vs yesterday, top agent, common error, hourly cost comparison
+  - **Trace Bookmarks**: star icon on trace rows (localStorage), "Bookmarked" filter toggle in quick filter bar, persists across sessions
+- Files: `flowlens/server/static/dashboard.js`, `flowlens/server/static/dashboard.css`, `flowlens/server/dashboard.html`
+
+---
+
 ## Cycle 26: DB Optimization — COMPLETE (Beta, 2026-03-15)
 
 **Beta**: Eliminated N+1 queries, added batch SQL methods, added 30s TTL cache

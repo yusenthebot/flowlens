@@ -1,6 +1,16 @@
 # Task Board — FlowLens Development
 
-**Project Status: Cycle 26 complete — DB Optimization delivered (Beta)**
+**Project Status: Cycle 27 complete — Advanced Features delivered (PM/Opus)**
+
+---
+
+## Cycle 27: Complete (2026-03-15) — ADVANCED FEATURES
+
+### Done (2026-03-15)
+- [x] **Smart Agent Recommendations** — PM — Contextual tips on agent cards: error rate >10% warning, cost >$0.05/trace optimization suggestion, latency >30s bottleneck alert. Computed client-side from existing agent summary data — `flowlens/server/static/dashboard.js`, `flowlens/server/static/dashboard.css`
+- [x] **Trace Comparison Insights** — PM — Automated insights panel in compare view: speed diff with root cause (skipped steps), cost ratio + model info, savings projections at 1000 traces/month, error resolution detection, token usage comparison — `flowlens/server/static/dashboard.js`, `flowlens/server/static/dashboard.css`
+- [x] **Dashboard Summary Widget** — PM — "Today's Summary" card on Overview: traces today vs yesterday with trend arrow, top agent by activity, most common error, cost this hour vs last hour. All derived from existing trends + agent APIs — `flowlens/server/static/dashboard.js`, `flowlens/server/dashboard.html`
+- [x] **Trace Bookmarks** — PM — Star icon on trace rows stored in localStorage, "Bookmarked" filter toggle in quick filter bar with count indicator, persists across sessions — `flowlens/server/static/dashboard.js`, `flowlens/server/static/dashboard.css`
 
 ---
 

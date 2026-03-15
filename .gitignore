@@ -6,6 +6,8 @@ dist/
 build/
 .eggs/
 *.db
+*.db-shm
+*.db-wal
 traces/
 .pytest_cache/
 pytest-cache-files-*/
@@ -14,3 +16,4 @@ pytest-cache-files-*/
 .DS_Store
 .env
 *.sqlite3
+*.bak
