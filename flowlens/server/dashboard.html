@@ -42,9 +42,12 @@
       document.documentElement.classList.remove('dark');
     }
   </script>
-  <link rel="stylesheet" href="/static/dashboard.css?v=14">
+  <link rel="stylesheet" href="/static/dashboard.css?v=15">
 </head>
 <body class="min-h-screen font-sans text-slate-200 antialiased">
+
+  <!-- Skip to main content (accessibility) -->
+  <a href="#main-content" class="skip-to-content">Skip to main content</a>
 
   <!-- Toast Container -->
   <div id="toast-container" class="fixed top-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none"></div>
@@ -124,32 +127,32 @@
   <!-- Budget set bar removed — budget can be set via Cost tab -->
 
   <!-- Navigation Tabs -->
-  <nav class="max-w-[1600px] mx-auto px-6 pt-4 pb-2">
+  <nav class="max-w-[1600px] mx-auto px-6 pt-4 pb-2" role="navigation" aria-label="Main navigation">
     <div class="pill-nav-container overflow-x-auto">
-      <button onclick="switchView('overview')" data-tab="overview" class="tab-btn pill-tab tab-active ripple-btn">Overview</button>
-      <button onclick="switchView('traces')" data-tab="traces" class="tab-btn pill-tab tab-inactive ripple-btn">
+      <button onclick="switchView('overview')" data-tab="overview" class="tab-btn pill-tab tab-active ripple-btn" aria-label="Overview dashboard" aria-current="page">Overview</button>
+      <button onclick="switchView('traces')" data-tab="traces" class="tab-btn pill-tab tab-inactive ripple-btn" aria-label="Traces">
         Traces
-        <span id="tab-badge-traces" class="tab-count-badge" style="display:none;"></span>
+        <span id="tab-badge-traces" class="tab-count-badge" style="display:none;" aria-hidden="true"></span>
       </button>
-      <button onclick="switchView('sessions')" data-tab="sessions" class="tab-btn pill-tab tab-inactive ripple-btn">Sessions</button>
-      <button onclick="switchView('cost')" data-tab="cost" class="tab-btn pill-tab tab-inactive ripple-btn">Cost</button>
-      <button onclick="switchView('patterns')" data-tab="patterns" class="tab-btn pill-tab tab-inactive ripple-btn">
+      <button onclick="switchView('sessions')" data-tab="sessions" class="tab-btn pill-tab tab-inactive ripple-btn" aria-label="Sessions">Sessions</button>
+      <button onclick="switchView('cost')" data-tab="cost" class="tab-btn pill-tab tab-inactive ripple-btn" aria-label="Cost analysis">Cost</button>
+      <button onclick="switchView('patterns')" data-tab="patterns" class="tab-btn pill-tab tab-inactive ripple-btn" aria-label="Patterns">
         Patterns
-        <span id="tab-badge-patterns" class="tab-count-badge" style="display:none;"></span>
+        <span id="tab-badge-patterns" class="tab-count-badge" style="display:none;" aria-hidden="true"></span>
       </button>
-      <button onclick="switchView('compare')" data-tab="compare" class="tab-btn pill-tab tab-inactive ripple-btn">
+      <button onclick="switchView('compare')" data-tab="compare" class="tab-btn pill-tab tab-inactive ripple-btn" aria-label="Compare traces">
         Compare
-        <span id="compare-badge" class="tab-count-badge hidden">0</span>
+        <span id="compare-badge" class="tab-count-badge hidden" aria-hidden="true">0</span>
       </button>
-      <button onclick="switchView('agents')" data-tab="agents" class="tab-btn pill-tab tab-inactive ripple-btn">
+      <button onclick="switchView('agents')" data-tab="agents" class="tab-btn pill-tab tab-inactive ripple-btn" aria-label="Agents">
         Agents
-        <span id="tab-badge-agents" class="tab-count-badge" style="display:none;"></span>
+        <span id="tab-badge-agents" class="tab-count-badge" style="display:none;" aria-hidden="true"></span>
       </button>
     </div>
   </nav>
 
   <!-- Main Content -->
-  <main class="max-w-[1600px] mx-auto px-6 py-6">
+  <main id="main-content" class="max-w-[1600px] mx-auto px-6 py-6" role="main">
 
     <!-- OVERVIEW VIEW -->
     <div id="view-overview" class="view-panel view-enter">

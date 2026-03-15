@@ -1,5 +1,14 @@
 # Agent Status — 2026-03-15
 
+## Cycle 15: Visual Polish Phase 2 — IN PROGRESS (Gamma, 2026-03-14)
+
+**Gamma**: Dark/light theme consistency audit + responsive design fixes
+- Files: `flowlens/server/static/dashboard.css`, `flowlens/server/dashboard.html`, `flowlens/server/static/dashboard.js`
+- Status: in_progress
+- Tasks: CSS bug fixes (broken blocks), responsive improvements, light-mode overrides, print styles, accessibility
+
+---
+
 ## Cycle 14: Visual Polish — COMPLETE (Gamma, 2026-03-14)
 
 **Gamma**: Chart.js global styling + specific chart improvements + waterfall upgrades + animations + empty states

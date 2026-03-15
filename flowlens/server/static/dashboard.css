@@ -1311,6 +1311,8 @@
     /* Last node — no trailing gap */
     .session-timeline-node.last .session-timeline-content {
       margin-bottom: 0;
+    }
+
     /* ==================================================================       Feedback UI — Star Rating, Comment Form, Feedback Cards
        ========================================================================= */
 
@@ -1943,6 +1945,14 @@
     /* Left color bar by type */
     .toast-v14::before {
       content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      border-radius: 14px 0 0 14px;
+    }
+
     /* ========== Cycle 14: Visual Polish ========== */
 
     /* --- Skeleton loading: warm shimmer --- */
@@ -2032,8 +2042,12 @@
       left: 0;
       top: 0;
       bottom: 0;
-      width: 4px;
-      border-radius: 14px 0 0 14px;
+      width: 1px;
+      border-left: 1px dotted rgba(124,122,239,0.25);
+      pointer-events: none;
+    }
+    html:not(.dark) .wf-connector {
+      border-left-color: rgba(107,104,217,0.2);
     }
     .toast-v14.toast-success::before { background: var(--color-sage); }
     .toast-v14.toast-error::before   { background: var(--color-coral); }
@@ -2120,13 +2134,6 @@
     .toast-v14.toast-exit {
       animation: toastSlideOut 0.28s ease-in forwards;
     }
-      width: 1px;
-      border-left: 1px dotted rgba(124,122,239,0.25);
-      pointer-events: none;
-    }
-    html:not(.dark) .wf-connector {
-      border-left-color: rgba(107,104,217,0.2);
-    }
     /* Waterfall row hover expand */
     .waterfall-row {
       transition: background-color 0.15s ease, padding-top 0.12s ease, padding-bottom 0.12s ease;
@@ -2189,3 +2196,312 @@
     .dark .doughnut-center-sub    { color: #64748b; }
     html:not(.dark) .doughnut-center-value { color: #2c2c2a; }
     html:not(.dark) .doughnut-center-sub   { color: #8a8a86; }
+
+    /* ========================================================================
+       Cycle 15: Visual Polish Phase 2 — Theme Consistency + Responsive Fixes
+       ======================================================================== */
+
+    /* ---------- Light theme: hover:text-white overrides ---------- */
+    /* Tailwind hover:text-white is inappropriate in light mode */
+    html:not(.dark) .hover\:text-white:hover { color: #2c2c2a !important; }
+    html:not(.dark) .group:hover .group-hover\:text-white { color: #2c2c2a !important; }
+
+    /* ---------- Light theme: missing container and card overrides ---------- */
+
+    /* Trace detail meta panel: warm backgrounds for metric cells */
+    html:not(.dark) #detail-trace-meta .bg-surface-100\/50 {
+      background: rgba(245, 245, 240, 0.7) !important;
+      border-color: rgba(0, 0, 0, 0.06) !important;
+    }
+
+    /* Pattern cards in light mode */
+    html:not(.dark) #patterns-container .text-white,
+    html:not(.dark) #patterns-container .text-slate-300 { color: #2c2c2a !important; }
+    html:not(.dark) #patterns-container .text-slate-400 { color: #555553 !important; }
+    html:not(.dark) #patterns-container .text-slate-500 { color: #8a8a86 !important; }
+    html:not(.dark) #patterns-container .text-slate-600 { color: #aaa8a3 !important; }
+    html:not(.dark) #patterns-container .border-white\/5 { border-color: rgba(0,0,0,0.06) !important; }
+    html:not(.dark) #patterns-container .bg-surface-100\/50 { background: rgba(245,245,240,0.7) !important; }
+    html:not(.dark) .pattern-filter-btn { color: #555553 !important; border-color: #e8e6e1 !important; background: #fafaf8 !important; }
+    html:not(.dark) .pattern-filter-btn:hover { color: #2c2c2a !important; }
+    html:not(.dark) .pattern-filter-btn.active { background: rgba(99,102,241,0.08) !important; color: #4f46e5 !important; border-color: rgba(99,102,241,0.25) !important; }
+
+    /* Session cards in light mode */
+    html:not(.dark) .session-card .text-white { color: #2c2c2a !important; }
+    html:not(.dark) .session-card .text-slate-300 { color: #374151 !important; }
+    html:not(.dark) .session-card .text-slate-400 { color: #6b7280 !important; }
+    html:not(.dark) .session-card .text-slate-500 { color: #8a8a86 !important; }
+    html:not(.dark) .session-card .text-slate-600 { color: #9ca3af !important; }
+    html:not(.dark) .session-card .hover\:bg-white\/\[0\.02\]:hover { background: rgba(0,0,0,0.025) !important; }
+
+    /* Session timeline trace list in light mode */
+    html:not(.dark) .session-timeline-content .text-white { color: #2c2c2a !important; }
+    html:not(.dark) .session-timeline-content .text-slate-300 { color: #374151 !important; }
+    html:not(.dark) .session-timeline-content .text-slate-400 { color: #6b7280 !important; }
+    html:not(.dark) .session-timeline-content .text-slate-500 { color: #8a8a86 !important; }
+    html:not(.dark) .session-timeline-content .bg-surface-100\/50 { background: rgba(245,245,240,0.6) !important; }
+    html:not(.dark) .session-timeline-content .border-white\/5 { border-color: rgba(0,0,0,0.05) !important; }
+
+    /* Compare view in light mode */
+    html:not(.dark) #compare-panel .text-white { color: #2c2c2a !important; }
+    html:not(.dark) #compare-panel .text-slate-200 { color: #3a3a38 !important; }
+    html:not(.dark) #compare-panel .text-slate-300 { color: #555553 !important; }
+    html:not(.dark) #compare-panel .text-slate-400 { color: #8a8a86 !important; }
+    html:not(.dark) #compare-panel .text-slate-500 { color: #8a8a86 !important; }
+    html:not(.dark) #compare-panel .text-slate-600 { color: #aaa8a3 !important; }
+    html:not(.dark) #compare-panel .border-white\/5 { border-color: rgba(0,0,0,0.06) !important; }
+    html:not(.dark) #compare-panel .bg-surface-100\/50 { background: rgba(245,245,240,0.7) !important; }
+    html:not(.dark) #compare-panel .bg-slate-800\/30 { background: rgba(0,0,0,0.03) !important; }
+
+    /* Cost tab in light mode */
+    html:not(.dark) #cost-panel .text-white { color: #2c2c2a !important; }
+    html:not(.dark) #cost-panel .text-slate-300 { color: #555553 !important; }
+    html:not(.dark) #cost-panel .text-slate-400 { color: #8a8a86 !important; }
+    html:not(.dark) #cost-panel .text-slate-500 { color: #8a8a86 !important; }
+    html:not(.dark) #cost-panel .text-slate-600 { color: #aaa8a3 !important; }
+    html:not(.dark) #cost-panel .border-white\/5 { border-color: rgba(0,0,0,0.06) !important; }
+    html:not(.dark) #cost-panel .bg-surface-100\/50 { background: rgba(245,245,240,0.7) !important; }
+
+    /* Span detail panel in light mode */
+    html:not(.dark) #span-detail-panel .text-white { color: #2c2c2a !important; }
+    html:not(.dark) #span-detail-panel .text-slate-200 { color: #3a3a38 !important; }
+    html:not(.dark) #span-detail-panel .text-slate-300 { color: #555553 !important; }
+    html:not(.dark) #span-detail-panel .text-slate-400 { color: #8a8a86 !important; }
+    html:not(.dark) #span-detail-panel .text-slate-500 { color: #8a8a86 !important; }
+    html:not(.dark) #span-detail-panel .text-slate-600 { color: #aaa8a3 !important; }
+    html:not(.dark) #span-detail-panel .border-white\/5 { border-color: rgba(0,0,0,0.06) !important; }
+    html:not(.dark) #span-detail-panel .border-white\/8 { border-color: rgba(0,0,0,0.07) !important; }
+    html:not(.dark) #span-detail-panel .bg-surface-100\/50 { background: rgba(245,245,240,0.7) !important; }
+    html:not(.dark) #span-detail-panel .bg-slate-800\/50 { background: rgba(0,0,0,0.04) !important; }
+    html:not(.dark) .span-detail-code-block pre { background: #f5f5f0; color: #2c5e3a; }
+
+    /* tmux terminal widget: always dark (terminal semantic) */
+    .tmux-widget { color-scheme: dark; }
+
+    /* Traces summary bar: light mode text */
+    html:not(.dark) .traces-summary-bar .text-white { color: #2c2c2a !important; }
+    html:not(.dark) .traces-summary-bar .text-slate-400 { color: #8a8a86 !important; }
+
+    /* Filter buttons / quick filter row */
+    html:not(.dark) .bg-surface-100 { background: #edede8 !important; }
+    html:not(.dark) .border-white\/10 { border-color: #e8e6e1 !important; }
+    html:not(.dark) .border-white\/20 { border-color: #dddbd5 !important; }
+    html:not(.dark) .text-slate-400 { color: #8a8a86 !important; }
+
+    /* Charts: ensure transparent backgrounds in both themes */
+    canvas { background: transparent !important; }
+
+    /* Agent network SVG: visible in light mode */
+    html:not(.dark) #agent-network-svg text { fill: #2c2c2a !important; }
+    html:not(.dark) #agent-network-svg .network-label { fill: #2c2c2a !important; }
+
+    /* Stat card gradient tints: stronger in light mode for visibility */
+    html:not(.dark) .stat-card-traces { background: linear-gradient(135deg, rgba(99,102,241,0.07), transparent) !important; }
+    html:not(.dark) .stat-card-errors { background: linear-gradient(135deg, rgba(239,68,68,0.06), transparent) !important; }
+    html:not(.dark) .stat-card-latency { background: linear-gradient(135deg, rgba(245,158,11,0.06), transparent) !important; }
+    html:not(.dark) .stat-card-cost { background: linear-gradient(135deg, rgba(16,185,129,0.06), transparent) !important; }
+    html:not(.dark) .stat-card-agents { background: linear-gradient(135deg, rgba(139,92,246,0.06), transparent) !important; }
+
+    /* Trend btn active state: light mode */
+    html:not(.dark) .stats-window-btn.active { background: rgba(99,102,241,0.08) !important; color: #4f46e5 !important; border-color: rgba(99,102,241,0.25) !important; }
+
+    /* ---------- Responsive design improvements ---------- */
+
+    /* Pill nav: scrollable on mobile, hide scrollbar */
+    .pill-nav-container {
+      overflow-x: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    .pill-nav-container::-webkit-scrollbar { display: none; }
+
+    @media (max-width: 768px) {
+      /* Stat cards: 2-column on tablet */
+      .stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
+
+      /* Nav pills: compact text */
+      .pill-tab { padding: 5px 10px; font-size: 12px; }
+
+      /* Agent cards: single column */
+      #agents-grid { grid-template-columns: 1fr !important; }
+
+      /* Terminal widget: full-width, shorter */
+      .tmux-widget { width: auto !important; height: 300px !important; }
+
+      /* Trace rows: stack metrics vertically */
+      .trace-row-details { flex-direction: column; gap: 2px !important; text-align: left !important; }
+      .trace-row-details > div { text-align: left !important; }
+
+      /* Span detail panel: full width overlay */
+      #span-detail-panel {
+        position: fixed !important;
+        top: 0 !important; bottom: 0 !important;
+        left: 0 !important; right: 0 !important;
+        width: 100% !important;
+        z-index: 80;
+        border-radius: 0 !important;
+        overflow-y: auto;
+      }
+
+      /* Budget alert bar: compact on mobile */
+      #budget-alert-bar .max-w-\[1600px\] { flex-wrap: wrap; gap: 6px; }
+
+      /* Overview: 2-column grid adjustments */
+      .overview-split-grid { grid-template-columns: 1fr !important; }
+
+      /* Cost summary cards: 2-col */
+      .cost-summary-cards { grid-template-columns: repeat(2, 1fr) !important; }
+
+      /* Session timeline: tighter spacing */
+      .session-timeline-connector { width: 18px; }
+      .session-timeline-dot { width: 8px; height: 8px; }
+
+      /* Compare cards: stack */
+      .compare-cards-grid { grid-template-columns: 1fr !important; }
+
+      /* Hidden sidebar stats on mobile */
+      .trace-row-meta-secondary { display: none !important; }
+
+      /* Header: hide timestamp text on mobile */
+      #last-refresh { display: none !important; }
+
+      /* Adjust main padding */
+      main { padding-left: 1rem !important; padding-right: 1rem !important; }
+
+      /* Agent team bar: horizontal scroll with snap */
+      #agent-team-bar {
+        flex-wrap: nowrap !important;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        padding-bottom: 4px;
+      }
+      #agent-team-bar::-webkit-scrollbar { display: none; }
+      #agent-team-bar > div { scroll-snap-align: start; }
+    }
+
+    @media (max-width: 480px) {
+      /* Stat cards: single column on very small */
+      .stat-grid { grid-template-columns: 1fr !important; }
+
+      /* Header: compact */
+      .header { padding-left: 0.75rem; padding-right: 0.75rem; }
+      .header-logo-text { font-size: 14px; }
+      .header-logo-sub { display: none; }
+
+      /* Hide WS label */
+      #ws-label { display: none !important; }
+
+      /* Agent team: stack */
+      #agent-team-bar { flex-direction: column !important; }
+      #agent-team-bar > div { min-width: unset !important; width: 100%; }
+
+      /* Agent network: smaller */
+      #agent-network { max-height: 220px; overflow: hidden; }
+
+      /* Cost summary: single col */
+      .cost-summary-cards { grid-template-columns: 1fr !important; }
+
+      /* Pill tab: very compact */
+      .pill-tab { padding: 5px 8px; font-size: 11px; gap: 3px; }
+      .tab-count-badge { display: none; }
+    }
+
+    /* ---------- Accessibility improvements ---------- */
+
+    /* Focus ring: warm indigo for all interactive elements */
+    button:focus-visible,
+    a:focus-visible,
+    input:focus-visible,
+    select:focus-visible,
+    textarea:focus-visible,
+    [tabindex]:focus-visible {
+      outline: 2px solid rgba(107, 92, 231, 0.6) !important;
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+
+    /* Skip-to-content link (screen readers) */
+    .skip-to-content {
+      position: absolute;
+      top: -40px;
+      left: 0;
+      z-index: 9999;
+      padding: 8px 12px;
+      background: #6b5ce7;
+      color: #fff;
+      font-size: 13px;
+      border-radius: 0 0 8px 0;
+      transition: top 0.2s ease;
+    }
+    .skip-to-content:focus { top: 0; }
+
+    /* Ensure minimum touch target size */
+    .header-icon-btn { min-width: 34px; min-height: 34px; }
+    .pill-tab { min-height: 34px; }
+    .tab-btn { min-height: 34px; }
+
+    /* High-contrast focus ring in light mode */
+    html:not(.dark) button:focus-visible,
+    html:not(.dark) a:focus-visible,
+    html:not(.dark) input:focus-visible,
+    html:not(.dark) select:focus-visible {
+      outline-color: rgba(80, 70, 200, 0.7) !important;
+    }
+
+    /* Screen-reader only utility */
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    /* ---------- Print styles ---------- */
+
+    @media print {
+      /* Hide nav, controls, terminal, live feeds */
+      header,
+      nav,
+      #toast-container,
+      #budget-alert-bar,
+      .tmux-widget,
+      #live-monitor,
+      #live-activity-feed,
+      .header-icon-btn,
+      #notification-panel,
+      .theme-toggle,
+      #ws-status,
+      #live-pulse,
+      .gradient-orb,
+      .ripple-btn::after {
+        display: none !important;
+      }
+
+      /* White backgrounds for print */
+      body { background: #fff !important; color: #000 !important; }
+      .glass { background: #fff !important; border: 1px solid #ddd !important; box-shadow: none !important; }
+
+      /* Show all content */
+      [hidden] { display: block !important; }
+      main { padding: 0 !important; }
+
+      /* Page breaks */
+      .glass { page-break-inside: avoid; }
+      h1, h2, h3 { page-break-after: avoid; }
+
+      /* Chart containers: constrained for print */
+      canvas { max-width: 100% !important; }
+
+      /* Force dark text */
+      * { color: #000 !important; border-color: #ddd !important; }
+      .text-emerald-400, .text-green-400 { color: #059669 !important; }
+      .text-red-400 { color: #dc2626 !important; }
+      .text-indigo-400 { color: #4f46e5 !important; }
+    }
