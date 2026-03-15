@@ -1,4 +1,17 @@
-# Task Board — FlowLens Development — FINAL STATE
+# Task Board — FlowLens Development
+
+**Project Status: Cycle 16 complete — Interaction Polish delivered**
+
+---
+
+## Cycle 16: Complete (2026-03-15) — INTERACTION POLISH
+
+### Done (2026-03-15)
+- [x] **Information density, data presentation, visual hierarchy** — Beta — Stat card SVG micro-sparklines (60x20, sage/coral trend coloring) + secondary stats (avg/hr, error %, avg latency, avg cost/hr); trace list column headers + alternating row backgrounds + colored tool pills (8 categories) + duration color-indicator dots + right-aligned tabular-nums; agent network hover tooltip card (name/role/status/traces/cost/last-active, CSS fade-in, mouse-follow, both themes); waterfall adaptive time ruler (tick intervals auto-selected: 50ms→10s) + ruler-aligned gridlines; session timeline node upgrades (colored avatar circle with initial, tool pills, duration dot, coral error dot) — Commit 900544e — `flowlens/server/static/dashboard.js`, `flowlens/server/static/dashboard.css`, `flowlens/server/static/network.js`, `flowlens/server/static/charts.js`, `flowlens/server/dashboard.html`
+
+---
+
+## Cycle 14: Complete (2026-03-15) — VISUAL POLISH
 
 **Project Status: Cycle 14 complete — Visual Polish delivered**
 

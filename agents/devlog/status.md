@@ -1,11 +1,17 @@
 # Agent Status — 2026-03-15
 
-## Cycle 16: Interaction Polish — IN PROGRESS (Beta, 2026-03-15)
+## Cycle 16: Interaction Polish — COMPLETE (Beta, 2026-03-15)
 
 **Beta**: Information density, data presentation, visual hierarchy
-- Files: `flowlens/server/static/dashboard.js`, `flowlens/server/static/dashboard.css`, `flowlens/server/static/network.js`
+- Commit: 900544e
 - Branch: `feat/beta-interaction-polish`
-- Status: implementing
+- Tests: 1156 passing (unchanged)
+- Delivered:
+  - Stat cards: SVG micro-sparklines (60x20, sage=up/coral=down) + secondary stat labels (avg/hr, error %, avg latency, avg cost/hr); new `renderSVGSparkline()` + `_setStatSecondary()` in charts.js
+  - Trace list: column headers (Name/Duration/Cost/Time); alternating even-row backgrounds; tool summary as colored pills (8 tool categories: Read/Bash/Edit/Write/Glob/Grep/LLM/default); duration color-indicator dot (green/amber/coral by threshold); right-aligned tabular-nums columns
+  - Agent network: hover tooltip card with name, role, status, trace count, cost, last-active; CSS fade-in transition; follows mouse; dark+light theme support
+  - Waterfall timeline: proper adaptive time ruler (tick intervals: 50ms/100ms/500ms/1s/5s/10s based on trace duration); labels at 0/end plus intermediate ticks; subtle gridlines aligned to ticks
+  - Session timeline: agent avatar (colored circle with initial letter); tool pills inline; duration color dot; coral error-dot indicator replacing text badge
 
 ---
 
