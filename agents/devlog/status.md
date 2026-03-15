@@ -1,5 +1,26 @@
 # Agent Status — 2026-03-15
 
+## Cycle 17: Premium Feel — COMPLETE (Alpha, 2026-03-15)
+
+**Alpha**: Premium SaaS polish — Overview stat cards, Trace detail header
+- Branch: `feat/alpha-premium-feel`
+- Tests: 1156 passing (unchanged)
+- Delivered:
+  - Stat cards: New `stat-card-v17` system — large tabular number (30px, `font-variant-numeric: tabular-nums`), clean uppercase label, no secondary text, thin Chart.js sparkline (1.5px, no fill, `tension: 0.45`)
+  - Stat card tints: Indigo (Traces), warm coral (Error Rate), amber (Latency), emerald/sage (Cost), purple (Agents) — each with 2px accent top border
+  - Error Rate: Displayed as "0.4%" in warm coral, NOT scary red — no error-count sublabel
+  - Avg Latency: Human-readable format — "28.1s" not raw milliseconds
+  - Active Agents: Now loads from `/v1/agents/summary` API for accurate count, fallback to trace tags
+  - Trace detail header: Horizontal meta strip (4 cards in a row: Duration, Cost, Spans, Status) — clean flex layout replacing 4-column grid
+  - Trace ID: monospace, dimmed, with copy-to-clipboard button (`trace-id-copy-btn`)
+  - Agent avatar in trace detail: More prominent (larger name, role subtitle)
+  - Service: field removed from secondary meta (agent name already shown)
+  - Agent Details heading: Removed — agents grid displayed without redundant header
+  - Overview whitespace: Reduced `mb-6` → `mb-5` for tighter layout
+  - Agent Team bar: More compact `gap: 8px`, smaller card padding
+
+---
+
 ## Cycle 16: Interaction Polish — COMPLETE (Beta, 2026-03-15)
 
 **Beta**: Information density, data presentation, visual hierarchy

@@ -3871,3 +3871,184 @@
       stroke-dashoffset: 1000;
       animation: sparklineDraw 0.6s ease-out forwards;
     }
+
+    /* ==============================================================
+       Cycle 17: Premium Feel — Stat Card Polish + Trace Detail Strip
+       ============================================================== */
+
+    /* ---- Stat card v17: clean container ---- */
+    .stat-card-v17 {
+      padding: 18px 20px 14px !important;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ---- Stat number v17: large, tabular ---- */
+    .stat-number-v17 {
+      font-size: 30px;
+      font-weight: 700;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.02em;
+      margin-top: 6px;
+    }
+    .dark .stat-number-v17 { color: #f0eeff; }
+    html:not(.dark) .stat-number-v17 { color: #1a1730; }
+
+    /* Accent color overrides */
+    .stat-number-coral { color: #e07a5f !important; }
+    html:not(.dark) .stat-number-coral { color: #c4603e !important; }
+    .stat-number-emerald { color: #81b29a !important; }
+    html:not(.dark) .stat-number-emerald { color: #3d7a61 !important; }
+
+    /* ---- Stat card label v17: clean sublabel ---- */
+    .stat-card-label-v17 {
+      font-size: 10px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-top: 4px;
+    }
+    .dark .stat-card-label-v17 { color: rgba(255,255,255,0.25); }
+    html:not(.dark) .stat-card-label-v17 { color: rgba(0,0,0,0.3); }
+
+    /* ---- Sparkline canvas wrapper v17: thin, no fill ---- */
+    .stat-sparkline-canvas-wrap {
+      position: relative;
+      height: 36px;
+      width: 100%;
+      margin-top: 10px;
+      flex-shrink: 0;
+    }
+
+    /* ---- Stat card tints v17: per-card accent gradient ---- */
+    /* Traces: indigo */
+    .stat-card-traces.stat-card-v17 {
+      background: linear-gradient(140deg, rgba(107,92,231,0.09) 0%, transparent 60%) !important;
+      border-top: 2px solid rgba(107,92,231,0.18) !important;
+    }
+    /* Error Rate: warm coral (not alarming red) */
+    .stat-card-errors.stat-card-v17 {
+      background: linear-gradient(140deg, rgba(224,122,95,0.08) 0%, transparent 60%) !important;
+      border-top: 2px solid rgba(224,122,95,0.15) !important;
+    }
+    /* Latency: warm amber */
+    .stat-card-latency.stat-card-v17 {
+      background: linear-gradient(140deg, rgba(230,166,93,0.08) 0%, transparent 60%) !important;
+      border-top: 2px solid rgba(230,166,93,0.15) !important;
+    }
+    /* Cost: emerald/sage */
+    .stat-card-cost.stat-card-v17 {
+      background: linear-gradient(140deg, rgba(129,178,154,0.09) 0%, transparent 60%) !important;
+      border-top: 2px solid rgba(129,178,154,0.18) !important;
+    }
+    /* Agents: muted purple */
+    .stat-card-agents.stat-card-v17 {
+      background: linear-gradient(140deg, rgba(139,92,246,0.08) 0%, transparent 60%) !important;
+      border-top: 2px solid rgba(139,92,246,0.15) !important;
+    }
+
+    /* ---- Icon v17: same but slightly smaller ---- */
+    .stat-card-v17 .stat-icon-traces  { background: rgba(107,92,231,0.12); color: #9b8ec4; }
+    .stat-card-v17 .stat-icon-errors  { background: rgba(224,122,95,0.12); color: #e07a5f; }
+    .stat-card-v17 .stat-icon-latency { background: rgba(230,166,93,0.12); color: #e6a65d; }
+    .stat-card-v17 .stat-icon-cost    { background: rgba(129,178,154,0.12); color: #81b29a; }
+    .stat-card-v17 .stat-icon-agents  { background: rgba(139,92,246,0.12); color: #a78bfa; }
+    html:not(.dark) .stat-card-v17 .stat-icon-errors  { background: rgba(196,96,62,0.08); color: #c4603e; }
+    html:not(.dark) .stat-card-v17 .stat-icon-cost    { background: rgba(61,122,97,0.08); color: #3d7a61; }
+
+    /* ---- Trace detail meta strip v17 ---- */
+    .trace-meta-strip {
+      display: flex;
+      gap: 10px;
+      align-items: stretch;
+      width: 100%;
+      flex-wrap: wrap;
+    }
+
+    .trace-meta-strip-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 16px;
+      border-radius: 10px;
+      flex: 1;
+      min-width: 80px;
+      gap: 3px;
+    }
+    .dark .trace-meta-strip-card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.07);
+    }
+    html:not(.dark) .trace-meta-strip-card {
+      background: rgba(0,0,0,0.03);
+      border: 1px solid rgba(0,0,0,0.07);
+    }
+
+    .trace-meta-strip-ok {
+      background: rgba(129,178,154,0.08) !important;
+      border-color: rgba(129,178,154,0.2) !important;
+    }
+    .trace-meta-strip-error {
+      background: rgba(224,122,95,0.08) !important;
+      border-color: rgba(224,122,95,0.2) !important;
+    }
+    .trace-meta-strip-cost {
+      background: rgba(129,178,154,0.06) !important;
+      border-color: rgba(129,178,154,0.15) !important;
+    }
+
+    .trace-meta-strip-value {
+      font-size: 22px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+    .dark .trace-meta-strip-value { color: #f0eeff; }
+    html:not(.dark) .trace-meta-strip-value { color: #1a1730; }
+
+    .trace-meta-strip-label {
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+    .dark .trace-meta-strip-label { color: rgba(255,255,255,0.3); }
+    html:not(.dark) .trace-meta-strip-label { color: rgba(0,0,0,0.35); }
+
+    /* ---- Trace ID copy button ---- */
+    .trace-id-copy-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2px 4px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      color: #64748b;
+      background: transparent;
+      transition: color 0.15s, background 0.15s;
+    }
+    .trace-id-copy-btn:hover {
+      color: #a5b4fc;
+      background: rgba(107,92,231,0.12);
+    }
+    html:not(.dark) .trace-id-copy-btn:hover {
+      color: #4f46e5;
+      background: rgba(107,92,231,0.08);
+    }
+
+    /* ---- Overview layout: reduce excess whitespace ---- */
+    #view-overview .mb-6 { margin-bottom: 20px; }
+    #view-overview .mb-5 { margin-bottom: 16px; }
+    #view-overview .stat-grid { margin-bottom: 20px; }
+
+    /* ---- Agent Team bar: more compact ---- */
+    #agent-team-bar {
+      gap: 8px !important;
+    }
+    #agent-team-bar .glass {
+      padding: 10px 14px !important;
+    }
