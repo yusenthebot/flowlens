@@ -96,6 +96,7 @@
     <div class="flex gap-1 border-b border-white/5">
       <button onclick="switchView('overview')" data-tab="overview" class="tab-btn ripple-btn tab-active px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg">Overview</button>
       <button onclick="switchView('traces')" data-tab="traces" class="tab-btn ripple-btn tab-inactive px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg">Traces</button>
+      <button onclick="switchView('sessions')" data-tab="sessions" class="tab-btn ripple-btn tab-inactive px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg">Sessions</button>
       <button onclick="switchView('cost')" data-tab="cost" class="tab-btn ripple-btn tab-inactive px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg">Cost Analysis</button>
       <button onclick="switchView('patterns')" data-tab="patterns" class="tab-btn ripple-btn tab-inactive px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg">Patterns</button>
       <button onclick="switchView('compare')" data-tab="compare" class="tab-btn ripple-btn tab-inactive px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg">
@@ -685,6 +686,25 @@
           <div id="agent-graph" style="width:100%;height:400px;"></div>
         </div>
       </div>
+    </div>
+
+    <!-- SESSIONS VIEW -->
+    <div id="view-sessions" class="view-panel hidden">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="text-sm font-semibold text-white">Session Timeline</h2>
+          <p class="text-[11px] text-slate-500 mt-0.5">Traces grouped by conversation session</p>
+        </div>
+        <button onclick="loadSessions()" class="ripple-btn px-3 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition">Refresh</button>
+      </div>
+
+      <!-- Sessions List -->
+      <div id="sessions-list" class="space-y-3">
+        <div class="text-center py-8 text-slate-500 text-sm">Loading sessions...</div>
+      </div>
+
+      <!-- Session Timeline Panel (expanded inline) -->
+      <div id="session-timeline-panel" class="hidden mt-4"></div>
     </div>
 
   <!-- Agent Detail Modal -->

@@ -1472,3 +1472,154 @@ class TestAPI:
 
         r = client.get("/v1/export/report?hours=721")
         assert r.status_code == 422
+
+    # ------------------------------------------------------------------
+    # Session endpoints
+    # ------------------------------------------------------------------
+
+    def test_sessions_empty(self, client):
+        """GET /v1/sessions returns empty list when no sessions exist."""
+        r = client.get("/v1/sessions")
+        assert r.status_code == 200
+        data = r.json()
+        assert "sessions" in data
+        assert isinstance(data["sessions"], list)
+
+    def test_sessions_groups_traces_by_session_id(self, client):
+        """Two traces with the same session_id appear as one session."""
+        now = time.time()
+        sid = "test-session-abc"
+        t1 = _make_trace_data("sess-t1", start_time=now - 200)
+        t1["session_id"] = sid
+        t1["tags"] = {"agent": "vr-alpha"}
+        t2 = _make_trace_data("sess-t2", start_time=now - 100)
+        t2["session_id"] = sid
+        t2["tags"] = {"agent": "vr-beta"}
+        client.post("/v1/traces/ingest", json=t1)
+        client.post("/v1/traces/ingest", json=t2)
+
+        r = client.get("/v1/sessions")
+        assert r.status_code == 200
+        sessions = r.json()["sessions"]
+        matching = [s for s in sessions if s["session_id"] == sid]
+        assert len(matching) == 1, f"Expected 1 session for {sid}, got {len(matching)}"
+        s = matching[0]
+        assert s["trace_count"] == 2
+        assert s["total_spans"] > 0
+
+    def test_sessions_has_required_fields(self, client):
+        """Each session entry contains all required fields."""
+        now = time.time()
+        sid = "test-session-fields"
+        trace = _make_trace_data("sess-fields-t1", start_time=now - 50)
+        trace["session_id"] = sid
+        client.post("/v1/traces/ingest", json=trace)
+
+        r = client.get("/v1/sessions")
+        assert r.status_code == 200
+        sessions = r.json()["sessions"]
+        matching = [s for s in sessions if s["session_id"] == sid]
+        assert len(matching) == 1
+        s = matching[0]
+        for field in ("session_id", "trace_count", "total_spans", "total_cost_usd",
+                      "first_trace_time", "last_trace_time", "agents", "has_errors",
+                      "error_count", "project"):
+            assert field in s, f"Missing field: {field}"
+
+    def test_sessions_ordered_by_most_recent(self, client):
+        """Sessions are ordered with most recently active first."""
+        now = time.time()
+        older_trace = _make_trace_data("sess-old-t1", start_time=now - 3600)
+        older_trace["session_id"] = "session-older"
+        newer_trace = _make_trace_data("sess-new-t1", start_time=now - 60)
+        newer_trace["session_id"] = "session-newer"
+        client.post("/v1/traces/ingest", json=older_trace)
+        client.post("/v1/traces/ingest", json=newer_trace)
+
+        r = client.get("/v1/sessions")
+        assert r.status_code == 200
+        sessions = r.json()["sessions"]
+        session_ids = [s["session_id"] for s in sessions]
+        # "session-newer" should appear before "session-older"
+        if "session-newer" in session_ids and "session-older" in session_ids:
+            assert session_ids.index("session-newer") < session_ids.index("session-older")
+
+    def test_sessions_excludes_traces_without_session_id(self, client):
+        """Traces with no session_id do not create sessions."""
+        trace = _make_trace_data("no-session-trace", start_time=1000.0)
+        # session_id is None (default)
+        client.post("/v1/traces/ingest", json=trace)
+
+        r = client.get("/v1/sessions")
+        assert r.status_code == 200
+        sessions = r.json()["sessions"]
+        # None of the sessions should have session_id = None or ""
+        for s in sessions:
+            assert s["session_id"] not in (None, "")
+
+    def test_get_session_returns_traces(self, client):
+        """GET /v1/sessions/{session_id} returns traces ordered by start_time ASC."""
+        now = time.time()
+        sid = "get-session-test"
+        t1 = _make_trace_data("get-sess-t1", start_time=now - 300)
+        t1["session_id"] = sid
+        t2 = _make_trace_data("get-sess-t2", start_time=now - 200)
+        t2["session_id"] = sid
+        t3 = _make_trace_data("get-sess-t3", start_time=now - 100)
+        t3["session_id"] = sid
+        for t in [t1, t2, t3]:
+            client.post("/v1/traces/ingest", json=t)
+
+        r = client.get(f"/v1/sessions/{sid}")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["session_id"] == sid
+        assert "traces" in data
+        assert "summary" in data
+        assert len(data["traces"]) == 3
+        # Verify ordering: each trace start_time >= previous
+        times = [t["start_time"] for t in data["traces"]]
+        assert times == sorted(times)
+
+    def test_get_session_summary_fields(self, client):
+        """Session summary contains all required aggregate fields."""
+        now = time.time()
+        sid = "summary-fields-session"
+        trace = _make_trace_data("sum-sess-t1", start_time=now - 50, has_errors=True)
+        trace["session_id"] = sid
+        client.post("/v1/traces/ingest", json=trace)
+
+        r = client.get(f"/v1/sessions/{sid}")
+        assert r.status_code == 200
+        summary = r.json()["summary"]
+        for field in ("trace_count", "total_spans", "total_cost_usd", "total_duration_ms",
+                      "agents", "has_errors", "error_count", "project",
+                      "first_trace_time", "last_trace_time"):
+            assert field in summary, f"Missing summary field: {field}"
+        assert summary["trace_count"] == 1
+        assert summary["has_errors"] is True
+
+    def test_get_session_not_found(self, client):
+        """GET /v1/sessions/{session_id} returns 404 for unknown session."""
+        r = client.get("/v1/sessions/nonexistent-session-id-xyz")
+        assert r.status_code == 404
+
+    def test_sessions_pagination(self, client):
+        """Sessions endpoint respects limit and offset parameters."""
+        now = time.time()
+        # Create 5 sessions
+        for i in range(5):
+            trace = _make_trace_data(f"pg-sess-t{i}", start_time=now - i * 100)
+            trace["session_id"] = f"paginated-session-{i}"
+            client.post("/v1/traces/ingest", json=trace)
+
+        r1 = client.get("/v1/sessions?limit=2")
+        assert r1.status_code == 200
+        assert len(r1.json()["sessions"]) <= 2
+
+        r2 = client.get("/v1/sessions?limit=2&offset=2")
+        assert r2.status_code == 200
+        # Sessions from page 1 and page 2 should not overlap
+        ids1 = {s["session_id"] for s in r1.json()["sessions"]}
+        ids2 = {s["session_id"] for s in r2.json()["sessions"]}
+        assert ids1.isdisjoint(ids2)

@@ -615,3 +615,88 @@
       background: linear-gradient(90deg, #7c7aef, #9b8ec4);
       transition: width 0.3s ease;
     }
+
+    /* ========== Session Timeline ========== */
+
+    /* Session card active state */
+    .session-card-active {
+      border-color: rgba(124, 122, 239, 0.35) !important;
+      background: rgba(124, 122, 239, 0.04) !important;
+    }
+    html:not(.dark) .session-card-active {
+      border-color: rgba(107, 104, 217, 0.35) !important;
+      background: rgba(107, 104, 217, 0.04) !important;
+    }
+
+    /* Timeline container */
+    .session-timeline {
+      position: relative;
+      padding-left: 0;
+    }
+
+    /* Each node row */
+    .session-timeline-node {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+
+    /* Left connector column */
+    .session-timeline-connector {
+      flex-shrink: 0;
+      width: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 14px;
+    }
+
+    /* Dot marker */
+    .session-timeline-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      border: 2px solid rgba(255,255,255,0.15);
+      z-index: 1;
+    }
+    html:not(.dark) .session-timeline-dot {
+      border-color: rgba(0,0,0,0.1);
+    }
+
+    /* Vertical connecting line */
+    .session-timeline-line {
+      width: 2px;
+      flex: 1;
+      min-height: 24px;
+      background: linear-gradient(to bottom, rgba(124,122,239,0.3), rgba(124,122,239,0.05));
+      margin-top: 4px;
+      border-radius: 1px;
+    }
+    html:not(.dark) .session-timeline-line {
+      background: linear-gradient(to bottom, rgba(107,104,217,0.25), rgba(107,104,217,0.05));
+    }
+
+    /* Content card (grows to fill) */
+    .session-timeline-content {
+      flex: 1;
+      min-width: 0;
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 10px;
+      margin-bottom: 12px;
+    }
+    .session-timeline-content:hover {
+      border-color: rgba(124,122,239,0.3);
+    }
+    html:not(.dark) .session-timeline-content {
+      border-color: #e8e6e1;
+    }
+    html:not(.dark) .session-timeline-content:hover {
+      border-color: rgba(107,104,217,0.3);
+      background: rgba(107,104,217,0.02) !important;
+    }
+
+    /* Last node — no trailing gap */
+    .session-timeline-node.last .session-timeline-content {
+      margin-bottom: 0;
+    }
