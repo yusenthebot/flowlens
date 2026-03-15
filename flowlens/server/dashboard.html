@@ -160,17 +160,7 @@
         <div class="gradient-orb" style="width:400px;height:400px;top:-100px;right:-100px;background:radial-gradient(circle,rgba(99,102,241,0.15),transparent 70%);animation:orbFloat 20s ease-in-out infinite;"></div>
         <div class="gradient-orb" style="width:300px;height:300px;bottom:-50px;left:-50px;background:radial-gradient(circle,rgba(139,92,246,0.12),transparent 70%);animation:orbFloat 25s ease-in-out infinite reverse;"></div>
         <div class="gradient-orb" style="width:250px;height:250px;top:50%;right:30%;background:radial-gradient(circle,rgba(99,102,241,0.08),transparent 70%);animation:orbFloat 30s ease-in-out infinite 5s;"></div>
-      <!-- Stats time-window selector -->
-      <div class="flex items-center justify-between mb-3 relative z-10">
-        <div class="flex items-center gap-1.5">
-          <span class="text-[10px] text-slate-500 uppercase tracking-wider font-medium" id="stats-window-label">All Time</span>
-        </div>
-        <div class="flex gap-1">
-          <button id="stats-window-hour" onclick="setStatsWindow('hour')" class="trend-btn tab-inactive px-2 py-1 text-[10px] rounded bg-surface-100 text-slate-400 hover:text-white transition">1h</button>
-          <button id="stats-window-day" onclick="setStatsWindow('day')" class="trend-btn tab-inactive px-2 py-1 text-[10px] rounded bg-surface-100 text-slate-400 hover:text-white transition">24h</button>
-          <button id="stats-window-all" onclick="setStatsWindow('all')" class="trend-btn active px-2 py-1 text-[10px] rounded">All</button>
-        </div>
-      </div>
+      <!-- Stats Cards -->
 
       <!-- Stats Cards -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6 stat-grid relative z-10">
@@ -191,8 +181,6 @@
           <div id="stat-spans" class="stat-sublabel">
             <div class="skeleton skeleton-text w-16 h-3"></div>
           </div>
-          <div id="stat-secondary-traces" class="stat-secondary"></div>
-          <div id="stat-sparkline-traces" style="height:20px;margin-top:6px;"></div>
           <div style="height:40px;position:relative;width:100%;margin-top:4px;"><canvas id="sparkline-traces"></canvas></div>
         </div>
 
@@ -210,8 +198,6 @@
           <div id="stat-error-count" class="stat-sublabel">
             <div class="skeleton skeleton-text w-24 h-3"></div>
           </div>
-          <div id="stat-secondary-errors" class="stat-secondary"></div>
-          <div id="stat-sparkline-errors" style="height:20px;margin-top:6px;"></div>
           <div style="height:40px;position:relative;width:100%;margin-top:4px;"><canvas id="sparkline-errors"></canvas></div>
         </div>
 
@@ -227,8 +213,6 @@
             <div class="skeleton skeleton-text w-14"></div>
           </div>
           <div class="stat-sublabel">milliseconds</div>
-          <div id="stat-secondary-latency" class="stat-secondary"></div>
-          <div id="stat-sparkline-latency" style="height:20px;margin-top:6px;"></div>
           <div style="height:40px;position:relative;width:100%;margin-top:4px;"><canvas id="sparkline-latency"></canvas></div>
         </div>
 
@@ -249,8 +233,6 @@
           <div id="stat-tokens" class="stat-sublabel">
             <div class="skeleton skeleton-text w-20 h-3"></div>
           </div>
-          <div id="stat-secondary-cost" class="stat-secondary"></div>
-          <div id="stat-sparkline-cost" style="height:20px;margin-top:6px;"></div>
           <div style="height:40px;position:relative;width:100%;margin-top:4px;"><canvas id="sparkline-cost"></canvas></div>
         </div>
 
