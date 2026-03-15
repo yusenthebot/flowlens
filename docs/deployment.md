@@ -9,7 +9,7 @@ Complete instructions for deploying FlowLens in development and production envir
 The easiest way to get FlowLens running locally:
 
 ```bash
-git clone https://github.com/niceyusen/flowlens.git
+git clone https://github.com/yusenthebot/flowlens.git
 cd flowlens
 docker compose up --build -d
 ```
@@ -124,7 +124,7 @@ docker compose down -v
 1. **Clone the repository:**
 
 ```bash
-git clone https://github.com/niceyusen/flowlens.git
+git clone https://github.com/yusenthebot/flowlens.git
 cd flowlens
 ```
 
@@ -459,7 +459,7 @@ sudo apt-get update
 sudo apt-get install -y docker.io docker-compose python3
 
 # Clone and start
-git clone https://github.com/niceyusen/flowlens.git
+git clone https://github.com/yusenthebot/flowlens.git
 cd flowlens
 docker compose up -d
 

@@ -32,7 +32,7 @@ pip install flowlens[otlp]
 ### Option 2: From Source
 
 ```bash
-git clone https://github.com/niceyusen/flowlens.git
+git clone https://github.com/yusenthebot/flowlens.git
 cd flowlens
 pip install -e ".[dev]"
 ```
@@ -451,7 +451,7 @@ docker-compose down
 ### Build from Source
 
 ```bash
-git clone https://github.com/niceyusen/flowlens.git
+git clone https://github.com/yusenthebot/flowlens.git
 cd flowlens
 docker build -t flowlens:local .
 docker run -d -p 8585:8585 -v flowlens-data:/data flowlens:local
@@ -555,5 +555,5 @@ asyncio.run(run("your task here"))
 
 ### Get Help
 
-- GitHub Issues: https://github.com/niceyusen/flowlens/issues
+- GitHub Issues: https://github.com/yusenthebot/flowlens/issues
 - Contributing: [CONTRIBUTING.md](../CONTRIBUTING.md)

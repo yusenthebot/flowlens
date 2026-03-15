@@ -60,11 +60,11 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/niceyusen/flowlens"
-Documentation = "https://github.com/niceyusen/flowlens/blob/main/docs/"
-Repository = "https://github.com/niceyusen/flowlens"
-Issues = "https://github.com/niceyusen/flowlens/issues"
-Changelog = "https://github.com/niceyusen/flowlens/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/yusenthebot/flowlens"
+Documentation = "https://github.com/yusenthebot/flowlens/blob/main/docs/"
+Repository = "https://github.com/yusenthebot/flowlens"
+Issues = "https://github.com/yusenthebot/flowlens/issues"
+Changelog = "https://github.com/yusenthebot/flowlens/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 where = ["."]

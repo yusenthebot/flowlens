@@ -14,7 +14,7 @@ Thank you for your interest in contributing to FlowLens! This guide will help yo
 1. **Clone the repository:**
 
 ```bash
-git clone https://github.com/niceyusen/flowlens.git
+git clone https://github.com/yusenthebot/flowlens.git
 cd flowlens
 ```
 

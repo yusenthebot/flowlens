@@ -1,5 +1,23 @@
 # Agent Status — 2026-03-15
 
+## Cycle 21: QA Screenshots + README — COMPLETE (Gamma, 2026-03-15)
+
+**Gamma**: Fresh screenshots with seeded data + README update with captions
+- Branch: `feat/beta-demo-dashboard-rewrite`
+- Commit: c969023
+- Tests: 1156 passing (unchanged)
+- CI: ruff, black, mypy, pytest all pass
+- Delivered:
+  - Seeded 50 traces via `scripts/seed_24h.py` for realistic data in screenshots
+  - Added `screenshot_traces.png` (trace list with filters, agent pills, duration bars)
+  - Added `screenshot_terminal.png` (tmux-style floating terminal monitoring vr-alpha, vr-beta, vr-gamma)
+  - Refreshed all 7 existing screenshots with current dashboard visuals (dark theme, real data)
+  - Updated `examples/take_screenshots.py`: added traces tab screenshot, terminal overlay screenshot (9 total)
+  - Updated `README.md` Dashboard section: 6 captioned screenshots (overview, traces, terminal, cost, sessions, agents)
+- Files: `examples/take_screenshots.py`, `examples/*.png` (9 files), `README.md`
+
+---
+
 ## Cycle 20: Screenshot Update — COMPLETE (Gamma, 2026-03-15)
 
 **Gamma**: New screenshots of current dashboard + README update

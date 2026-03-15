@@ -1,7 +1,7 @@
 # FlowLens CI Workflow
 #
 # Status badge (add to README.md):
-# [![CI](https://github.com/niceyusen/flowlens/actions/workflows/ci.yml/badge.svg)](https://github.com/niceyusen/flowlens/actions/workflows/ci.yml)
+# [![CI](https://github.com/yusenthebot/flowlens/actions/workflows/ci.yml/badge.svg)](https://github.com/yusenthebot/flowlens/actions/workflows/ci.yml)
 #
 # Triggers on push to main and all pull requests.
 # Runs a matrix build across Python 3.10, 3.11, and 3.12.

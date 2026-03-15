@@ -21,7 +21,7 @@ python -c "import flowlens; print(flowlens.__version__)"
 pip install flowlens
 
 # Or install from source with dev mode
-git clone https://github.com/niceyusen/flowlens.git
+git clone https://github.com/yusenthebot/flowlens.git
 cd flowlens
 pip install -e .
 ```
@@ -737,7 +737,7 @@ If you can't find the answer here:
    - `CONTRIBUTING.md` — Development guide
 
 2. **Search existing issues:**
-   - GitHub Issues: https://github.com/niceyusen/flowlens/issues
+   - GitHub Issues: https://github.com/yusenthebot/flowlens/issues
 
 3. **Report a bug:**
    - Include Python version: `python --version`
@@ -785,7 +785,7 @@ Use the bug report template (available in `.github/ISSUE_TEMPLATE/bug_report.md`
 
 ## Resources
 
-- **Homepage:** https://github.com/niceyusen/flowlens
+- **Homepage:** https://github.com/yusenthebot/flowlens
 - **Documentation:** `/docs` directory
 - **API Reference:** `docs/api-reference.md`
 - **Architecture:** `docs/architecture.md`
