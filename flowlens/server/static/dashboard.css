@@ -542,7 +542,62 @@
 
     /* Keyboard shortcuts modal */
     .shortcuts-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 200; display: flex; align-items: center; justify-content: center; }
-    .shortcuts-modal { max-width: 480px; width: 90%; max-height: 80vh; overflow-y: auto; }
+    .shortcuts-modal { max-width: 520px; width: 90%; max-height: 85vh; overflow-y: auto; }
+
+    /* Search syntax hint tags inside shortcuts modal */
+    .shortcuts-syntax-tag {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: rgba(107, 92, 231, 0.12);
+      border: 1px solid rgba(107, 92, 231, 0.25);
+      color: var(--color-indigo-warm, #6b5ce7);
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 10px;
+      white-space: nowrap;
+    }
+    html:not(.dark) .shortcuts-syntax-tag {
+      background: rgba(107, 92, 231, 0.07);
+      border-color: rgba(107, 92, 231, 0.2);
+    }
+
+    /* Search input clear button */
+    .search-input-wrap { display: inline-flex; position: relative; }
+    .search-clear-btn {
+      position: absolute;
+      right: 7px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: rgba(148, 163, 184, 0.2);
+      color: #94a3b8;
+      border: none;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      padding: 0;
+      line-height: 1;
+    }
+    .search-clear-btn:hover { background: rgba(148, 163, 184, 0.35); color: #cbd5e1; }
+    html:not(.dark) .search-clear-btn { background: rgba(0,0,0,0.07); color: #6b7280; }
+    html:not(.dark) .search-clear-btn:hover { background: rgba(0,0,0,0.14); color: #374151; }
+
+    /* Search text highlight in trace rows */
+    .search-highlight {
+      background: rgba(230, 166, 93, 0.35);
+      color: #e6a65d;
+      border-radius: 2px;
+      padding: 0 1px;
+      font-weight: 600;
+    }
+    html:not(.dark) .search-highlight {
+      background: rgba(230, 166, 93, 0.25);
+      color: #c47a30;
+    }
 
     /* Virtual scroll container */
     .virtual-scroll-container { overflow-y: auto; position: relative; }

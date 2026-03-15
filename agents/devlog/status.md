@@ -1,5 +1,13 @@
 # Agent Status — 2026-03-15
 
+## Cycle 25: Search & Keyboard UX — IN PROGRESS (Alpha/UX, 2026-03-15)
+
+**Alpha/UX**: Enhancing search (debounce, highlight, clear btn, placeholder) + keyboard nav verification
+- Branch: `feat/ux-search-keyboard`
+- Files: `flowlens/server/static/dashboard.js`, `flowlens/server/static/dashboard.css`, `flowlens/server/dashboard.html`
+
+---
+
 ## Cycle 24: Dashboard Data Richness — COMPLETE (Gamma, 2026-03-15)
 
 **Gamma**: Fixed charts, enriched terminal output, added model usage to agent cards
