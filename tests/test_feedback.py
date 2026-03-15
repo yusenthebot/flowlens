@@ -166,6 +166,30 @@ class TestFeedbackStorage:
         assert t1 in low_ids
         assert t2 not in low_ids
 
+    def test_get_recent_feedback_returns_newest_first(self, store):
+        """get_recent_feedback returns entries newest first."""
+        t1 = self._save_trace(store)
+        t2 = self._save_trace(store)
+        store.save_feedback(t1, rating=5, comment="first")
+        store.save_feedback(t2, rating=2, comment="second")
+
+        recent = store.get_recent_feedback(limit=10)
+        assert len(recent) == 2
+        assert recent[0]["comment"] == "second"
+        assert recent[1]["comment"] == "first"
+
+    def test_get_recent_feedback_limit_respected(self, store):
+        """get_recent_feedback limit parameter is respected."""
+        t = self._save_trace(store)
+        for _ in range(5):
+            store.save_feedback(t, rating=3)
+        recent = store.get_recent_feedback(limit=3)
+        assert len(recent) == 3
+
+    def test_get_recent_feedback_empty(self, store):
+        """get_recent_feedback returns empty list when no feedback."""
+        assert store.get_recent_feedback() == []
+
 
 # ---------------------------------------------------------------------------
 # Part 2: API endpoints
@@ -272,3 +296,56 @@ class TestFeedbackAPI:
         low_ids = [r["trace_id"] for r in summary["low_rating_traces"]]
         assert bad_trace in low_ids
         assert good_trace not in low_ids
+
+    def test_feedback_recent_endpoint_empty(self, client):
+        resp = client.get("/v1/feedback/recent")
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    def test_feedback_recent_endpoint_returns_entries(self, client):
+        t1 = _ingest_trace(client)
+        t2 = _ingest_trace(client)
+        client.post(f"/v1/traces/{t1}/feedback", json={"rating": 4, "comment": "good trace"})
+        client.post(f"/v1/traces/{t2}/feedback", json={"rating": 2, "comment": "needs work"})
+
+        resp = client.get("/v1/feedback/recent")
+        assert resp.status_code == 200
+        entries = resp.json()
+        assert isinstance(entries, list)
+        assert len(entries) == 2
+        # Newest first
+        assert entries[0]["comment"] == "needs work"
+        assert entries[1]["comment"] == "good trace"
+
+    def test_feedback_recent_endpoint_limit(self, client):
+        """Limit parameter restricts result count."""
+        t = _ingest_trace(client)
+        for i in range(5):
+            client.post(f"/v1/traces/{t}/feedback", json={"rating": 3})
+
+        resp = client.get("/v1/feedback/recent?limit=2")
+        assert resp.status_code == 200
+        assert len(resp.json()) == 2
+
+    def test_feedback_recent_endpoint_limit_max(self, client):
+        """Limit above 100 is rejected."""
+        resp = client.get("/v1/feedback/recent?limit=101")
+        assert resp.status_code == 422  # Pydantic / FastAPI validation error
+
+    def test_feedback_recent_fields_present(self, client):
+        """Each entry has required fields."""
+        tid = _ingest_trace(client)
+        client.post(f"/v1/traces/{tid}/feedback", json={"rating": 5, "comment": "great"})
+
+        resp = client.get("/v1/feedback/recent")
+        assert resp.status_code == 200
+        entry = resp.json()[0]
+        assert "id" in entry
+        assert "trace_id" in entry
+        assert entry["trace_id"] == tid
+        assert "rating" in entry
+        assert entry["rating"] == 5
+        assert "comment" in entry
+        assert entry["comment"] == "great"
+        assert "created_at" in entry
+

@@ -1066,6 +1066,24 @@ class TraceStore:
             result.append(d)
         return result
 
+    def get_recent_feedback(self, limit: int = 10) -> list[dict[str, Any]]:
+        """Return the most recent feedback entries across all traces, newest first."""
+        if limit < 1:
+            limit = 1
+        elif limit > 100:
+            limit = 100
+        conn = self._pool.primary
+        rows = conn.execute(
+            "SELECT * FROM feedback ORDER BY created_at DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        result = []
+        for r in rows:
+            d = dict(r)
+            d["metadata"] = json.loads(d.get("metadata") or "{}")
+            result.append(d)
+        return result
+
     def get_feedback_summary(self) -> dict[str, Any]:
         """
         Return aggregate feedback statistics:
