@@ -1,11 +1,22 @@
 # Agent Status — 2026-03-15
 
-## Cycle 25: Compare & Export Features — IN PROGRESS (Beta, 2026-03-15)
+## Cycle 25: Compare & Export Features — COMPLETE (Beta, 2026-03-15)
 
-**Beta**: Fixing Compare view end-to-end + Export functionality
-- Branch: `feat/beta-compare-export`
-- Status: in_progress
-- Files: `flowlens/server/static/dashboard.js`
+**Beta**: Fixed Compare view end-to-end and Export functionality
+- Commit: e176d37
+- Branch: `worktree-agent-a324c55b`
+- Tests: 1208 passing (unchanged)
+- Delivered:
+  - Compare view now calls `/v1/traces/diff?a=&b=` in parallel with trace fetches
+  - Server diff summary rendered in verdict banner (real text not just "Trace B vs A")
+  - Span-level diff table: shared spans with A/B timing bars, faster=sage, slower=coral, error status
+  - only_in_a (removed spans) and only_in_b (added spans) shown as colored pill lists
+  - pattern_diffs: resolved patterns (sage "Fixed:") and new patterns (coral "New:")
+  - Side-by-side waterfall: proportional span bars rendered for both traces (up to 20 each)
+  - Fixed `exportDAGPng()`: `cyInstance.png({output:'blob'})` is invalid — now uses `blob-promise`
+    with graceful fallback to `base64uri` → manual Blob conversion
+  - `exportTraceJSON()` and `copyTraceId()` verified correct (no changes needed)
+- Files: `flowlens/server/static/dashboard.js`, `agents/devlog/status.md`
 
 ---
 
