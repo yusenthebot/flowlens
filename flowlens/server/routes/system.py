@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -27,6 +28,9 @@ from ..utils import _parse_tags
 
 logger = logging.getLogger(__name__)
 
+# TTL for per-router-instance caches (seconds)
+_ROUTE_CACHE_TTL = 30.0
+
 
 def create_system_router(store: TraceStore, server_start_time: float) -> APIRouter:
     """Create and return the system router.
@@ -36,6 +40,26 @@ def create_system_router(store: TraceStore, server_start_time: float) -> APIRout
         server_start_time: Unix timestamp of when the server started.
     """
     router = APIRouter()
+
+    # Per-router-instance TTL cache (dict + timestamp, no external deps).
+    # Instance-scoped so each test/server gets isolated cache state.
+    _cache: dict[str, tuple[float, Any]] = {}
+    _cache_lock = threading.Lock()
+
+    def _cache_get(key: str) -> Any:
+        with _cache_lock:
+            entry = _cache.get(key)
+            if entry is None:
+                return None
+            ts, value = entry
+            if time.time() - ts > _ROUTE_CACHE_TTL:
+                del _cache[key]
+                return None
+            return value
+
+    def _cache_set(key: str, value: Any) -> None:
+        with _cache_lock:
+            _cache[key] = (time.time(), value)
 
     @router.get("/health")
     async def health() -> dict[str, Any]:
@@ -136,25 +160,42 @@ def create_system_router(store: TraceStore, server_start_time: float) -> APIRout
         """Return recent activity events across all agents.
 
         Extracts individual tool calls from spans, ordered by time (newest first).
+        Uses a single batch query (instead of N per-trace queries) and a 30-second
+        TTL in-memory cache to avoid repeated database scans.
         Used for the Activity Timeline view.
         """
         limit = min(limit, 200)
 
-        # Get recent traces
+        cache_key = f"activity_stream:{limit}"
+        cached = _cache_get(cache_key)
+        if cached is not None:
+            return JSONResponse(cached)
+
+        t0 = time.perf_counter()
+
+        # 1 query — fetch recent trace metadata
         recent = store.list_traces(limit=100)
+        trace_ids = [t["trace_id"] for t in recent]
+        trace_tags = {t["trace_id"]: _parse_tags(t.get("tags") or {}) for t in recent}
+
+        # 1 query — fetch ALL spans for those traces (replaces N get_trace() calls)
+        spans_by_trace = store.get_spans_for_traces(trace_ids)
+
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        logger.debug(
+            "activity_stream batch fetch: %d traces in %.1f ms", len(trace_ids), elapsed_ms
+        )
 
         events = []
         for trace_meta in recent:
             trace_id = trace_meta["trace_id"]
-            tags = _parse_tags(trace_meta.get("tags") or {})
-            agent = tags.get("agent", "unknown")
+            agent = trace_tags[trace_id].get("agent", "unknown")
 
-            # Get full trace with spans
-            full = store.get_trace(trace_id)
-            if not full or not full.get("spans"):
+            spans = spans_by_trace.get(trace_id) or []
+            if not spans:
                 continue
 
-            for span in full["spans"]:
+            for span in spans:
                 tool_name = span.get("name", "")
                 # Extract agent from span attributes or "agent/Tool" name format
                 span_attrs = span.get("attributes") or {}
@@ -213,7 +254,9 @@ def create_system_router(store: TraceStore, server_start_time: float) -> APIRout
         events.sort(key=lambda e: e["timestamp"], reverse=True)
         events = events[:limit]
 
-        return JSONResponse({"events": events, "total": len(events)})
+        payload = {"events": events, "total": len(events)}
+        _cache_set(cache_key, payload)
+        return JSONResponse(payload)
 
     # -----------------------------------------------------------------------
     # Dashboard HTML

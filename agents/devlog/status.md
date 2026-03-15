@@ -1,5 +1,22 @@
 # Agent Status — 2026-03-15
 
+## Cycle 26: DB Optimization — COMPLETE (Beta, 2026-03-15)
+
+**Beta**: Eliminated N+1 queries, added batch SQL methods, added 30s TTL cache
+- Commit: 29c406d
+- Branch: `worktree-agent-af4cebb7`
+- Tests: 1208 passing (unchanged)
+- Delivered:
+  - `storage.get_spans_for_traces(trace_ids)` — fetches all spans for N traces in a single chunked SQL query, replacing N individual `get_trace()` calls
+  - `storage.get_agent_names_from_spans(trace_ids)` — batch-extracts `agent.name` span attributes and `agent/Tool` name prefixes for unknown-agent resolution
+  - `activity_stream`: 2 queries total instead of 1+N; 30s instance-scoped TTL cache
+  - `agents_summary`: 2 queries total instead of 1+N; 30s instance-scoped TTL cache
+  - Caches are router-instance-scoped to preserve test isolation (not module-level)
+  - Confirmed existing indexes cover all required columns: `spans.trace_id` (v1), `spans.name` (v2), `traces.session_id` (v4)
+- Files: `flowlens/server/storage.py`, `flowlens/server/routes/system.py`, `flowlens/server/routes/agents.py`
+
+---
+
 ## Cycle 25: Reliability & Error Handling — COMPLETE (Gamma, 2026-03-15)
 
 **Gamma**: Graceful error handling, empty states, loading skeletons, WebSocket null-guards
