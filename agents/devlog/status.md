@@ -1,5 +1,17 @@
 # Agent Status — 2026-03-15
 
+## Cycle 27: Notification & Alert System — IN PROGRESS (Alpha, 2026-03-15)
+
+**Alpha**: Implementing smart notifications, sessionStorage persistence, and desktop notifications
+- Branch: `feat/alpha-smart-notifications`
+- Files: `flowlens/server/static/websocket.js`, `flowlens/server/static/dashboard.js`
+- Tasks:
+  1. Smart notifications — burst detection, error-rate spikes, cost anomalies (websocket.js)
+  2. Notification persistence — sessionStorage, restore on load, clear syncs storage (dashboard.js)
+  3. Desktop notifications — browser Notification API when tab hidden (dashboard.js)
+
+---
+
 ## Cycle 26: DB Optimization — COMPLETE (Beta, 2026-03-15)
 
 **Beta**: Eliminated N+1 queries, added batch SQL methods, added 30s TTL cache

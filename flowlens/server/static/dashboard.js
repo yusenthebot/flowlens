@@ -89,6 +89,36 @@ const _LIVE_FEED_MAX = 15;
 // ==================================================================
 let notifications = [];
 
+// --- sessionStorage persistence helpers ---
+const _NOTIF_STORAGE_KEY = 'flowlens-notifications';
+const _NOTIF_STORAGE_MAX = 20;
+
+function _saveNotificationsToStorage() {
+  try {
+    // Persist only the most recent 20 entries
+    const toSave = notifications.slice(0, _NOTIF_STORAGE_MAX);
+    sessionStorage.setItem(_NOTIF_STORAGE_KEY, JSON.stringify(toSave));
+  } catch (_) {}
+}
+
+function _loadNotificationsFromStorage() {
+  try {
+    const raw = sessionStorage.getItem(_NOTIF_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      // Merge without duplicating by id
+      const existingIds = new Set(notifications.map(n => n.id));
+      const fresh = parsed.filter(n => !existingIds.has(n.id));
+      // Append restored entries and re-sort by timestamp desc
+      notifications = [...notifications, ...fresh]
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .slice(0, 50);
+      updateNotificationBadge();
+    }
+  } catch (_) {}
+}
+
 function toggleNotificationPanel() {
   const panel = document.getElementById('notification-panel');
   panel.classList.toggle('hidden');
@@ -98,7 +128,7 @@ function toggleNotificationPanel() {
 }
 
 function addNotification(type, title, message, traceId = null) {
-  notifications.unshift({
+  const notif = {
     id: Date.now(),
     type,  // 'error', 'warning', 'info', 'success'
     title,
@@ -106,10 +136,20 @@ function addNotification(type, title, message, traceId = null) {
     traceId,
     timestamp: Date.now() / 1000,
     read: false,
-  });
+  };
+  notifications.unshift(notif);
   // Keep max 50
   if (notifications.length > 50) notifications = notifications.slice(0, 50);
   updateNotificationBadge();
+
+  // Persist to sessionStorage so notifications survive page refresh
+  _saveNotificationsToStorage();
+
+  // Show desktop notification when tab is hidden and event is important
+  const isImportant = (type === 'error' || type === 'warning');
+  if (isImportant && document.hidden) {
+    _showDesktopNotification(title, message);
+  }
 }
 
 function updateNotificationBadge() {
@@ -127,6 +167,48 @@ function clearNotifications() {
   notifications = [];
   updateNotificationBadge();
   renderNotifications();
+  // Also clear persisted storage
+  try { sessionStorage.removeItem(_NOTIF_STORAGE_KEY); } catch (_) {}
+}
+
+// --- Desktop Notification API ---
+
+/**
+ * Request Notification permission if not yet granted and show a browser
+ * notification. Clicking the notification focuses the FlowLens tab.
+ *
+ * Only fires when `document.hidden` is true (tab is in the background).
+ * Requires a secure context (https or localhost) in most browsers.
+ */
+async function _showDesktopNotification(title, body) {
+  if (!('Notification' in window)) return; // Browser does not support it
+
+  try {
+    let permission = Notification.permission;
+    if (permission === 'default') {
+      // Ask only once; if denied this becomes a no-op for future calls
+      permission = await Notification.requestPermission();
+    }
+    if (permission !== 'granted') return;
+
+    const n = new Notification(`FlowLens — ${title}`, {
+      body,
+      icon: '/favicon.ico',
+      tag: 'flowlens-alert', // Replace previous notification with same tag
+      requireInteraction: false,
+    });
+
+    // Clicking the notification brings the FlowLens tab into focus
+    n.onclick = () => {
+      window.focus();
+      n.close();
+    };
+
+    // Auto-close after 8 seconds so it doesn't pile up on the desktop
+    setTimeout(() => n.close(), 8000);
+  } catch (_) {
+    // Silently ignore — permissions may be unavailable in some embeddings
+  }
 }
 
 function renderNotifications() {
@@ -4853,6 +4935,9 @@ function saveSearchQuery() {
 }
 
 function restoreState() {
+  // Restore notifications from sessionStorage (must happen before any renders)
+  _loadNotificationsFromStorage();
+
   try {
     // Restore search query
     const savedSearch = sessionStorage.getItem('flowlens-search');
