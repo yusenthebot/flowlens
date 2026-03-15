@@ -1,24 +1,14 @@
 # Agent Status — 2026-03-15
 
-## Cycle 23: End-to-End QA + Bug Fixes — COMPLETE (Beta, 2026-03-15)
+## Cycle 23: Dashboard Quality Pass — COMPLETE (Alpha, 2026-03-15)
 
-**Beta**: Ran server, seeded data, tested all 8 API endpoints end-to-end, fixed 3 bugs
-- Commit: a182cea
-- Branch: `main` (direct)
+**Alpha**: Comprehensive audit + bug fixes across all dashboard static files
+- CSS critical bug: unclosed `@media (max-width: 768px)` at line 468 of dashboard.css — this caused `.theme-toggle`, `.shortcuts-modal-overlay`, `.compare-checkbox`, `.filter-input:focus`, `.collapsible-*`, `.pattern-card-*`, `.trace-row-selected`, and 15+ other rules to ONLY apply at ≤768px width (desktop was broken)
+- JS null dereference bug: `document.getElementById('stat-error-count').textContent` in `loadStats()` — element was removed from HTML in v17 but the JS guard was missing on the second access, causing `TypeError` on every stats refresh
+- JS undeclared variable: `_termLayout` used in `_termSetLayout()`, `_termOpenWithLayout()`, `_termCloseAll()` but never declared — in strict mode (`'use strict'`) this is a `ReferenceError` crashing terminal pane layout changes
+- network.js cosmetic: redundant ternary `dark ? '#ffffff' : '#ffffff'` simplified to literal
 - Tests: 1156 passing (unchanged)
-- Delivered:
-  - **storage.py** `list_sessions()`: replaced `GROUP_CONCAT(DISTINCT tags_json)` + comma split
-    with `GROUP_CONCAT(tags_json, '|||')` + pipe-delimited split to prevent JSON objects with
-    internal commas from being corrupted mid-parse; added deduplication via `seen_tags` set.
-    Bug was silent: sessions with multiple distinct agent tags returned `agents: []`.
-  - **cost_forecast.py**: added ±10 % minimum CI spread when `_residual_std()` returns 0
-    (< 3 data points). Confidence interval was previously `lower == upper`, making the
-    forecast band invisible in the chart.
-  - **scripts/seed_24h.py**: hardcoded port 8585 replaced with `os.environ.get("FLOWLENS_PORT", "8585")`
-    so the script works without editing when using non-default ports.
-- Verified all working: `/v1/stats`, `/v1/agents/summary`, `/v1/activity/stream`,
-  `/v1/sessions`, `/v1/cost/forecast`, `/v1/feedback/recent`, `/`, all static files 200.
-- Files: `flowlens/server/storage.py`, `flowlens/analysis/cost_forecast.py`, `scripts/seed_24h.py`
+- Files: `flowlens/server/static/dashboard.css`, `flowlens/server/static/dashboard.js`, `flowlens/server/static/network.js`
 
 ---
 
