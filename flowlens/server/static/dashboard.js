@@ -392,7 +392,7 @@ function renderLiveMonitor(agents) {
     const isActive = a.status === 'active';
 
     return `
-      <div class="monitor-agent-card rounded-lg p-2 ${isActive ? 'bg-emerald-500/5 border border-emerald-500/20' : 'bg-slate-800/30 border border-white/5'} transition-all duration-300 flex flex-col items-center gap-1 cursor-pointer hover:scale-105 hover:border-indigo-400/40" data-agent="${escHtml(a.agent)}" onclick="openAgentTerminal('${escHtml(a.agent)}')">
+      <div class="monitor-agent-card rounded-lg p-2 ${isActive ? 'bg-emerald-500/5 border border-emerald-500/20' : 'bg-slate-800/30 border border-white/5'} transition-all duration-300 flex flex-col items-center gap-1 cursor-pointer hover:scale-105 hover:border-indigo-400/40" data-agent="${escHtml(a.agent)}" onclick="openAgentTerminal('${escHtml(a.agent)}')" oncontextmenu="event.preventDefault();_termShowContextMenu(event,'${escHtml(a.agent)}')">
         <div class="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white relative" style="background:${p.color}">
           ${(p.name||'?')[0]}
           <span class="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ${isActive ? 'bg-emerald-400 pulse-dot' : 'bg-slate-600'} border border-slate-900"></span>
@@ -419,6 +419,69 @@ async function openAgentTerminal(agentName) {
   else if (_termPanes.length === 2) _termLayout = 'vsplit';
   else _termLayout = 'grid';
 
+  if (_termMinimized) _termMinimized = false;
+  _termRender();
+  await _termLoadPane(agentName);
+}
+
+/** Show right-click context menu for split options */
+function _termShowContextMenu(event, agentName) {
+  // Remove any existing menu
+  _termHideContextMenu();
+
+  const p = getAgentProfile(agentName);
+  const menu = document.createElement('div');
+  menu.id = 'tmux-ctx-menu';
+  menu.className = 'tmux-ctx-menu';
+  menu.style.left = event.clientX + 'px';
+  menu.style.top = event.clientY + 'px';
+  menu.innerHTML = `
+    <div class="tmux-ctx-header">${escHtml(p.name)}</div>
+    <div class="tmux-ctx-item" onclick="_termOpenWithLayout('${escHtml(agentName)}','vsplit')">
+      <span style="opacity:0.6">▐</span> Vertical Split
+    </div>
+    <div class="tmux-ctx-item" onclick="_termOpenWithLayout('${escHtml(agentName)}','hsplit')">
+      <span style="opacity:0.6">▄</span> Horizontal Split
+    </div>
+    <div class="tmux-ctx-item" onclick="_termOpenWithLayout('${escHtml(agentName)}','grid')">
+      <span style="opacity:0.6">⊞</span> Grid
+    </div>
+    <div class="tmux-ctx-sep"></div>
+    <div class="tmux-ctx-item" onclick="openAgentTerminal('${escHtml(agentName)}')">
+      Open in Terminal
+    </div>
+  `;
+  document.body.appendChild(menu);
+
+  // Keep menu in viewport
+  requestAnimationFrame(() => {
+    const r = menu.getBoundingClientRect();
+    if (r.right > window.innerWidth) menu.style.left = (window.innerWidth - r.width - 8) + 'px';
+    if (r.bottom > window.innerHeight) menu.style.top = (window.innerHeight - r.height - 8) + 'px';
+  });
+
+  // Close on any click
+  setTimeout(() => {
+    document.addEventListener('click', _termHideContextMenu, { once: true });
+    document.addEventListener('contextmenu', _termHideContextMenu, { once: true });
+  }, 10);
+}
+
+function _termHideContextMenu() {
+  const m = document.getElementById('tmux-ctx-menu');
+  if (m) m.remove();
+}
+
+/** Open agent with a specific layout */
+async function _termOpenWithLayout(agentName, layout) {
+  _termHideContextMenu();
+  // Add the pane if not already present
+  const existing = _termPanes.find(p => p.agent === agentName);
+  if (!existing) {
+    _termPanes.push({ id: ++_termPaneIdCounter, agent: agentName });
+  }
+  // Set requested layout
+  _termLayout = _termPanes.length <= 1 ? 'single' : layout;
   if (_termMinimized) _termMinimized = false;
   _termRender();
   await _termLoadPane(agentName);
