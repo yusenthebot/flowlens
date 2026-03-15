@@ -94,7 +94,7 @@ class TestFleetAnalysis:
 
     def test_most_common_failure_detected(self):
         """Recurring error message is identified as most common failure."""
-        err_span = _span("api_call", error_msg="connection refused")
+        _span("api_call", error_msg="connection refused")
         ok_span = _span("agent")
 
         traces = [

@@ -8,14 +8,13 @@ Endpoints:
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
-from ..utils import _MAX_ID_LENGTH, _sanitize_id
 from ..storage import TraceStore
+from ..utils import _sanitize_id
 
 logger = logging.getLogger(__name__)
 

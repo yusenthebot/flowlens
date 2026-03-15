@@ -21,7 +21,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
 from ..storage import TraceStore
-from ..utils import _AGENT_PROFILES, _parse_tags, _extract_agents_from_trace
+from ..utils import _AGENT_PROFILES, _extract_agents_from_trace, _parse_tags
 
 logger = logging.getLogger(__name__)
 

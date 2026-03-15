@@ -48,20 +48,18 @@ from fastapi import (
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from ..alerting.engine import AlertEngine
 from ..alerting import AlertRule
+from ..alerting.engine import AlertEngine
 from ..config import settings
 from ..logging_config import configure_logging
 from .routes import register_routes
 from .storage import TraceStore
 from .utils import (
-    _ALLOWED_IMPORT_DIRS,
-    _MAX_ID_LENGTH,
-    _MAX_SPANS_PER_INGEST,
     _AGENT_PROFILES,
-    _sanitize_id,
+    _ALLOWED_IMPORT_DIRS,
+    _MAX_SPANS_PER_INGEST,
     _reconstruct_trace,
-    _is_subpath,
+    _sanitize_id,
 )
 
 logger = logging.getLogger(__name__)

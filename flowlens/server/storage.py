@@ -14,6 +14,7 @@ Schema versioning:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import sqlite3
@@ -83,10 +84,8 @@ class _ConnectionPool:
 
     def close_all(self) -> None:
         """Close the primary connection (thread-local ones are GC'd naturally)."""
-        try:
+        with contextlib.suppress(Exception):
             self._primary.close()
-        except Exception:
-            pass
 
 
 # ---------------------------------------------------------------------------

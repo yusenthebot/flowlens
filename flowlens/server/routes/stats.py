@@ -24,9 +24,9 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from ..storage import TraceStore
-from ..utils import _MAX_ID_LENGTH, _sanitize_id, _parse_tags, _reconstruct_trace
 from ...analysis.smart_advisor import SmartAdvisor as _SmartAdvisor
+from ..storage import TraceStore
+from ..utils import _MAX_ID_LENGTH, _parse_tags, _reconstruct_trace, _sanitize_id
 
 logger = logging.getLogger(__name__)
 

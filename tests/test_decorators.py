@@ -1,4 +1,6 @@
 """Tests for FlowLens decorators — trace_agent, trace_llm, trace_tool."""
+import contextlib
+
 import pytest
 
 from flowlens import FlowLens, trace_agent, trace_llm, trace_tool
@@ -123,10 +125,8 @@ class TestTraceTool:
             async def bad():
                 raise ConnectionError("network down")
 
-            try:
+            with contextlib.suppress(ConnectionError):
                 await bad()
-            except ConnectionError:
-                pass
 
         await agent()
         trace = captured_traces[0]
@@ -293,10 +293,8 @@ class TestDecoratorExceptions:
             async def bad_llm():
                 raise ConnectionError("network issue")
 
-            try:
+            with contextlib.suppress(ConnectionError):
                 await bad_llm()
-            except ConnectionError:
-                pass
 
         await agent()
 
@@ -314,10 +312,8 @@ class TestDecoratorExceptions:
             async def bad():
                 raise TimeoutError("took too long")
 
-            try:
+            with contextlib.suppress(TimeoutError):
                 await bad()
-            except TimeoutError:
-                pass
 
         await agent()
 

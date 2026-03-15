@@ -670,7 +670,7 @@ class TestTraceEmbeddingDecorator:
             return FakeEmbeddingResponse()
 
         with TraceContext(trace):
-            result = await embed_async(["foo", "bar"])
+            await embed_async(["foo", "bar"])
 
         lens.end_trace(trace)
         emb_spans = [s for s in captured_traces[0].spans if s.kind == SpanKind.EMBEDDING]

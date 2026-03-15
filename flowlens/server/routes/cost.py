@@ -66,8 +66,9 @@ def create_cost_router(store: TraceStore) -> APIRouter:
         confidence_interval, days_of_data, slope, r_squared,
         daily_costs (last N days actual), and forecast (next forecast_days).
         """
+        from datetime import datetime, timedelta, timezone
+
         from ...analysis.cost_forecast import CostForecaster
-        from datetime import datetime, timezone, timedelta
         try:
             history_days = max(days, 14)
             daily_records = store.get_daily_costs(days=history_days)

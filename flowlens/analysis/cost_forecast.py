@@ -83,7 +83,7 @@ def _linear_regression(
     sum_x = sum(x)
     sum_y = sum(y)
     sum_xx = sum(xi * xi for xi in x)
-    sum_xy = sum(xi * yi for xi, yi in zip(x, y))
+    sum_xy = sum(xi * yi for xi, yi in zip(x, y, strict=False))
 
     denom = n * sum_xx - sum_x * sum_x
     if denom == 0:
@@ -95,7 +95,7 @@ def _linear_regression(
     # R²
     y_mean = sum_y / n
     ss_tot = sum((yi - y_mean) ** 2 for yi in y)
-    ss_res = sum((yi - (slope * xi + intercept)) ** 2 for xi, yi in zip(x, y))
+    ss_res = sum((yi - (slope * xi + intercept)) ** 2 for xi, yi in zip(x, y, strict=False))
     r_squared = 1.0 - (ss_res / ss_tot) if ss_tot > 0 else 0.0
 
     return slope, intercept, r_squared
@@ -108,7 +108,7 @@ def _residual_std(
     n = len(x)
     if n < 3:
         return 0.0
-    residuals = [yi - (slope * xi + intercept) for xi, yi in zip(x, y)]
+    residuals = [yi - (slope * xi + intercept) for xi, yi in zip(x, y, strict=False)]
     sse = sum(r * r for r in residuals)
     return math.sqrt(sse / (n - 2))
 
@@ -188,10 +188,7 @@ class CostForecaster:
 
         # Trend classification
         mean_daily = sum(y) / len(y) if y else 1.0
-        if mean_daily > 0:
-            relative_slope = slope / mean_daily
-        else:
-            relative_slope = slope
+        relative_slope = slope / mean_daily if mean_daily > 0 else slope
         if abs(relative_slope) < self._STABLE_THRESHOLD:
             trend = "stable"
         elif relative_slope > 0:
@@ -285,10 +282,7 @@ class CostForecaster:
 
         anomalies: list[dict[str, Any]] = []
         for bucket_idx, total_cost in sorted(buckets.items()):
-            if std_cost > 0:
-                z_score = (total_cost - mean_cost) / std_cost
-            else:
-                z_score = 0.0
+            z_score = (total_cost - mean_cost) / std_cost if std_cost > 0 else 0.0
             if abs(z_score) >= 2.0:
                 window_start = bucket_idx * window_seconds
                 anomalies.append(

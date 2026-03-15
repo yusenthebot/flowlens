@@ -1183,7 +1183,7 @@ class TestFlowLensInstanceManagement:
     """Verify singleton behaviour and shutdown handling."""
 
     def test_get_instance_returns_last_created(self):
-        lens1 = FlowLens(service_name="first", export_to="console")
+        FlowLens(service_name="first", export_to="console")
         lens2 = FlowLens(service_name="second", export_to="console")
         assert FlowLens.get_instance() is lens2
 

@@ -269,7 +269,7 @@ class TestTraceAdvisor:
             )
             s.finish(error="timeout")
             if i == 0:
-                first_span = s
+                pass
 
         trace = _make_trace(*[
             Span(span_id=f"s{i}", name="flaky_tool", kind=SpanKind.TOOL, start_time=float(i))
@@ -880,7 +880,7 @@ class TestCausalDAGMarkdownAndJSON:
 
         trace = _make_trace(s1, s2)
         dag = build_causal_dag(trace)
-        patterns = detect_patterns(trace, dag)
+        detect_patterns(trace, dag)
         md = dag.to_markdown()
 
         assert "Root Causes" in md

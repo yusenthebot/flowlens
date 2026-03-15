@@ -27,23 +27,21 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
-from ..utils import (
-    _MAX_ID_LENGTH,
-    _MAX_SPANS_PER_INGEST,
-    _ALLOWED_IMPORT_DIRS,
-    _is_subpath,
-    _sanitize_id,
-    _reconstruct_trace,
-)
-from ..storage import TraceStore
-from ..validation import validate_trace as _validate_trace
 from ...analysis.dag_builder import build_causal_dag
 from ...analysis.patterns import detect_patterns
-from ...analysis.smart_advisor import SmartAdvisor as _SmartAdvisor
 from ...analysis.trace_diff import TraceDiff as _TraceDiff
+from ..storage import TraceStore
+from ..utils import (
+    _ALLOWED_IMPORT_DIRS,
+    _MAX_ID_LENGTH,
+    _MAX_SPANS_PER_INGEST,
+    _is_subpath,
+    _reconstruct_trace,
+    _sanitize_id,
+)
+from ..validation import validate_trace as _validate_trace
 
 logger = logging.getLogger(__name__)
 

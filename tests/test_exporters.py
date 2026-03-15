@@ -86,7 +86,6 @@ class TestOTLPBatchExporterAccumulation:
         exp = self._make_exporter(batch_size=3)
         sent_batches: list[list[Trace]] = []
 
-        original_send = exp._send_batch
 
         def capturing_send(traces):
             sent_batches.append(list(traces))

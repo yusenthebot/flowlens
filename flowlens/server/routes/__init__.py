@@ -11,13 +11,13 @@ from typing import Any
 from fastapi import FastAPI
 
 from ..storage import TraceStore
-from .traces import create_traces_router, create_experiments_router
-from .cost import create_cost_router
 from .agents import create_agents_router
-from .stats import create_stats_router
 from .alerts import create_alerts_router
-from .system import create_system_router
+from .cost import create_cost_router
 from .sessions import create_sessions_router
+from .stats import create_stats_router
+from .system import create_system_router
+from .traces import create_experiments_router, create_traces_router
 
 
 def register_routes(

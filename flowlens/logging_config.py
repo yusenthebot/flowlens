@@ -142,10 +142,7 @@ def configure_logging(
     resolved_stream = stream or sys.stderr
 
     formatter: logging.Formatter
-    if resolved_dev:
-        formatter = _PrettyFormatter()
-    else:
-        formatter = _JsonFormatter()
+    formatter = _PrettyFormatter() if resolved_dev else _JsonFormatter()
 
     # Configure the FlowLens package logger (not the root logger, so we
     # don't accidentally pollute third-party libraries).

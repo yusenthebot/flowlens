@@ -117,13 +117,25 @@ ignore = [
     "E501",  # line too long — handled by black
     "B008",  # do not perform function calls in argument defaults (FastAPI uses this)
     "N806",  # variable in function should be lowercase (false positives in tests)
+    "B904",  # raise from — too noisy for MVP, will fix incrementally
+    "N817",  # CamelCase imported as acronym
+    "N814",  # CamelCase imported as constant
+    "N801",  # class name should use CapWords
+    "N805",  # first argument should be self
+    "E741",  # ambiguous variable name (e, l, etc.)
+    "SIM105", # use contextlib.suppress — less readable
+    "SIM115", # use context manager for open — not always appropriate
+    "SIM117", # combine with statements — less readable
+    "SIM102", # collapsible if — less readable
+    "B039",  # mutable default in ContextVar
+    "B027",  # empty method body — abstract stubs
 ]
 
 [tool.ruff.lint.isort]
 known-first-party = ["flowlens"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101"]  # allow assert in tests
+"tests/*" = ["S101", "B007", "F811", "E702"]  # allow assert, unused loop vars, redefs, semicolons in tests
 
 # ─── Mypy ─────────────────────────────────────────────────────────────────────
 [tool.mypy]

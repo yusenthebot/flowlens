@@ -1,6 +1,7 @@
 """Tests for @trace_llm_stream — streaming LLM decorator."""
 from __future__ import annotations
 
+import contextlib
 from unittest.mock import MagicMock
 
 import pytest
@@ -274,10 +275,8 @@ class TestTraceLlmStreamSync:
                 yield MagicMock(type="content_block_delta", delta=MagicMock(text="x"))
                 raise TimeoutError("timeout")
 
-            try:
+            with contextlib.suppress(TimeoutError):
                 list(bad())
-            except TimeoutError:
-                pass
 
         agent()
         trace = captured_traces[0]

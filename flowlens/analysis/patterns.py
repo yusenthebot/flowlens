@@ -268,7 +268,7 @@ def _detect_hallucination_cascade(
     patterns = []
 
     # 构建 span 索引
-    span_map = {s.span_id: s for s in trace.spans}
+    {s.span_id: s for s in trace.spans}
     sorted_spans = sorted(trace.spans, key=lambda s: s.start_time)
 
     # LLM span 后面紧跟 TOOL span 且 TOOL 出错
@@ -490,7 +490,7 @@ def _detect_sequential_bottleneck(trace: Trace) -> list[DetectedPattern]:
 
         # Identify sequential pairs (no time overlap)
         sequential_group: list[Span] = [sorted_tools[0]]
-        for prev, curr in zip(sorted_tools, sorted_tools[1:]):
+        for prev, curr in zip(sorted_tools, sorted_tools[1:], strict=False):
             prev_end = prev.end_time if prev.end_time > 0 else prev.start_time
             # If current starts after previous ended → sequential
             if curr.start_time >= prev_end:

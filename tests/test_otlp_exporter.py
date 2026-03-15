@@ -336,7 +336,7 @@ class TestAttributeBuilding:
         for a in attrs:
             val = a["value"]
             # Extract the concrete python value for comparison
-            for vtype, vval in val.items():
+            for _vtype, vval in val.items():
                 result[a["key"]] = vval
                 break
         return result

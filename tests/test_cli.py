@@ -488,7 +488,6 @@ class TestDemoCommand:
         """--dashboard with missing script should exit non-zero."""
 
         # Point the CLI at a temp dir that has no server_demo.py
-        fake_root = tmp_path
 
         import flowlens.cli as _cli_mod
 
@@ -741,7 +740,7 @@ class TestStatsCommand:
 
     def test_stats_empty_db(self, runner: CliRunner, tmp_path: Path) -> None:
         db = tmp_path / "empty.db"
-        store = TraceStore(db_path=str(db))  # creates schema
+        TraceStore(db_path=str(db))  # creates schema
         result = runner.invoke(cli, ["stats", "--db", str(db)])
         assert result.exit_code == 0
         assert "0" in result.output

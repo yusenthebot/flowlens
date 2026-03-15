@@ -17,11 +17,11 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from ..storage import TraceStore
-from ..utils import _sanitize_id
 from ...alerting import Alert, AlertRule
 from ...alerting.engine import AlertEngine
 from ...alerting.webhooks import send_webhook as _send_webhook
+from ..storage import TraceStore
+from ..utils import _sanitize_id
 
 logger = logging.getLogger(__name__)
 

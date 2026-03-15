@@ -1,6 +1,8 @@
 """Advanced decorator tests for flowlens/sdk/decorators.py."""
 from __future__ import annotations
 
+import contextlib
+
 import pytest
 
 from flowlens import FlowLens, trace_agent, trace_llm, trace_tool
@@ -37,8 +39,7 @@ class TestTraceLLMStream:
         def agent():
             @trace_llm_stream(model="gpt-4o", name="streamed")
             def llm_stream():
-                for c in chunks:
-                    yield c
+                yield from chunks
 
             return list(llm_stream())
 
@@ -154,10 +155,8 @@ class TestTraceToolExceptions:
             def risky():
                 raise TypeError("type error")
 
-            try:
+            with contextlib.suppress(TypeError):
                 risky()
-            except TypeError:
-                pass
 
         agent()
         trace = captured_traces[0]
@@ -175,10 +174,8 @@ class TestTraceToolExceptions:
             async def async_risky():
                 raise OSError("async failed")
 
-            try:
+            with contextlib.suppress(OSError):
                 await async_risky()
-            except OSError:
-                pass
 
         await agent()
         trace = captured_traces[0]

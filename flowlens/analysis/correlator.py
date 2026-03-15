@@ -17,7 +17,7 @@ from typing import Any
 
 from ..sdk.models import SpanStatus, Trace
 from .dag_builder import build_causal_dag
-from .models import DetectedPattern, PatternType
+from .models import CausalDAG, DetectedPattern, PatternType
 from .patterns import detect_patterns
 
 # ---------------------------------------------------------------------------
@@ -346,7 +346,7 @@ def _detect_common_anti_patterns(
     # pattern_type -> set of trace indices that contain it
     ptype_to_trace_ids: dict[PatternType, set[str]] = defaultdict(set)
 
-    for trace, pats in zip(traces, patterns_per_trace):
+    for trace, pats in zip(traces, patterns_per_trace, strict=False):
         seen_types: set[PatternType] = set()
         for p in pats:
             if p.pattern_type not in seen_types:
@@ -390,7 +390,7 @@ def _linear_slope(values: list[float]) -> float | None:
     xs = list(range(n))
     x_mean = sum(xs) / n
     y_mean = sum(values) / n
-    numerator = sum((x - x_mean) * (y - y_mean) for x, y in zip(xs, values))
+    numerator = sum((x - x_mean) * (y - y_mean) for x, y in zip(xs, values, strict=False))
     denominator = sum((x - x_mean) ** 2 for x in xs)
     if denominator == 0:
         return 0.0
@@ -405,5 +405,5 @@ def _is_monotonic_trend(values: list[float]) -> bool:
     """
     if len(values) < 2:
         return False
-    increases = sum(1 for a, b in zip(values, values[1:]) if b > a)
+    increases = sum(1 for a, b in zip(values, values[1:], strict=False) if b > a)
     return increases >= (len(values) - 1) * 2 / 3

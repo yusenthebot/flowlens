@@ -271,7 +271,7 @@ class AlertEngine:
                 # Return the first non-empty metrics we can find for context
                 merged_metrics: dict[str, Any] = {}
                 messages: list[str] = []
-                for matched, msg, mets in results:
+                for _matched, msg, mets in results:
                     if mets:
                         merged_metrics.update(mets)
                     if msg:

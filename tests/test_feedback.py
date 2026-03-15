@@ -320,7 +320,7 @@ class TestFeedbackAPI:
     def test_feedback_recent_endpoint_limit(self, client):
         """Limit parameter restricts result count."""
         t = _ingest_trace(client)
-        for i in range(5):
+        for _i in range(5):
             client.post(f"/v1/traces/{t}/feedback", json={"rating": 3})
 
         resp = client.get("/v1/feedback/recent?limit=2")

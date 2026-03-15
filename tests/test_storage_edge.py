@@ -129,7 +129,7 @@ class TestLargeTraces:
         assert stats["total_spans"] is not None
 
     def test_list_many_traces_with_limit(self, store: TraceStore):
-        for i in range(30):
+        for _i in range(30):
             t = _make_trace(service="multi-svc")
             store.save_trace(t)
         rows = store.list_traces(limit=10)
@@ -137,7 +137,7 @@ class TestLargeTraces:
 
     def test_batch_delete_large_set(self, store: TraceStore):
         ids = []
-        for i in range(50):
+        for _i in range(50):
             t = _make_trace(service="del-svc")
             store.save_trace(t)
             ids.append(t["trace_id"])

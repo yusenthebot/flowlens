@@ -52,10 +52,7 @@ class ConsoleExporter(TraceExporter):
         self.verbose = verbose
 
     def export(self, trace: Trace) -> None:
-        if self.colored:
-            header = "\033[96m\033[1m[FlowLens]\033[0m"
-        else:
-            header = "[FlowLens]"
+        header = "\x1b[96m\x1b[1m[FlowLens]\x1b[0m" if self.colored else "[FlowLens]"
 
         status = "ERROR" if trace.has_errors else "OK"
         if self.colored:

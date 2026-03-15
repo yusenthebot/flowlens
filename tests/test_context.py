@@ -182,12 +182,12 @@ class TestNestedSpanContext:
         llm = _make_span("llm")
         tool = _make_span("tool")
 
-        with SpanContext(agent) as a:
+        with SpanContext(agent):
             assert get_current_span() is agent
-            with SpanContext(llm) as l:
+            with SpanContext(llm):
                 assert get_current_span() is llm
                 assert llm.parent_span_id == agent.span_id
-                with SpanContext(tool) as t:
+                with SpanContext(tool):
                     assert get_current_span() is tool
                     assert tool.parent_span_id == llm.span_id
                 assert get_current_span() is llm
@@ -230,7 +230,8 @@ class TestThreadSafety:
                 ctx = contextvars.copy_context()
                 def _run():
                     with TraceContext(trace):
-                        import time; time.sleep(0.02)
+                        import time
+                        time.sleep(0.02)
                         results[tid] = get_current_trace()
                 ctx.run(_run)
             except Exception as e:
@@ -260,7 +261,8 @@ class TestThreadSafety:
                 ctx = contextvars.copy_context()
                 def _run():
                     set_baggage_item("thread_val", value)
-                    import time; time.sleep(0.02)
+                    import time
+                    time.sleep(0.02)
                     seen[tid] = get_baggage_item("thread_val")
                 ctx.run(_run)
             except Exception as e:

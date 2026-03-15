@@ -14,8 +14,10 @@ from collections.abc import Callable
 from typing import Any
 
 from .context import (
-    get_current_span,
-    get_current_trace,
+    get_current_span as _ctx_get_current_span,
+)
+from .context import (
+    get_current_trace as _ctx_get_current_trace,
 )
 from .exporters import TraceExporter, create_exporter
 from .models import Span, SpanKind, Trace
@@ -305,7 +307,7 @@ class FlowLens:
         )
 
         # 关联到当前 trace
-        trace = get_current_trace()
+        trace = _ctx_get_current_trace()
         if trace:
             # Enforce per-trace span limit
             if len(trace.spans) >= _MAX_SPANS_PER_TRACE:
@@ -323,7 +325,7 @@ class FlowLens:
                 trace.root_span_id = span.span_id
 
         # 关联到父 span
-        parent = get_current_span()
+        parent = _ctx_get_current_span()
         if parent:
             span.parent_span_id = parent.span_id
 
@@ -383,7 +385,7 @@ def get_current_trace() -> Trace | None:
     """获取当前 trace（全局便捷函数）
 
     用法:
-        trace = get_current_trace()
+        trace = _ctx_get_current_trace()
         if trace:
             trace.metadata["user_id"] = "123"
     """

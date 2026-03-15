@@ -20,7 +20,6 @@ Covers:
 from __future__ import annotations
 
 import json
-import os
 from typing import Any
 
 import pytest
@@ -34,7 +33,6 @@ from flowlens.server.validation import (
     check_payload_size,
     validate_trace,
 )
-
 
 # ===========================================================================
 # Helpers
@@ -275,6 +273,7 @@ class TestSpanCountExceedingLimitFails:
     def test_env_var_override(self, monkeypatch):
         """FLOWLENS_MAX_SPANS_PER_TRACE env var changes the limit."""
         import importlib
+
         import flowlens.server.validation as val_module
 
         monkeypatch.setenv("FLOWLENS_MAX_SPANS_PER_TRACE", "5")
