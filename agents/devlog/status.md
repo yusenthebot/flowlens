@@ -1,5 +1,18 @@
 # Agent Status — 2026-03-15
 
+## Cycle 24: Dashboard Data Richness — IN PROGRESS (Gamma, 2026-03-15)
+
+**Gamma**: Fixing charts, enriching terminal output, adding model usage to agent cards
+- Branch: `main` (direct)
+- Tasks:
+  1. Fix `loadStats` trend bucket field name mismatch (trace_count vs traces)
+  2. Fix `loadStats` all-time trend comparison same mismatch
+  3. Enhance `_termFormatLine` — full paths, bash preview 60 chars, model names, errors
+  4. Add "Models" section to Agent cards from activity stream span attributes
+  5. Verify `loadTrendChart` and `loadOverviewCharts` — both look correct already
+
+---
+
 ## Cycle 23: UI Animation Polish — COMPLETE (Gamma, 2026-03-15)
 
 **Gamma**: Final polish pass — animations, transitions, micro-interactions

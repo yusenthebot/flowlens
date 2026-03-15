@@ -158,7 +158,9 @@ async function loadOverviewCharts() {
     const summary = await apiFetch('/v1/agents/summary');
     console.log('[FlowLens] loadOverviewCharts: got', summary?.agents?.length, 'agents');
     if (!summary || !summary.agents || summary.agents.length === 0) return;
-    const agents = summary.agents.filter(a => a.agent !== 'unknown'); // Skip unknown for cleaner charts
+    // Prefer named agents; fall back to including 'unknown' if that's all we have
+    let agents = summary.agents.filter(a => a.agent !== 'unknown');
+    if (agents.length === 0) agents = summary.agents; // include unknown as fallback
     if (agents.length === 0) return;
     console.log('[FlowLens] Rendering charts for', agents.length, 'agents, costs:', agents.map(a => a.total_cost_usd));
 
