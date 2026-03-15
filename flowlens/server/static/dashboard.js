@@ -430,17 +430,27 @@ function _termCycleLayout() {
   const layouts = ['vsplit', 'hsplit', 'grid'];
   const idx = layouts.indexOf(_termLayout);
   _termLayout = layouts[(idx + 1) % layouts.length];
+  // Just update layout class — no pane reload needed
+  const w = document.getElementById('tmux-terminal');
+  if (!w) return;
+  const pc = w.querySelector('.tmux-panes');
+  if (pc) {
+    const layoutCls = _termLayout === 'vsplit' ? 'tmux-vsplit' : _termLayout === 'hsplit' ? 'tmux-hsplit' : 'tmux-grid';
+    pc.className = `tmux-panes ${layoutCls}`;
+  }
+  // Update statusbar and layout button
   _termRender();
-  _termPanes.forEach(p => _termLoadPane(p.agent));
 }
 
 function _termRender() {
   let w = document.getElementById('tmux-terminal');
-  if (!w) {
+  const isNew = !w;
+  if (isNew) {
     w = document.createElement('div');
     w.id = 'tmux-terminal';
     document.body.appendChild(w);
     _termMakeDraggable(w);
+    _termMakeResizable(w);
   }
 
   if (_termMinimized) {
@@ -455,20 +465,51 @@ function _termRender() {
     return;
   }
 
-  // Layout class
   const layoutCls = _termPanes.length <= 1 ? '' :
     _termLayout === 'vsplit' ? 'tmux-vsplit' :
     _termLayout === 'hsplit' ? 'tmux-hsplit' : 'tmux-grid';
-
   const layoutIcon = _termLayout === 'vsplit' ? '▐' : _termLayout === 'hsplit' ? '▄' : '⊞';
 
-  // Panes
-  const panesHtml = _termPanes.map(p => {
+  w.className = 'tmux-widget';
+
+  // Update titlebar
+  let titlebar = w.querySelector('.tmux-titlebar');
+  if (!titlebar) {
+    titlebar = document.createElement('div');
+    titlebar.className = 'tmux-titlebar';
+    titlebar.id = 'tmux-drag-handle';
+    w.prepend(titlebar);
+  }
+  titlebar.innerHTML = `
+    <span style="font-size:10px;color:#94a3b8;padding:0 8px;font-family:monospace;">agent-terminal</span>
+    <div style="display:flex;gap:2px;align-items:center;">
+      <button onclick="_termCycleLayout()" class="tmux-btn" title="Layout: ${_termLayout}" style="font-size:14px;">${layoutIcon}</button>
+      <button onclick="_termToggleMinimize()" class="tmux-btn" title="Minimize">─</button>
+      <button onclick="_termCloseAll()" class="tmux-btn tmux-btn-close">✕</button>
+    </div>`;
+
+  // Get or create panes container
+  let panesContainer = w.querySelector('.tmux-panes');
+  if (!panesContainer) {
+    panesContainer = document.createElement('div');
+    panesContainer.className = `tmux-panes ${layoutCls}`;
+    w.insertBefore(panesContainer, w.querySelector('.tmux-statusbar'));
+  }
+  panesContainer.className = `tmux-panes ${layoutCls}`;
+
+  // Add only NEW panes — don't rebuild existing ones
+  _termPanes.forEach(p => {
+    if (document.getElementById(`tmux-pane-${p.id}`)) return; // already exists
+
     const prof = getAgentProfile(p.agent);
     const isActive = _monitorAgents.find(a => a.agent === p.agent)?.status === 'active';
     const dot = isActive ? '●' : '○';
     const dotColor = isActive ? '#34d399' : '#64748b';
-    return `<div class="tmux-pane" id="tmux-pane-${p.id}">
+
+    const paneEl = document.createElement('div');
+    paneEl.className = 'tmux-pane';
+    paneEl.id = `tmux-pane-${p.id}`;
+    paneEl.innerHTML = `
       <div class="tmux-pane-header">
         <span style="color:${prof.color};font-weight:700;">${(prof.name||'?')[0]}</span>
         <span style="color:#e2e8f0;font-weight:600;">${escHtml(prof.name)}</span>
@@ -478,24 +519,33 @@ function _termRender() {
       </div>
       <div class="tmux-pane-body" id="tmux-pane-body-${p.id}">
         <div class="agent-term-line dim">Loading...</div>
-      </div>
-    </div>`;
-  }).join('');
+      </div>`;
+    panesContainer.appendChild(paneEl);
+  });
 
-  w.className = 'tmux-widget';
-  w.innerHTML = `<div class="tmux-titlebar" id="tmux-drag-handle">
-      <span style="font-size:10px;color:#94a3b8;padding:0 8px;font-family:monospace;">agent-terminal</span>
-      <div style="display:flex;gap:2px;align-items:center;">
-        <button onclick="_termCycleLayout()" class="tmux-btn" title="Layout: ${_termLayout}" style="font-size:14px;">${layoutIcon}</button>
-        <button onclick="_termToggleMinimize()" class="tmux-btn" title="Minimize">─</button>
-        <button onclick="_termCloseAll()" class="tmux-btn tmux-btn-close">✕</button>
-      </div>
-    </div>
-    <div class="tmux-panes ${layoutCls}">${panesHtml}</div>
-    <div class="tmux-statusbar">
-      <span>${_termPanes.length} pane${_termPanes.length > 1 ? 's' : ''} · ${_termLayout}</span>
-      <span style="color:#475569;">click agent in Live Monitor to add pane</span>
-    </div>`;
+  // Remove panes that no longer exist
+  panesContainer.querySelectorAll('.tmux-pane').forEach(el => {
+    const id = parseInt(el.id.replace('tmux-pane-', ''));
+    if (!_termPanes.find(p => p.id === id)) el.remove();
+  });
+
+  // Update statusbar
+  let statusbar = w.querySelector('.tmux-statusbar');
+  if (!statusbar) {
+    statusbar = document.createElement('div');
+    statusbar.className = 'tmux-statusbar';
+    w.appendChild(statusbar);
+  }
+  statusbar.innerHTML = `
+    <span>${_termPanes.length} pane${_termPanes.length > 1 ? 's' : ''} · ${_termLayout}</span>
+    <span style="color:#475569;">click agent to add pane</span>`;
+
+  // Resize handle
+  if (!w.querySelector('.tmux-resize-handle')) {
+    const rh = document.createElement('div');
+    rh.className = 'tmux-resize-handle';
+    w.appendChild(rh);
+  }
 }
 
 async function _termLoadPane(agentName) {
@@ -579,10 +629,12 @@ function _termFormatLine(ev, spanDetails) {
 
 function _termClosePane(paneId) {
   _termPanes = _termPanes.filter(p => p.id !== paneId);
+  // Remove the DOM element directly
+  const el = document.getElementById(`tmux-pane-${paneId}`);
+  if (el) el.remove();
   if (_termPanes.length === 0) { _termCloseAll(); return; }
   if (_termPanes.length === 1) _termLayout = 'single';
-  _termRender();
-  _termPanes.forEach(p => _termLoadPane(p.agent));
+  _termRender(); // lightweight — only updates layout class & statusbar
 }
 
 function _termCloseAll() {
@@ -593,14 +645,22 @@ function _termCloseAll() {
 
 function _termToggleMinimize() {
   _termMinimized = !_termMinimized;
-  _termRender();
-  if (!_termMinimized) _termPanes.forEach(p => _termLoadPane(p.agent));
+  if (_termMinimized) {
+    // Minimizing — just hide the widget contents, keep pane data
+    _termRender();
+  } else {
+    // Restoring — need to rebuild panes and reload
+    const w = document.getElementById('tmux-terminal');
+    if (w) w.innerHTML = ''; // clear minimized view
+    _termRender();
+    _termPanes.forEach(p => _termLoadPane(p.agent));
+  }
 }
 
 function _termMakeDraggable(el) {
   let isDrag = false, startX, startY, origX, origY;
   el.addEventListener('mousedown', e => {
-    if (e.target.closest('button, .tmux-pane-close')) return;
+    if (e.target.closest('button, .tmux-pane-close, .tmux-resize-handle')) return;
     const handle = e.target.closest('.tmux-titlebar');
     if (!handle) return;
     isDrag = true; startX = e.clientX; startY = e.clientY;
@@ -614,6 +674,32 @@ function _termMakeDraggable(el) {
     el.style.right = 'auto'; el.style.bottom = 'auto';
   });
   document.addEventListener('mouseup', () => { isDrag = false; });
+}
+
+function _termMakeResizable(el) {
+  let isResize = false, startX, startY, origW, origH, origL, origT;
+  el.addEventListener('mousedown', e => {
+    if (!e.target.closest('.tmux-resize-handle')) return;
+    isResize = true; startX = e.clientX; startY = e.clientY;
+    const rect = el.getBoundingClientRect();
+    origW = rect.width; origH = rect.height;
+    origL = rect.left; origT = rect.top;
+    e.preventDefault(); e.stopPropagation();
+  });
+  document.addEventListener('mousemove', e => {
+    if (!isResize) return;
+    const dx = startX - e.clientX; // left handle: drag left = grow
+    const dy = startY - e.clientY; // top handle: drag up = grow
+    const newW = Math.max(360, origW + dx);
+    const newH = Math.max(180, origH + dy);
+    el.style.width = newW + 'px';
+    el.style.height = newH + 'px';
+    el.style.left = (origL - dx + (origW - Math.max(360, origW + dx))) + 'px';
+    el.style.left = (origL + origW - newW) + 'px';
+    el.style.top = (origT + origH - newH) + 'px';
+    el.style.right = 'auto'; el.style.bottom = 'auto';
+  });
+  document.addEventListener('mouseup', () => { isResize = false; });
 }
 
 // =========================================================================

@@ -201,9 +201,20 @@
       box-shadow: 0 12px 48px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.04);
       font-family: 'SF Mono','Fira Code','JetBrains Mono','Cascadia Code','Menlo',monospace;
       display: flex; flex-direction: column;
-      resize: both; min-width: 360px; min-height: 180px;
+      min-width: 360px; min-height: 180px;
       animation: fadeIn 0.2s ease;
     }
+    .tmux-resize-handle {
+      position: absolute; left: 0; top: 0; width: 14px; height: 14px;
+      cursor: nw-resize; z-index: 2;
+    }
+    .tmux-resize-handle::after {
+      content: ''; position: absolute; left: 3px; top: 3px;
+      width: 8px; height: 8px;
+      border-left: 2px solid #475569; border-top: 2px solid #475569;
+      opacity: 0.5;
+    }
+    .tmux-resize-handle:hover::after { opacity: 1; }
     .tmux-minimized {
       width: 220px !important; height: auto !important;
       min-height: 0 !important; resize: none;
