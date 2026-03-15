@@ -29,9 +29,15 @@ function _buildSVGNetwork(container, data) {
   const H = container.clientHeight || 400;
   const dark = isDarkTheme;
 
+  // Responsive scaling — reduce node radius and ellipse on narrow containers
+  const isNarrow = W < 480;
+  const isMedium  = W < 640;
+
   // Layout: hub-and-spoke — main/unknown in center, others on ellipse
   const cx = W / 2, cy = H / 2;
-  const rx = Math.min(W * 0.36, 240), ry = Math.min(H * 0.32, 140);
+  const rxBase = isNarrow ? W * 0.30 : (isMedium ? W * 0.33 : W * 0.36);
+  const rx = Math.min(rxBase, isNarrow ? 120 : 240);
+  const ry = Math.min(H * 0.32, isNarrow ? 80 : 140);
   const nodePos = {};
 
   const mainNode = nodes.find(n => n.id === 'main' || n.id === 'unknown');
@@ -44,123 +50,195 @@ function _buildSVGNetwork(container, data) {
 
   const maxCount = nodes.reduce((a, n) => Math.max(a, n.trace_count || 1), 1);
   const maxEdge  = edges.reduce((a, e) => Math.max(a, e.count || 1), 1);
-  const bgColor  = dark ? '#0f172a' : '#fafaf8';
-  const dotColor = dark ? 'rgba(148,163,184,0.15)' : 'rgba(100,116,139,0.12)';
 
+  // Theme-aware colors
+  const bgDark  = '#0a0f1e';
+  const bgLight = '#faf9f7';
+  const bgColor = dark ? bgDark : bgLight;
   const ns = 'http://www.w3.org/2000/svg';
 
-  // ---- Build SVG string ----
+  // ---- Build SVG defs ----
   let defs = `<defs>
-    <filter id="svg-glow" x="-40%" y="-40%" width="180%" height="180%">
-      <feGaussianBlur stdDeviation="4" result="blur"/>
+    <!-- Deep glow filter for edges and halos -->
+    <filter id="svg-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
       <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
-    <filter id="svg-glow-sm" x="-30%" y="-30%" width="160%" height="160%">
+    <!-- Soft glow for particles and node rings -->
+    <filter id="svg-glow-sm" x="-40%" y="-40%" width="180%" height="180%">
       <feGaussianBlur stdDeviation="2.5" result="blur"/>
       <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>`;
-  // Radial gradient per agent color
+    </filter>
+    <!-- Ultra-soft glow for outer rings -->
+    <filter id="svg-glow-xs" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <!-- Background radial gradient: lighter center -->
+    <radialGradient id="bg-radial" cx="50%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="${dark ? 'rgba(99,102,241,0.04)' : 'rgba(107,92,231,0.03)'}"/>
+      <stop offset="100%" stop-color="${dark ? 'rgba(0,0,0,0)' : 'rgba(0,0,0,0)'}"/>
+    </radialGradient>`;
+
+  // Per-agent gradients (radial — lighter at top-left for 3D feel, dark theme brighter)
   nodes.forEach(n => {
     const p = getAgentProfile(n.id);
-    const c = p.color || '#6366f1';
-    defs += `<radialGradient id="ng-${n.id}" cx="38%" cy="35%" r="65%">
-      <stop offset="0%" stop-color="${c}" stop-opacity="1"/>
-      <stop offset="100%" stop-color="${c}" stop-opacity="0.6"/>
+    const c = p.color || '#6b5ce7';
+    // Lighten the center color for the gradient stop
+    defs += `
+    <radialGradient id="ng-${n.id}" cx="35%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="${c}" stop-opacity="${dark ? '1' : '0.85'}"/>
+      <stop offset="60%" stop-color="${c}" stop-opacity="${dark ? '0.88' : '0.72'}"/>
+      <stop offset="100%" stop-color="${c}" stop-opacity="${dark ? '0.65' : '0.5'}"/>
+    </radialGradient>
+    <radialGradient id="ng-mid-${n.id}" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="${c}" stop-opacity="${dark ? '0.22' : '0.14'}"/>
+      <stop offset="100%" stop-color="${c}" stop-opacity="0"/>
     </radialGradient>`;
   });
+
+  // Edge gradient per source→target pair
+  edges.forEach((edge, idx) => {
+    const sp = getAgentProfile(edge.source);
+    const tp = getAgentProfile(edge.target);
+    const sc = sp.color || '#6b5ce7';
+    const tc = tp.color || '#a78bfa';
+    const src = nodePos[edge.source], tgt = nodePos[edge.target];
+    if (!src || !tgt) return;
+    defs += `
+    <linearGradient id="eg-${idx}" x1="${src.x}" y1="${src.y}" x2="${tgt.x}" y2="${tgt.y}" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="${sc}"/>
+      <stop offset="100%" stop-color="${tc}"/>
+    </linearGradient>`;
+  });
+
   defs += '</defs>';
 
-  // Background
+  // ---- Background ----
   let body = `<rect width="${W}" height="${H}" fill="${bgColor}"/>`;
+  // Subtle radial gradient overlay for depth
+  body += `<rect width="${W}" height="${H}" fill="url(#bg-radial)" opacity="1"/>`;
 
-  // Grid dots
-  const step = 40;
-  for (let gx = step; gx < W; gx += step) {
-    for (let gy = step; gy < H; gy += step) {
-      body += `<circle cx="${gx}" cy="${gy}" r="0.7" fill="${dotColor}"/>`;
-    }
-  }
-
-  // Edges
+  // ---- Edges ----
   edges.forEach((edge, idx) => {
     const src = nodePos[edge.source], tgt = nodePos[edge.target];
     if (!src || !tgt) return;
-    const p = getAgentProfile(edge.source);
-    const color = p.color || '#6366f1';
-    const opacity = 0.18 + ((edge.count || 1) / maxEdge) * 0.45;
+    const sp = getAgentProfile(edge.source);
+    const edgeWeight = (edge.count || 1) / maxEdge;
+    const opacity = dark
+      ? (0.20 + edgeWeight * 0.50)
+      : (0.15 + edgeWeight * 0.35);
+    const strokeW = 1.0 + edgeWeight * 1.8; // thickness based on connection strength
 
-    // Quadratic bezier with mid-point offset for curve
-    const mx = (src.x + tgt.x) / 2;
-    const my = (src.y + tgt.y) / 2 - 28;
+    // Quadratic bezier — perpendicular offset for clear curvature
+    const dx = tgt.x - src.x, dy = tgt.y - src.y;
+    const len = Math.sqrt(dx*dx + dy*dy) || 1;
+    const perpX = -dy / len, perpY = dx / len;
+    const curvature = Math.min(len * 0.22, 45);
+    const mx = (src.x + tgt.x) / 2 + perpX * curvature;
+    const my = (src.y + tgt.y) / 2 + perpY * curvature;
     const d = `M${src.x.toFixed(1)},${src.y.toFixed(1)} Q${mx.toFixed(1)},${my.toFixed(1)} ${tgt.x.toFixed(1)},${tgt.y.toFixed(1)}`;
     const pathId = `ep${idx}`;
+    const color = sp.color || '#6b5ce7';
 
-    // Glow + core path
-    body += `<path d="${d}" stroke="${color}" stroke-width="3.5" fill="none" opacity="${(opacity * 0.18).toFixed(3)}" filter="url(#svg-glow)"/>`;
-    body += `<path id="${pathId}" d="${d}" stroke="${color}" stroke-width="1.5" fill="none" opacity="${opacity.toFixed(3)}" stroke-dasharray="5 4">
-      <animate attributeName="stroke-dashoffset" from="0" to="-18" dur="1.6s" repeatCount="indefinite"/>
+    // Outer glow path (very transparent, thick)
+    body += `<path d="${d}" stroke="url(#eg-${idx})" stroke-width="${(strokeW * 3.5).toFixed(1)}" fill="none" opacity="${(opacity * 0.12).toFixed(3)}" filter="url(#svg-glow)"/>`;
+    // Core animated dashed path with gradient color
+    body += `<path id="${pathId}" d="${d}" stroke="url(#eg-${idx})" stroke-width="${strokeW.toFixed(1)}" fill="none" opacity="${opacity.toFixed(3)}" stroke-dasharray="6 5">
+      <animate attributeName="stroke-dashoffset" from="0" to="-22" dur="1.8s" repeatCount="indefinite"/>
     </path>`;
 
-    // Animated particles (1-3 depending on edge weight)
-    const numParticles = Math.min(3, 1 + Math.floor(((edge.count || 1) / maxEdge) * 2));
+    // Animated particles — softer, smaller, agent-colored
+    const numParticles = Math.min(3, 1 + Math.floor(edgeWeight * 2));
     for (let pi = 0; pi < numParticles; pi++) {
-      const delay = (pi / numParticles) * 2.8;
-      const dur = 2.2 + pi * 0.4;
-      body += `<circle r="2.8" fill="${color}" filter="url(#svg-glow-sm)" opacity="0.9">
+      const delay = (pi / numParticles) * 3.0;
+      const dur   = 2.4 + pi * 0.5;
+      const pr    = isNarrow ? 1.6 : 2.0; // smaller particles
+      body += `<circle r="${pr}" fill="${color}" filter="url(#svg-glow-sm)" opacity="0">
         <animateMotion dur="${dur.toFixed(1)}s" repeatCount="indefinite" begin="${delay.toFixed(1)}s"><mpath href="#${pathId}"/></animateMotion>
-        <animate attributeName="opacity" values="0;0.9;0.9;0" dur="${dur.toFixed(1)}s" repeatCount="indefinite" begin="${delay.toFixed(1)}s"/>
+        <animate attributeName="opacity" values="0;0.75;0.75;0" keyTimes="0;0.15;0.85;1" dur="${dur.toFixed(1)}s" repeatCount="indefinite" begin="${delay.toFixed(1)}s"/>
+        <animate attributeName="r" values="${pr};${(pr*1.4).toFixed(1)};${pr}" dur="${dur.toFixed(1)}s" repeatCount="indefinite" begin="${delay.toFixed(1)}s"/>
       </circle>`;
     }
   });
 
-  // Nodes
+  // ---- Nodes ----
   nodes.forEach(node => {
     const pos = nodePos[node.id];
     if (!pos) return;
     const profile = getAgentProfile(node.id);
-    const color = profile.color || '#6366f1';
+    const color = profile.color || '#6b5ce7';
     const isActive = node.status === 'active';
-    const normSize = 0.35 + ((node.trace_count || 0) / maxCount) * 0.65;
-    const r = Math.round(16 + normSize * 16); // 16..32px radius
+    const normSize = 0.30 + ((node.trace_count || 0) / maxCount) * 0.70;
+    const baseR = isNarrow ? 13 : 16;
+    const maxR  = isNarrow ? 22 : 28;
+    const r = Math.round(baseR + normSize * (maxR - baseR));
     const { x, y } = pos;
 
-    // Outer pulse ring (CSS animated for active, static for idle)
-    const pulseR = r + 12;
+    // Layer 1 — Outermost soft ambient glow (very subtle, filter-blurred)
+    body += `<circle cx="${x}" cy="${y}" r="${r + 18}" fill="${color}" opacity="${dark ? '0.05' : '0.04'}" filter="url(#svg-glow-xs)" pointer-events="none"/>`;
+
+    // Layer 2 — Middle ring at 20% agent color opacity
     if (isActive) {
-      body += `<circle cx="${x}" cy="${y}" r="${pulseR}" fill="none" stroke="${color}" stroke-width="1.5" opacity="0.2" class="svg-net-pulse">
-        <animate attributeName="r" values="${pulseR};${pulseR+8};${pulseR}" dur="2.2s" repeatCount="indefinite"/>
-        <animate attributeName="opacity" values="0.18;0.05;0.18" dur="2.2s" repeatCount="indefinite"/>
+      // Animated pulse for active nodes
+      body += `<circle cx="${x}" cy="${y}" r="${r + 10}" fill="url(#ng-mid-${node.id})" opacity="0.6" pointer-events="none">
+        <animate attributeName="r" values="${r+8};${r+16};${r+8}" dur="2.6s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.2 1;0.4 0 0.2 1"/>
+        <animate attributeName="opacity" values="0.5;0.08;0.5" dur="2.6s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.2 1;0.4 0 0.2 1"/>
+      </circle>`;
+      // Thin animated outer stroke ring
+      body += `<circle cx="${x}" cy="${y}" r="${r + 7}" fill="none" stroke="${color}" stroke-width="1" opacity="0.18" pointer-events="none">
+        <animate attributeName="r" values="${r+5};${r+13};${r+5}" dur="2.6s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.2 1;0.4 0 0.2 1"/>
+        <animate attributeName="opacity" values="0.22;0.04;0.22" dur="2.6s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.2 1;0.4 0 0.2 1"/>
       </circle>`;
     } else {
-      body += `<circle cx="${x}" cy="${y}" r="${pulseR}" fill="none" stroke="${color}" stroke-width="1" opacity="0.1"/>`;
+      // Static subtle ring for idle nodes
+      body += `<circle cx="${x}" cy="${y}" r="${r + 9}" fill="${color}" opacity="${dark ? '0.06' : '0.05'}" pointer-events="none"/>`;
+      body += `<circle cx="${x}" cy="${y}" r="${r + 9}" fill="none" stroke="${color}" stroke-width="0.8" opacity="${dark ? '0.12' : '0.10'}" pointer-events="none"/>`;
     }
 
-    // Soft glow halo
-    body += `<circle cx="${x}" cy="${y}" r="${r + 6}" fill="${color}" opacity="0.08" filter="url(#svg-glow)"/>`;
+    // Layer 3 — Inner ring (colored border at 20% opacity)
+    body += `<circle cx="${x}" cy="${y}" r="${r + 3}" fill="none" stroke="${color}" stroke-width="1.5" opacity="${dark ? '0.22' : '0.18'}" pointer-events="none"/>`;
 
-    // Core node circle — clickable, opens agent detail modal
-    const nodeOpacity = isActive ? '0.9' : '0.55';
-    body += `<circle cx="${x}" cy="${y}" r="${r}" fill="url(#ng-${node.id})" opacity="${nodeOpacity}" class="node-core" filter="url(#svg-glow-sm)" onclick="openAgentDetailModal('${escHtml(node.id)}')">
+    // Layer 4 — Core circle with radial gradient (lighter center)
+    const nodeOpacity = isActive ? (dark ? '1' : '0.92') : (dark ? '0.65' : '0.55');
+    body += `<circle cx="${x}" cy="${y}" r="${r}" fill="url(#ng-${node.id})" opacity="${nodeOpacity}" class="node-core" onclick="openAgentDetailModal('${escHtml(node.id)}')">
       <title>${escHtml(profile.name || node.id)}: ${node.trace_count || 0} traces</title>
     </circle>`;
 
-    // Specular highlight
-    body += `<circle cx="${(x - r*0.28).toFixed(1)}" cy="${(y - r*0.28).toFixed(1)}" r="${(r*0.32).toFixed(1)}" fill="white" opacity="0.22" pointer-events="none"/>`;
+    // Layer 5 — Soft inner glow overlay
+    body += `<circle cx="${x}" cy="${y}" r="${r}" fill="${color}" opacity="${dark ? '0.08' : '0.05'}" filter="url(#svg-glow-sm)" pointer-events="none"/>`;
 
-    // Label — name
-    const textColor = dark ? '#e2e8f0' : '#1e293b';
-    const subColor  = dark ? '#64748b' : '#64748b';
-    body += `<text x="${x}" y="${y + r + 17}" text-anchor="middle" fill="${textColor}" font-size="12" font-weight="600" font-family="Inter,system-ui,sans-serif">${escHtml(profile.name || node.id)}</text>`;
+    // Layer 6 — Specular highlight (top-left glass effect)
+    body += `<circle cx="${(x - r*0.25).toFixed(1)}" cy="${(y - r*0.25).toFixed(1)}" r="${(r*0.28).toFixed(1)}" fill="white" opacity="${dark ? '0.28' : '0.35'}" pointer-events="none"/>`;
 
-    // Sub-label: trace count + cost
-    const cost = node.cost != null ? `$${Number(node.cost).toFixed(2)}` : '';
-    const sub = [node.trace_count ? `${node.trace_count} traces` : '', cost].filter(Boolean).join(' \u00b7 ');
-    if (sub) {
-      body += `<text x="${x}" y="${y + r + 31}" text-anchor="middle" fill="${subColor}" font-size="10" font-family="Inter,system-ui,sans-serif">${escHtml(sub)}</text>`;
+    // Agent initial letter — centered, white/light
+    const letterSize = isNarrow ? Math.max(10, r * 0.72) : Math.max(11, r * 0.70);
+    const letterColor = dark ? '#ffffff' : '#ffffff';
+    const letter = (profile.name || node.id || '?').charAt(0).toUpperCase();
+    body += `<text x="${x}" y="${(y + letterSize * 0.36).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" fill="${letterColor}" font-size="${letterSize.toFixed(0)}" font-weight="700" font-family="Inter,system-ui,sans-serif" pointer-events="none" opacity="0.95">${escHtml(letter)}</text>`;
+
+    // Labels — skip if very narrow to avoid overlap
+    if (!isNarrow || r >= 16) {
+      const labelGap = isNarrow ? 12 : 16;
+      const textColor = dark ? '#e2e8f0' : '#1e293b';
+      const subColor  = dark ? '#64748b' : '#94a3b8';
+
+      // Agent name — 12px, weight 600
+      body += `<text x="${x}" y="${(y + r + labelGap).toFixed(1)}" text-anchor="middle" fill="${textColor}" font-size="12" font-weight="600" font-family="Inter,system-ui,sans-serif" pointer-events="none">${escHtml(profile.name || node.id)}</text>`;
+
+      // Stats sub-label — 10px, muted — only if not too narrow
+      if (!isNarrow) {
+        const cost = node.cost != null ? `$${Number(node.cost).toFixed(2)}` : '';
+        const sub = [node.trace_count ? `${node.trace_count} traces` : '', cost].filter(Boolean).join(' \u00b7 ');
+        if (sub) {
+          body += `<text x="${x}" y="${(y + r + labelGap + 15).toFixed(1)}" text-anchor="middle" fill="${subColor}" font-size="10" font-family="Inter,system-ui,sans-serif" pointer-events="none">${escHtml(sub)}</text>`;
+        }
+      }
     }
   });
 
-  const svgStr = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="${ns}" style="display:block;width:100%;height:100%;">${defs}${body}</svg>`;
+  // viewBox stays fixed to W×H so SVG scales responsively via CSS width:100%
+  const svgStr = `<svg viewBox="0 0 ${W} ${H}" xmlns="${ns}" style="display:block;width:100%;height:100%;">${defs}${body}</svg>`;
   container.innerHTML = svgStr;
 }
 
