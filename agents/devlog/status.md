@@ -1,18 +1,19 @@
 # Agent Status — 2026-03-15
 
-## Cycle 27: Notification & Alert System — COMPLETE (Alpha, 2026-03-15)
+## Cycle 27: QA Consistency & Cleanup — COMPLETE (Gamma, 2026-03-15)
 
-**Alpha**: Smart notifications, sessionStorage persistence, desktop alerts
-- Commit: 2eb9330
-- Branch: `worktree-agent-a8383fc8`
+**Gamma**: Final consistency pass — CSS deduplication, version audit, .gitignore fixes, full test run
+- Branch: `worktree-agent-ad6bdd5a`
 - Tests: 1208 passing (unchanged)
 - Delivered:
-  - **Burst detection** (`websocket.js` `_smartNotify()`): per-agent 60s rolling window; fires "Alpha completed N traces in the last minute" at ≥5 traces, then every 5-count step
-  - **Error-rate spike** (`websocket.js` `_smartNotify()`): last-10-trace ring buffer per agent; fires "error rate spiked to X%" when ≥40% and increased ≥15pp vs last notification; auto-resets on recovery
-  - **Cost anomaly** (`websocket.js` `_smartNotify()`): rolling 60-minute cost window + EMA baseline (α=0.2); fires "Cost spike: $X (Nx normal)" when ≥3× baseline; throttled to 1 per 5 min; requires baseline >$0.01
-  - **sessionStorage persistence** (`dashboard.js`): `_saveNotificationsToStorage()` called on every `addNotification()`; stores last 20 as JSON under key `flowlens-notifications`; `_loadNotificationsFromStorage()` called from `restoreState()` on page load, merges by id, re-sorts; `clearNotifications()` also clears storage
-  - **Desktop notifications** (`dashboard.js` `_showDesktopNotification()`): requests Notification permission lazily; shows browser notification with `tag='flowlens-alert'`; `n.onclick` focuses tab; auto-closes after 8s; only fires for `error`/`warning` type and when `document.hidden` is true
-- Files: `flowlens/server/static/websocket.js`, `flowlens/server/static/dashboard.js`
+  - CSS: Removed duplicate `.filter-select-v14:focus` block (lines 2066-2070 eliminated; combined rule at 2100 retained)
+  - CSS: Removed superseded `.stat-card-{traces,errors,latency,cost,agents}` base rules (lines 779-783; fully overridden by Cycle 14 v17 blocks with `!important`)
+  - CSS: Replaced orphan `.filter-select-v14:focus` with a comment pointing to consolidated location
+  - `.gitignore`: Added `*.db-shm`, `*.db-wal` (SQLite WAL journal files), `*.bak` (backup files)
+  - Version audit: `__version__ = "1.0.0"` in `flowlens/__init__.py`, `version = "1.0.0"` in `pyproject.toml`, `"version": "1.0.0"` in `/health` endpoint, `FlowLens v1.0.0` in dashboard footer — all consistent
+  - v14/v17 suffix audit: Both suffixes actively used in HTML/JS — intentional design tokens, not naming inconsistencies
+  - Full test suite: ruff (clean), black (87 files unchanged), mypy (43 source files, no issues), pytest (1208/1208 passed)
+- Files: `flowlens/server/static/dashboard.css`, `.gitignore`
 
 ---
 
