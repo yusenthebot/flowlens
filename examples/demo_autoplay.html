@@ -156,6 +156,21 @@
       transform: translateX(-60px);
     }
 
+    /* ─── Fade-up animation for scene content ─── */
+    .fade-up {
+      opacity: 0;
+      transform: translateY(18px);
+      transition: opacity 0.45s ease, transform 0.45s ease;
+    }
+    .scene.active .fade-up {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .scene.active .fade-up-1 { transition-delay: 0.08s; }
+    .scene.active .fade-up-2 { transition-delay: 0.16s; }
+    .scene.active .fade-up-3 { transition-delay: 0.24s; }
+    .scene.active .fade-up-4 { transition-delay: 0.32s; }
+
     /* ─── Common scene elements ─── */
     .scene-label {
       font-size: 11px;
@@ -1308,6 +1323,7 @@
   exitStyle.textContent = '.scene.exit-right { opacity: 0; transform: translateX(60px); }';
   document.head.appendChild(exitStyle);
 
+  function onSceneEnter(n) { /* placeholder for per-scene animations */ }
   function next() { goTo(current + 1, 1); }
   function prev() { goTo(current - 1, -1); }
 
