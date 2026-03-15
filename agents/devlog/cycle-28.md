@@ -181,10 +181,47 @@ All cycles complete. All tests passing. All documentation current. Zero blockers
 
 ---
 
+## PM Final Audit (Lead, 2026-03-15)
+
+End-to-end product verification by PM (Opus):
+
+### Server & API Verification
+- Server starts cleanly on port 8585, `/health` returns `{"status":"healthy","version":"1.0.0"}`
+- All 50+ registered API routes tested individually -- all return valid JSON
+- Endpoints verified: `/v1/traces`, `/v1/agents/summary`, `/v1/stats`, `/v1/stats/trends`,
+  `/v1/cost/breakdown`, `/v1/cost/forecast`, `/v1/cost/optimization`, `/v1/patterns/summary`,
+  `/v1/analysis/fleet`, `/v1/analysis/regressions`, `/v1/feedback/summary`, `/v1/feedback/recent`,
+  `/v1/agents/activity`, `/v1/agents/network`, `/v1/traces/search`, `/v1/traces/errors`,
+  `/v1/sessions`, `/v1/traces/{id}`, and more
+- Static files (dashboard.js, charts.js, network.js, websocket.js) all served with 200 status
+
+### Bar Chart Fix: "Traces by Agent"
+- Root cause: Chart.js `autoSkip: true` (default) was skipping Y-axis labels when container
+  height (160px) was insufficient for 7+ agents, replacing them with numeric indices
+- Fix: Added explicit `type: 'category'` and `autoSkip: false` to Y-axis scale config
+- Also increased container height from 160px to 220px to comfortably fit all agent labels
+- Files changed: `flowlens/server/static/charts.js` (line 231), `flowlens/server/dashboard.html` (line 392)
+
+### CI Suite (all green)
+- ruff: All checks passed
+- black: 87 files unchanged
+- mypy: 0 issues in 43 source files
+- pytest: 1208 passed in 46.31s
+
+### Version Consistency (1.0.0 confirmed in all 4 locations)
+- `flowlens/__init__.py`: `__version__ = "1.0.0"`
+- `pyproject.toml`: `version = "1.0.0"`
+- `/health` endpoint: `"version": "1.0.0"`
+- Dashboard HTML footer: `FlowLens v1.0.0`
+
+---
+
 ## Sign-Off
 
-✓ Release Engineer (Scribe) approval: 2026-03-15 13:55 UTC
-✓ All checks passed
-✓ Ready for production deployment
+- Release Engineer (Scribe) approval: 2026-03-15 13:55 UTC
+- PM (Lead) final audit: 2026-03-15
+- All checks passed
+- All endpoints verified
+- Bar chart bug fixed
 
-**Ship it.** 🚀
+**FlowLens v1.0.0 shipped.**
