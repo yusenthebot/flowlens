@@ -1,7 +1,148 @@
 /* FlowLens Dashboard — Chart.js wrapper and helper functions */
 'use strict';
 
+// =========================================================================
+// Chart.js Global Defaults — warm, clean aesthetic (Cycle 14)
+// =========================================================================
+(function applyChartDefaults() {
+  if (typeof Chart === 'undefined') return;
 
+  // Warm palette (used as default color cycle)
+  const WARM_PALETTE = [
+    '#6b5ce7', // warm indigo
+    '#e07a5f', // coral
+    '#81b29a', // sage
+    '#e6a65d', // amber
+    '#a78bfa', // lavender
+    '#9ca3af', // warm gray
+    '#f0c27f', // gold
+    '#c4a882', // tan
+  ];
+
+  const isDark = () => document.documentElement.classList.contains('dark');
+
+  // Font
+  Chart.defaults.font.family = 'Inter, system-ui, sans-serif';
+  Chart.defaults.font.size = 11;
+
+  // Color
+  Chart.defaults.color = '#64748b';
+
+  // No border on chart area
+  Chart.defaults.borderColor = 'transparent';
+
+  // Animation: easeOutQuart, 600ms
+  Chart.defaults.animation = { duration: 600, easing: 'easeOutQuart' };
+  Chart.defaults.transitions = {
+    active: { animation: { duration: 200, easing: 'easeOutQuart' } },
+  };
+
+  // Legend: bottom position, small point style instead of rectangles
+  Chart.defaults.plugins.legend.position = 'bottom';
+  Chart.defaults.plugins.legend.labels.usePointStyle = true;
+  Chart.defaults.plugins.legend.labels.pointStyle = 'circle';
+  Chart.defaults.plugins.legend.labels.pointStyleWidth = 8;
+  Chart.defaults.plugins.legend.labels.boxWidth = 8;
+  Chart.defaults.plugins.legend.labels.padding = 14;
+  Chart.defaults.plugins.legend.labels.font = { family: 'Inter, system-ui, sans-serif', size: 11 };
+
+  // Tooltip: rounded, warm, backdrop blur styling
+  Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(26,26,24,0.96)';
+  Chart.defaults.plugins.tooltip.borderColor = 'rgba(255,255,255,0.1)';
+  Chart.defaults.plugins.tooltip.borderWidth = 1;
+  Chart.defaults.plugins.tooltip.titleColor = '#e2e0db';
+  Chart.defaults.plugins.tooltip.bodyColor = '#94a3b8';
+  Chart.defaults.plugins.tooltip.cornerRadius = 10;
+  Chart.defaults.plugins.tooltip.padding = 10;
+  Chart.defaults.plugins.tooltip.titleFont = { family: 'Inter, system-ui, sans-serif', size: 11, weight: '600' };
+  Chart.defaults.plugins.tooltip.bodyFont = { family: 'Inter, system-ui, sans-serif', size: 11 };
+  Chart.defaults.plugins.tooltip.displayColors = true;
+  Chart.defaults.plugins.tooltip.boxWidth = 8;
+  Chart.defaults.plugins.tooltip.boxHeight = 8;
+  Chart.defaults.plugins.tooltip.usePointStyle = true;
+
+  // Scales: very faint grid, no outer border
+  const faintGridDark  = 'rgba(255,255,255,0.03)';
+  const faintGridLight = 'rgba(0,0,0,0.03)';
+
+  if (Chart.defaults.scales) {
+    ['linear', 'category', 'logarithmic'].forEach(scaleType => {
+      if (!Chart.defaults.scales[scaleType]) return;
+      Chart.defaults.scales[scaleType].grid = {
+        color: faintGridDark,
+        drawBorder: false,
+      };
+      Chart.defaults.scales[scaleType].border = { display: false };
+      Chart.defaults.scales[scaleType].ticks = {
+        color: '#64748b',
+        font: { family: 'Inter, system-ui, sans-serif', size: 10 },
+      };
+    });
+  }
+
+  // Expose warm palette for reuse
+  window.CHART_WARM_PALETTE = WARM_PALETTE;
+})();
+
+// Helper: get theme-aware grid color
+function _chartGridColor() {
+  return document.documentElement.classList.contains('dark')
+    ? 'rgba(255,255,255,0.03)'
+    : 'rgba(0,0,0,0.03)';
+}
+
+// Helper: get theme-aware tick color
+function _chartTickColor() {
+  return document.documentElement.classList.contains('dark') ? '#64748b' : '#94a3b8';
+}
+
+// Helper: get theme-aware tooltip config
+function _chartTooltipConfig() {
+  const dark = document.documentElement.classList.contains('dark');
+  return {
+    backgroundColor: dark ? 'rgba(26,26,24,0.96)' : 'rgba(255,255,255,0.97)',
+    borderColor: dark ? 'rgba(255,255,255,0.1)' : '#e8e6e1',
+    borderWidth: 1,
+    titleColor: dark ? '#e2e0db' : '#2c2c2a',
+    bodyColor: dark ? '#94a3b8' : '#64748b',
+    cornerRadius: 10,
+    padding: 10,
+    titleFont: { family: 'Inter, system-ui, sans-serif', size: 11, weight: '600' },
+    bodyFont: { family: 'Inter, system-ui, sans-serif', size: 11 },
+    usePointStyle: true,
+    boxWidth: 8,
+    boxHeight: 8,
+  };
+}
+
+// =========================================================================
+// Doughnut center label helper
+// =========================================================================
+function _addDoughnutCenterLabel(canvasId, valueText, subText) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const wrapper = canvas.parentElement;
+  if (!wrapper) return;
+
+  // Ensure wrapper is positioned
+  if (getComputedStyle(wrapper).position === 'static') {
+    wrapper.style.position = 'relative';
+  }
+
+  // Remove any existing label
+  const existing = wrapper.querySelector('.doughnut-center-label');
+  if (existing) existing.remove();
+
+  const label = document.createElement('div');
+  label.className = 'doughnut-center-label';
+  label.innerHTML = `
+    <div class="doughnut-center-value">${valueText}</div>
+    <div class="doughnut-center-sub">${subText}</div>
+  `;
+  wrapper.appendChild(label);
+}
+
+// =========================================================================
 async function loadOverviewCharts() {
   try {
     const summary = await apiFetch('/v1/agents/summary');
@@ -11,62 +152,99 @@ async function loadOverviewCharts() {
     if (agents.length === 0) return;
     console.log('[FlowLens] Rendering charts for', agents.length, 'agents, costs:', agents.map(a => a.total_cost_usd));
 
-    // Doughnut: Cost by Agent
+    // Doughnut: Cost by Agent — warm colors, rounded, center label
     const pieCanvas = document.getElementById('overview-pie-agent');
     if (pieCanvas) {
       if (chartInstances['overview-pie-agent']) chartInstances['overview-pie-agent'].destroy();
       const labels = agents.map(a => getAgentProfile(a.agent).name || a.agent);
       const costs = agents.map(a => a.total_cost_usd || a.total_cost || a.cost || 0);
-      const colors = agents.map(a => getAgentProfile(a.agent).color || '#6366f1');
+      const totalCost = costs.reduce((s, c) => s + c, 0);
+      // Warm palette: use agent colors if available, else fall back to warm palette
+      const colors = agents.map((a, i) => {
+        const base = getAgentProfile(a.agent).color;
+        return base || (window.CHART_WARM_PALETTE || ['#6b5ce7','#e07a5f','#81b29a','#e6a65d'])[i % 8];
+      });
       chartInstances['overview-pie-agent'] = new Chart(pieCanvas, {
         type: 'doughnut',
-        data: { labels, datasets: [{ data: costs, backgroundColor: colors }] },
+        data: { labels, datasets: [{ data: costs, backgroundColor: colors.map(c => c + 'cc'), borderColor: colors, borderWidth: 1.5, borderRadius: 4, hoverOffset: 6 }] },
         options: {
           responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 10 } } } }
+          cutout: '62%',
+          plugins: {
+            legend: { position: 'right', labels: { color: _chartTickColor(), font: { size: 10 }, padding: 10 } },
+            tooltip: { ..._chartTooltipConfig(), callbacks: { label: ctx => ` $${costs[ctx.dataIndex].toFixed(5)}` } },
+          },
+          animation: { duration: 600, easing: 'easeOutQuart' },
         }
       });
+      // Center label: total cost
+      _addDoughnutCenterLabel('overview-pie-agent', `$${totalCost.toFixed(4)}`, 'total');
     }
 
-    // Horizontal Bar: Traces by Agent
+    // Horizontal Bar: Traces by Agent — rounded bars, clean labels
     const barCanvas = document.getElementById('overview-bar-agent');
     if (barCanvas) {
       if (chartInstances['overview-bar-agent']) chartInstances['overview-bar-agent'].destroy();
       const labels = agents.map(a => getAgentProfile(a.agent).name || a.agent);
       const traces = agents.map(a => a.trace_count || 0);
-      const colors = agents.map(a => getAgentProfile(a.agent).color || '#6366f1');
+      const colors = agents.map((a, i) => {
+        const base = getAgentProfile(a.agent).color;
+        return base || (window.CHART_WARM_PALETTE || ['#6b5ce7','#e07a5f'])[i % 8];
+      });
+      const gc = _chartGridColor();
+      const tc = _chartTickColor();
       chartInstances['overview-bar-agent'] = new Chart(barCanvas, {
         type: 'bar',
-        data: { labels, datasets: [{ label: 'Traces', data: traces, backgroundColor: colors, borderRadius: 4 }] },
+        data: { labels, datasets: [{ label: 'Traces', data: traces, backgroundColor: colors.map(c => c + 'aa'), borderColor: colors, borderWidth: 1, borderRadius: 6, borderSkipped: false }] },
         options: {
           indexAxis: 'y',
           responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
+          plugins: {
+            legend: { display: false },
+            tooltip: { ..._chartTooltipConfig(), callbacks: { label: ctx => ` ${ctx.parsed.x} traces` } },
+          },
           scales: {
-            x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true },
-            y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { display: false } }
-          }
+            x: { ticks: { color: tc, font: { size: 10 } }, grid: { color: gc }, border: { display: false }, beginAtZero: true },
+            y: { ticks: { color: tc, font: { size: 10 } }, grid: { display: false }, border: { display: false } }
+          },
+          animation: { duration: 600, easing: 'easeOutQuart' },
         }
       });
     }
 
-    // Doughnut: Error Distribution
+    // Doughnut: Error Distribution — coral errors, sage success, center label
     const errCanvas = document.getElementById('overview-pie-errors');
     if (errCanvas) {
       if (chartInstances['overview-pie-errors']) chartInstances['overview-pie-errors'].destroy();
       const totalErrors = agents.reduce((s, a) => s + (a.error_count || 0), 0);
-      const totalOk = agents.reduce((s, a) => s + (a.trace_count || 0), 0) - totalErrors;
+      const totalOk = Math.max(0, agents.reduce((s, a) => s + (a.trace_count || 0), 0) - totalErrors);
+      const total = totalOk + totalErrors;
       chartInstances['overview-pie-errors'] = new Chart(errCanvas, {
         type: 'doughnut',
         data: {
           labels: ['Success', 'Errors'],
-          datasets: [{ data: [Math.max(0, totalOk), totalErrors], backgroundColor: ['#10b981', '#ef4444'] }]
+          datasets: [{
+            data: [totalOk, totalErrors],
+            backgroundColor: ['#81b29acc', '#e07a5fcc'],
+            borderColor: ['#81b29a', '#e07a5f'],
+            borderWidth: 1.5,
+            borderRadius: 4,
+            hoverOffset: 6,
+          }]
         },
         options: {
           responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 10 } } } }
+          cutout: '62%',
+          plugins: {
+            legend: { position: 'right', labels: { color: _chartTickColor(), font: { size: 10 }, padding: 10 } },
+            tooltip: { ..._chartTooltipConfig() },
+          },
+          animation: { duration: 600, easing: 'easeOutQuart' },
         }
       });
+      // Center label: success rate
+      const rate = total > 0 ? ((totalOk / total) * 100).toFixed(0) + '%' : 'N/A';
+      _addDoughnutCenterLabel('overview-pie-errors', rate, 'success');
     }
   } catch (err) {
     console.error('Overview charts error:', err);
@@ -285,15 +463,16 @@ async function loadTrendChart(hours) {
   const canvas = document.getElementById('chart-trend');
   if (!canvas) return;
 
-  // Build canvas gradient for Traces dataset
+  // Build canvas gradient for Traces dataset — indigo fading to transparent
   const ctx = canvas.getContext('2d');
-  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  gradient.addColorStop(0, 'rgba(99, 102, 241, 0.25)');
-  gradient.addColorStop(1, 'rgba(99, 102, 241, 0.01)');
+  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height || 200);
+  gradient.addColorStop(0, 'rgba(107,92,231,0.30)');
+  gradient.addColorStop(0.6, 'rgba(107,92,231,0.08)');
+  gradient.addColorStop(1, 'rgba(107,92,231,0.00)');
 
-  const isDark = document.documentElement.classList.contains('dark');
-  const gridColor = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)';
-  const tickColor = isDark ? '#64748b' : '#94a3b8';
+  const gc = _chartGridColor();
+  const tc = _chartTickColor();
+  const tt = _chartTooltipConfig();
 
   chartInstances['chart-trend'] = new Chart(ctx, {
     type: 'line',
@@ -303,25 +482,34 @@ async function loadTrendChart(hours) {
         {
           label: 'Traces',
           data: traceCounts,
-          borderColor: 'rgba(99, 102, 241, 0.8)',
+          borderColor: '#6b5ce7',
           backgroundColor: gradient,
           fill: true,
           tension: 0.4,
-          pointRadius: 2,
+          pointRadius: 0,         // no dots by default
           pointHoverRadius: 5,
-          borderWidth: 2,
+          pointHoverBackgroundColor: '#6b5ce7',
+          pointHoverBorderColor: '#fff',
+          pointHoverBorderWidth: 2,
+          borderWidth: 2.5,
+          borderCapStyle: 'round',
+          borderJoinStyle: 'round',
         },
         {
           label: 'Errors',
           data: errorCounts,
-          borderColor: '#ef4444',
+          borderColor: '#e07a5f',
           backgroundColor: 'transparent',
           fill: false,
           tension: 0.4,
           borderDash: [5, 4],
-          pointRadius: 2,
+          pointRadius: 0,
           pointHoverRadius: 5,
+          pointHoverBackgroundColor: '#e07a5f',
+          pointHoverBorderColor: '#fff',
+          pointHoverBorderWidth: 2,
           borderWidth: 1.5,
+          borderCapStyle: 'round',
         },
       ]
     },
@@ -335,37 +523,30 @@ async function loadTrendChart(hours) {
           position: 'top',
           align: 'end',
           labels: {
-            color: tickColor,
-            font: { family: 'Inter', size: 10 },
-            boxWidth: 24,
-            padding: 8,
+            color: tc,
+            font: { family: 'Inter, system-ui, sans-serif', size: 10 },
+            padding: 12,
             usePointStyle: true,
-            pointStyleWidth: 8,
+            pointStyle: 'circle',
+            pointStyleWidth: 7,
           }
         },
-        tooltip: {
-          backgroundColor: isDark ? 'rgba(42,42,40,0.95)' : 'rgba(255,255,255,0.97)',
-          borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#e8e6e1',
-          borderWidth: 1,
-          titleColor: isDark ? '#e2e0db' : '#2c2c2a',
-          bodyColor: isDark ? '#94a3b8' : '#64748b',
-          titleFont: { family: 'Inter', size: 11 },
-          bodyFont: { family: 'Inter', size: 11 },
-        }
+        tooltip: { ...tt },
       },
       scales: {
         x: {
-          ticks: { color: tickColor, font: { size: 10 }, maxTicksLimit: 8 },
-          grid: { color: gridColor },
-          border: { color: gridColor },
+          ticks: { color: tc, font: { size: 10 }, maxTicksLimit: 8 },
+          grid: { color: gc },
+          border: { display: false },
         },
         y: {
-          ticks: { color: tickColor, font: { size: 10 }, stepSize: 1, precision: 0 },
-          grid: { color: gridColor },
-          border: { color: gridColor },
+          ticks: { color: tc, font: { size: 10 }, stepSize: 1, precision: 0 },
+          grid: { color: gc },
+          border: { display: false },
           beginAtZero: true,
         }
-      }
+      },
+      animation: { duration: 600, easing: 'easeOutQuart' },
     }
   });
 }
@@ -438,21 +619,24 @@ function _renderModelCostChart(canvasId, byModel) {
   const costs = sorted.map(m => m.total_cost_usd || 0);
   const tokens = sorted.map(m => m.total_tokens || 0);
 
-  // Color palette for models
-  const MODEL_COLORS = ['#7c7aef', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#8b5cf6'];
+  // Warm color palette for models
+  const MODEL_COLORS = ['#6b5ce7', '#e07a5f', '#81b29a', '#e6a65d', '#a78bfa', '#9ca3af'];
   const colors = labels.map((_, i) => MODEL_COLORS[i % MODEL_COLORS.length] + 'cc');
   const borders = labels.map((_, i) => MODEL_COLORS[i % MODEL_COLORS.length]);
+  const tc = _chartTickColor();
+  const tt = _chartTooltipConfig();
 
   chartInstances[canvasId] = new Chart(canvas.getContext('2d'), {
     type: 'doughnut',
-    data: { labels, datasets: [{ data: costs, backgroundColor: colors, borderColor: borders, borderWidth: 1, hoverOffset: 8 }] },
+    data: { labels, datasets: [{ data: costs, backgroundColor: colors, borderColor: borders, borderWidth: 1.5, borderRadius: 4, hoverOffset: 8 }] },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      cutout: '58%',
+      cutout: '62%',
       plugins: {
-        legend: { position: 'right', labels: { color: '#94a3b8', font: { family: 'Inter', size: 10 }, padding: 10, boxWidth: 12 } },
+        legend: { position: 'right', labels: { color: tc, font: { family: 'Inter, system-ui, sans-serif', size: 10 }, padding: 10, usePointStyle: true, pointStyle: 'circle' } },
         tooltip: {
+          ...tt,
           callbacks: {
             label: (ctx) => {
               const idx = ctx.dataIndex;
@@ -462,9 +646,13 @@ function _renderModelCostChart(canvasId, byModel) {
             }
           }
         }
-      }
+      },
+      animation: { duration: 600, easing: 'easeOutQuart' },
     }
   });
+  // Center label: total
+  const modelTotal = costs.reduce((s, c) => s + c, 0);
+  _addDoughnutCenterLabel(canvasId, `$${modelTotal.toFixed(4)}`, 'total');
 }
 
 function _renderTopExpensiveTraces(traces) {
@@ -581,19 +769,19 @@ function _renderCostSummaryCards(byService, byKind, trends) {
   const avgCostPerTrace = totalTraces > 0 ? totalCost / totalTraces : 0;
 
   container.innerHTML = `
-    <div class="cost-summary-card">
+    <div class="cost-summary-card card-fade-in">
       <div class="card-value text-emerald-400">$${totalCost.toFixed(4)}</div>
       <div class="card-label text-slate-400">Total Cost</div>
     </div>
-    <div class="cost-summary-card">
+    <div class="cost-summary-card card-fade-in">
       <div class="card-value text-white">${totalTokens.toLocaleString()}</div>
       <div class="card-label text-slate-400">Total Tokens</div>
     </div>
-    <div class="cost-summary-card">
+    <div class="cost-summary-card card-fade-in">
       <div class="card-value text-indigo-400">${totalTraces.toLocaleString()}</div>
       <div class="card-label text-slate-400">Traces</div>
     </div>
-    <div class="cost-summary-card">
+    <div class="cost-summary-card card-fade-in">
       <div class="card-value text-amber-400">$${avgCostPerTrace.toFixed(6)}</div>
       <div class="card-label text-slate-400">Avg Cost/Trace</div>
     </div>
@@ -627,8 +815,13 @@ function _renderCostTrendsChart(trends, granularity) {
 
   const ctx = canvas.getContext('2d');
   const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height || 256);
-  gradient.addColorStop(0, 'rgba(124, 122, 239, 0.25)');
-  gradient.addColorStop(1, 'rgba(124, 122, 239, 0.02)');
+  gradient.addColorStop(0, 'rgba(107,92,231,0.28)');
+  gradient.addColorStop(0.65, 'rgba(107,92,231,0.06)');
+  gradient.addColorStop(1, 'rgba(107,92,231,0.00)');
+
+  const gc = _chartGridColor();
+  const tc = _chartTickColor();
+  const tt = _chartTooltipConfig();
 
   chartInstances[canvasId] = new Chart(ctx, {
     type: 'line',
@@ -637,16 +830,17 @@ function _renderCostTrendsChart(trends, granularity) {
       datasets: [{
         label: 'Cost (USD)',
         data: costs,
-        borderColor: '#7c7aef',
+        borderColor: '#6b5ce7',
         backgroundColor: gradient,
         fill: true,
-        tension: 0.3,
-        pointRadius: 3,
-        pointHoverRadius: 6,
-        pointBackgroundColor: '#7c7aef',
-        pointBorderColor: '#1e1b4b',
-        pointBorderWidth: 2,
-        borderWidth: 2,
+        tension: 0.4,
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        pointHoverBackgroundColor: '#6b5ce7',
+        pointHoverBorderColor: '#fff',
+        pointHoverBorderWidth: 2,
+        borderWidth: 2.5,
+        borderCapStyle: 'round',
       }]
     },
     options: {
@@ -656,15 +850,17 @@ function _renderCostTrendsChart(trends, granularity) {
       plugins: {
         legend: { display: false },
         tooltip: {
+          ...tt,
           callbacks: {
             label: (item) => ` $${costs[item.dataIndex].toFixed(6)} | ${tokens[item.dataIndex].toLocaleString()} tokens`
           }
         }
       },
       scales: {
-        x: { ticks: { color: '#64748b', font: { size: 10 }, maxRotation: 45 }, grid: { color: 'rgba(255,255,255,0.03)' } },
-        y: { ticks: { color: '#64748b', font: { size: 10 }, callback: v => '$' + v.toFixed(4) }, grid: { color: 'rgba(255,255,255,0.03)' } },
-      }
+        x: { ticks: { color: tc, font: { size: 10 }, maxRotation: 45 }, grid: { color: gc }, border: { display: false } },
+        y: { ticks: { color: tc, font: { size: 10 }, callback: v => '$' + v.toFixed(4) }, grid: { color: gc }, border: { display: false } },
+      },
+      animation: { duration: 600, easing: 'easeOutQuart' },
     }
   });
 }
@@ -723,27 +919,31 @@ function _renderTokenDistributionChart(byKind) {
     return;
   }
 
+  const tt = _chartTooltipConfig();
   chartInstances[canvasId] = new Chart(canvas.getContext('2d'), {
     type: 'doughnut',
     data: {
       labels: ['Input Tokens', 'Output Tokens'],
       datasets: [{
         data: [totalInput, totalOutput],
-        backgroundColor: ['#6366f1', '#10b981'],
-        borderWidth: 0,
+        backgroundColor: ['#6b5ce7cc', '#81b29acc'],
+        borderColor: ['#6b5ce7', '#81b29a'],
+        borderWidth: 1.5,
+        borderRadius: 4,
         hoverOffset: 8,
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      cutout: '60%',
+      cutout: '62%',
       plugins: {
         legend: {
           position: 'right',
-          labels: { color: '#94a3b8', font: { family: 'Inter', size: 11 }, padding: 12 },
+          labels: { color: _chartTickColor(), font: { family: 'Inter, system-ui, sans-serif', size: 11 }, padding: 12 },
         },
         tooltip: {
+          ...tt,
           callbacks: {
             label: (ctx) => {
               const total = totalInput + totalOutput;
@@ -752,9 +952,13 @@ function _renderTokenDistributionChart(byKind) {
             }
           }
         }
-      }
+      },
+      animation: { duration: 600, easing: 'easeOutQuart' },
     }
   });
+  // Center label: total tokens
+  const totalToks = totalInput + totalOutput;
+  _addDoughnutCenterLabel(canvasId, totalToks >= 1000 ? (totalToks / 1000).toFixed(1) + 'K' : String(totalToks), 'tokens');
 }
 
 function renderAgentCostChart(canvasId, agents) {
@@ -800,6 +1004,10 @@ function renderAgentCostChart(canvasId, agents) {
   });
   const borderColors = labels.map(l => agentColorMap[l] || '#9b8ec4');
 
+  const gc = _chartGridColor();
+  const tc = _chartTickColor();
+  const tt = _chartTooltipConfig();
+
   chartInstances[canvasId] = new Chart(ctx2d, {
     type: 'bar',
     data: {
@@ -811,6 +1019,7 @@ function renderAgentCostChart(canvasId, agents) {
         borderColor: borderColors,
         borderWidth: 1,
         borderRadius: 6,
+        borderSkipped: false,
       }]
     },
     options: {
@@ -820,20 +1029,23 @@ function renderAgentCostChart(canvasId, agents) {
       plugins: {
         legend: { display: false },
         tooltip: {
+          ...tt,
           callbacks: {
             label: (ctx) => ` $${costs[ctx.dataIndex].toFixed(6)}`
           }
         }
       },
       scales: {
-        x: { ticks: { color: '#64748b', font: { size: 10 }, callback: v => '$' + v.toFixed(4) }, grid: { color: 'rgba(255,255,255,0.03)' } },
-        y: { ticks: { color: '#94a3b8', font: { size: 11 } }, grid: { color: 'rgba(255,255,255,0.03)' } },
-      }
+        x: { ticks: { color: tc, font: { size: 10 }, callback: v => '$' + v.toFixed(4) }, grid: { color: gc }, border: { display: false } },
+        y: { ticks: { color: tc, font: { size: 11 } }, grid: { display: false }, border: { display: false } },
+      },
+      animation: { duration: 600, easing: 'easeOutQuart' },
     }
   });
 }
 
-const CHART_COLORS = ['#9b8ec4', '#7ab5a0', '#c49a5c', '#7a9eb5', '#c47070', '#b5a082', '#a88ec4', '#c4b07a'];
+// Warm chart color palette (fallback for generic charts)
+const CHART_COLORS = ['#6b5ce7', '#e07a5f', '#81b29a', '#e6a65d', '#a78bfa', '#9ca3af', '#f0c27f', '#c4a882'];
 
 function renderCostChart(canvasId, data, type) {
   if (chartInstances[canvasId]) { chartInstances[canvasId].destroy(); }
@@ -868,6 +1080,10 @@ function renderCostChart(canvasId, data, type) {
   const doughnutColors = CHART_COLORS.slice(0, labels.length).map(c => c + 'dd');
   const doughnutBorders = CHART_COLORS.slice(0, labels.length);
 
+  const gc = _chartGridColor();
+  const tc = _chartTickColor();
+  const tt = _chartTooltipConfig();
+
   const chartConfig = {
     type,
     data: {
@@ -877,21 +1093,24 @@ function renderCostChart(canvasId, data, type) {
         data: costs,
         backgroundColor: type === 'doughnut' ? doughnutColors : barBg,
         borderColor: type === 'doughnut' ? doughnutBorders : CHART_COLORS[0],
-        borderWidth: type === 'doughnut' ? 1 : 1,
-        borderRadius: type === 'bar' ? 6 : 0,
+        borderWidth: type === 'doughnut' ? 1.5 : 1,
+        borderRadius: type === 'bar' ? 6 : 4,
+        borderSkipped: false,
         hoverOffset: type === 'doughnut' ? 8 : 0,
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      cutout: type === 'doughnut' ? '62%' : undefined,
       plugins: {
         legend: {
           display: type === 'doughnut',
           position: 'right',
-          labels: { color: '#94a3b8', font: { family: 'Inter', size: 11 }, padding: 12 },
+          labels: { color: tc, font: { family: 'Inter, system-ui, sans-serif', size: 11 }, padding: 12 },
         },
         tooltip: {
+          ...tt,
           callbacks: {
             label: (ctx) => {
               const idx = ctx.dataIndex;
@@ -901,9 +1120,10 @@ function renderCostChart(canvasId, data, type) {
         }
       },
       scales: type === 'bar' ? {
-        x: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.03)' } },
-        y: { ticks: { color: '#64748b', font: { size: 10 }, callback: v => '$' + v.toFixed(4) }, grid: { color: 'rgba(255,255,255,0.03)' } },
+        x: { ticks: { color: tc, font: { size: 10 } }, grid: { color: gc }, border: { display: false } },
+        y: { ticks: { color: tc, font: { size: 10 }, callback: v => '$' + v.toFixed(4) }, grid: { color: gc }, border: { display: false } },
       } : undefined,
+      animation: { duration: 600, easing: 'easeOutQuart' },
     }
   };
 

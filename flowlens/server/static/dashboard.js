@@ -288,10 +288,10 @@ function switchView(view) {
   const panel = document.getElementById(`view-${view}`);
   if (panel) {
     panel.classList.remove('hidden');
-    // Trigger smooth enter animation
-    panel.classList.remove('view-enter');
+    // Trigger smooth cross-fade enter animation (opacity 0->1, translateY 4px->0)
+    panel.classList.remove('view-enter', 'tab-fade-in');
     void panel.offsetWidth;
-    panel.classList.add('view-enter');
+    panel.classList.add('view-enter', 'tab-fade-in');
   }
 
   const tabBtn = document.querySelector(`[data-tab="${view}"]`);
@@ -1541,9 +1541,33 @@ with tracer.start_trace("my-agent"):
 
   return `
     <div class="flex flex-col items-center justify-center py-12 px-8">
-      <div class="w-16 h-16 rounded-2xl bg-indigo-500/8 flex items-center justify-center mb-4">
-        <svg class="w-8 h-8 empty-state-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+      <div class="empty-state-illustration">
+        <svg width="80" height="64" viewBox="0 0 80 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Abstract warm illustration: flow arcs and dots -->
+          <ellipse cx="40" cy="52" rx="32" ry="6" fill="url(#es-ground)" opacity="0.35"/>
+          <path d="M12 40 Q20 16 40 20 Q60 24 68 40" stroke="url(#es-arc1)" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.6"/>
+          <path d="M20 40 Q28 24 40 26 Q52 28 60 40" stroke="url(#es-arc2)" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.4"/>
+          <circle cx="40" cy="20" r="5" fill="#6b5ce7" opacity="0.6"/>
+          <circle cx="22" cy="36" r="3.5" fill="#e07a5f" opacity="0.5"/>
+          <circle cx="58" cy="36" r="3.5" fill="#81b29a" opacity="0.5"/>
+          <circle cx="40" cy="48" r="2.5" fill="#e6a65d" opacity="0.45"/>
+          <circle cx="12" cy="40" r="2.5" fill="#a78bfa" opacity="0.45"/>
+          <circle cx="68" cy="40" r="2.5" fill="#a78bfa" opacity="0.45"/>
+          <defs>
+            <linearGradient id="es-arc1" x1="12" y1="40" x2="68" y2="40" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#6b5ce7"/>
+              <stop offset="100%" stop-color="#81b29a"/>
+            </linearGradient>
+            <linearGradient id="es-arc2" x1="20" y1="40" x2="60" y2="40" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#e07a5f"/>
+              <stop offset="100%" stop-color="#e6a65d"/>
+            </linearGradient>
+            <linearGradient id="es-ground" x1="8" y1="52" x2="72" y2="52" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#6b5ce7" stop-opacity="0"/>
+              <stop offset="50%" stop-color="#6b5ce7" stop-opacity="1"/>
+              <stop offset="100%" stop-color="#6b5ce7" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
         </svg>
       </div>
       <p class="text-sm font-medium empty-state-title mb-1">${escHtml(message)}</p>
@@ -2494,8 +2518,9 @@ function renderWaterfallTimeline(spans) {
         </div>
         <!-- Bar column -->
         <div class="flex-1 relative h-7 min-w-0">
-          <div class="span-bar absolute top-1 h-5 rounded flex items-center overflow-hidden"
-               style="left:${leftPct}%;width:${widthPct}%;background:${barColor};opacity:${barOpacity};border:${barBorder};${errorTintStyle}">
+          ${depth > 0 ? `<div class="wf-connector" style="left:${indent - 14}px"></div>` : ''}
+          <div class="wf-bar-gradient ${isError ? 'wf-bar-error' : ''} flex items-center overflow-hidden"
+               style="left:${leftPct}%;width:${widthPct}%;background:linear-gradient(90deg,${barColor}ee,${barColor}88);opacity:${barOpacity};${barBorder ? `outline:${barBorder};outline-offset:-1px;` : ''}${errorTintStyle}">
             ${widthPct > 8 ? `<span class="px-1.5 text-[10px] font-medium text-white/90 whitespace-nowrap">${durationStr}</span>` : ''}
           </div>
           ${widthPct <= 8 ? `<span class="absolute top-1.5 text-[10px] text-slate-500 whitespace-nowrap" style="left:${leftPct + widthPct + 0.5}%">${durationStr}</span>` : ''}
@@ -3365,10 +3390,10 @@ async function loadAllPatterns() {
     // Show loading skeleton
     container.innerHTML = `
       <div class="glass rounded-xl p-6 space-y-3">
-        <div class="skeleton skeleton-text w-48"></div>
-        <div class="skeleton skeleton-bar"></div>
-        <div class="skeleton skeleton-bar"></div>
-        <div class="skeleton skeleton-bar"></div>
+        <div class="skeleton skeleton-warm skeleton-text w-48"></div>
+        <div class="skeleton skeleton-warm skeleton-bar"></div>
+        <div class="skeleton skeleton-warm skeleton-bar"></div>
+        <div class="skeleton skeleton-warm skeleton-bar"></div>
       </div>
     `;
 
