@@ -1,14 +1,18 @@
 # Agent Status — 2026-03-15
 
-## Cycle 27: Notification & Alert System — IN PROGRESS (Alpha, 2026-03-15)
+## Cycle 27: Notification & Alert System — COMPLETE (Alpha, 2026-03-15)
 
-**Alpha**: Implementing smart notifications, sessionStorage persistence, and desktop notifications
-- Branch: `feat/alpha-smart-notifications`
+**Alpha**: Smart notifications, sessionStorage persistence, desktop alerts
+- Commit: 2eb9330
+- Branch: `worktree-agent-a8383fc8`
+- Tests: 1208 passing (unchanged)
+- Delivered:
+  - **Burst detection** (`websocket.js` `_smartNotify()`): per-agent 60s rolling window; fires "Alpha completed N traces in the last minute" at ≥5 traces, then every 5-count step
+  - **Error-rate spike** (`websocket.js` `_smartNotify()`): last-10-trace ring buffer per agent; fires "error rate spiked to X%" when ≥40% and increased ≥15pp vs last notification; auto-resets on recovery
+  - **Cost anomaly** (`websocket.js` `_smartNotify()`): rolling 60-minute cost window + EMA baseline (α=0.2); fires "Cost spike: $X (Nx normal)" when ≥3× baseline; throttled to 1 per 5 min; requires baseline >$0.01
+  - **sessionStorage persistence** (`dashboard.js`): `_saveNotificationsToStorage()` called on every `addNotification()`; stores last 20 as JSON under key `flowlens-notifications`; `_loadNotificationsFromStorage()` called from `restoreState()` on page load, merges by id, re-sorts; `clearNotifications()` also clears storage
+  - **Desktop notifications** (`dashboard.js` `_showDesktopNotification()`): requests Notification permission lazily; shows browser notification with `tag='flowlens-alert'`; `n.onclick` focuses tab; auto-closes after 8s; only fires for `error`/`warning` type and when `document.hidden` is true
 - Files: `flowlens/server/static/websocket.js`, `flowlens/server/static/dashboard.js`
-- Tasks:
-  1. Smart notifications — burst detection, error-rate spikes, cost anomalies (websocket.js)
-  2. Notification persistence — sessionStorage, restore on load, clear syncs storage (dashboard.js)
-  3. Desktop notifications — browser Notification API when tab hidden (dashboard.js)
 
 ---
 
