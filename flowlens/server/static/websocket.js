@@ -95,6 +95,18 @@ function handleLiveTrace(traceData) {
     showToast(`Error trace: ${traceData.trace_id.substring(0, 12)}... (${traceData.service_name || 'unknown'})`, 'error', 5000);
   }
 
+  // Push to live activity feed
+  const agentTag = (traceData.tags || {}).agent || (traceData.metadata || {}).agent || traceData.service_name || 'unknown';
+  const actionLabel = traceData.service_name
+    ? `New trace — ${traceData.service_name} (${traceData.span_count || 0} spans)`
+    : `New trace — ${(traceData.trace_id || '').substring(0, 12)}...`;
+  addToLiveFeed({
+    agent: agentTag,
+    action: actionLabel,
+    status: traceData.has_errors ? 'error' : 'ok',
+    timestamp: traceData.start_time || Date.now() / 1000,
+  });
+
   // If on overview, prepend to recent traces list
   if (currentView === 'overview') {
     const container = document.getElementById('recent-traces-list');
