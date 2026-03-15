@@ -1,14 +1,24 @@
 # Agent Status — 2026-03-15
 
-## Cycle 23: Dashboard Quality Pass — COMPLETE (Alpha, 2026-03-15)
+## Cycle 23: UI Animation Polish — COMPLETE (Gamma, 2026-03-15)
 
-**Alpha**: Comprehensive audit + bug fixes across all dashboard static files
-- CSS critical bug: unclosed `@media (max-width: 768px)` at line 468 of dashboard.css — this caused `.theme-toggle`, `.shortcuts-modal-overlay`, `.compare-checkbox`, `.filter-input:focus`, `.collapsible-*`, `.pattern-card-*`, `.trace-row-selected`, and 15+ other rules to ONLY apply at ≤768px width (desktop was broken)
-- JS null dereference bug: `document.getElementById('stat-error-count').textContent` in `loadStats()` — element was removed from HTML in v17 but the JS guard was missing on the second access, causing `TypeError` on every stats refresh
-- JS undeclared variable: `_termLayout` used in `_termSetLayout()`, `_termOpenWithLayout()`, `_termCloseAll()` but never declared — in strict mode (`'use strict'`) this is a `ReferenceError` crashing terminal pane layout changes
-- network.js cosmetic: redundant ternary `dark ? '#ffffff' : '#ffffff'` simplified to literal
+**Gamma**: Final polish pass — animations, transitions, micro-interactions
+- Branch: `worktree-agent-a8a814ca`
+- Commit: 5d6efcb
 - Tests: 1156 passing (unchanged)
-- Files: `flowlens/server/static/dashboard.css`, `flowlens/server/static/dashboard.js`, `flowlens/server/static/network.js`
+- Delivered:
+  - Stat card stagger reduced from 80ms to 60ms per spec (snappier cascade)
+  - `chart-reveal` CSS keyframe (opacity+translateY) + helper `_revealChartContainer()` called after each chart renders (overview doughnuts, bar, trend line)
+  - Left-to-right line chart draw: Chart.js `animations.x` with 120ms dataset stagger on trend chart
+  - `animateRotate: true` globally for doughnut charts satisfying reveal
+  - Notification panel slide-down animation (`notifPanelSlide`, 0.2s spring)
+  - Activity timeline rows stagger: nth-child(1-10) CSS fade-in with 30ms steps
+  - Doughnut center label fade-in (0.5s delayed after chart animation)
+  - Agent card `agent-card-stagger` class with 60ms×index `animation-delay` — staggered fade-up in Agents tab
+  - Pill nav glider: resize listener (debounced 100ms) to re-position after window resize
+  - `will-change: opacity, transform` on `.view-panel` for GPU compositing
+  - Back-to-top button position guard: shifts up when tmux terminal is open
+- Files: `flowlens/server/static/dashboard.css`, `flowlens/server/static/dashboard.js`, `flowlens/server/static/charts.js`
 
 ---
 

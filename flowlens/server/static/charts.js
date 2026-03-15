@@ -37,6 +37,16 @@
     active: { animation: { duration: 200, easing: 'easeOutQuart' } },
   };
 
+  // Line charts: draw left-to-right using clip animation on x axis
+  // Applies globally to all line charts; individual charts can override
+  if (Chart.defaults.controllers && Chart.defaults.controllers.line) {
+    Chart.defaults.controllers.line.clip = true;
+  }
+
+  // Doughnut/Pie: ensure rotate + scale reveal is enabled globally
+  Chart.defaults.animation.animateRotate = true;
+  Chart.defaults.animation.animateScale = false; // scale can look odd for doughnuts
+
   // Legend: bottom position, small point style instead of rectangles
   Chart.defaults.plugins.legend.position = 'bottom';
   Chart.defaults.plugins.legend.labels.usePointStyle = true;
@@ -152,6 +162,16 @@ async function loadOverviewCharts() {
     if (agents.length === 0) return;
     console.log('[FlowLens] Rendering charts for', agents.length, 'agents, costs:', agents.map(a => a.total_cost_usd));
 
+    /** Helper: trigger chart-reveal animation on a canvas wrapper */
+    function _revealChartContainer(canvasId) {
+      const el = document.getElementById(canvasId);
+      if (!el || !el.parentElement) return;
+      const wrap = el.parentElement;
+      wrap.classList.remove('chart-reveal');
+      void wrap.offsetWidth; // force reflow to restart animation
+      wrap.classList.add('chart-reveal');
+    }
+
     // Doughnut: Cost by Agent — warm colors, rounded, center label
     const pieCanvas = document.getElementById('overview-pie-agent');
     if (pieCanvas) {
@@ -179,6 +199,7 @@ async function loadOverviewCharts() {
       });
       // Center label: total cost
       _addDoughnutCenterLabel('overview-pie-agent', `$${totalCost.toFixed(4)}`, 'total');
+      _revealChartContainer('overview-pie-agent');
     }
 
     // Horizontal Bar: Traces by Agent — rounded bars, clean labels
@@ -210,6 +231,7 @@ async function loadOverviewCharts() {
           animation: { duration: 600, easing: 'easeOutQuart' },
         }
       });
+      _revealChartContainer('overview-bar-agent');
     }
 
     // Doughnut: Error Distribution — coral errors, sage success, center label
@@ -245,6 +267,7 @@ async function loadOverviewCharts() {
       // Center label: success rate
       const rate = total > 0 ? ((totalOk / total) * 100).toFixed(0) + '%' : 'N/A';
       _addDoughnutCenterLabel('overview-pie-errors', rate, 'success');
+      _revealChartContainer('overview-pie-errors');
     }
   } catch (err) {
     console.error('Overview charts error:', err);
@@ -610,9 +633,30 @@ async function loadTrendChart(hours) {
           beginAtZero: true,
         }
       },
-      animation: { duration: 600, easing: 'easeOutQuart' },
+      // Draw line left-to-right: stagger dataset animations
+      animation: { duration: 700, easing: 'easeOutQuart' },
+      animations: {
+        x: {
+          type: 'number',
+          easing: 'easeOutQuart',
+          duration: 700,
+          from: NaN,
+          delay(ctx) {
+            if (ctx.type !== 'data' || ctx.xStarted) return 0;
+            ctx.xStarted = true;
+            return ctx.datasetIndex * 120;
+          },
+        },
+      },
     }
   });
+  // Trigger chart container reveal animation
+  if (canvas && canvas.parentElement) {
+    const wrap = canvas.parentElement;
+    wrap.classList.remove('chart-reveal');
+    void wrap.offsetWidth;
+    wrap.classList.add('chart-reveal');
+  }
 }
 
 // =========================================================================
