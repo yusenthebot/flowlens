@@ -175,7 +175,14 @@
         <div class="gradient-orb" style="width:400px;height:400px;top:-100px;right:-100px;background:radial-gradient(circle,rgba(99,102,241,0.15),transparent 70%);animation:orbFloat 20s ease-in-out infinite;"></div>
         <div class="gradient-orb" style="width:300px;height:300px;bottom:-50px;left:-50px;background:radial-gradient(circle,rgba(139,92,246,0.12),transparent 70%);animation:orbFloat 25s ease-in-out infinite reverse;"></div>
         <div class="gradient-orb" style="width:250px;height:250px;top:50%;right:30%;background:radial-gradient(circle,rgba(99,102,241,0.08),transparent 70%);animation:orbFloat 30s ease-in-out infinite 5s;"></div>
-      <!-- Stats Cards -->
+      <!-- Overview header row: title + Export Report -->
+      <div class="flex items-center justify-between mb-4 relative z-10">
+        <h1 class="text-sm font-semibold text-slate-400 uppercase tracking-wider">Overview</h1>
+        <button onclick="exportDashboardReport()" title="Export dashboard summary report as Markdown" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-400 bg-surface-100 rounded-lg border border-white/10 hover:border-white/20 hover:text-slate-200 transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          Export Report
+        </button>
+      </div>
 
       <!-- Stats Cards -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6 stat-grid relative z-10">
@@ -570,9 +577,21 @@
           </div>
           <div class="flex gap-2 flex-wrap">
             <!-- Export buttons -->
-            <button onclick="exportTraceJSON()" title="Export trace as JSON" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-400 bg-surface-100 rounded-lg border border-white/10 hover:border-white/20 hover:text-slate-200 transition">
+            <button onclick="copyTraceAsJSON()" title="Copy trace as JSON to clipboard" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-400 bg-surface-100 rounded-lg border border-white/10 hover:border-white/20 hover:text-slate-200 transition">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+              Copy JSON
+            </button>
+            <button onclick="copyTraceAsMarkdown()" title="Copy trace as Markdown report to clipboard" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-400 bg-surface-100 rounded-lg border border-white/10 hover:border-white/20 hover:text-slate-200 transition">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              Copy MD
+            </button>
+            <button onclick="downloadTraceJSON()" title="Download trace as JSON file" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-400 bg-surface-100 rounded-lg border border-white/10 hover:border-white/20 hover:text-slate-200 transition">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-              JSON
+              Download JSON
+            </button>
+            <button onclick="copyTraceLink()" title="Copy shareable link to this trace" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-400 bg-surface-100 rounded-lg border border-white/10 hover:border-white/20 hover:text-slate-200 transition">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+              Copy Link
             </button>
             <button id="btn-export-dag-png" onclick="exportDAGPng()" title="Export DAG as PNG" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-400 bg-surface-100 rounded-lg border border-white/10 hover:border-white/20 hover:text-slate-200 transition hidden">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
