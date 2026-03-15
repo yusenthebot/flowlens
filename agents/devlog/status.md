@@ -1,25 +1,17 @@
 # Agent Status — 2026-03-15
 
-## Cycle 16: Interaction Polish — COMPLETE (Alpha, 2026-03-15)
+## Cycle 16: Interaction Polish — COMPLETE (Beta, 2026-03-15)
 
-**Alpha**: Micro-interactions, hover states, transitions, and feel
-- Files: `flowlens/server/static/dashboard.css`, `flowlens/server/static/dashboard.js`, `flowlens/server/static/websocket.js`, `flowlens/server/dashboard.html`
+**Beta**: Information density, data presentation, visual hierarchy
+- Commit: 900544e
+- Branch: `feat/beta-interaction-polish`
 - Tests: 1156 passing (unchanged)
 - Delivered:
-  - Page tab transitions: leave animation (opacity→0, translateY→-4px, 150ms) + enter animation (4px→0, 200ms)
-  - Pill nav sliding glider indicator: smooth left/width CSS transition instead of snap
-  - Header scroll shadow: 0px at top → 4px shadow after 20px of scroll (`scrolled` class)
-  - Back-to-top button: appears after 400px scroll, spring-scale-in animation, smooth scroll on click
-  - Trace row click "press" feedback: mousedown scale(0.9975), mouseup restore
-  - New trace WS flash: green left-border animation (`new-trace-ws` keyframe, replaces old purple)
-  - All buttons: scale(0.97) active feedback via CSS `:active` rule
-  - Copy tooltip: `showCopyTooltip()` / `copyWithTooltip()` helpers, 1.5s green tooltip
-  - Star rating cascade hover: per-star transition delay (0/30/60/90/120ms)
-  - Skeleton shimmer upgraded: warm indigo+amber shimmer (replaces cold gray) applied to all `.skeleton`
-  - Skeleton layout templates: stat-card, agent-card, trace-row, cost-card match exact loaded dimensions
-  - Collapsible trace detail: spring-like ease (cubic-bezier 0.34,1.1,0.64,1)
-  - Section sticky headers: `.sticky-section-header` with backdrop blur
-  - Sparkline draw animation: left-to-right stroke-dashoffset draw
+  - Stat cards: SVG micro-sparklines (60x20, sage=up/coral=down) + secondary stat labels (avg/hr, error %, avg latency, avg cost/hr); new `renderSVGSparkline()` + `_setStatSecondary()` in charts.js
+  - Trace list: column headers (Name/Duration/Cost/Time); alternating even-row backgrounds; tool summary as colored pills (8 tool categories: Read/Bash/Edit/Write/Glob/Grep/LLM/default); duration color-indicator dot (green/amber/coral by threshold); right-aligned tabular-nums columns
+  - Agent network: hover tooltip card with name, role, status, trace count, cost, last-active; CSS fade-in transition; follows mouse; dark+light theme support
+  - Waterfall timeline: proper adaptive time ruler (tick intervals: 50ms/100ms/500ms/1s/5s/10s based on trace duration); labels at 0/end plus intermediate ticks; subtle gridlines aligned to ticks
+  - Session timeline: agent avatar (colored circle with initial letter); tool pills inline; duration color dot; coral error-dot indicator replacing text badge
 
 ---
 
