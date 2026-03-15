@@ -1,23 +1,18 @@
 # Agent Status — 2026-03-15
 
-## Cycle 17: Premium Feel — COMPLETE (Alpha, 2026-03-15)
+## Cycle 17: Premium Feel — COMPLETE (Beta, 2026-03-15)
 
-**Alpha**: Premium SaaS polish — Overview stat cards, Trace detail header
-- Branch: `feat/alpha-premium-feel`
+**Beta**: Consistency pass across ALL tabs — fix visual inconsistencies
+- Commit: 192e9d5
+- Branch: `feat/beta-premium-feel`
 - Tests: 1156 passing (unchanged)
 - Delivered:
-  - Stat cards: New `stat-card-v17` system — large tabular number (30px, `font-variant-numeric: tabular-nums`), clean uppercase label, no secondary text, thin Chart.js sparkline (1.5px, no fill, `tension: 0.45`)
-  - Stat card tints: Indigo (Traces), warm coral (Error Rate), amber (Latency), emerald/sage (Cost), purple (Agents) — each with 2px accent top border
-  - Error Rate: Displayed as "0.4%" in warm coral, NOT scary red — no error-count sublabel
-  - Avg Latency: Human-readable format — "28.1s" not raw milliseconds
-  - Active Agents: Now loads from `/v1/agents/summary` API for accurate count, fallback to trace tags
-  - Trace detail header: Horizontal meta strip (4 cards in a row: Duration, Cost, Spans, Status) — clean flex layout replacing 4-column grid
-  - Trace ID: monospace, dimmed, with copy-to-clipboard button (`trace-id-copy-btn`)
-  - Agent avatar in trace detail: More prominent (larger name, role subtitle)
-  - Service: field removed from secondary meta (agent name already shown)
-  - Agent Details heading: Removed — agents grid displayed without redundant header
-  - Overview whitespace: Reduced `mb-6` → `mb-5` for tighter layout
-  - Agent Team bar: More compact `gap: 8px`, smaller card padding
+  - Font size system normalized: 9px/9.5px/10.5px/11.5px all fixed; typo-h1→16px, doughnut-center→16px, session stat values→13px, cost-summary→28px, pattern h2→16px, agent modal metric→16px
+  - Color consistency: 40+ Tailwind cold-color uses (text-red-400, bg-emerald-500, text-blue-400) replaced with CSS custom properties from warm palette in dashboard.js
+  - New semantic CSS classes: notif-dot-*, severity-dot-*, pattern-severity-badge-*, status-dot-active/idle, wf-span-error-name, agent-error-trace-row
+  - Spacing: compare-summary-card, cost-summary-card, pattern cards → 20px padding
+  - Border: span error block replaced border-2 with 1px solid coral, added .span-error-block class
+  - CSS cleanup: merged 3 duplicate :root blocks, removed duplicate @keyframes (toastSlideIn/Out, viewEnter), fixed unclosed } in #view-patterns rule
 
 ---
 

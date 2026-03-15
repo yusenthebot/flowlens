@@ -1,13 +1,15 @@
 # Task Board — FlowLens Development
 
-**Project Status: Cycle 17 complete — Premium Feel delivered**
+**Project Status: Cycle 17 complete — Premium Feel / Consistency Pass delivered**
 
 ---
 
 ## Cycle 17: Complete (2026-03-15) — PREMIUM FEEL
 
 ### Done (2026-03-15)
-- [x] **Premium SaaS polish for Overview and Traces pages** — Alpha — Stat card v17 system: large tabular numbers (30px), clean uppercase labels, thin no-fill Chart.js sparklines (1.5px), per-card accent tints (indigo/coral/amber/sage/purple) with 2px top border; latency in human-readable format (28.1s not ms); error rate in warm coral not alarming red; agents count from summary API; agent details heading removed; trace detail: horizontal meta strip (4 cards), monospace dimmed trace ID with copy button, prominent agent avatar, service field removed — Commit TBD — `flowlens/server/static/dashboard.css`, `flowlens/server/static/dashboard.js`, `flowlens/server/static/charts.js`, `flowlens/server/dashboard.html`
+- [x] **Consistency pass across ALL tabs** — Beta — Font size system normalized (9/9.5/10.5/11.5px → system values); 40+ Tailwind cold-color uses replaced with warm CSS vars (--color-coral, --color-sage, --color-indigo-warm); padding normalized to 20px for cards; border-2 heavy border fixed; CSS cleanup: 3 duplicate :root merged, duplicate keyframes removed, unclosed brace fixed; new semantic CSS classes for notifications/severity/status dots — Commit 192e9d5 — `flowlens/server/static/dashboard.css`, `flowlens/server/static/dashboard.js`
+
+---
 
 ---
 

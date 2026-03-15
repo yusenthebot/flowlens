@@ -1,15 +1,11 @@
 /* FlowLens Dashboard — Main application logic */
 'use strict';
 
-// =========================================================================
-// State
-// =========================================================================
-const API_BASE = window.location.origin;
+// ==================================================================// State
+// ==================================================================const API_BASE = window.location.origin;
 
-// =========================================================================
-// Agent Profile System
-// =========================================================================
-const AGENT_PROFILES = {
+// ==================================================================// Agent Profile System
+// ==================================================================const AGENT_PROFILES = {
   'vr-alpha': {
     name: 'Alpha', role: 'Core Developer', color: '#3b82f6', bgClass: 'from-blue-500/20 to-blue-600/10',
     badgeClass: 'bg-blue-500/15 text-blue-400 border-blue-500/25',
@@ -87,10 +83,8 @@ let _statsWindow = 'all';
 let _liveFeedEvents = [];
 const _LIVE_FEED_MAX = 15;
 
-// =========================================================================
-// Notification System
-// =========================================================================
-let notifications = [];
+// ==================================================================// Notification System
+// ==================================================================let notifications = [];
 
 function toggleNotificationPanel() {
   const panel = document.getElementById('notification-panel');
@@ -143,10 +137,10 @@ function renderNotifications() {
     return;
   }
   const typeConfig = {
-    error:   { dot: 'bg-red-500',    icon: '!', label: 'Error' },
-    warning: { dot: 'bg-amber-400',  icon: '!', label: 'Warning' },
-    info:    { dot: 'bg-indigo-400', icon: 'i', label: 'Info' },
-    success: { dot: 'bg-emerald-500',icon: '✓', label: 'Success' },
+    error:   { dot: 'notif-dot-error',   icon: '!', label: 'Error' },
+    warning: { dot: 'notif-dot-warning', icon: '!', label: 'Warning' },
+    info:    { dot: 'notif-dot-info',    icon: 'i', label: 'Info' },
+    success: { dot: 'notif-dot-success', icon: '✓', label: 'Success' },
   };
   list.innerHTML = notifications.map(n => {
     const cfg = typeConfig[n.type] || typeConfig.info;
@@ -164,10 +158,8 @@ function renderNotifications() {
   }).join('');
 }
 
-// =========================================================================
-// Live Activity Feed
-// =========================================================================
-function addToLiveFeed(event) {
+// ==================================================================// Live Activity Feed
+// ==================================================================function addToLiveFeed(event) {
   // event: { agent, action, status, timestamp }
   _liveFeedEvents.unshift({
     agent: event.agent || 'unknown',
@@ -192,13 +184,13 @@ function renderLiveFeed() {
     const p = getAgentProfile(ev.agent);
     const timeAgo = formatTimeAgo(ev.timestamp);
     const isError = ev.status === 'error';
-    const dotColor = isError ? 'bg-red-500' : 'bg-emerald-500';
+    const dotStyle = isError ? 'background:var(--color-coral,#e07a5f)' : 'background:var(--color-sage,#81b29a)';
     const rowClass = isError ? 'live-feed-row-error' : '';
     return `<div class="live-feed-row flex items-center gap-3 px-4 py-2.5 ${rowClass}">
-      <span class="flex-shrink-0 text-[9px] live-feed-time w-12 text-right">${timeAgo}</span>
-      <div class="flex-shrink-0 w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-bold" style="background:${p.color}22;color:${p.color}">${(p.name||'?')[0]}</div>
+      <span class="flex-shrink-0 text-[10px] live-feed-time w-12 text-right">${timeAgo}</span>
+      <div class="flex-shrink-0 w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold" style="background:${p.color}22;color:${p.color}">${(p.name||'?')[0]}</div>
       <span class="flex-1 text-xs live-feed-action truncate">${escHtml(ev.action)}</span>
-      <span class="flex-shrink-0 w-1.5 h-1.5 rounded-full ${dotColor}"></span>
+      <span class="flex-shrink-0 w-1.5 h-1.5 rounded-full" style="${dotStyle}"></span>
     </div>`;
   }).join('');
 
@@ -206,10 +198,8 @@ function renderLiveFeed() {
   container.scrollTop = 0;
 }
 
-// =========================================================================
-// API Helpers
-// =========================================================================
-async function apiFetch(path, opts = {}) {
+// ==================================================================// API Helpers
+// ==================================================================async function apiFetch(path, opts = {}) {
   try {
     const res = await fetch(`${API_BASE}${path}`, opts);
     if (!res.ok) {
@@ -228,10 +218,8 @@ function updateRefreshTime() {
   el.textContent = `Updated ${new Date().toLocaleTimeString()}`;
 }
 
-// =========================================================================
-// Utilities
-// =========================================================================
-function escHtml(str) {
+// ==================================================================// Utilities
+// ==================================================================function escHtml(str) {
   if (!str) return '';
   const div = document.createElement('div');
   div.textContent = String(str);
@@ -244,10 +232,8 @@ function formatDuration(ms) {
   return (ms / 1000).toFixed(2) + 's';
 }
 
-// =========================================================================
-// Toast Notifications
-// =========================================================================
-function showToast(message, type = 'info', duration = 4000) {
+// ==================================================================// Toast Notifications
+// ==================================================================function showToast(message, type = 'info', duration = 4000) {
   const container = document.getElementById('toast-container');
   const toast = document.createElement('div');
 
@@ -280,10 +266,8 @@ function showToast(message, type = 'info', duration = 4000) {
     setTimeout(() => toast.remove(), 300);
   }, duration);
 }
-// =========================================================================
-// View Switching (with smooth transitions)
-// =========================================================================
-function switchView(view) {
+// ==================================================================// View Switching (with smooth transitions)
+// ==================================================================function switchView(view) {
   currentView = view;
   selectedTraceIndex = -1;
 
@@ -340,10 +324,8 @@ function switchView(view) {
   try { sessionStorage.setItem('flowlens-view', view); } catch (_) {}
 }
 
-// =========================================================================
-// Agent Activity (Overview panel — real-time compact cards)
-// =========================================================================
-async function loadAgentActivity() {
+// ==================================================================// Agent Activity (Overview panel — real-time compact cards)
+// ==================================================================async function loadAgentActivity() {
   try {
     const data = await apiFetch('/v1/agents/activity');
     const bar = document.getElementById('agent-team-bar');
@@ -377,9 +359,9 @@ async function loadAgentActivity() {
             ${renderAgentAvatar(a.agent, 'md')}
             <div class="min-w-0">
               <div class="text-[10px] font-semibold text-white truncate">${escHtml(p.name)}</div>
-              <div class="text-[9px] text-slate-500">${escHtml(p.role)}</div>
+              <div class="text-[10px] text-slate-500">${escHtml(p.role)}</div>
             </div>
-            ${isActive ? '<span class="w-2 h-2 rounded-full bg-emerald-500 pulse-dot ml-auto flex-shrink-0"></span>' : '<span class="w-2 h-2 rounded-full bg-slate-600 ml-auto flex-shrink-0"></span>'}
+            ${isActive ? '<span class="w-2 h-2 rounded-full pulse-dot ml-auto flex-shrink-0" style="background:var(--color-sage,#81b29a)"></span>' : '<span class="w-2 h-2 rounded-full bg-slate-600 ml-auto flex-shrink-0"></span>'}
           </div>
           <div class="text-[10px] text-slate-500">${timeAgo} · ${a.trace_count_1h || 0} ops</div>
         </div>`;
@@ -388,10 +370,8 @@ async function loadAgentActivity() {
   } catch (e) { /* silently fail */ }
 }
 
-// =========================================================================
-// Live Agent Monitor
-// =========================================================================
-let _monitorAgents = [];
+// ==================================================================// Live Agent Monitor
+// ==================================================================let _monitorAgents = [];
 let _termPanes = [];  // [{id, agent}]
 let _termMinimized = false;
 let _termPaneIdCounter = 0;
@@ -414,10 +394,10 @@ function renderLiveMonitor(agents) {
     const isActive = a.status === 'active';
 
     return `
-      <div class="monitor-agent-card rounded-lg p-2 ${isActive ? 'bg-emerald-500/5 border border-emerald-500/20' : 'bg-slate-800/30 border border-white/5'} transition-all duration-300 flex flex-col items-center gap-1 cursor-pointer hover:scale-105 hover:border-indigo-400/40" data-agent="${escHtml(a.agent)}" onclick="openAgentTerminal('${escHtml(a.agent)}')" oncontextmenu="event.preventDefault();_termShowContextMenu(event,'${escHtml(a.agent)}')">
+      <div class="monitor-agent-card rounded-lg p-2 transition-all duration-300 flex flex-col items-center gap-1 cursor-pointer hover:scale-105 hover:border-indigo-400/40" style="${isActive ? 'background:var(--color-sage-bg,rgba(129,178,154,0.08));border:1px solid var(--color-sage-border,rgba(129,178,154,0.22))' : 'background:rgba(30,41,59,0.3);border:1px solid rgba(255,255,255,0.05)'}" data-agent="${escHtml(a.agent)}" onclick="openAgentTerminal('${escHtml(a.agent)}')" oncontextmenu="event.preventDefault();_termShowContextMenu(event,'${escHtml(a.agent)}')">
         <div class="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white relative" style="background:${p.color}">
           ${(p.name||'?')[0]}
-          <span class="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ${isActive ? 'bg-emerald-400 pulse-dot' : 'bg-slate-600'} border border-slate-900"></span>
+          <span class="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-slate-900 ${isActive ? 'pulse-dot' : ''}" style="background:${isActive ? 'var(--color-sage,#81b29a)' : '#475569'}"></span>
         </div>
         <span class="text-[10px] font-medium text-white truncate w-full text-center">${escHtml(p.name)}</span>
       </div>`;
@@ -853,10 +833,8 @@ function _termMakeResizable(el) {
   });
 }
 
-// =========================================================================
-// Agent Overview
-// =========================================================================
-async function loadAgentData() {
+// ==================================================================// Agent Overview
+// ==================================================================async function loadAgentData() {
   const grid = document.getElementById('agents-grid');
   if (!grid) return;
   grid.innerHTML = '<p class="text-xs text-slate-500 col-span-full">Loading...</p>';
@@ -894,7 +872,7 @@ async function loadAgentData() {
 
     grid.innerHTML = agents.map(a => {
       const errPct = (a.error_rate * 100).toFixed(1);
-      const errColor = a.error_rate < 0.05 ? 'text-emerald-400' : a.error_rate < 0.20 ? 'text-yellow-400' : 'text-red-400';
+      const errColor = a.error_rate < 0.05 ? 'stat-trend-up' : a.error_rate < 0.20 ? 'text-amber-400' : 'stat-trend-down';
       const latency = a.avg_duration_ms >= 1000
         ? (a.avg_duration_ms / 1000).toFixed(2) + 's'
         : a.avg_duration_ms.toFixed(0) + 'ms';
@@ -904,9 +882,9 @@ async function loadAgentData() {
 
       const activity = activityByAgent[a.agent] || null;
       const isActive = activity && activity.status === 'active';
-      const statusColor = isActive ? 'bg-emerald-500' : 'bg-slate-600';
+      const statusColor = isActive ? 'status-dot-active' : 'status-dot-idle';
       const statusLabel = isActive ? 'active' : 'idle';
-      const statusBadgeBg = isActive ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' : 'bg-slate-700/40 text-slate-500 border-slate-600/30';
+      const statusBadgeBg = isActive ? 'status-badge status-badge-active' : 'status-badge status-badge-idle';
       const recentTools = activity ? (activity.recent_tools || []).slice(0, 5) : [];
       const toolsHtml = recentTools.length > 0
         ? recentTools.map(t => `<span class="px-1.5 py-0.5 text-[10px] rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">${escHtml(t)}</span>`).join(' ')
@@ -956,24 +934,24 @@ async function loadAgentData() {
         </div>
         <div class="agent-stats-row mb-3 text-xs">
           <div class="agent-stat-cell">
-            <div class="text-[9px] text-slate-500 uppercase tracking-wider mb-0.5">Traces</div>
+            <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Traces</div>
             <div class="text-white font-semibold agents-grid-card-title">${a.trace_count}</div>
           </div>
           <div class="agent-stat-cell">
-            <div class="text-[9px] text-slate-500 uppercase tracking-wider mb-0.5">Errors</div>
+            <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Errors</div>
             <div class="${errColor} font-semibold">${errPct}%</div>
           </div>
           <div class="agent-stat-cell">
-            <div class="text-[9px] text-slate-500 uppercase tracking-wider mb-0.5">Cost</div>
+            <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Cost</div>
             <div class="text-white font-semibold agents-grid-card-title">${cost}</div>
           </div>
           <div class="agent-stat-cell">
-            <div class="text-[9px] text-slate-500 uppercase tracking-wider mb-0.5">Avg Lat</div>
+            <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Avg Lat</div>
             <div class="text-white font-semibold agents-grid-card-title">${latency}</div>
           </div>
         </div>
         <div class="mb-3">
-          <div class="text-[9px] text-slate-500 uppercase tracking-wider mb-1.5">Activity (24h)</div>
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1.5">Activity (24h)</div>
           <div style="display:flex;align-items:flex-end;height:20px;">${activityDots.join('')}</div>
         </div>
         <div class="flex flex-wrap gap-1 mb-2">${toolsHtmlV14}</div>
@@ -1034,9 +1012,9 @@ async function _loadAgentFeeds(agentNames) {
         const durStr = ev.duration_ms > 0 ? `${Math.round(ev.duration_ms)}ms` : '';
         const errorHint = isError && ev.error ? ` — ${escHtml(ev.error).substring(0, 40)}` : '';
 
-        return `<div class="flex items-center gap-1.5 py-0.5 text-[10px] leading-tight ${isError ? 'text-red-400' : 'text-slate-400'}" title="${escHtml(toolName)} ${durStr}${errorHint}">
+        return `<div class="flex items-center gap-1.5 py-0.5 text-[10px] leading-tight" style="color:${isError ? 'var(--color-coral,#e07a5f)' : 'inherit'};opacity:${isError ? 1 : 0.7}" title="${escHtml(toolName)} ${durStr}${errorHint}">
           ${statusDot}
-          <span class="font-medium ${isError ? 'text-red-300' : 'text-slate-300'}" style="min-width:48px;">${escHtml(toolName)}</span>
+          <span class="font-medium" style="min-width:48px;color:${isError ? 'var(--color-coral,#e07a5f)' : 'inherit'}">${escHtml(toolName)}</span>
           <span class="text-slate-600 flex-1 truncate">${durStr}${errorHint}</span>
           <span class="text-slate-600 flex-shrink-0">${timeAgo}</span>
         </div>`;
@@ -1051,10 +1029,8 @@ function filterTracesByAgent(agentName) {
   _tracesAgentFilter = agentName || null;
   switchView('traces');
 }
-// =========================================================================
-// Agent Detail Modal
-// =========================================================================
-async function openAgentDetailModal(agentName, _encodedData) {
+// ==================================================================// Agent Detail Modal
+// ==================================================================async function openAgentDetailModal(agentName, _encodedData) {
   const modal = document.getElementById('agent-detail-modal');
   const titleEl = document.getElementById('agent-modal-title');
   const bodyEl = document.getElementById('agent-modal-body');
@@ -1087,7 +1063,7 @@ async function openAgentDetailModal(agentName, _encodedData) {
     const avatarLg = `<div class="w-16 h-16 rounded-xl bg-gradient-to-br ${p.bgClass} flex items-center justify-center flex-shrink-0" style="color:${p.color}">${p.icon}</div>`;
 
     const errPct = agentStats ? (agentStats.error_rate * 100).toFixed(1) + '%' : '--';
-    const errColor = agentStats && agentStats.error_rate < 0.05 ? 'text-emerald-400' : agentStats && agentStats.error_rate < 0.20 ? 'text-yellow-400' : 'text-red-400';
+    const errColor = agentStats && agentStats.error_rate < 0.05 ? 'stat-trend-up' : agentStats && agentStats.error_rate < 0.20 ? 'text-amber-400' : 'stat-trend-down';
     const latency = agentStats ? (agentStats.avg_duration_ms >= 1000 ? (agentStats.avg_duration_ms / 1000).toFixed(2) + 's' : agentStats.avg_duration_ms.toFixed(0) + 'ms') : '--';
     const cost = agentStats ? (agentStats.total_cost_usd < 0.01 ? '$' + agentStats.total_cost_usd.toFixed(6) : '$' + agentStats.total_cost_usd.toFixed(4)) : '--';
     const totalTraces = agentStats ? agentStats.trace_count : '--';
@@ -1099,9 +1075,9 @@ async function openAgentDetailModal(agentName, _encodedData) {
       : agentActivities.slice(0, 20).map(ev => {
           const actionLabel = escHtml(ev.action || ev.tool || ev.type || 'Event');
           const timeLabel = ev.timestamp ? formatTimeAgo(ev.timestamp) : '';
-          const dotColor = ev.error ? 'bg-red-500' : 'bg-emerald-500';
+          const dotStyle = ev.error ? 'background:var(--color-coral,#e07a5f)' : 'background:var(--color-sage,#81b29a)';
           return `<div class="flex items-center gap-2 py-1.5 text-xs">
-            <span class="w-1 h-1 rounded-full ${dotColor} flex-shrink-0"></span>
+            <span class="w-1 h-1 rounded-full flex-shrink-0" style="${dotStyle}"></span>
             <span class="text-slate-300 truncate flex-1">${actionLabel}</span>
             <span class="text-slate-500 ml-auto flex-shrink-0">${timeLabel}</span>
           </div>`;
@@ -1111,14 +1087,14 @@ async function openAgentDetailModal(agentName, _encodedData) {
     const errorTraces = recentTraces.filter(t => t.has_error || t.error);
     const errorHistoryHtml = errorTraces.length === 0 ? '' : `
       <div class="mb-4">
-        <div class="text-xs font-semibold text-red-400 uppercase tracking-wider mb-2">Error History (${errorTraces.length})</div>
-        <div class="rounded-lg border border-red-500/20 bg-red-500/5 p-3 max-h-[150px] overflow-y-auto">
+        <div class="text-xs font-semibold uppercase tracking-wider mb-2" style="color:var(--color-coral,#e07a5f)">Error History (${errorTraces.length})</div>
+        <div class="rounded-lg p-3 max-h-[150px] overflow-y-auto" style="border:1px solid var(--color-coral-border,rgba(224,122,95,0.28));background:var(--color-coral-bg,rgba(224,122,95,0.08))">
           ${errorTraces.map(t => {
             const traceTime = t.start_time ? new Date(t.start_time * 1000).toLocaleTimeString() : '';
-            return `<div class="flex items-center gap-2 py-1 text-xs cursor-pointer hover:bg-red-500/10 rounded px-1" onclick="closeAgentDetailModal();openTrace('${escHtml(t.trace_id)}')">
-              <span class="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0"></span>
-              <span class="text-red-300 truncate flex-1">${escHtml(t.service_name || t.trace_id.substring(0, 12))}</span>
-              <span class="text-red-500 flex-shrink-0">${traceTime}</span>
+            return `<div class="flex items-center gap-2 py-1 text-xs cursor-pointer rounded px-1 agent-error-trace-row" onclick="closeAgentDetailModal();openTrace('${escHtml(t.trace_id)}')">
+              <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" style="background:var(--color-coral,#e07a5f)"></span>
+              <span class="truncate flex-1" style="color:var(--color-coral,#e07a5f);opacity:0.9">${escHtml(t.service_name || t.trace_id.substring(0, 12))}</span>
+              <span class="flex-shrink-0" style="color:var(--color-coral,#e07a5f);opacity:0.7">${traceTime}</span>
             </div>`;
           }).join('')}
         </div>
@@ -1128,10 +1104,10 @@ async function openAgentDetailModal(agentName, _encodedData) {
       ? '<p class="text-[10px] text-slate-500 py-2">No recent traces found.</p>'
       : recentTraces.map(t => {
           const isError = t.has_error || t.error;
-          const statusDot = isError ? 'bg-red-500' : 'bg-emerald-500';
+          const statusDotStyle = isError ? 'background:var(--color-coral,#e07a5f)' : 'background:var(--color-sage,#81b29a)';
           const traceTime = t.start_time ? new Date(t.start_time * 1000).toLocaleTimeString() : '';
           return `<div class="flex items-center gap-2 py-1.5 border-b border-white/5 text-xs cursor-pointer hover:bg-white/[0.02] rounded px-1" onclick="closeAgentDetailModal();openTrace('${escHtml(t.trace_id)}')">
-            <span class="w-1.5 h-1.5 rounded-full ${statusDot} flex-shrink-0"></span>
+            <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" style="${statusDotStyle}"></span>
             <span class="text-white truncate flex-1">${escHtml(t.service_name || t.trace_id.substring(0, 12))}</span>
             <span class="text-slate-600 flex-shrink-0">${traceTime}</span>
           </div>`;
@@ -1219,10 +1195,8 @@ function backToTraces() {
   }
 }
 
-// =========================================================================
-// Counter Animation
-// =========================================================================
-function animateCounter(element, targetValue, duration = 800, prefix = '', suffix = '') {
+// ==================================================================// Counter Animation
+// ==================================================================function animateCounter(element, targetValue, duration = 800, prefix = '', suffix = '') {
   const startValue = 0;
   const startTime = performance.now();
   const isFloat = String(targetValue).includes('.');
@@ -1244,10 +1218,8 @@ function animateCounter(element, targetValue, duration = 800, prefix = '', suffi
   }
   requestAnimationFrame(update);
 }
-// =========================================================================
-// Stats — with time window selector and trend indicators
-// =========================================================================
-
+// ==================================================================// Stats — with time window selector and trend indicators
+// ==================================================================
 /** Switch stat card time window and reload stats */
 function setStatsWindow(window) {
   _statsWindow = window;
@@ -1273,7 +1245,7 @@ function renderTrend(current, previous) {
   const absPct = Math.abs(pct).toFixed(0);
   if (Math.abs(pct) < 1) return '<span class="text-slate-500 text-[10px]">—</span>';
   const up = pct > 0;
-  const color = up ? 'text-emerald-400' : 'text-red-400';
+  const color = up ? 'stat-trend-up' : 'stat-trend-down';
   const arrow = up ? '↑' : '↓';
   return `<span class="${color} text-[10px] font-medium">${arrow}${absPct}%</span>`;
 }
@@ -1350,6 +1322,15 @@ async function loadStats() {
     // Keep stat-error-count in DOM but hide visually (removed from HTML v17)
     const errCountEl = document.getElementById('stat-error-count');
     if (errCountEl) errCountEl.textContent = '';
+    const errorRate = parseFloat(errorPct.toFixed(1));
+    animateCounter(document.getElementById('stat-error-rate'), errorRate, 800, '', '%');
+    document.getElementById('stat-error-count').textContent = `${stats.error_traces || 0} error traces`;
+    const errorCard = document.getElementById('stat-card-error');
+    if (errorCard) {
+      // Use warm coral highlight instead of cold red when error rate is high
+      errorCard.style.background = errorPct > 10 ? 'var(--color-coral-bg, rgba(224,122,95,0.10))' : '';
+      errorCard.style.borderColor = errorPct > 10 ? 'var(--color-coral-border, rgba(224,122,95,0.28))' : '';
+    }
 
     const latencyMs = stats.avg_duration_ms || 0;
     // Display latency in human-readable format: ms under 1s, seconds above
@@ -1411,10 +1392,8 @@ async function loadStats() {
   }
 }
 
-// =========================================================================
-// Trace Row Rendering
-// =========================================================================
-function formatTimeAgo(timestamp) {
+// ==================================================================// Trace Row Rendering
+// ==================================================================function formatTimeAgo(timestamp) {
   if (!timestamp) return '--';
   const seconds = Math.floor(Date.now() / 1000 - timestamp);
   if (seconds < 60) return 'just now';
@@ -1488,10 +1467,10 @@ function renderTraceRow(trace, compact = false) {
   const hasErrors = trace.has_errors === true || trace.has_errors === 1;
   const isEmpty = (trace.span_count || 0) === 0 && !(trace.spans && trace.spans.length > 0);
   const statusDot = hasErrors
-    ? '<span class="w-2 h-2 rounded-full bg-red-500 flex-shrink-0"></span>'
+    ? '<span class="w-2 h-2 rounded-full flex-shrink-0" style="background:var(--color-coral,#e07a5f)"></span>'
     : isEmpty
       ? '<span class="w-2 h-2 rounded-full bg-slate-600 flex-shrink-0" title="Empty trace"></span>'
-      : '<span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>';
+      : '<span class="w-2 h-2 rounded-full flex-shrink-0" style="background:var(--color-sage,#81b29a)"></span>';
 
   const tags = trace.tags || {};
   const meta = trace.metadata || {};
@@ -1588,10 +1567,8 @@ function renderTraceRow(trace, compact = false) {
   `;
 }
 
-// =========================================================================
-// Empty State
-// =========================================================================
-function renderEmptyState(message, subMessage, showGettingStarted) {
+// ==================================================================// Empty State
+// ==================================================================function renderEmptyState(message, subMessage, showGettingStarted) {
   const gettingStarted = showGettingStarted ? `
     <div class="mt-6 w-full max-w-xl text-left empty-state-card rounded-xl p-5">
       <div class="flex items-center gap-2 mb-4">
@@ -1621,7 +1598,7 @@ with tracer.start_trace("my-agent"):
           <span class="flex-shrink-0 w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-[10px] font-bold">3</span>
           <div class="min-w-0 flex-1">
             <p class="text-xs font-medium empty-state-step-label mb-1">Or run the demo to see it in action</p>
-            <code class="text-[11px] text-emerald-400 empty-state-code px-3 py-1.5 rounded-lg block font-mono">flowlens demo --dashboard</code>
+            <code class="text-[11px] empty-state-code px-3 py-1.5 rounded-lg block font-mono" style="color:var(--color-sage,#81b29a)">flowlens demo --dashboard</code>
             <p class="text-[10px] empty-state-hint mt-1.5">Generates sample traces and opens this dashboard automatically.</p>
           </div>
         </div>
@@ -1672,10 +1649,8 @@ with tracer.start_trace("my-agent"):
   `;
 }
 
-// =========================================================================
-// Traces — List + Filtering
-// =========================================================================
-async function loadRecentTraces() {
+// ==================================================================// Traces — List + Filtering
+// ==================================================================async function loadRecentTraces() {
   try {
     const data = await apiFetch('/v1/traces?limit=8');
     const container = document.getElementById('recent-traces-list');
@@ -1995,10 +1970,8 @@ function paginateTraces(dir) {
   loadTraces();
 }
 
-// =========================================================================
-// Feedback UI
-// =========================================================================
-
+// ==================================================================// Feedback UI
+// ==================================================================
 /** Star label text based on rating value */
 const STAR_LABELS = { 1: 'Poor', 2: 'Fair', 3: 'OK', 4: 'Good', 5: 'Excellent' };
 
@@ -2210,10 +2183,8 @@ async function loadRecentFeedback() {
   }
 }
 
-// =========================================================================
-// Trace Detail
-// =========================================================================
-async function openTrace(traceId) {
+// ==================================================================// Trace Detail
+// ==================================================================async function openTrace(traceId) {
   currentTraceId = traceId;
   try { sessionStorage.setItem('flowlens-trace-id', traceId || ''); } catch (_) {}
   // Hide current view, show detail
@@ -2296,7 +2267,7 @@ function renderTraceDetail(data) {
           <div class="font-medium ${cfg.text} mb-1">${cfg.label}</div>
           <div class="text-slate-400">In: ${usage.input.toLocaleString()}</div>
           <div class="text-slate-400">Out: ${usage.output.toLocaleString()}</div>
-          <div class="text-emerald-400">$${usage.cost.toFixed(4)}</div>
+          <div style="color:var(--color-sage,#81b29a)">$${usage.cost.toFixed(4)}</div>
         </div>`;
     }
     tokenBreakdownHtml += '</div>';
@@ -2334,6 +2305,27 @@ function renderTraceDetail(data) {
         <span class="trace-meta-strip-value text-emerald-400">OK</span>
         <span class="trace-meta-strip-label">Status</span>
        </div>`;
+  const metaItems = [
+    `<div class="flex flex-col items-center p-3 rounded-lg bg-surface-100/50 border border-white/5">
+      <span class="text-2xl font-bold text-white tabular-nums">${formatDuration(durationMs)}</span>
+      <span class="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wider">Duration</span>
+    </div>`,
+    `<div class="flex flex-col items-center p-3 rounded-lg bg-surface-100/50 border border-white/5">
+      <span class="text-2xl font-bold tabular-nums" style="color:var(--color-sage,#81b29a)">$${costUsd.toFixed(4)}</span>
+      <span class="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wider">Cost</span>
+    </div>`,
+    `<div class="flex flex-col items-center p-3 rounded-lg bg-surface-100/50 border border-white/5">
+      <span class="text-2xl font-bold text-white tabular-nums">${data.span_count || (data.spans || []).length}</span>
+      <span class="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wider">Spans</span>
+    </div>`,
+    hasErrors ? `<div class="flex flex-col items-center p-3 rounded-lg" style="background:var(--color-coral-bg,rgba(224,122,95,0.10));border:1px solid var(--color-coral-border,rgba(224,122,95,0.28))">
+      <span class="text-2xl font-bold tabular-nums" style="color:var(--color-coral,#e07a5f)">${errorCount}</span>
+      <span class="text-[10px] mt-0.5 uppercase tracking-wider" style="color:var(--color-coral,#e07a5f)">Errors</span>
+    </div>` : `<div class="flex flex-col items-center p-3 rounded-lg" style="background:var(--color-sage-bg,rgba(129,178,154,0.10));border:1px solid var(--color-sage-border,rgba(129,178,154,0.25))">
+      <span class="text-2xl font-bold tabular-nums" style="color:var(--color-sage,#81b29a)">OK</span>
+      <span class="text-[10px] mt-0.5 uppercase tracking-wider" style="color:var(--color-sage,#81b29a)">Status</span>
+    </div>`,
+  ];
 
   const metaStrip = `
     <div class="trace-meta-strip">
@@ -2369,10 +2361,8 @@ function renderTraceDetail(data) {
   renderWaterfallTimeline(data.spans || []);
 }
 
-// =========================================================================
-// Timeline — Waterfall Chart
-// =========================================================================
-const SPAN_KIND_COLORS = {
+// ==================================================================// Timeline — Waterfall Chart
+// ==================================================================const SPAN_KIND_COLORS = {
   llm:       { bg: 'bg-[#9b8ec4]/20', bar: '#9b8ec4', text: 'text-[#9b8ec4]', label: 'LLM' },
   tool:      { bg: 'bg-[#7ab5a0]/20', bar: '#7ab5a0', text: 'text-[#7ab5a0]', label: 'Tool' },
   agent:     { bg: 'bg-[#a88ec4]/20', bar: '#a88ec4', text: 'text-[#a88ec4]', label: 'Agent' },
@@ -2641,13 +2631,13 @@ function renderWaterfallTimeline(spans) {
         <!-- Label column with tree indentation -->
         <div class="span-label-col flex items-center gap-1 w-[280px] min-w-[280px] flex-shrink-0" style="padding-left:${indent}px">
           ${canCollapse ? `<button class="collapsible-chevron rotated w-4 h-4 flex items-center justify-center text-slate-600 hover:text-slate-400 flex-shrink-0 transition" onclick="event.stopPropagation(); toggleSpanChildren('${span.span_id}', this)" title="Collapse/Expand"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg></button>` : (depth > 0 ? '<span class="w-4 flex-shrink-0"></span>' : '')}
-          ${isError ? `<svg class="w-3 h-3 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" title="Error"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>` : ''}
+          ${isError ? `<svg class="w-3 h-3 flex-shrink-0" style="color:var(--color-coral,#e07a5f)" fill="none" stroke="currentColor" viewBox="0 0 24 24" title="Error"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>` : ''}
           <span class="px-1.5 py-0.5 text-[10px] font-medium rounded flex-shrink-0 ${cfg.bg} ${cfg.text}">${cfg.label}</span>
           <div class="min-w-0 flex flex-col">
-            <span class="text-xs ${isError ? 'text-red-300' : 'text-slate-300'} truncate group-hover:text-white transition">${escHtml(span.name)}</span>
+            <span class="text-xs ${isError ? 'wf-span-error-name' : 'text-slate-300'} truncate group-hover:text-white transition">${escHtml(span.name)}</span>
             ${inlineDetail ? `<span class="text-[10px] text-slate-500 font-mono truncate leading-tight" title="${escHtml(inlineDetail)}">${escHtml(inlineDetail)}</span>` : ''}
           </div>
-          ${modelBadge ? `<span class="ml-auto flex-shrink-0 px-1 py-0.5 text-[9px] font-mono font-medium rounded bg-violet-500/10 text-violet-400 border border-violet-500/20 whitespace-nowrap">${escHtml(modelBadge)}</span>` : ''}
+          ${modelBadge ? `<span class="ml-auto flex-shrink-0 px-1 py-0.5 text-[10px] font-mono font-medium rounded whitespace-nowrap" style="background:var(--color-indigo-bg,rgba(107,92,231,0.10));color:var(--color-indigo-warm,#6b5ce7);border:1px solid var(--color-indigo-border,rgba(107,92,231,0.22))">${escHtml(modelBadge)}</span>` : ''}
         </div>
         <!-- Bar column -->
         <div class="flex-1 relative h-7 min-w-0">
@@ -2695,9 +2685,9 @@ function showWaterfallTooltip(event, row) {
     <div class="space-y-0.5 text-slate-400">
       <div>Kind: <span class="text-slate-200">${kind}</span></div>
       <div>Duration: <span class="text-slate-200">${duration}</span></div>
-      <div>Status: <span class="${status === 'error' ? 'text-red-400' : 'text-emerald-400'}">${status}</span></div>
+      <div>Status: <span style="color:${status === 'error' ? 'var(--color-coral,#e07a5f)' : 'var(--color-sage,#81b29a)'}">${status}</span></div>
       ${tokens > 0 ? `<div>Tokens: <span class="text-slate-200">${tokens.toLocaleString()}</span></div>` : ''}
-      ${cost > 0 ? `<div>Cost: <span class="text-emerald-300">$${cost}</span></div>` : ''}
+      ${cost > 0 ? `<div>Cost: <span style="color:var(--color-sage,#81b29a)">$${cost}</span></div>` : ''}
     </div>
   `;
   tooltipEl.innerHTML = html;
@@ -2722,10 +2712,8 @@ function hideWaterfallTooltip() {
   if (tooltipEl) tooltipEl.style.display = 'none';
 }
 
-// =========================================================================
-// Span Detail Panel
-// =========================================================================
-function openSpanDetail(spanId) {
+// ==================================================================// Span Detail Panel
+// ==================================================================function openSpanDetail(spanId) {
   if (!currentTraceData || !currentTraceData.spans) return;
   const span = currentTraceData.spans.find(s => s.span_id === spanId);
   if (!span) return;
@@ -2787,12 +2775,12 @@ function openSpanDetail(spanId) {
   // ---- Error header (prominent, always first if error) ----
   if (isError && errorMsg) {
     html += `
-      <div class="mb-4 rounded-xl p-3 border-2" style="background:rgba(239,68,68,0.08);border-color:rgba(239,68,68,0.45)">
+      <div class="mb-4 rounded-xl p-3 span-error-block" style="background:var(--color-coral-bg, rgba(224,122,95,0.10));border:1px solid var(--color-coral-border, rgba(224,122,95,0.35))">
         <div class="flex items-center gap-2 mb-1.5">
-          <svg class="w-4 h-4 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
-          <span class="text-xs font-bold text-red-400 uppercase tracking-wider">Error${errorType ? ': ' + escHtml(errorType) : ''}</span>
+          <svg class="w-4 h-4 flex-shrink-0" style="color:var(--color-coral,#e07a5f)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+          <span class="text-xs font-bold uppercase tracking-wider" style="color:var(--color-coral,#e07a5f)">Error${errorType ? ': ' + escHtml(errorType) : ''}</span>
         </div>
-        <p class="text-xs text-red-300 font-mono break-all leading-relaxed">${escHtml(errorMsg)}</p>
+        <p class="text-xs font-mono break-all leading-relaxed" style="color:var(--color-coral,#e07a5f);opacity:0.9">${escHtml(errorMsg)}</p>
       </div>`;
   }
 
@@ -2809,7 +2797,7 @@ function openSpanDetail(spanId) {
   }
   html += `<div class="flex items-center gap-2 mb-2">
       <span class="px-2 py-0.5 text-xs font-medium rounded ${cfg.bg} ${cfg.text}">${cfg.label}</span>
-      ${isError ? '<span class="px-2 py-0.5 text-xs font-medium rounded bg-red-500/10 text-red-300 border border-red-500/20">ERROR</span>' : '<span class="px-2 py-0.5 text-xs font-medium rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">OK</span>'}
+      ${isError ? '<span class="px-2 py-0.5 text-xs font-medium rounded" style="background:var(--color-coral-bg,rgba(224,122,95,0.12));color:var(--color-coral,#e07a5f);border:1px solid var(--color-coral-border,rgba(224,122,95,0.28))">ERROR</span>' : '<span class="px-2 py-0.5 text-xs font-medium rounded" style="background:var(--color-sage-bg,rgba(129,178,154,0.12));color:var(--color-sage,#81b29a);border:1px solid var(--color-sage-border,rgba(129,178,154,0.28))">OK</span>'}
     </div>
     <h4 class="text-base font-semibold text-white leading-snug">${escHtml(span.name)}</h4>
     <div class="flex items-center gap-1 mt-1">
@@ -2864,8 +2852,8 @@ function openSpanDetail(spanId) {
     const truncated = outputStr.length > 500;
     html += renderCollapsibleSection('Tool Output', `
       <div class="rounded-lg overflow-hidden border border-white/8">
-        <div class="px-2 py-1 text-[9px] text-slate-600 uppercase tracking-wider font-semibold" style="background:rgba(255,255,255,0.03)">Result</div>
-        <pre class="p-2.5 text-[11px] text-emerald-300/90 font-mono overflow-x-auto leading-relaxed whitespace-pre-wrap break-words" style="background:rgba(16,185,129,0.04);max-height:160px">${escHtml(truncated ? outputStr.substring(0, 500) + '\n… (' + (outputStr.length - 500) + ' more chars)' : outputStr)}</pre>
+        <div class="px-2 py-1 text-[10px] text-slate-600 uppercase tracking-wider font-semibold" style="background:rgba(255,255,255,0.03)">Result</div>
+        <pre class="p-2.5 text-[11px] font-mono overflow-x-auto leading-relaxed whitespace-pre-wrap break-words" style="color:var(--color-sage,#81b29a);opacity:0.9;background:rgba(129,178,154,0.04);max-height:160px">${escHtml(truncated ? outputStr.substring(0, 500) + '\n… (' + (outputStr.length - 500) + ' more chars)' : outputStr)}</pre>
       </div>
     `, true);
   }
@@ -2892,17 +2880,17 @@ function openSpanDetail(spanId) {
             <span class="text-slate-300 tabular-nums font-mono">${totalTok.toLocaleString()} total</span>
           </div>
           <div class="flex h-3 rounded overflow-hidden gap-px" style="background:rgba(255,255,255,0.05)">
-            <div class="bg-blue-500/60 rounded-l transition-all" style="width:${inputPct}%" title="Input ${inputPct}%"></div>
-            <div class="bg-emerald-500/60 rounded-r transition-all" style="width:${outputPct}%" title="Output ${outputPct}%"></div>
+            <div class="rounded-l transition-all" style="width:${inputPct}%;background:var(--color-indigo-warm,#6b5ce7);opacity:0.65" title="Input ${inputPct}%"></div>
+            <div class="rounded-r transition-all" style="width:${outputPct}%;background:var(--color-sage,#81b29a);opacity:0.7" title="Output ${outputPct}%"></div>
           </div>
           <div class="flex justify-between text-[10px] text-slate-600 mt-1">
-            <span><span class="w-2 h-2 rounded-sm inline-block bg-blue-500/60 mr-1"></span>Input: ${inputTok.toLocaleString()} (${inputPct}%)</span>
-            <span><span class="w-2 h-2 rounded-sm inline-block bg-emerald-500/60 mr-1"></span>Output: ${outputTok.toLocaleString()} (${outputPct}%)</span>
+            <span><span class="w-2 h-2 rounded-sm inline-block mr-1" style="background:var(--color-indigo-warm,#6b5ce7);opacity:0.65"></span>Input: ${inputTok.toLocaleString()} (${inputPct}%)</span>
+            <span><span class="w-2 h-2 rounded-sm inline-block mr-1" style="background:var(--color-sage,#81b29a);opacity:0.7"></span>Output: ${outputTok.toLocaleString()} (${outputPct}%)</span>
           </div>
         </div>` : ''}
         ${costUsd > 0 ? `<div class="flex justify-between pt-1 border-t border-white/5">
           <span class="text-slate-500">Cost</span>
-          <span class="text-emerald-300 font-semibold tabular-nums">$${costUsd.toFixed(6)}</span>
+          <span class="font-semibold tabular-nums" style="color:var(--color-sage,#81b29a)">$${costUsd.toFixed(6)}</span>
         </div>` : ''}
       </div>
     `, true);
@@ -2938,9 +2926,9 @@ function openSpanDetail(spanId) {
       const childErr = child.status === 'error';
       childrenHtml += `
         <div class="flex items-center gap-2 text-xs cursor-pointer hover:bg-white/[0.03] p-1 rounded transition" onclick="openSpanDetail('${child.span_id}')">
-          <span class="px-1 py-0.5 text-[9px] font-medium rounded ${childCfg.bg} ${childCfg.text}">${childCfg.label}</span>
+          <span class="px-1 py-0.5 text-[10px] font-medium rounded ${childCfg.bg} ${childCfg.text}">${childCfg.label}</span>
           <span class="text-slate-300 truncate">${escHtml(child.name)}</span>
-          ${childErr ? '<span class="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0"></span>' : ''}
+          ${childErr ? '<span class="w-1.5 h-1.5 rounded-full flex-shrink-0" style="background:var(--color-coral,#e07a5f)"></span>' : ''}
           <span class="text-slate-600 ml-auto text-[10px] tabular-nums">${formatDuration(child.duration_ms || 0)}</span>
         </div>`;
     });
@@ -2990,10 +2978,8 @@ function closeSpanDetail() {
   document.getElementById('span-detail-panel').classList.add('hidden');
 }
 
-// =========================================================================
-// Causal DAG — with dagre layout, animated edges, zoom controls, legend
-// =========================================================================
-async function loadDAG(traceId) {
+// ==================================================================// Causal DAG — with dagre layout, animated edges, zoom controls, legend
+// ==================================================================async function loadDAG(traceId) {
   // Show skeleton loading state
   const cyContainer = document.getElementById('cy-container');
   cyContainer.innerHTML = `
@@ -3265,41 +3251,38 @@ function renderDAGPatterns(patterns) {
   container.innerHTML = html;
 }
 
-// =========================================================================
-// =========================================================================
-// Patterns
-// =========================================================================
-
+// ==================================================================// ==================================================================// Patterns
+// ==================================================================
 // Accumulated patterns (with trace context) for client-side filtering
 let _allPatternsData = [];
 let _activePatternFilter = 'all';
 
 const SEVERITY_CONFIG = {
   critical: {
-    color: 'red',
+    color: 'coral',
     cardClass: 'pattern-card-critical',
-    badgeClass: 'bg-red-500/15 text-red-400 border border-red-500/30',
-    icon: `<svg class="w-4 h-4 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><circle cx="12" cy="19" r="0.5" fill="currentColor"/></svg>`,
-    dotColor: 'bg-red-500',
-    largeIcon: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" fill="rgba(239,68,68,0.15)"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 9l-6 6m0-6l6 6" stroke="#ef4444"/></svg>`,
+    badgeClass: 'pattern-severity-badge-critical',
+    icon: `<svg class="w-4 h-4 flex-shrink-0" style="color:var(--color-coral,#e07a5f)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><circle cx="12" cy="19" r="0.5" fill="currentColor"/></svg>`,
+    dotColor: 'severity-dot-critical',
+    largeIcon: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" fill="rgba(224,122,95,0.15)"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 9l-6 6m0-6l6 6" stroke="#e07a5f"/></svg>`,
     iconBg: 'sev-critical',
   },
   warning: {
     color: 'amber',
     cardClass: 'pattern-card-warning',
-    badgeClass: 'bg-amber-500/15 text-amber-400 border border-amber-500/30',
-    icon: `<svg class="w-4 h-4 text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>`,
-    dotColor: 'bg-amber-500',
-    largeIcon: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" fill="rgba(245,158,11,0.15)" stroke="#f59e0b" stroke-width="1.5"/><path d="M12 9v4m0 3h.01" stroke="#f59e0b" stroke-width="2" stroke-linecap="round"/></svg>`,
+    badgeClass: 'pattern-severity-badge-warning',
+    icon: `<svg class="w-4 h-4 flex-shrink-0" style="color:var(--color-amber-warm,#e6a65d)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>`,
+    dotColor: 'severity-dot-warning',
+    largeIcon: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" fill="rgba(230,166,93,0.15)" stroke="#e6a65d" stroke-width="1.5"/><path d="M12 9v4m0 3h.01" stroke="#e6a65d" stroke-width="2" stroke-linecap="round"/></svg>`,
     iconBg: 'sev-warning',
   },
   info: {
-    color: 'blue',
+    color: 'indigo',
     cardClass: 'pattern-card-info',
-    badgeClass: 'bg-blue-500/15 text-blue-400 border border-blue-500/30',
-    icon: `<svg class="w-4 h-4 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`,
-    dotColor: 'bg-blue-500',
-    largeIcon: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="rgba(59,130,246,0.15)" stroke="#3b82f6" stroke-width="1.5"/><path d="M12 16v-4m0-4h.01" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/></svg>`,
+    badgeClass: 'pattern-severity-badge-info',
+    icon: `<svg class="w-4 h-4 flex-shrink-0" style="color:var(--color-indigo-warm,#6b5ce7)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`,
+    dotColor: 'severity-dot-info',
+    largeIcon: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="rgba(107,92,231,0.15)" stroke="#6b5ce7" stroke-width="1.5"/><path d="M12 16v-4m0-4h.01" stroke="#6b5ce7" stroke-width="2" stroke-linecap="round"/></svg>`,
     iconBg: 'sev-info',
   },
 };
@@ -3324,7 +3307,7 @@ function renderPatternCard(pattern, traceId) {
     if (estimatedSavings.cost_usd) parts.push(`$${Number(estimatedSavings.cost_usd).toFixed(4)}`);
     if (estimatedSavings.time_ms) parts.push(`${formatDuration(estimatedSavings.time_ms)}`);
     if (parts.length > 0) {
-      savingsBadgeHtml = `<span class="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">Save: ${escHtml(parts.join(' · '))}</span>`;
+      savingsBadgeHtml = `<span class="cost-savings-badge">Save: ${escHtml(parts.join(' · '))}</span>`;
     }
   }
 
@@ -3359,8 +3342,8 @@ function renderPatternCard(pattern, traceId) {
           Show Code Fix
         </button>
         <div id="${fixId}" class="hidden mt-2 rounded-lg overflow-hidden border border-white/8">
-          <div class="px-2 py-1 text-[9px] text-slate-600 uppercase tracking-wider font-semibold" style="background:rgba(255,255,255,0.03)">Recommended Fix</div>
-          <pre class="p-2.5 text-[10px] text-emerald-300/90 font-mono overflow-x-auto leading-relaxed whitespace-pre-wrap" style="background:rgba(16,185,129,0.04);max-height:200px">${escHtml(codeSnippet)}</pre>
+          <div class="px-2 py-1 text-[10px] text-slate-600 uppercase tracking-wider font-semibold" style="background:rgba(255,255,255,0.03)">Recommended Fix</div>
+          <pre class="p-2.5 text-[10px] font-mono overflow-x-auto leading-relaxed whitespace-pre-wrap" style="color:var(--color-sage,#81b29a);opacity:0.9;background:rgba(129,178,154,0.04);max-height:200px">${escHtml(codeSnippet)}</pre>
         </div>
       </div>`;
   }
@@ -3563,10 +3546,8 @@ async function loadAllPatterns() {
   }
 }
 
-// =========================================================================
-// Export Features
-// =========================================================================
-
+// ==================================================================// Export Features
+// ==================================================================
 /** Export current trace data as JSON file */
 function exportTraceJSON() {
   if (!currentTraceData) {
@@ -3626,10 +3607,8 @@ function copyTraceId() {
   });
 }
 
-// =========================================================================
-// Connection Status
-// =========================================================================
-async function healthCheck() {
+// ==================================================================// Connection Status
+// ==================================================================async function healthCheck() {
   try {
     await apiFetch('/health');
     return true;
@@ -3639,10 +3618,8 @@ async function healthCheck() {
   }
 }
 
-// =========================================================================
-// Keyboard Navigation
-// =========================================================================
-function setupKeyboardNavigation() {
+// ==================================================================// Keyboard Navigation
+// ==================================================================function setupKeyboardNavigation() {
   document.addEventListener('keydown', (e) => {
     // Close notification panel on Escape
     const notifPanel = document.getElementById('notification-panel');
@@ -3763,10 +3740,8 @@ function refreshCurrentView() {
   showToast('Refreshed', 'success', 1500);
 }
 
-// =========================================================================
-// Theme Toggle
-// =========================================================================
-function toggleTheme() {
+// ==================================================================// Theme Toggle
+// ==================================================================function toggleTheme() {
   isDarkTheme = !isDarkTheme;
   if (isDarkTheme) {
     document.documentElement.classList.add('dark');
@@ -3800,10 +3775,8 @@ function updateChartTheme() {
   }
 }
 
-// =========================================================================
-// Shortcuts Modal
-// =========================================================================
-function openShortcutsModal() {
+// ==================================================================// Shortcuts Modal
+// ==================================================================function openShortcutsModal() {
   document.getElementById('shortcuts-modal').classList.remove('hidden');
 }
 function closeShortcutsModal() {
@@ -3825,10 +3798,8 @@ function highlightTraceRow(rows) {
   }
 }
 
-// =========================================================================
-// Auto-refresh
-// =========================================================================
-function startAutoRefresh() {
+// ==================================================================// Auto-refresh
+// ==================================================================function startAutoRefresh() {
   if (autoRefreshTimer) clearInterval(autoRefreshTimer);
   autoRefreshTimer = setInterval(async () => {
     const ok = await healthCheck();
@@ -3839,10 +3810,8 @@ function startAutoRefresh() {
   }, 30000); // 30s instead of 15s
 }
 
-// =========================================================================
-// Collapsible Sections Helper
-// =========================================================================
-function renderCollapsibleSection(title, content, startOpen = true, titleColor = 'text-slate-400') {
+// ==================================================================// Collapsible Sections Helper
+// ==================================================================function renderCollapsibleSection(title, content, startOpen = true, titleColor = 'text-slate-400') {
   const id = 'section-' + title.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase() + '-' + Math.random().toString(36).substr(2, 4);
   return `<div class="mb-3">
     <div class="collapsible-header flex items-center gap-1.5 mb-2" onclick="toggleCollapsible('${id}', this)">
@@ -3869,10 +3838,8 @@ function toggleCollapsible(id, headerEl) {
   }
 }
 
-// =========================================================================
-// Span Tree Collapse/Expand
-// =========================================================================
-function toggleSpanChildren(spanId, btn) {
+// ==================================================================// Span Tree Collapse/Expand
+// ==================================================================function toggleSpanChildren(spanId, btn) {
   const rows = document.querySelectorAll('.waterfall-row');
   const isCollapsing = btn.classList.contains('rotated');
 
@@ -3902,10 +3869,8 @@ function toggleSpanChildren(spanId, btn) {
   });
 }
 
-// =========================================================================
-// Trace Comparison
-// =========================================================================
-function toggleCompare(traceId, checkbox) {
+// ==================================================================// Trace Comparison
+// ==================================================================function toggleCompare(traceId, checkbox) {
   const idx = compareSelection.indexOf(traceId);
   if (idx >= 0) {
     compareSelection.splice(idx, 1);
@@ -4019,8 +3984,8 @@ async function renderCompareView() {
           <div class="flex items-center gap-2 mb-3">
             <span class="text-xs font-mono text-slate-400 truncate">${t.trace_id.substring(0, 16)}…</span>
             ${hasErrors
-              ? '<span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-red-500/10 text-red-400 border border-red-500/20">Error</span>'
-              : '<span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">OK</span>'}
+              ? '<span class="px-1.5 py-0.5 text-[10px] font-medium rounded" style="background:var(--color-coral-bg,rgba(224,122,95,0.10));color:var(--color-coral,#e07a5f);border:1px solid var(--color-coral-border,rgba(224,122,95,0.28))">Error</span>'
+              : '<span class="px-1.5 py-0.5 text-[10px] font-medium rounded" style="background:var(--color-sage-bg,rgba(129,178,154,0.10));color:var(--color-sage,#81b29a);border:1px solid var(--color-sage-border,rgba(129,178,154,0.25))">OK</span>'}
             <button onclick="openTrace('${escHtml(t.trace_id)}')" class="ml-auto text-[10px] text-indigo-400 hover:text-indigo-300 transition">View →</button>
           </div>
           <div class="compare-metric-row">
@@ -4046,8 +4011,8 @@ async function renderCompareView() {
           <div class="compare-metric-row">
             <span class="text-slate-500">Errors</span>
             ${hasErrors
-              ? '<span class="text-red-400 font-medium">Yes</span>'
-              : '<span class="text-emerald-400 font-medium">No</span>'}
+              ? '<span class="font-medium" style="color:var(--color-coral,#e07a5f)">Yes</span>'
+              : '<span class="font-medium" style="color:var(--color-sage,#81b29a)">No</span>'}
           </div>
         </div>`;
     }
@@ -4083,7 +4048,7 @@ async function renderCompareView() {
         <div class="flex items-center gap-3">
           <span class="text-slate-300">${formatDuration(dur1)}</span>
           <span class="text-slate-600 text-[10px]">→</span>
-          <span class="font-semibold ${durBetter ? 'text-emerald-400' : durDiff > 0 ? 'text-red-400' : 'text-slate-300'}">${formatDuration(dur2)}</span>
+          <span class="font-semibold" style="color:${durBetter ? 'var(--color-sage,#81b29a)' : durDiff > 0 ? 'var(--color-coral,#e07a5f)' : 'inherit'}">${formatDuration(dur2)}</span>
         </div>
       </div>
       ${diffBar(dur1, dur2, true)}
@@ -4099,7 +4064,7 @@ async function renderCompareView() {
         <div class="flex items-center gap-3">
           <span class="text-slate-300">$${cost1.toFixed(4)}</span>
           <span class="text-slate-600 text-[10px]">→</span>
-          <span class="font-semibold ${costBetter ? 'text-emerald-400' : costDiff > 0 ? 'text-red-400' : 'text-slate-300'}">$${cost2.toFixed(4)}</span>
+          <span class="font-semibold" style="color:${costBetter ? 'var(--color-sage,#81b29a)' : costDiff > 0 ? 'var(--color-coral,#e07a5f)' : 'inherit'}">$${cost2.toFixed(4)}</span>
         </div>
       </div>
       ${diffBar(cost1, cost2, true)}
@@ -4127,11 +4092,11 @@ async function renderCompareView() {
       <div class="flex items-center justify-between text-xs">
         <span class="text-slate-400 font-medium">Errors</span>
         <div class="flex items-center gap-2">
-          <span class="${errors1 ? 'text-red-400' : 'text-emerald-400'}">${errors1 ? 'Error' : 'OK'}</span>
+          <span style="color:${errors1 ? 'var(--color-coral,#e07a5f)' : 'var(--color-sage,#81b29a)'}">${errors1 ? 'Error' : 'OK'}</span>
           <span class="text-slate-600 text-[10px]">→</span>
-          <span class="${errors2 ? 'text-red-400' : 'text-emerald-400'} font-semibold">${errors2 ? 'Error' : 'OK'}</span>
-          ${errorFixed ? '<span class="text-[10px] text-emerald-400 ml-1">Fixed</span>' : ''}
-          ${errorAdded ? '<span class="text-[10px] text-red-400 ml-1">Introduced</span>' : ''}
+          <span class="font-semibold" style="color:${errors2 ? 'var(--color-coral,#e07a5f)' : 'var(--color-sage,#81b29a)'}">${errors2 ? 'Error' : 'OK'}</span>
+          ${errorFixed ? `<span class="text-[10px] ml-1" style="color:var(--color-sage,#81b29a)">Fixed</span>` : ''}
+          ${errorAdded ? `<span class="text-[10px] ml-1" style="color:var(--color-coral,#e07a5f)">Introduced</span>` : ''}
         </div>
       </div>
     </div>`;
@@ -4144,7 +4109,7 @@ async function renderCompareView() {
         <div class="flex items-center gap-3">
           <span class="text-slate-300">${tokens1.toLocaleString()}</span>
           <span class="text-slate-600 text-[10px]">→</span>
-          <span class="font-semibold ${tokDiff < 0 ? 'text-emerald-400' : tokDiff > 0 ? 'text-red-400' : 'text-slate-300'}">${tokens2.toLocaleString()}</span>
+          <span class="font-semibold" style="color:${tokDiff < 0 ? 'var(--color-sage,#81b29a)' : tokDiff > 0 ? 'var(--color-coral,#e07a5f)' : 'inherit'}">${tokens2.toLocaleString()}</span>
         </div>
       </div>
       ${diffBar(tokens1, tokens2, true)}
@@ -4158,10 +4123,8 @@ async function renderCompareView() {
   }
 }
 
-// =========================================================================
-// Virtualized Trace List
-// =========================================================================
-function renderVirtualizedTraces(traces, containerId) {
+// ==================================================================// Virtualized Trace List
+// ==================================================================function renderVirtualizedTraces(traces, containerId) {
   const container = document.getElementById(containerId);
   if (!traces || traces.length === 0) {
     container.innerHTML = renderEmptyState('No traces found', 'Try adjusting your filters.');
@@ -4201,10 +4164,8 @@ function renderVirtualizedTraces(traces, containerId) {
   renderVisibleRows();
 }
 
-// =========================================================================
-// Trace Row Hover Preview
-// =========================================================================
-let _tracePreviewTimer = null;
+// ==================================================================// Trace Row Hover Preview
+// ==================================================================let _tracePreviewTimer = null;
 let _tracePreviewEl = null;
 
 function showTracePreview(traceId, event) {
@@ -4290,10 +4251,8 @@ function _positionTracePreview(event) {
   }
 }
 
-// =========================================================================
-// Session State Persistence
-// =========================================================================
-function saveScrollState() {
+// ==================================================================// Session State Persistence
+// ==================================================================function saveScrollState() {
   try {
     const mainEl = document.querySelector('main');
     if (mainEl) sessionStorage.setItem('flowlens-scroll', mainEl.scrollTop);
@@ -4339,10 +4298,8 @@ function restoreState() {
   } catch (_) {}
 }
 
-// =========================================================================
-// Budget Management
-// =========================================================================
-
+// ==================================================================// Budget Management
+// ==================================================================
 let _budgetUSD = null; // Current budget in USD (null = not set)
 
 function _getBudgetFromStorage() {
@@ -4462,10 +4419,8 @@ async function _refreshBudgetBar() {
   alertBar.classList.remove('hidden');
 }
 
-// =========================================================================
-// Cost Forecast Chart
-// =========================================================================
-async function loadCostForecast() {
+// ==================================================================// Cost Forecast Chart
+// ==================================================================async function loadCostForecast() {
   try {
     const data = await apiFetch('/v1/cost/forecast?days=30&forecast_days=7');
 
@@ -4612,10 +4567,8 @@ function _renderForecastChart(actualDays, forecastDays) {
   });
 }
 
-// =========================================================================
-// Cycle 16: Interaction Polish helpers
-// =========================================================================
-
+// ==================================================================// Cycle 16: Interaction Polish helpers
+// ==================================================================
 /**
  * Move (or create) the pill-nav sliding indicator to sit under the active tab.
  * Uses CSS `transition` on left+width for a smooth glide effect.
@@ -4712,10 +4665,8 @@ function _addTraceRowPressListeners(container) {
   }, { passive: true });
 }
 
-// =========================================================================
-// Init
-// =========================================================================
-document.addEventListener('DOMContentLoaded', async () => {
+// ==================================================================// Init
+// ==================================================================document.addEventListener('DOMContentLoaded', async () => {
   // Apply saved theme — default to light
   const savedTheme = localStorage.getItem('flowlens-theme');
   if (savedTheme === 'dark') {
@@ -4827,10 +4778,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 });
 
-// =========================================================================
-// Sessions — List + Timeline
-// =========================================================================
-
+// ==================================================================// Sessions — List + Timeline
+// ==================================================================
 let _currentSessionId = null;
 
 async function loadSessions() {
@@ -4897,8 +4846,8 @@ function renderSessionCard(session) {
     : '';
 
   const statusDot = hasErrors
-    ? '<span class="w-2 h-2 rounded-full bg-red-500 flex-shrink-0"></span>'
-    : '<span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>';
+    ? '<span class="w-2 h-2 rounded-full flex-shrink-0" style="background:var(--color-coral,#e07a5f)"></span>'
+    : '<span class="w-2 h-2 rounded-full flex-shrink-0" style="background:var(--color-sage,#81b29a)"></span>';
 
   const isActive = _currentSessionId === sid;
   const activeClass = isActive ? 'session-card-active' : '';
@@ -4941,7 +4890,7 @@ function renderSessionCard(session) {
             <div class="text-[10px] text-slate-500 uppercase tracking-wider">Duration</div>
             <div class="text-sm font-semibold text-white">${durationStr}</div>
           </div>
-          ${hasErrors ? `<div class="text-[10px] text-red-400 font-medium">${errorCount} err${errorCount !== 1 ? 's' : ''}</div>` : ''}
+          ${hasErrors ? `<div class="text-[10px] font-medium" style="color:var(--color-coral,#e07a5f)">${errorCount} err${errorCount !== 1 ? 's' : ''}</div>` : ''}
           <svg class="w-4 h-4 text-slate-500 session-chevron transition-transform ${isActive ? 'rotate-90' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
           </svg>
@@ -5044,7 +4993,7 @@ function renderSessionTimeline(data, container) {
             </div>
             ${errorCount > 0 ? `<div>
               <div class="text-[10px] text-slate-500 uppercase tracking-wider">Errors</div>
-              <div class="text-lg font-bold text-red-400">${errorCount}</div>
+              <div class="text-lg font-bold" style="color:var(--color-coral,#e07a5f)">${errorCount}</div>
             </div>` : ''}
           </div>
         </div>
