@@ -282,23 +282,18 @@ function _pushToAgentFeed(agentName, ev) {
   }
 }
 
-/** Push a real-time event into the tmux terminal (if open for this agent) */
+/** Push a real-time event into the tmux pane for this agent */
 function _pushToAgentTerminal(agentName, ev) {
-  const widget = document.getElementById('tmux-terminal');
-  if (!widget || _termMinimized) return;
-  const activeTab = _termTabs.find(t => t.active);
-  if (!activeTab || activeTab.agent !== agentName) return;
-
-  const body = document.getElementById('tmux-body');
+  if (!document.getElementById('tmux-terminal') || _termMinimized) return;
+  const pane = _termPanes.find(p => p.agent === agentName);
+  if (!pane) return;
+  const body = document.getElementById(`tmux-pane-body-${pane.id}`);
   if (!body) return;
 
   const lineHtml = _termFormatLine(ev, {});
   const tmp = document.createElement('div');
   tmp.innerHTML = lineHtml;
   const line = tmp.firstElementChild;
-  if (line) {
-    body.appendChild(line);
-    body.scrollTop = body.scrollHeight;
-  }
+  if (line) { body.appendChild(line); body.scrollTop = body.scrollHeight; }
 }
 

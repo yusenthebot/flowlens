@@ -368,9 +368,11 @@ async function loadAgentActivity() {
 // =========================================================================
 // Live Agent Monitor
 // =========================================================================
-let _monitorAgents = []; // cached for terminal panel
-let _termTabs = [];       // open agent terminal tabs [{agent, active}]
+let _monitorAgents = [];
+let _termPanes = [];  // [{id, agent, el}]
+let _termLayout = 'single'; // 'single' | 'vsplit' | 'hsplit' | 'grid'
 let _termMinimized = false;
+let _termPaneIdCounter = 0;
 
 function renderLiveMonitor(agents) {
   const container = document.getElementById('live-monitor');
@@ -400,95 +402,113 @@ function renderLiveMonitor(agents) {
   }).join('');
 }
 
-/** Open/add an agent tab in the floating tmux-style terminal */
+/** Open an agent in the floating tmux terminal — adds a pane */
 async function openAgentTerminal(agentName) {
-  // If already a tab, just switch to it
-  const existingTab = _termTabs.find(t => t.agent === agentName);
-  if (existingTab) {
-    _termSwitchTab(agentName);
-    // Un-minimize if minimized
+  // If already in a pane, flash it
+  const existing = _termPanes.find(p => p.agent === agentName);
+  if (existing) {
+    const el = document.getElementById(`tmux-pane-${existing.id}`);
+    if (el) { el.style.outline = '2px solid #22d3ee'; setTimeout(() => el.style.outline = '', 600); }
     if (_termMinimized) _termToggleMinimize();
     return;
   }
 
-  // Add new tab
-  _termTabs.forEach(t => t.active = false);
-  _termTabs.push({ agent: agentName, active: true });
+  // Auto layout: 1 pane=single, 2=vsplit, 3+=grid
+  _termPanes.push({ id: ++_termPaneIdCounter, agent: agentName });
+  if (_termPanes.length === 1) _termLayout = 'single';
+  else if (_termPanes.length === 2) _termLayout = 'vsplit';
+  else _termLayout = 'grid';
 
-  // Create or update the floating terminal widget
+  if (_termMinimized) _termMinimized = false;
   _termRender();
+  await _termLoadPane(agentName);
+}
 
-  // Load data for this agent
-  await _termLoadAgent(agentName);
+/** Split current layout — toggle between vsplit/hsplit/grid */
+function _termCycleLayout() {
+  if (_termPanes.length < 2) return;
+  const layouts = ['vsplit', 'hsplit', 'grid'];
+  const idx = layouts.indexOf(_termLayout);
+  _termLayout = layouts[(idx + 1) % layouts.length];
+  _termRender();
+  _termPanes.forEach(p => _termLoadPane(p.agent));
 }
 
 function _termRender() {
-  let widget = document.getElementById('tmux-terminal');
-  if (!widget) {
-    widget = document.createElement('div');
-    widget.id = 'tmux-terminal';
-    widget.className = 'tmux-widget';
-    document.body.appendChild(widget);
-
-    // Make draggable by header
-    _termMakeDraggable(widget);
+  let w = document.getElementById('tmux-terminal');
+  if (!w) {
+    w = document.createElement('div');
+    w.id = 'tmux-terminal';
+    document.body.appendChild(w);
+    _termMakeDraggable(w);
   }
 
   if (_termMinimized) {
-    widget.className = 'tmux-widget tmux-minimized';
-    widget.innerHTML = `
-      <div class="tmux-titlebar" id="tmux-drag-handle">
-        <span class="text-[10px] text-slate-400">Terminal (${_termTabs.length})</span>
-        <div class="flex gap-1">
-          <button onclick="_termToggleMinimize()" class="tmux-btn" title="Restore">▢</button>
-          <button onclick="_termCloseAll()" class="tmux-btn tmux-btn-close" title="Close">✕</button>
-        </div>
-      </div>`;
+    w.className = 'tmux-widget tmux-minimized';
+    w.innerHTML = `<div class="tmux-titlebar" id="tmux-drag-handle">
+      <span style="font-size:10px;color:#94a3b8;padding:0 8px;">⬛ Terminal (${_termPanes.length} panes)</span>
+      <div style="display:flex;gap:2px">
+        <button onclick="_termToggleMinimize()" class="tmux-btn" title="Restore">▢</button>
+        <button onclick="_termCloseAll()" class="tmux-btn tmux-btn-close">✕</button>
+      </div>
+    </div>`;
     return;
   }
 
-  // Tab bar
-  const tabsHtml = _termTabs.map(t => {
-    const p = getAgentProfile(t.agent);
-    const isActive = _monitorAgents.find(a => a.agent === t.agent)?.status === 'active';
-    return `<div class="tmux-tab ${t.active ? 'active' : ''}" onclick="_termSwitchTab('${escHtml(t.agent)}')" style="${t.active ? 'border-bottom-color:' + p.color : ''}">
-      <span class="tmux-tab-dot" style="background:${isActive ? '#34d399' : '#475569'}"></span>
-      <span>${escHtml(p.name)}</span>
-      <button class="tmux-tab-close" onclick="event.stopPropagation();_termCloseTab('${escHtml(t.agent)}')" title="Close">×</button>
+  // Layout class
+  const layoutCls = _termPanes.length <= 1 ? '' :
+    _termLayout === 'vsplit' ? 'tmux-vsplit' :
+    _termLayout === 'hsplit' ? 'tmux-hsplit' : 'tmux-grid';
+
+  const layoutIcon = _termLayout === 'vsplit' ? '▐' : _termLayout === 'hsplit' ? '▄' : '⊞';
+
+  // Panes
+  const panesHtml = _termPanes.map(p => {
+    const prof = getAgentProfile(p.agent);
+    const isActive = _monitorAgents.find(a => a.agent === p.agent)?.status === 'active';
+    const dot = isActive ? '●' : '○';
+    const dotColor = isActive ? '#34d399' : '#64748b';
+    return `<div class="tmux-pane" id="tmux-pane-${p.id}">
+      <div class="tmux-pane-header">
+        <span style="color:${prof.color};font-weight:700;">${(prof.name||'?')[0]}</span>
+        <span style="color:#e2e8f0;font-weight:600;">${escHtml(prof.name)}</span>
+        <span style="color:${dotColor};font-size:8px;">${dot}</span>
+        <span style="color:#475569;font-size:10px;margin-left:auto;">${escHtml(prof.role)}</span>
+        <button class="tmux-pane-close" onclick="_termClosePane(${p.id})" title="Close pane">×</button>
+      </div>
+      <div class="tmux-pane-body" id="tmux-pane-body-${p.id}">
+        <div class="agent-term-line dim">Loading...</div>
+      </div>
     </div>`;
   }).join('');
 
-  const activeTab = _termTabs.find(t => t.active);
-
-  widget.className = 'tmux-widget';
-  widget.innerHTML = `
-    <div class="tmux-titlebar" id="tmux-drag-handle">
-      <div class="tmux-tabs">${tabsHtml}</div>
-      <div class="flex gap-1">
+  w.className = 'tmux-widget';
+  w.innerHTML = `<div class="tmux-titlebar" id="tmux-drag-handle">
+      <span style="font-size:10px;color:#94a3b8;padding:0 8px;font-family:monospace;">agent-terminal</span>
+      <div style="display:flex;gap:2px;align-items:center;">
+        <button onclick="_termCycleLayout()" class="tmux-btn" title="Layout: ${_termLayout}" style="font-size:14px;">${layoutIcon}</button>
         <button onclick="_termToggleMinimize()" class="tmux-btn" title="Minimize">─</button>
-        <button onclick="_termCloseAll()" class="tmux-btn tmux-btn-close" title="Close all">✕</button>
+        <button onclick="_termCloseAll()" class="tmux-btn tmux-btn-close">✕</button>
       </div>
     </div>
-    <div class="tmux-body" id="tmux-body">
-      <div class="agent-term-line dim">Loading...</div>
-    </div>
+    <div class="tmux-panes ${layoutCls}">${panesHtml}</div>
     <div class="tmux-statusbar">
-      <span id="tmux-status-agent">${activeTab ? escHtml(getAgentProfile(activeTab.agent).name) : ''}</span>
-      <span id="tmux-status-info">—</span>
-    </div>
-  `;
+      <span>${_termPanes.length} pane${_termPanes.length > 1 ? 's' : ''} · ${_termLayout}</span>
+      <span style="color:#475569;">click agent in Live Monitor to add pane</span>
+    </div>`;
 }
 
-async function _termLoadAgent(agentName) {
-  const body = document.getElementById('tmux-body');
+async function _termLoadPane(agentName) {
+  const pane = _termPanes.find(p => p.agent === agentName);
+  if (!pane) return;
+  const body = document.getElementById(`tmux-pane-body-${pane.id}`);
   if (!body) return;
-  body.innerHTML = '<div class="agent-term-line dim">Loading...</div>';
 
   try {
     const data = await apiFetch('/v1/activity/stream?limit=200');
     const events = (data.events || []).filter(ev => ev.agent === agentName);
 
-    // Also fetch recent traces for richer span detail
+    // Fetch span details for richer output
     const traceIds = [...new Set(events.map(e => e.trace_id).filter(Boolean))].slice(0, 5);
     const spanDetails = {};
     await Promise.all(traceIds.map(async tid => {
@@ -503,16 +523,12 @@ async function _termLoadAgent(agentName) {
       } catch (_) {}
     }));
 
-    const statusEl = document.getElementById('tmux-status-info');
-    const isActive = _monitorAgents.find(a => a.agent === agentName)?.status === 'active';
-    if (statusEl) statusEl.textContent = `${events.length} events · ${isActive ? '● active' : '○ idle'}`;
-
     if (events.length === 0) {
-      body.innerHTML = `<div class="agent-term-line dim">~ No recent activity ~</div>`;
+      body.innerHTML = '<div class="agent-term-line dim">~ no recent activity ~</div>';
       return;
     }
 
-    body.innerHTML = events.slice(0, 40).map(ev => _termFormatLine(ev, spanDetails)).join('');
+    body.innerHTML = events.slice(0, 30).map(ev => _termFormatLine(ev, spanDetails)).join('');
     body.scrollTop = body.scrollHeight;
   } catch (e) {
     body.innerHTML = `<div class="agent-term-line error">Error: ${escHtml(String(e))}</div>`;
@@ -525,74 +541,52 @@ function _termFormatLine(ev, spanDetails) {
   const isError = ev.status === 'error';
   const tool = ev.tool || '?';
   const durStr = ev.duration_ms > 0 ? `<span class="agent-term-dur">${Math.round(ev.duration_ms)}ms</span>` : '';
-
   const icons = { Read:'📄', Edit:'✏️', Write:'📝', Bash:'⚡', Grep:'🔍', Glob:'📂', Agent:'🤖' };
   const icon = icons[tool] || '●';
 
-  // Extract detail from span attributes
   let detail = '';
-  const matchingSpan = Object.values(spanDetails || {}).find(s => {
-    const sTime = s.start_time || 0;
-    return Math.abs(sTime - ev.timestamp) < 2 && (s.name || '').includes(tool);
-  });
+  const matchingSpan = Object.values(spanDetails || {}).find(s =>
+    Math.abs((s.start_time||0) - ev.timestamp) < 2 && (s.name||'').includes(tool));
 
   if (matchingSpan) {
     const attrs = matchingSpan.attributes || {};
     const input = attrs['tool.input'] || '';
-    if (tool === 'Read' || tool === 'Write' || tool === 'Edit') {
-      // Extract file path
-      const match = input.match(/file_path=([^\s;,]+)/);
-      if (match) {
-        const parts = match[1].split('/');
-        detail = parts.slice(-2).join('/');
-      }
+    if (['Read','Write','Edit'].includes(tool)) {
+      const m = input.match(/file_path=([^\s;,]+)/);
+      if (m) detail = m[1].split('/').slice(-3).join('/');
     } else if (tool === 'Bash') {
-      const match = input.match(/command=(.+?)(?:;|$)/);
-      if (match) detail = match[1].substring(0, 70);
+      const m = input.match(/command=(.+?)(?:;|$)/);
+      if (m) detail = m[1].substring(0, 80);
     } else if (tool === 'Grep') {
-      const match = input.match(/pattern=(.+?)(?:;|$)/);
-      if (match) detail = `/${match[1].substring(0, 40)}/`;
+      const m = input.match(/pattern=(.+?)(?:;|$)/);
+      if (m) detail = `/${m[1].substring(0, 40)}/`;
     } else if (tool === 'Glob') {
-      const match = input.match(/pattern=(.+?)(?:;|$)/);
-      if (match) detail = match[1].substring(0, 50);
-    } else if (tool === 'Agent') {
-      const match = input.match(/prompt=(.+?)(?:;|$)/);
-      if (match) detail = match[1].substring(0, 50);
+      const m = input.match(/pattern=(.+?)(?:;|$)/);
+      if (m) detail = m[1].substring(0, 50);
     }
-    // Model info
     const model = attrs['gen_ai.request.model'];
     if (model && !detail) detail = model;
   }
-
   if (!detail && isError && ev.error) detail = ev.error.substring(0, 60);
-
   const detailHtml = detail ? `<span class="agent-term-detail">${escHtml(detail)}</span>` : '';
 
-  return `<div class="agent-term-line ${isError ? 'error' : ''}">` +
-    `<span class="agent-term-time">${timeStr}</span>` +
-    `<span class="agent-term-icon">${icon}</span>` +
-    `<span class="agent-term-tool">${escHtml(tool)}</span>` +
-    durStr + detailHtml +
-  `</div>`;
+  return `<div class="agent-term-line ${isError ? 'error' : ''}">`+
+    `<span class="agent-term-time">${timeStr}</span>`+
+    `<span class="agent-term-icon">${icon}</span>`+
+    `<span class="agent-term-tool">${escHtml(tool)}</span>`+
+    durStr + detailHtml + `</div>`;
 }
 
-function _termSwitchTab(agentName) {
-  _termTabs.forEach(t => t.active = (t.agent === agentName));
+function _termClosePane(paneId) {
+  _termPanes = _termPanes.filter(p => p.id !== paneId);
+  if (_termPanes.length === 0) { _termCloseAll(); return; }
+  if (_termPanes.length === 1) _termLayout = 'single';
   _termRender();
-  _termLoadAgent(agentName);
-}
-
-function _termCloseTab(agentName) {
-  _termTabs = _termTabs.filter(t => t.agent !== agentName);
-  if (_termTabs.length === 0) { _termCloseAll(); return; }
-  if (!_termTabs.find(t => t.active)) _termTabs[_termTabs.length - 1].active = true;
-  _termRender();
-  const active = _termTabs.find(t => t.active);
-  if (active) _termLoadAgent(active.agent);
+  _termPanes.forEach(p => _termLoadPane(p.agent));
 }
 
 function _termCloseAll() {
-  _termTabs = [];
+  _termPanes = []; _termLayout = 'single';
   const w = document.getElementById('tmux-terminal');
   if (w) w.remove();
 }
@@ -600,31 +594,24 @@ function _termCloseAll() {
 function _termToggleMinimize() {
   _termMinimized = !_termMinimized;
   _termRender();
-  if (!_termMinimized) {
-    const active = _termTabs.find(t => t.active);
-    if (active) _termLoadAgent(active.agent);
-  }
+  if (!_termMinimized) _termPanes.forEach(p => _termLoadPane(p.agent));
 }
 
 function _termMakeDraggable(el) {
   let isDrag = false, startX, startY, origX, origY;
   el.addEventListener('mousedown', e => {
-    if (e.target.closest('.tmux-tab, .tmux-btn, button')) return;
-    const handle = e.target.closest('#tmux-drag-handle, .tmux-titlebar');
+    if (e.target.closest('button, .tmux-pane-close')) return;
+    const handle = e.target.closest('.tmux-titlebar');
     if (!handle) return;
-    isDrag = true;
-    startX = e.clientX; startY = e.clientY;
+    isDrag = true; startX = e.clientX; startY = e.clientY;
     const rect = el.getBoundingClientRect();
-    origX = rect.left; origY = rect.top;
-    e.preventDefault();
+    origX = rect.left; origY = rect.top; e.preventDefault();
   });
   document.addEventListener('mousemove', e => {
     if (!isDrag) return;
-    const dx = e.clientX - startX, dy = e.clientY - startY;
-    el.style.left = (origX + dx) + 'px';
-    el.style.top = (origY + dy) + 'px';
-    el.style.right = 'auto';
-    el.style.bottom = 'auto';
+    el.style.left = (origX + e.clientX - startX) + 'px';
+    el.style.top = (origY + e.clientY - startY) + 'px';
+    el.style.right = 'auto'; el.style.bottom = 'auto';
   });
   document.addEventListener('mouseup', () => { isDrag = false; });
 }
