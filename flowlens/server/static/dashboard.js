@@ -368,11 +368,14 @@ async function loadAgentActivity() {
 // =========================================================================
 // Live Agent Monitor
 // =========================================================================
+let _monitorAgents = []; // cached for terminal panel
+
 function renderLiveMonitor(agents) {
   const container = document.getElementById('live-monitor');
   const timeEl = document.getElementById('monitor-update-time');
   if (!container) return;
 
+  _monitorAgents = agents || [];
   if (timeEl) timeEl.textContent = new Date().toLocaleTimeString();
 
   if (!agents || agents.length === 0) {
@@ -385,7 +388,7 @@ function renderLiveMonitor(agents) {
     const isActive = a.status === 'active';
 
     return `
-      <div class="rounded-lg p-2 ${isActive ? 'bg-emerald-500/5 border border-emerald-500/20' : 'bg-slate-800/30 border border-white/5'} transition-all duration-300 flex flex-col items-center gap-1" data-agent="${escHtml(a.agent)}">
+      <div class="monitor-agent-card rounded-lg p-2 ${isActive ? 'bg-emerald-500/5 border border-emerald-500/20' : 'bg-slate-800/30 border border-white/5'} transition-all duration-300 flex flex-col items-center gap-1 cursor-pointer hover:scale-105 hover:border-indigo-400/40" data-agent="${escHtml(a.agent)}" onclick="openAgentTerminal('${escHtml(a.agent)}')">
         <div class="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white relative" style="background:${p.color}">
           ${(p.name||'?')[0]}
           <span class="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ${isActive ? 'bg-emerald-400 pulse-dot' : 'bg-slate-600'} border border-slate-900"></span>
@@ -393,6 +396,98 @@ function renderLiveMonitor(agents) {
         <span class="text-[10px] font-medium text-white truncate w-full text-center">${escHtml(p.name)}</span>
       </div>`;
   }).join('');
+}
+
+/** Open a terminal-like panel showing an agent's real-time activity */
+async function openAgentTerminal(agentName) {
+  const p = getAgentProfile(agentName);
+
+  // Close existing terminal if open
+  let existing = document.getElementById('agent-terminal-overlay');
+  if (existing) existing.remove();
+
+  // Create overlay
+  const overlay = document.createElement('div');
+  overlay.id = 'agent-terminal-overlay';
+  overlay.className = 'agent-terminal-overlay';
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+
+  const panel = document.createElement('div');
+  panel.className = 'agent-terminal-panel';
+  panel.innerHTML = `
+    <div class="agent-terminal-header" style="border-bottom-color: ${p.color}33">
+      <div class="flex items-center gap-2">
+        <div class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style="background:${p.color}">${(p.name||'?')[0]}</div>
+        <span class="text-sm font-semibold" style="color:${p.color}">${escHtml(p.name)}</span>
+        <span class="text-[10px] text-slate-500">${escHtml(p.role)}</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="agent-terminal-status" id="agent-term-status">loading</span>
+        <button onclick="document.getElementById('agent-terminal-overlay').remove()" class="text-slate-500 hover:text-white transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="agent-terminal-body" id="agent-term-body">
+      <div class="agent-term-line dim">Connecting to ${escHtml(p.name)}...</div>
+    </div>
+  `;
+
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+
+  // Fetch this agent's activity
+  try {
+    const data = await apiFetch('/v1/activity/stream?limit=200');
+    const events = (data.events || []).filter(ev => ev.agent === agentName);
+    const body = document.getElementById('agent-term-body');
+    if (!body) return;
+
+    const statusEl = document.getElementById('agent-term-status');
+    if (statusEl) {
+      const isActive = _monitorAgents.find(a => a.agent === agentName)?.status === 'active';
+      statusEl.textContent = isActive ? 'active' : 'idle';
+      statusEl.className = `agent-terminal-status ${isActive ? 'active' : 'idle'}`;
+    }
+
+    if (events.length === 0) {
+      body.innerHTML = `<div class="agent-term-line dim">No recent activity for ${escHtml(p.name)}</div>`;
+      return;
+    }
+
+    body.innerHTML = events.slice(0, 30).map(ev => {
+      const time = new Date(ev.timestamp * 1000);
+      const timeStr = time.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const isError = ev.status === 'error';
+      const durStr = ev.duration_ms > 0 ? `${Math.round(ev.duration_ms)}ms` : '';
+      const errorMsg = isError && ev.error ? ev.error : '';
+
+      let icon = '●';
+      const tool = ev.tool || '?';
+      if (tool === 'Read') icon = '📄';
+      else if (tool === 'Edit') icon = '✏️';
+      else if (tool === 'Write') icon = '📝';
+      else if (tool === 'Bash') icon = '⚡';
+      else if (tool === 'Grep') icon = '🔍';
+      else if (tool === 'Glob') icon = '📂';
+      else if (tool === 'Agent') icon = '🤖';
+
+      return `<div class="agent-term-line ${isError ? 'error' : ''}">` +
+        `<span class="agent-term-time">${timeStr}</span>` +
+        `<span class="agent-term-icon">${icon}</span>` +
+        `<span class="agent-term-tool">${escHtml(tool)}</span>` +
+        `<span class="agent-term-dur">${durStr}</span>` +
+        (isError ? `<span class="agent-term-error">${escHtml(errorMsg).substring(0, 60)}</span>` : '') +
+      `</div>`;
+    }).join('');
+
+    // Auto-scroll to bottom
+    body.scrollTop = body.scrollHeight;
+
+  } catch (e) {
+    const body = document.getElementById('agent-term-body');
+    if (body) body.innerHTML = `<div class="agent-term-line error">Failed to load activity: ${escHtml(String(e))}</div>`;
+  }
 }
 
 // =========================================================================

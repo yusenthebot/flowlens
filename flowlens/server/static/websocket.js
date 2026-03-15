@@ -107,6 +107,15 @@ function handleLiveTrace(traceData) {
     timestamp: traceData.start_time || Date.now() / 1000,
   });
 
+  // Push to agent terminal if open
+  _pushToAgentTerminal(agentTag, {
+    tool: traceData.service_name || 'trace',
+    status: traceData.has_errors ? 'error' : 'ok',
+    duration_ms: traceData.duration_ms || 0,
+    timestamp: traceData.start_time || Date.now() / 1000,
+    error: traceData.has_errors ? 'error in trace' : null,
+  });
+
   // Push to per-agent live feed (on Agents tab)
   _pushToAgentFeed(agentTag, {
     tool: traceData.service_name || 'trace',
@@ -271,5 +280,36 @@ function _pushToAgentFeed(agentName, ev) {
   while (feed.children.length > 8) {
     feed.removeChild(feed.lastChild);
   }
+}
+
+/** Push a real-time event into the agent terminal panel (if open for this agent) */
+function _pushToAgentTerminal(agentName, ev) {
+  const overlay = document.getElementById('agent-terminal-overlay');
+  if (!overlay) return;
+  const body = document.getElementById('agent-term-body');
+  if (!body) return;
+  // Check if terminal is for this agent
+  const headerName = overlay.querySelector('.agent-terminal-header span.text-sm');
+  const p = getAgentProfile(agentName);
+  if (headerName && headerName.textContent !== p.name) return;
+
+  const time = new Date((ev.timestamp || Date.now() / 1000) * 1000);
+  const timeStr = time.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const isError = ev.status === 'error';
+  const tool = ev.tool || '?';
+  const durStr = ev.duration_ms > 0 ? `${Math.round(ev.duration_ms)}ms` : '';
+  const icons = { Read: '📄', Edit: '✏️', Write: '📝', Bash: '⚡', Grep: '🔍', Glob: '📂', Agent: '🤖' };
+  const icon = icons[tool] || '●';
+
+  const line = document.createElement('div');
+  line.className = `agent-term-line ${isError ? 'error' : ''}`;
+  line.innerHTML = `<span class="agent-term-time">${timeStr}</span>` +
+    `<span class="agent-term-icon">${icon}</span>` +
+    `<span class="agent-term-tool">${escHtml(tool)}</span>` +
+    `<span class="agent-term-dur">${durStr}</span>` +
+    (isError && ev.error ? `<span class="agent-term-error">${escHtml(String(ev.error)).substring(0, 60)}</span>` : '');
+
+  body.appendChild(line);
+  body.scrollTop = body.scrollHeight;
 }
 
