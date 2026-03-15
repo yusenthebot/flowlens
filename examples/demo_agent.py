@@ -42,30 +42,30 @@ from flowlens.analysis.advisor import TraceAdvisor
 
 # ===== ANSI colour helpers =====
 
-RESET   = "\033[0m"
-BOLD    = "\033[1m"
-DIM     = "\033[2m"
+RESET = "\033[0m"
+BOLD = "\033[1m"
+DIM = "\033[2m"
 
-BLACK   = "\033[30m"
-RED     = "\033[31m"
-GREEN   = "\033[32m"
-YELLOW  = "\033[33m"
-BLUE    = "\033[34m"
+BLACK = "\033[30m"
+RED = "\033[31m"
+GREEN = "\033[32m"
+YELLOW = "\033[33m"
+BLUE = "\033[34m"
 MAGENTA = "\033[35m"
-CYAN    = "\033[36m"
-WHITE   = "\033[37m"
+CYAN = "\033[36m"
+WHITE = "\033[37m"
 
-BRIGHT_RED     = "\033[91m"
-BRIGHT_GREEN   = "\033[92m"
-BRIGHT_YELLOW  = "\033[93m"
-BRIGHT_BLUE    = "\033[94m"
+BRIGHT_RED = "\033[91m"
+BRIGHT_GREEN = "\033[92m"
+BRIGHT_YELLOW = "\033[93m"
+BRIGHT_BLUE = "\033[94m"
 BRIGHT_MAGENTA = "\033[95m"
-BRIGHT_CYAN    = "\033[96m"
-BRIGHT_WHITE   = "\033[97m"
+BRIGHT_CYAN = "\033[96m"
+BRIGHT_WHITE = "\033[97m"
 
-BG_BLUE    = "\033[44m"
+BG_BLUE = "\033[44m"
 BG_MAGENTA = "\033[45m"
-BG_CYAN    = "\033[46m"
+BG_CYAN = "\033[46m"
 
 
 def _color(text: str, *codes: str) -> str:
@@ -126,14 +126,20 @@ def _badge(label: str, value: str, color: str = BRIGHT_CYAN) -> str:
 
 # ===== Fake LLM response =====
 
+
 class FakeLLMResponse:
     """Mimics the Anthropic SDK response shape so decorators auto-extract tokens."""
+
     def __init__(self, text: str, input_tokens: int, output_tokens: int):
         self.content = [type("Block", (), {"type": "text", "text": text})()]
-        self.usage = type("Usage", (), {
-            "input_tokens": input_tokens,
-            "output_tokens": output_tokens,
-        })()
+        self.usage = type(
+            "Usage",
+            (),
+            {
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+            },
+        )()
         self.stop_reason = "end_turn"
 
 
@@ -144,35 +150,35 @@ KNOWLEDGE_BASE = [
         "id": "doc_001",
         "title": "Agentic AI Architectures 2026",
         "content": "Multi-agent systems now leverage tool-use, memory, and self-reflection. "
-                   "ReAct, Toolformer, and AutoGPT patterns have converged into unified frameworks.",
+        "ReAct, Toolformer, and AutoGPT patterns have converged into unified frameworks.",
         "score": 0.94,
     },
     {
         "id": "doc_002",
         "title": "RAG Pipeline Best Practices",
         "content": "Retrieval-Augmented Generation reduces hallucination by grounding LLM responses "
-                   "in retrieved documents. Hybrid search (dense + sparse) outperforms pure vector search.",
+        "in retrieved documents. Hybrid search (dense + sparse) outperforms pure vector search.",
         "score": 0.87,
     },
     {
         "id": "doc_003",
         "title": "LLM Cost Optimisation Strategies",
         "content": "Prompt compression, model routing (large for planning, small for execution), "
-                   "and semantic caching can reduce costs by 40–70% without quality loss.",
+        "and semantic caching can reduce costs by 40–70% without quality loss.",
         "score": 0.81,
     },
     {
         "id": "doc_004",
         "title": "Error Resilience in AI Agents",
         "content": "Production agents require exponential backoff, circuit breakers, and fallback "
-                   "chains. Cascade failures are the leading cause of agent downtime.",
+        "chains. Cascade failures are the leading cause of agent downtime.",
         "score": 0.79,
     },
     {
         "id": "doc_005",
         "title": "Observability for LLM Systems",
         "content": "OpenTelemetry-based tracing, token accounting, and causal DAG analysis provide "
-                   "the visibility needed to debug and optimise agentic workflows at scale.",
+        "the visibility needed to debug and optimise agentic workflows at scale.",
         "score": 0.76,
     },
 ]
@@ -187,6 +193,7 @@ _call_counts: dict[str, int] = {
 
 
 # ===== Step 1 — LLM: Research Planner =====
+
 
 @trace_llm(model="claude-sonnet-4-20250514", name="research_planner")
 async def llm_plan_research(topic: str) -> FakeLLMResponse:
@@ -209,6 +216,7 @@ async def llm_plan_research(topic: str) -> FakeLLMResponse:
 
 # ===== Step 2 — Retrieval: Vector Search (RAG) =====
 
+
 @trace_retrieval(name="vector_search")
 async def vector_search(query: str, top_k: int = 3) -> list[dict]:
     """Simulated dense vector similarity search over the knowledge base."""
@@ -226,6 +234,7 @@ async def vector_search(query: str, top_k: int = 3) -> list[dict]:
 
 # ===== Step 3 — Tool: Web Search =====
 
+
 @trace_tool(name="web_search")
 async def web_search(query: str) -> dict:
     """External web search — first call times out to simulate real failure."""
@@ -233,9 +242,7 @@ async def web_search(query: str) -> dict:
     await asyncio.sleep(random.uniform(0.03, 0.07))
 
     if _call_counts["web_search"] == 1:
-        raise TimeoutError(
-            f"web_search timed out after 30s for query='{query}'"
-        )
+        raise TimeoutError(f"web_search timed out after 30s for query='{query}'")
 
     return {
         "results": [
@@ -249,6 +256,7 @@ async def web_search(query: str) -> dict:
 
 
 # ===== Step 4 — Tool: Page Fetcher =====
+
 
 @trace_tool(name="fetch_page")
 async def fetch_page(url: str) -> dict:
@@ -278,6 +286,7 @@ async def fetch_page(url: str) -> dict:
 
 # ===== Step 5 — Tool: Content Validator =====
 
+
 @trace_tool(name="validate_content")
 async def validate_content(content: str) -> dict:
     """Quality-gate: checks content length, keyword density, and freshness."""
@@ -300,6 +309,7 @@ async def validate_content(content: str) -> dict:
 
 # ===== Step 6 — Chain: Synthesis Pipeline =====
 
+
 @trace_chain(name="synthesis_pipeline")
 async def synthesis_pipeline(
     rag_docs: list[dict],
@@ -313,18 +323,14 @@ async def synthesis_pipeline(
       3. LLM synthesis call
     """
     # Merge sources
-    rag_text = "\n".join(
-        f"[{d['title']}]: {d['content']}" for d in rag_docs
-    )
+    rag_text = "\n".join(f"[{d['title']}]: {d['content']}" for d in rag_docs)
     merged = f"=== Knowledge Base ===\n{rag_text}\n\n=== Web ===\n{web_content}"
 
     # Validate merged content
     validation = await validate_content(merged)
 
     if not validation["valid"]:
-        raise RuntimeError(
-            f"Merged content failed quality gate: {validation['issues']}"
-        )
+        raise RuntimeError(f"Merged content failed quality gate: {validation['issues']}")
 
     # LLM synthesis
     synthesis = await llm_synthesise(merged, topic)
@@ -363,6 +369,7 @@ async def llm_synthesise(context: str, topic: str) -> FakeLLMResponse:
 
 # ===== Step 7 — LLM: Final Report Generator =====
 
+
 @trace_llm(model="claude-sonnet-4-20250514", name="report_generator")
 async def llm_generate_report(synthesis: str, topic: str) -> FakeLLMResponse:
     """LLM call: format the synthesis into a final polished report."""
@@ -381,6 +388,7 @@ async def llm_generate_report(synthesis: str, topic: str) -> FakeLLMResponse:
 
 
 # ===== The Main Agent =====
+
 
 @trace_agent(name="research_agent")
 async def run_research_agent(topic: str) -> dict:
@@ -406,7 +414,10 @@ async def run_research_agent(topic: str) -> dict:
     t0 = time.perf_counter()
     plan = await llm_plan_research(topic)
     plan_ms = (time.perf_counter() - t0) * 1000
-    _ok("Research plan created", f"{plan_ms:.0f}ms · {plan.usage.input_tokens}→{plan.usage.output_tokens} tokens")
+    _ok(
+        "Research plan created",
+        f"{plan_ms:.0f}ms · {plan.usage.input_tokens}→{plan.usage.output_tokens} tokens",
+    )
     _info("Plan: " + plan.content[0].text.split("\n")[0])
 
     # ── Step 2: RAG Vector Search ─────────────────────────────────────────
@@ -417,7 +428,9 @@ async def run_research_agent(topic: str) -> dict:
     _ok(f"Retrieved {len(rag_docs)} documents", f"{rag_ms:.0f}ms")
     for doc in rag_docs:
         score_bar = _bar(int(doc["score"] * 20), 20)
-        print(f"      {_color(score_bar, BRIGHT_GREEN)}  {doc['score']:.3f}  {_color(doc['title'], DIM)}")
+        print(
+            f"      {_color(score_bar, BRIGHT_GREEN)}  {doc['score']:.3f}  {_color(doc['title'], DIM)}"
+        )
 
     # ── Step 3: Web Search (will fail first time) ─────────────────────────
     _subsection("Step 3: Web Search + Page Fetch (with recovery)")
@@ -482,6 +495,7 @@ async def run_research_agent(topic: str) -> dict:
 
 # ===== Analysis & Pretty Report =====
 
+
 def print_causal_dag_markdown(dag, node_map: dict) -> None:
     """Print the causal DAG in Markdown-compatible format."""
     print()
@@ -540,8 +554,12 @@ def print_full_report(trace: Trace) -> None:
     print(f"  {'Duration':<22} {_color(f'{trace.duration_ms:.0f} ms', BRIGHT_CYAN)}")
     print(f"  {'Total Tokens':<22} {_color(f'{trace.total_tokens:,}', BRIGHT_YELLOW)}")
     print(f"  {'Total Cost':<22} {_color(f'${trace.total_cost_usd:.5f}', BRIGHT_YELLOW)}")
-    print(f"  {'Error Count':<22} {_color(str(trace.error_count), BRIGHT_RED if trace.error_count else BRIGHT_GREEN)}")
-    print(f"  {'Error Rate':<22} {_color(f'{trace.error_rate:.0%}', BRIGHT_RED if trace.error_rate > 0 else BRIGHT_GREEN)}")
+    print(
+        f"  {'Error Count':<22} {_color(str(trace.error_count), BRIGHT_RED if trace.error_count else BRIGHT_GREEN)}"
+    )
+    print(
+        f"  {'Error Rate':<22} {_color(f'{trace.error_rate:.0%}', BRIGHT_RED if trace.error_rate > 0 else BRIGHT_GREEN)}"
+    )
 
     # ── Span Timeline ─────────────────────────────────────────────────────
     print()
@@ -549,23 +567,27 @@ def print_full_report(trace: Trace) -> None:
     print()
 
     kind_icons = {
-        "agent":     ("◈", BRIGHT_MAGENTA),
-        "llm":       ("◉", BRIGHT_BLUE),
-        "tool":      ("◆", BRIGHT_CYAN),
-        "chain":     ("◎", BRIGHT_YELLOW),
+        "agent": ("◈", BRIGHT_MAGENTA),
+        "llm": ("◉", BRIGHT_BLUE),
+        "tool": ("◆", BRIGHT_CYAN),
+        "chain": ("◎", BRIGHT_YELLOW),
         "retrieval": ("◐", BRIGHT_GREEN),
-        "custom":    ("○", WHITE),
+        "custom": ("○", WHITE),
     }
 
     for span in trace.spans:
         icon, color = kind_icons.get(span.kind.value, ("○", WHITE))
-        status_sym = _color("✓", BRIGHT_GREEN) if span.status.value == "ok" else _color("✗", BRIGHT_RED)
+        status_sym = (
+            _color("✓", BRIGHT_GREEN) if span.status.value == "ok" else _color("✗", BRIGHT_RED)
+        )
         duration = f"{span.duration_ms:.0f}ms"
         tokens_str = f" · {span.token_usage.total_tokens} tok" if span.token_usage else ""
         indent = "    " if span.parent_span_id else "  "
         kind_label = _color(f"[{span.kind.value.upper():<10}]", color)
         name_label = _color(f"{span.name:<30}", BOLD if not span.parent_span_id else "")
-        print(f"  {indent}{status_sym}  {kind_label}  {name_label}  {_color(duration, DIM)}{_color(tokens_str, DIM)}")
+        print(
+            f"  {indent}{status_sym}  {kind_label}  {name_label}  {_color(duration, DIM)}{_color(tokens_str, DIM)}"
+        )
 
     # ── Causal DAG ────────────────────────────────────────────────────────
     print()
@@ -608,7 +630,11 @@ def print_full_report(trace: Trace) -> None:
     print()
 
     if patterns:
-        sev_icons = {"critical": ("🔴", BRIGHT_RED), "warning": ("🟡", BRIGHT_YELLOW), "info": ("🔵", BRIGHT_BLUE)}
+        sev_icons = {
+            "critical": ("🔴", BRIGHT_RED),
+            "warning": ("🟡", BRIGHT_YELLOW),
+            "info": ("🔵", BRIGHT_BLUE),
+        }
         for p in patterns:
             icon, color = sev_icons.get(p.severity, ("•", WHITE))
             ptype = _color(f"[{p.pattern_type.value}]", color, BOLD)
@@ -625,33 +651,49 @@ def print_full_report(trace: Trace) -> None:
 
     severity_score = report["severity_score"]
     severity_level = report["severity_level"]
-    score_color = BRIGHT_GREEN if severity_score < 40 else BRIGHT_YELLOW if severity_score < 70 else BRIGHT_RED
+    score_color = (
+        BRIGHT_GREEN
+        if severity_score < 40
+        else BRIGHT_YELLOW if severity_score < 70 else BRIGHT_RED
+    )
     score_bar = _bar(severity_score, 100, "█", "░")
 
     print(f"  Severity Score  {_color(f'{severity_score}/100', score_color, BOLD)}")
-    print(f"  {_color(score_bar[:40], score_color)}  {_color(severity_level.upper(), score_color, BOLD)}")
+    print(
+        f"  {_color(score_bar[:40], score_color)}  {_color(severity_level.upper(), score_color, BOLD)}"
+    )
     print()
 
     savings = report["estimated_savings"]
     monthly = report["estimated_monthly_savings"]
     print(f"  {'Per-trace savings':}")
     print(f"    Tokens saved   {_color(str(savings['token_savings']), BRIGHT_CYAN)}")
-    print(f"    Cost saved     {_color(f\"${savings['cost_savings_usd']:.4f}\", BRIGHT_GREEN)}")
-    print(f"    Latency saved  {_color(f\"{savings['time_savings_ms']:.0f}ms\", BRIGHT_YELLOW)}")
+    cost_saved = f"${savings['cost_savings_usd']:.4f}"
+    latency_saved = f"{savings['time_savings_ms']:.0f}ms"
+    print(f"    Cost saved     {_color(cost_saved, BRIGHT_GREEN)}")
+    print(f"    Latency saved  {_color(latency_saved, BRIGHT_YELLOW)}")
     print()
     print(f"  {'Monthly (5,000 traces/mo)':}")
-    print(f"    Cost saved     {_color(f\"${monthly['cost_savings_usd_monthly']:.2f}\", BRIGHT_GREEN, BOLD)}")
-    print(f"    Tokens saved   {_color(f\"{monthly['token_savings_monthly']:,}\", BRIGHT_CYAN)}")
+    monthly_cost = f"${monthly['cost_savings_usd_monthly']:.2f}"
+    monthly_tokens = f"{monthly['token_savings_monthly']:,}"
+    print(f"    Cost saved     {_color(monthly_cost, BRIGHT_GREEN, BOLD)}")
+    print(f"    Tokens saved   {_color(monthly_tokens, BRIGHT_CYAN)}")
     print()
 
     recs = report.get("recommendations_detail", [])
     if recs:
         print(f"  {'Action Items':}")
         for i, rec in enumerate(recs, 1):
-            sev_color = BRIGHT_RED if rec["severity"] == "critical" else BRIGHT_YELLOW if rec["severity"] == "warning" else BRIGHT_BLUE
+            sev_color = (
+                BRIGHT_RED
+                if rec["severity"] == "critical"
+                else BRIGHT_YELLOW if rec["severity"] == "warning" else BRIGHT_BLUE
+            )
             sev_badge = _color(f"[{rec['severity'].upper()}]", sev_color, BOLD)
             print(f"  {i}. {sev_badge}  {_color(rec['title'], BOLD)}")
-            print(f"     {_color(rec['description'][:120] + ('...' if len(rec['description']) > 120 else ''), DIM)}")
+            print(
+                f"     {_color(rec['description'][:120] + ('...' if len(rec['description']) > 120 else ''), DIM)}"
+            )
             if rec.get("code_snippet"):
                 snippet_lines = rec["code_snippet"].strip().split("\n")[:4]
                 for line in snippet_lines:
@@ -679,6 +721,7 @@ def _capture_trace(trace: Trace) -> None:
 
 
 # ===== Main entry point =====
+
 
 async def main() -> None:
     # ── Banner ──────────────────────────────────────────────────────────

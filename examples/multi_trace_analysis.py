@@ -32,15 +32,15 @@ from flowlens.sdk.models import Span, SpanKind, SpanStatus, Trace
 # ANSI helpers
 # ───────────────────────────────────────────────────────────────────────────
 
-RESET  = "\033[0m"
-BOLD   = "\033[1m"
-DIM    = "\033[2m"
-RED    = "\033[91m"
-GREEN  = "\033[92m"
+RESET = "\033[0m"
+BOLD = "\033[1m"
+DIM = "\033[2m"
+RED = "\033[91m"
+GREEN = "\033[92m"
 YELLOW = "\033[93m"
-BLUE   = "\033[94m"
-CYAN   = "\033[96m"
-WHITE  = "\033[97m"
+BLUE = "\033[94m"
+CYAN = "\033[96m"
+WHITE = "\033[97m"
 MAGENTA = "\033[95m"
 
 
@@ -77,6 +77,7 @@ def hbar(value: float, max_val: float, width: int = 30, color: str = GREEN) -> s
 # ───────────────────────────────────────────────────────────────────────────
 # Trace factory helpers
 # ───────────────────────────────────────────────────────────────────────────
+
 
 def _make_span(
     name: str,
@@ -118,9 +119,9 @@ def _make_span(
 
 def _finish_trace(trace: Trace, extra_ms: float = 0.0) -> Trace:
     """Mark a trace as finished."""
-    trace.end_time = trace.start_time + sum(
-        s.duration_ms / 1000 for s in trace.spans
-    ) + extra_ms / 1000
+    trace.end_time = (
+        trace.start_time + sum(s.duration_ms / 1000 for s in trace.spans) + extra_ms / 1000
+    )
     return trace
 
 
@@ -128,156 +129,247 @@ def _finish_trace(trace: Trace, extra_ms: float = 0.0) -> Trace:
 # Scenario builders — each returns a Trace object
 # ───────────────────────────────────────────────────────────────────────────
 
+
 def _healthy_trace(index: int, label: str = "healthy") -> Trace:
     """A fully healthy agent run — no errors, reasonable latency."""
     trace = Trace(service_name="research-agent", metadata={"scenario": label, "index": index})
 
     agent_span = _make_span(
-        "research_agent", SpanKind.AGENT, duration_ms=300 + index * 10,
+        "research_agent",
+        SpanKind.AGENT,
+        duration_ms=300 + index * 10,
         trace_id=trace.trace_id,
     )
     trace.spans.append(agent_span)
     trace.root_span_id = agent_span.span_id
 
-    trace.spans.append(_make_span(
-        "research_planner", SpanKind.LLM, duration_ms=80,
-        input_tokens=900 + index * 20, output_tokens=220,
-        model="claude-sonnet-4-20250514",
-        parent_span_id=agent_span.span_id, trace_id=trace.trace_id,
-    ))
-    trace.spans.append(_make_span(
-        "vector_search", SpanKind.RETRIEVAL, duration_ms=40,
-        parent_span_id=agent_span.span_id, trace_id=trace.trace_id,
-    ))
-    trace.spans.append(_make_span(
-        "web_search", SpanKind.TOOL, duration_ms=90,
-        parent_span_id=agent_span.span_id, trace_id=trace.trace_id,
-    ))
-    trace.spans.append(_make_span(
-        "content_synthesiser", SpanKind.LLM, duration_ms=100,
-        input_tokens=1500, output_tokens=350,
-        model="claude-haiku-4-20250514",
-        parent_span_id=agent_span.span_id, trace_id=trace.trace_id,
-    ))
+    trace.spans.append(
+        _make_span(
+            "research_planner",
+            SpanKind.LLM,
+            duration_ms=80,
+            input_tokens=900 + index * 20,
+            output_tokens=220,
+            model="claude-sonnet-4-20250514",
+            parent_span_id=agent_span.span_id,
+            trace_id=trace.trace_id,
+        )
+    )
+    trace.spans.append(
+        _make_span(
+            "vector_search",
+            SpanKind.RETRIEVAL,
+            duration_ms=40,
+            parent_span_id=agent_span.span_id,
+            trace_id=trace.trace_id,
+        )
+    )
+    trace.spans.append(
+        _make_span(
+            "web_search",
+            SpanKind.TOOL,
+            duration_ms=90,
+            parent_span_id=agent_span.span_id,
+            trace_id=trace.trace_id,
+        )
+    )
+    trace.spans.append(
+        _make_span(
+            "content_synthesiser",
+            SpanKind.LLM,
+            duration_ms=100,
+            input_tokens=1500,
+            output_tokens=350,
+            model="claude-haiku-4-20250514",
+            parent_span_id=agent_span.span_id,
+            trace_id=trace.trace_id,
+        )
+    )
 
     return _finish_trace(trace)
 
 
 def _timeout_cascade_trace(index: int) -> Trace:
     """Web search times out → fetch_page gets an invalid URL → cascade failure."""
-    trace = Trace(service_name="research-agent", metadata={"scenario": "timeout_cascade", "index": index})
+    trace = Trace(
+        service_name="research-agent", metadata={"scenario": "timeout_cascade", "index": index}
+    )
 
     agent_span = _make_span(
-        "research_agent", SpanKind.AGENT, duration_ms=450,
+        "research_agent",
+        SpanKind.AGENT,
+        duration_ms=450,
         trace_id=trace.trace_id,
     )
     trace.spans.append(agent_span)
     trace.root_span_id = agent_span.span_id
 
-    trace.spans.append(_make_span(
-        "research_planner", SpanKind.LLM, duration_ms=85,
-        input_tokens=950, output_tokens=210,
-        model="claude-sonnet-4-20250514",
-        parent_span_id=agent_span.span_id, trace_id=trace.trace_id,
-    ))
+    trace.spans.append(
+        _make_span(
+            "research_planner",
+            SpanKind.LLM,
+            duration_ms=85,
+            input_tokens=950,
+            output_tokens=210,
+            model="claude-sonnet-4-20250514",
+            parent_span_id=agent_span.span_id,
+            trace_id=trace.trace_id,
+        )
+    )
     # Root cause: timeout
-    trace.spans.append(_make_span(
-        "web_search", SpanKind.TOOL, duration_ms=30_000,
-        status=SpanStatus.ERROR,
-        error_message="web_search timed out after 30s for query='agentic AI 2026'",
-        parent_span_id=agent_span.span_id, trace_id=trace.trace_id,
-    ))
+    trace.spans.append(
+        _make_span(
+            "web_search",
+            SpanKind.TOOL,
+            duration_ms=30_000,
+            status=SpanStatus.ERROR,
+            error_message="web_search timed out after 30s for query='agentic AI 2026'",
+            parent_span_id=agent_span.span_id,
+            trace_id=trace.trace_id,
+        )
+    )
     # Cascade: fetch_page received empty URL from failed search
-    trace.spans.append(_make_span(
-        "fetch_page", SpanKind.TOOL, duration_ms=5,
-        status=SpanStatus.ERROR,
-        error_message="fetch_page received invalid URL '' — likely from failed upstream search",
-        parent_span_id=agent_span.span_id, trace_id=trace.trace_id,
-    ))
+    trace.spans.append(
+        _make_span(
+            "fetch_page",
+            SpanKind.TOOL,
+            duration_ms=5,
+            status=SpanStatus.ERROR,
+            error_message="fetch_page received invalid URL '' — likely from failed upstream search",
+            parent_span_id=agent_span.span_id,
+            trace_id=trace.trace_id,
+        )
+    )
 
     return _finish_trace(trace)
 
 
 def _retry_storm_trace(index: int) -> Trace:
     """web_search is called 8 times — a retry storm."""
-    trace = Trace(service_name="research-agent", metadata={"scenario": "retry_storm", "index": index})
+    trace = Trace(
+        service_name="research-agent", metadata={"scenario": "retry_storm", "index": index}
+    )
 
     agent_span = _make_span(
-        "research_agent", SpanKind.AGENT, duration_ms=900,
+        "research_agent",
+        SpanKind.AGENT,
+        duration_ms=900,
         trace_id=trace.trace_id,
     )
     trace.spans.append(agent_span)
     trace.root_span_id = agent_span.span_id
 
-    trace.spans.append(_make_span(
-        "research_planner", SpanKind.LLM, duration_ms=80,
-        input_tokens=900, output_tokens=200,
-        model="claude-sonnet-4-20250514",
-        parent_span_id=agent_span.span_id, trace_id=trace.trace_id,
-    ))
+    trace.spans.append(
+        _make_span(
+            "research_planner",
+            SpanKind.LLM,
+            duration_ms=80,
+            input_tokens=900,
+            output_tokens=200,
+            model="claude-sonnet-4-20250514",
+            parent_span_id=agent_span.span_id,
+            trace_id=trace.trace_id,
+        )
+    )
     # 8 calls to the same tool = retry storm
     for i in range(8):
-        trace.spans.append(_make_span(
-            "web_search", SpanKind.TOOL, duration_ms=30 + i * 5,
-            status=SpanStatus.ERROR if i < 7 else SpanStatus.OK,
-            error_message="Connection refused" if i < 7 else "",
-            parent_span_id=agent_span.span_id, trace_id=trace.trace_id,
-        ))
+        trace.spans.append(
+            _make_span(
+                "web_search",
+                SpanKind.TOOL,
+                duration_ms=30 + i * 5,
+                status=SpanStatus.ERROR if i < 7 else SpanStatus.OK,
+                error_message="Connection refused" if i < 7 else "",
+                parent_span_id=agent_span.span_id,
+                trace_id=trace.trace_id,
+            )
+        )
 
     return _finish_trace(trace)
 
 
 def _context_overflow_trace(index: int) -> Trace:
     """LLM receives a massive context — approaching the model limit."""
-    trace = Trace(service_name="research-agent", metadata={"scenario": "context_overflow", "index": index})
+    trace = Trace(
+        service_name="research-agent", metadata={"scenario": "context_overflow", "index": index}
+    )
 
     agent_span = _make_span(
-        "research_agent", SpanKind.AGENT, duration_ms=600,
+        "research_agent",
+        SpanKind.AGENT,
+        duration_ms=600,
         trace_id=trace.trace_id,
     )
     trace.spans.append(agent_span)
     trace.root_span_id = agent_span.span_id
 
     # Massive input — 190k tokens for a 200k context model
-    trace.spans.append(_make_span(
-        "research_planner", SpanKind.LLM, duration_ms=500,
-        input_tokens=190_000, output_tokens=180,
-        model="claude-sonnet-4-20250514",
-        parent_span_id=agent_span.span_id, trace_id=trace.trace_id,
-    ))
-    trace.spans.append(_make_span(
-        "vector_search", SpanKind.RETRIEVAL, duration_ms=45,
-        parent_span_id=agent_span.span_id, trace_id=trace.trace_id,
-    ))
+    trace.spans.append(
+        _make_span(
+            "research_planner",
+            SpanKind.LLM,
+            duration_ms=500,
+            input_tokens=190_000,
+            output_tokens=180,
+            model="claude-sonnet-4-20250514",
+            parent_span_id=agent_span.span_id,
+            trace_id=trace.trace_id,
+        )
+    )
+    trace.spans.append(
+        _make_span(
+            "vector_search",
+            SpanKind.RETRIEVAL,
+            duration_ms=45,
+            parent_span_id=agent_span.span_id,
+            trace_id=trace.trace_id,
+        )
+    )
 
     return _finish_trace(trace)
 
 
 def _cost_spike_trace(index: int) -> Trace:
     """One LLM span consumes disproportionate tokens — cost spike."""
-    trace = Trace(service_name="research-agent", metadata={"scenario": "cost_spike", "index": index})
+    trace = Trace(
+        service_name="research-agent", metadata={"scenario": "cost_spike", "index": index}
+    )
 
     agent_span = _make_span(
-        "research_agent", SpanKind.AGENT, duration_ms=700,
+        "research_agent",
+        SpanKind.AGENT,
+        duration_ms=700,
         trace_id=trace.trace_id,
     )
     trace.spans.append(agent_span)
     trace.root_span_id = agent_span.span_id
 
     # Normal call
-    trace.spans.append(_make_span(
-        "research_planner", SpanKind.LLM, duration_ms=80,
-        input_tokens=900, output_tokens=220,
-        model="claude-sonnet-4-20250514",
-        parent_span_id=agent_span.span_id, trace_id=trace.trace_id,
-    ))
+    trace.spans.append(
+        _make_span(
+            "research_planner",
+            SpanKind.LLM,
+            duration_ms=80,
+            input_tokens=900,
+            output_tokens=220,
+            model="claude-sonnet-4-20250514",
+            parent_span_id=agent_span.span_id,
+            trace_id=trace.trace_id,
+        )
+    )
     # Massive cost spike call using expensive model
-    trace.spans.append(_make_span(
-        "content_synthesiser", SpanKind.LLM, duration_ms=600,
-        input_tokens=80_000, output_tokens=5_000,
-        model="claude-opus-4-20250514",
-        parent_span_id=agent_span.span_id, trace_id=trace.trace_id,
-    ))
+    trace.spans.append(
+        _make_span(
+            "content_synthesiser",
+            SpanKind.LLM,
+            duration_ms=600,
+            input_tokens=80_000,
+            output_tokens=5_000,
+            model="claude-opus-4-20250514",
+            parent_span_id=agent_span.span_id,
+            trace_id=trace.trace_id,
+        )
+    )
 
     return _finish_trace(trace)
 
@@ -288,26 +380,44 @@ def _degraded_latency_trace(index: int, multiplier: float = 1.0) -> Trace:
     base_duration = 300 * multiplier
 
     agent_span = _make_span(
-        "research_agent", SpanKind.AGENT, duration_ms=base_duration,
+        "research_agent",
+        SpanKind.AGENT,
+        duration_ms=base_duration,
         trace_id=trace.trace_id,
     )
     trace.spans.append(agent_span)
     trace.root_span_id = agent_span.span_id
 
-    trace.spans.append(_make_span(
-        "research_planner", SpanKind.LLM, duration_ms=80 * multiplier,
-        input_tokens=int(900 * multiplier), output_tokens=220,
-        model="claude-sonnet-4-20250514",
-        parent_span_id=agent_span.span_id, trace_id=trace.trace_id,
-    ))
-    trace.spans.append(_make_span(
-        "vector_search", SpanKind.RETRIEVAL, duration_ms=40 * multiplier,
-        parent_span_id=agent_span.span_id, trace_id=trace.trace_id,
-    ))
-    trace.spans.append(_make_span(
-        "web_search", SpanKind.TOOL, duration_ms=90 * multiplier,
-        parent_span_id=agent_span.span_id, trace_id=trace.trace_id,
-    ))
+    trace.spans.append(
+        _make_span(
+            "research_planner",
+            SpanKind.LLM,
+            duration_ms=80 * multiplier,
+            input_tokens=int(900 * multiplier),
+            output_tokens=220,
+            model="claude-sonnet-4-20250514",
+            parent_span_id=agent_span.span_id,
+            trace_id=trace.trace_id,
+        )
+    )
+    trace.spans.append(
+        _make_span(
+            "vector_search",
+            SpanKind.RETRIEVAL,
+            duration_ms=40 * multiplier,
+            parent_span_id=agent_span.span_id,
+            trace_id=trace.trace_id,
+        )
+    )
+    trace.spans.append(
+        _make_span(
+            "web_search",
+            SpanKind.TOOL,
+            duration_ms=90 * multiplier,
+            parent_span_id=agent_span.span_id,
+            trace_id=trace.trace_id,
+        )
+    )
 
     return _finish_trace(trace)
 
@@ -315,6 +425,7 @@ def _degraded_latency_trace(index: int, multiplier: float = 1.0) -> Trace:
 # ───────────────────────────────────────────────────────────────────────────
 # Build the full trace set
 # ───────────────────────────────────────────────────────────────────────────
+
 
 def build_trace_set() -> list[Trace]:
     """
@@ -358,6 +469,7 @@ def build_trace_set() -> list[Trace]:
 # Pretty-print the correlation report
 # ───────────────────────────────────────────────────────────────────────────
 
+
 def print_report(report: CorrelationReport, traces: list[Trace]) -> None:
     """Render the CorrelationReport in a colourful terminal layout."""
 
@@ -369,9 +481,11 @@ def print_report(report: CorrelationReport, traces: list[Trace]) -> None:
     err_pct = report.overall_error_rate * 100
 
     row("Total traces analysed", str(total), CYAN)
-    row("Overall error rate",
+    row(
+        "Overall error rate",
         f"{err_pct:.1f}%  [{int(err_pct / 100 * total)}/{total} traces]",
-        RED if err_pct > 30 else YELLOW if err_pct > 10 else GREEN)
+        RED if err_pct > 30 else YELLOW if err_pct > 10 else GREEN,
+    )
     row("Avg duration", f"{report.avg_duration_ms:.1f} ms", CYAN)
     row("Avg total tokens", f"{report.avg_total_tokens:,.0f}", YELLOW)
     row("Avg total cost", f"${report.avg_total_cost_usd:.5f}", YELLOW)
@@ -387,7 +501,14 @@ def print_report(report: CorrelationReport, traces: list[Trace]) -> None:
     max_count = max(scenarios.values()) if scenarios else 1
     for scenario, count in sorted(scenarios.items(), key=lambda x: -x[1]):
         bar = hbar(count, max_count, width=20, color=CYAN)
-        color = RED if "timeout" in scenario or "retry" in scenario or "cost" in scenario or "context" in scenario else GREEN if scenario == "healthy" else YELLOW
+        color = (
+            RED
+            if "timeout" in scenario
+            or "retry" in scenario
+            or "cost" in scenario
+            or "context" in scenario
+            else GREEN if scenario == "healthy" else YELLOW
+        )
         print(f"    {c(scenario + ':',DIM):<28}  {bar}  {c(str(count), color)}")
 
     # ── Recurring Failures ────────────────────────────────────────────────
@@ -400,9 +521,15 @@ def print_report(report: CorrelationReport, traces: list[Trace]) -> None:
             rate_pct = rf.occurrence_rate * 100
             color = RED if rate_pct >= 70 else YELLOW
             print(c(f"  [{i}] {rf.error_message[:80]}", color, BOLD))
-            print(f"      Rate    : {c(f'{rate_pct:.0f}%', color)}  ({rf.occurrence_count}/{rf.total_traces} traces)")
-            print(f"      Spans   : {c(', '.join(dict.fromkeys(rf.affected_span_names))[:80], DIM)}")
-            print(f"      Traces  : {c(', '.join(t[:12] for t in rf.affected_trace_ids[:3]) + '...', DIM)}")
+            print(
+                f"      Rate    : {c(f'{rate_pct:.0f}%', color)}  ({rf.occurrence_count}/{rf.total_traces} traces)"
+            )
+            print(
+                f"      Spans   : {c(', '.join(dict.fromkeys(rf.affected_span_names))[:80], DIM)}"
+            )
+            print(
+                f"      Traces  : {c(', '.join(t[:12] for t in rf.affected_trace_ids[:3]) + '...', DIM)}"
+            )
             print()
 
     # ── Performance Trends ────────────────────────────────────────────────
@@ -437,7 +564,9 @@ def print_report(report: CorrelationReport, traces: list[Trace]) -> None:
             rate_pct = ap.occurrence_rate * 100
             bar = hbar(rate_pct, 100, width=20, color=RED if rate_pct >= 70 else YELLOW)
             print(f"  {c(ap.pattern_type.value, RED if rate_pct >= 70 else YELLOW, BOLD)}")
-            print(f"     Occurrence  :  {bar}  {c(f'{rate_pct:.0f}%', RED if rate_pct >= 70 else YELLOW)}")
+            print(
+                f"     Occurrence  :  {bar}  {c(f'{rate_pct:.0f}%', RED if rate_pct >= 70 else YELLOW)}"
+            )
             print(f"     Count       :  {ap.occurrence_count}/{ap.total_traces} traces")
             print()
 
@@ -486,7 +615,11 @@ def print_report(report: CorrelationReport, traces: list[Trace]) -> None:
         recs.append("[INFO] No systemic issues found — fleet health looks good.")
 
     for rec in recs:
-        icon = c("●", RED) if "CRITICAL" in rec else c("◆", YELLOW) if "WARNING" in rec else c("○", BLUE)
+        icon = (
+            c("●", RED)
+            if "CRITICAL" in rec
+            else c("◆", YELLOW) if "WARNING" in rec else c("○", BLUE)
+        )
         print(f"  {icon}  {rec}")
 
     print()
@@ -498,7 +631,10 @@ def print_report(report: CorrelationReport, traces: list[Trace]) -> None:
 # JSON export
 # ───────────────────────────────────────────────────────────────────────────
 
-def export_json(report: CorrelationReport, path: str = "/tmp/flowlens_correlation_report.json") -> str:
+
+def export_json(
+    report: CorrelationReport, path: str = "/tmp/flowlens_correlation_report.json"
+) -> str:
     """Serialise the CorrelationReport to a JSON file and return the path."""
     data = {
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -514,6 +650,7 @@ def export_json(report: CorrelationReport, path: str = "/tmp/flowlens_correlatio
 # Main
 # ───────────────────────────────────────────────────────────────────────────
 
+
 def main() -> None:
     banner("FlowLens — Multi-Trace Correlation Analysis")
 
@@ -528,27 +665,39 @@ def main() -> None:
         scenario_counts[s] = scenario_counts.get(s, 0) + 1
 
     for scenario, count in sorted(scenario_counts.items(), key=lambda x: -x[1]):
-        color = GREEN if scenario == "healthy" else RED if "timeout" in scenario or "retry" in scenario else YELLOW
+        color = (
+            GREEN
+            if scenario == "healthy"
+            else RED if "timeout" in scenario or "retry" in scenario else YELLOW
+        )
         print(f"    {c('▸', color)}  {scenario:<25}  {c(str(count) + ' trace(s)', color)}")
 
     # ── Step 2: Correlate ─────────────────────────────────────────────────
     section("Running Correlator")
-    print(f"  {c('correlate_traces(traces, failure_threshold=0.2, anti_pattern_threshold=0.15)', DIM)}")
+    print(
+        f"  {c('correlate_traces(traces, failure_threshold=0.2, anti_pattern_threshold=0.15)', DIM)}"
+    )
     print()
 
     t0 = time.perf_counter()
     report = correlate_traces(
         traces,
-        failure_threshold=0.20,       # report errors in > 20% of traces
+        failure_threshold=0.20,  # report errors in > 20% of traces
         anti_pattern_threshold=0.15,  # report patterns in > 15% of traces
-        trend_min_traces=3,           # need at least 3 traces for trend detection
+        trend_min_traces=3,  # need at least 3 traces for trend detection
     )
     elapsed_ms = (time.perf_counter() - t0) * 1000
 
     print(f"  {c('✓', GREEN)} Correlation completed in {elapsed_ms:.1f}ms")
-    print(f"    Recurring failures   : {c(str(len(report.recurring_failures)), RED if report.recurring_failures else GREEN)}")
-    print(f"    Performance trends   : {c(str(len(report.performance_trends)), YELLOW if report.performance_trends else GREEN)}")
-    print(f"    Common anti-patterns : {c(str(len(report.common_anti_patterns)), YELLOW if report.common_anti_patterns else GREEN)}")
+    print(
+        f"    Recurring failures   : {c(str(len(report.recurring_failures)), RED if report.recurring_failures else GREEN)}"
+    )
+    print(
+        f"    Performance trends   : {c(str(len(report.performance_trends)), YELLOW if report.performance_trends else GREEN)}"
+    )
+    print(
+        f"    Common anti-patterns : {c(str(len(report.common_anti_patterns)), YELLOW if report.common_anti_patterns else GREEN)}"
+    )
 
     # ── Step 3: Pretty print report ───────────────────────────────────────
     print_report(report, traces)
@@ -563,7 +712,11 @@ def main() -> None:
     data = report.to_dict()
     print(c("  JSON structure preview:", DIM))
     snippet = json.dumps(
-        {k: v for k, v in data.items() if k in ("total_traces", "overall_error_rate", "avg_duration_ms", "avg_total_cost_usd")},
+        {
+            k: v
+            for k, v in data.items()
+            if k in ("total_traces", "overall_error_rate", "avg_duration_ms", "avg_total_cost_usd")
+        },
         indent=4,
     )
     for line in snippet.split("\n"):
@@ -578,7 +731,12 @@ def main() -> None:
         print(f"    {c('...', DIM)}")
 
     print()
-    print(c("  Done! Load the full JSON in any BI tool, Jupyter notebook, or FlowLens dashboard.", DIM))
+    print(
+        c(
+            "  Done! Load the full JSON in any BI tool, Jupyter notebook, or FlowLens dashboard.",
+            DIM,
+        )
+    )
     print()
 
 

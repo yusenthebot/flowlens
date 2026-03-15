@@ -63,6 +63,7 @@ from _utils import (
 # Trace payload builder (mirrors the server ingest format)
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def _make_trace_payload(
     scenario: str,
     service: str = "demo-agent",
@@ -74,32 +75,44 @@ def _make_trace_payload(
     extra_spans: list | None = None,
 ) -> dict:
     """Build a complete trace ingest payload."""
-    now       = time.time() - random.uniform(0, 3600)  # random time in last hour
-    trace_id  = uuid.uuid4().hex
+    now = time.time() - random.uniform(0, 3600)  # random time in last hour
+    trace_id = uuid.uuid4().hex
     agent_sid = uuid.uuid4().hex[:16]
-    llm_sid   = uuid.uuid4().hex[:16]
-    tool_sid  = uuid.uuid4().hex[:16]
-    ret_sid   = uuid.uuid4().hex[:16]
+    llm_sid = uuid.uuid4().hex[:16]
+    tool_sid = uuid.uuid4().hex[:16]
+    ret_sid = uuid.uuid4().hex[:16]
 
     token_total = input_tokens + output_tokens
-    cost_usd    = input_tokens / 1_000_000 * 3.0 + output_tokens / 1_000_000 * 15.0
+    cost_usd = input_tokens / 1_000_000 * 3.0 + output_tokens / 1_000_000 * 15.0
 
     spans = [
         {
-            "span_id": agent_sid, "trace_id": trace_id, "parent_span_id": None,
-            "name": "research_agent", "kind": "agent",
+            "span_id": agent_sid,
+            "trace_id": trace_id,
+            "parent_span_id": None,
+            "name": "research_agent",
+            "kind": "agent",
             "status": "error" if has_error else "ok",
-            "start_time": now, "end_time": now + agent_duration_ms / 1000,
-            "duration_ms": agent_duration_ms, "attributes": {"scenario": scenario},
+            "start_time": now,
+            "end_time": now + agent_duration_ms / 1000,
+            "duration_ms": agent_duration_ms,
+            "attributes": {"scenario": scenario},
             "events": [],
-            "error": {"message": "web_search timed out after 30s", "type": "TimeoutError"}
-                     if has_error else None,
+            "error": (
+                {"message": "web_search timed out after 30s", "type": "TimeoutError"}
+                if has_error
+                else None
+            ),
         },
         {
-            "span_id": llm_sid, "trace_id": trace_id, "parent_span_id": agent_sid,
-            "name": "research_planner", "kind": "llm",
+            "span_id": llm_sid,
+            "trace_id": trace_id,
+            "parent_span_id": agent_sid,
+            "name": "research_planner",
+            "kind": "llm",
             "status": "ok",
-            "start_time": now + 0.01, "end_time": now + 0.09,
+            "start_time": now + 0.01,
+            "end_time": now + 0.09,
             "duration_ms": 80,
             "attributes": {
                 "gen_ai.request.model": model,
@@ -108,31 +121,44 @@ def _make_trace_payload(
             },
             "events": [],
             "token_usage": {
-                "input_tokens": input_tokens, "output_tokens": output_tokens,
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
                 "total_tokens": token_total,
-                "input_cost_usd":  round(input_tokens  / 1_000_000 * 3.0,  6),
+                "input_cost_usd": round(input_tokens / 1_000_000 * 3.0, 6),
                 "output_cost_usd": round(output_tokens / 1_000_000 * 15.0, 6),
-                "total_cost_usd":  round(cost_usd, 6),
+                "total_cost_usd": round(cost_usd, 6),
             },
         },
         {
-            "span_id": ret_sid, "trace_id": trace_id, "parent_span_id": agent_sid,
-            "name": "vector_search", "kind": "retrieval",
+            "span_id": ret_sid,
+            "trace_id": trace_id,
+            "parent_span_id": agent_sid,
+            "name": "vector_search",
+            "kind": "retrieval",
             "status": "ok",
-            "start_time": now + 0.09, "end_time": now + 0.13,
-            "duration_ms": 40, "attributes": {"retrieval.top_k": 3}, "events": [],
+            "start_time": now + 0.09,
+            "end_time": now + 0.13,
+            "duration_ms": 40,
+            "attributes": {"retrieval.top_k": 3},
+            "events": [],
         },
         {
-            "span_id": tool_sid, "trace_id": trace_id, "parent_span_id": agent_sid,
-            "name": "web_search", "kind": "tool",
+            "span_id": tool_sid,
+            "trace_id": trace_id,
+            "parent_span_id": agent_sid,
+            "name": "web_search",
+            "kind": "tool",
             "status": "error" if has_error else "ok",
             "start_time": now + 0.13,
             "end_time": now + (30.0 if has_error else 0.32),
             "duration_ms": 30_000 if has_error else 190,
             "attributes": {"tool.input.query": f"query for {scenario}"},
             "events": [],
-            "error": {"message": "web_search timed out after 30s", "type": "TimeoutError"}
-                     if has_error else None,
+            "error": (
+                {"message": "web_search timed out after 30s", "type": "TimeoutError"}
+                if has_error
+                else None
+            ),
         },
     ]
 
@@ -161,61 +187,83 @@ def build_sample_traces() -> list[dict]:
 
     # 8 healthy traces (varying token counts, latencies)
     for i in range(8):
-        traces.append(_make_trace_payload(
-            "healthy", input_tokens=random.randint(600, 1400),
-            output_tokens=random.randint(150, 350),
-            agent_duration_ms=random.uniform(200, 600),
-        ))
+        traces.append(
+            _make_trace_payload(
+                "healthy",
+                input_tokens=random.randint(600, 1400),
+                output_tokens=random.randint(150, 350),
+                agent_duration_ms=random.uniform(200, 600),
+            )
+        )
 
     # 4 timeout-cascade error traces
     for i in range(4):
-        traces.append(_make_trace_payload(
-            "timeout_cascade", has_error=True,
-            input_tokens=random.randint(800, 1200), output_tokens=200,
-            agent_duration_ms=30_500,
-        ))
+        traces.append(
+            _make_trace_payload(
+                "timeout_cascade",
+                has_error=True,
+                input_tokens=random.randint(800, 1200),
+                output_tokens=200,
+                agent_duration_ms=30_500,
+            )
+        )
 
     # 3 cost-spike traces (massive input tokens)
     for i in range(3):
-        traces.append(_make_trace_payload(
-            "cost_spike",
-            input_tokens=random.randint(80_000, 150_000),
-            output_tokens=random.randint(100, 200),
-            model="claude-opus-4-20250514",
-            agent_duration_ms=random.uniform(400, 800),
-        ))
+        traces.append(
+            _make_trace_payload(
+                "cost_spike",
+                input_tokens=random.randint(80_000, 150_000),
+                output_tokens=random.randint(100, 200),
+                model="claude-opus-4-20250514",
+                agent_duration_ms=random.uniform(400, 800),
+            )
+        )
 
     # 3 retry-storm traces (many tool spans)
     for i in range(3):
         extra = []
         parent_sid = uuid.uuid4().hex[:16]  # reuse agent sid conceptually
         for j in range(6):
-            extra.append({
-                "span_id": uuid.uuid4().hex[:16],
-                "trace_id": "",  # filled in by payload builder
-                "parent_span_id": parent_sid,
-                "name": "web_search",
-                "kind": "tool",
-                "status": "error" if j < 5 else "ok",
-                "start_time": time.time() + j * 0.05,
-                "end_time":   time.time() + j * 0.05 + 0.03,
-                "duration_ms": 30,
-                "attributes": {}, "events": [],
-                "error": {"message": "Connection refused", "type": "ConnectionError"}
-                         if j < 5 else None,
-            })
-        traces.append(_make_trace_payload(
-            "retry_storm", input_tokens=900, output_tokens=200,
-            agent_duration_ms=random.uniform(600, 1200),
-        ))
+            extra.append(
+                {
+                    "span_id": uuid.uuid4().hex[:16],
+                    "trace_id": "",  # filled in by payload builder
+                    "parent_span_id": parent_sid,
+                    "name": "web_search",
+                    "kind": "tool",
+                    "status": "error" if j < 5 else "ok",
+                    "start_time": time.time() + j * 0.05,
+                    "end_time": time.time() + j * 0.05 + 0.03,
+                    "duration_ms": 30,
+                    "attributes": {},
+                    "events": [],
+                    "error": (
+                        {"message": "Connection refused", "type": "ConnectionError"}
+                        if j < 5
+                        else None
+                    ),
+                }
+            )
+        traces.append(
+            _make_trace_payload(
+                "retry_storm",
+                input_tokens=900,
+                output_tokens=200,
+                agent_duration_ms=random.uniform(600, 1200),
+            )
+        )
 
     # 2 degraded latency traces
     for mult in [2.0, 4.0]:
-        traces.append(_make_trace_payload(
-            "degraded_latency",
-            input_tokens=int(900 * mult), output_tokens=220,
-            agent_duration_ms=300 * mult,
-        ))
+        traces.append(
+            _make_trace_payload(
+                "degraded_latency",
+                input_tokens=int(900 * mult),
+                output_tokens=220,
+                agent_duration_ms=300 * mult,
+            )
+        )
 
     return traces
 
@@ -223,6 +271,7 @@ def build_sample_traces() -> list[dict]:
 # ─────────────────────────────────────────────────────────────────────────────
 # Server management
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def _find_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -267,10 +316,12 @@ def _ingest_trace(port: int, payload: dict) -> bool:
     """POST a trace payload to the server. Returns True on success."""
     try:
         import urllib.request
+
         body = json.dumps(payload).encode()
-        req  = urllib.request.Request(
+        req = urllib.request.Request(
             f"http://127.0.0.1:{port}/v1/traces/ingest",
-            data=body, method="POST",
+            data=body,
+            method="POST",
             headers={"Content-Type": "application/json"},
         )
         with urllib.request.urlopen(req, timeout=3) as resp:
@@ -282,6 +333,7 @@ def _ingest_trace(port: int, payload: dict) -> bool:
 # ─────────────────────────────────────────────────────────────────────────────
 # Console-only fallback summary (when uvicorn not available)
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def print_console_summary(traces: list[dict]) -> None:
     """Print a rich summary of the sample traces when the server isn't available."""
@@ -296,10 +348,10 @@ def print_console_summary(traces: list[dict]) -> None:
     max_count = max(scenario_counts.values()) if scenario_counts else 1
     print(c("  Scenario distribution:", BRIGHT_WHITE, BOLD))
     sev_colors = {
-        "healthy":          BRIGHT_GREEN,
-        "timeout_cascade":  BRIGHT_RED,
-        "cost_spike":       BRIGHT_YELLOW,
-        "retry_storm":      BRIGHT_YELLOW,
+        "healthy": BRIGHT_GREEN,
+        "timeout_cascade": BRIGHT_RED,
+        "cost_spike": BRIGHT_YELLOW,
+        "retry_storm": BRIGHT_YELLOW,
         "degraded_latency": BRIGHT_BLUE,
     }
     for scenario, count in sorted(scenario_counts.items(), key=lambda x: -x[1]):
@@ -309,21 +361,24 @@ def print_console_summary(traces: list[dict]) -> None:
     print()
 
     # Aggregate stats
-    error_count  = sum(1 for t in traces if t.get("has_errors"))
+    error_count = sum(1 for t in traces if t.get("has_errors"))
     total_tokens = sum(t["total_tokens"] for t in traces)
-    total_cost   = sum(t["total_cost_usd"] for t in traces)
+    total_cost = sum(t["total_cost_usd"] for t in traces)
     avg_duration = sum(t["duration_ms"] for t in traces) / len(traces) if traces else 0
 
     print_table(
         ["Metric", "Value"],
         [
-            ["Total traces",       c(str(len(traces)), BRIGHT_CYAN)],
-            ["Error traces",       c(str(error_count), BRIGHT_RED)],
-            ["Error rate",         c(f"{error_count / len(traces) if traces else 0:.0%}", BRIGHT_RED)],
-            ["Total tokens",       c(f"{total_tokens:,}", BRIGHT_YELLOW)],
-            ["Total cost",         c(f"${total_cost:.4f}", BRIGHT_GREEN)],
-            ["Avg cost/trace",     c(f"${total_cost / len(traces) if traces else 0:.5f}", BRIGHT_GREEN)],
-            ["Avg duration",       c(f"{avg_duration:.0f} ms", BRIGHT_CYAN)],
+            ["Total traces", c(str(len(traces)), BRIGHT_CYAN)],
+            ["Error traces", c(str(error_count), BRIGHT_RED)],
+            ["Error rate", c(f"{error_count / len(traces) if traces else 0:.0%}", BRIGHT_RED)],
+            ["Total tokens", c(f"{total_tokens:,}", BRIGHT_YELLOW)],
+            ["Total cost", c(f"${total_cost:.4f}", BRIGHT_GREEN)],
+            [
+                "Avg cost/trace",
+                c(f"${total_cost / len(traces) if traces else 0:.5f}", BRIGHT_GREEN),
+            ],
+            ["Avg duration", c(f"{avg_duration:.0f} ms", BRIGHT_CYAN)],
         ],
         colors=[DIM, BRIGHT_WHITE],
         title="Aggregate Metrics",
@@ -334,13 +389,44 @@ def print_console_summary(traces: list[dict]) -> None:
 # Main
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def main() -> None:
     # Banner
-    print(c("\n╔══════════════════════════════════════════════════════════════════════╗", BRIGHT_CYAN, BOLD))
-    print(c("║         F L O W L E N S   —   Agent Observability Platform           ║", BRIGHT_CYAN, BOLD))
-    print(c("║         Example: Live Dashboard                                      ║", BRIGHT_CYAN, BOLD))
-    print(c("║         Generates traces → saves to DB → launches server → browser  ║", BRIGHT_CYAN, BOLD))
-    print(c("╚══════════════════════════════════════════════════════════════════════╝", BRIGHT_CYAN, BOLD))
+    print(
+        c(
+            "\n╔══════════════════════════════════════════════════════════════════════╗",
+            BRIGHT_CYAN,
+            BOLD,
+        )
+    )
+    print(
+        c(
+            "║         F L O W L E N S   —   Agent Observability Platform           ║",
+            BRIGHT_CYAN,
+            BOLD,
+        )
+    )
+    print(
+        c(
+            "║         Example: Live Dashboard                                      ║",
+            BRIGHT_CYAN,
+            BOLD,
+        )
+    )
+    print(
+        c(
+            "║         Generates traces → saves to DB → launches server → browser  ║",
+            BRIGHT_CYAN,
+            BOLD,
+        )
+    )
+    print(
+        c(
+            "╚══════════════════════════════════════════════════════════════════════╝",
+            BRIGHT_CYAN,
+            BOLD,
+        )
+    )
     print()
 
     # Step 1: Generate traces
@@ -355,8 +441,10 @@ def main() -> None:
         scenario_counts[s] = scenario_counts.get(s, 0) + 1
 
     sev_colors = {
-        "healthy": BRIGHT_GREEN, "timeout_cascade": BRIGHT_RED,
-        "cost_spike": BRIGHT_YELLOW, "retry_storm": BRIGHT_YELLOW,
+        "healthy": BRIGHT_GREEN,
+        "timeout_cascade": BRIGHT_RED,
+        "cost_spike": BRIGHT_YELLOW,
+        "retry_storm": BRIGHT_YELLOW,
         "degraded_latency": BRIGHT_BLUE,
     }
     for scenario, count in sorted(scenario_counts.items(), key=lambda x: -x[1]):
@@ -371,6 +459,7 @@ def main() -> None:
 
     try:
         import uvicorn  # noqa: F401
+
         server_available = True
     except ImportError:
         server_available = False
@@ -421,17 +510,17 @@ def main() -> None:
     section("Step 4 — Dashboard & API Explorer")
 
     dashboard_url = f"http://127.0.0.1:{port}"
-    api_base      = f"http://127.0.0.1:{port}/v1"
+    api_base = f"http://127.0.0.1:{port}/v1"
 
     print(c("  Dashboard URLs:", BRIGHT_WHITE, BOLD))
     endpoints = [
-        ("Main dashboard",       f"{dashboard_url}/",                              "Visual trace explorer"),
-        ("All traces (JSON)",    f"{api_base}/traces",                             "Paginated list"),
-        ("Error traces",         f"{api_base}/traces/errors",                      "Only failed traces"),
-        ("Global stats",         f"{api_base}/stats",                              "Token/cost/error summary"),
-        ("Cost breakdown",       f"{api_base}/cost/breakdown",                     "Cost by model & span"),
-        ("Pattern summary",      f"{api_base}/patterns/summary",                   "Fleet-wide pattern stats"),
-        ("Health check",         f"{dashboard_url}/health",                        "Server health"),
+        ("Main dashboard", f"{dashboard_url}/", "Visual trace explorer"),
+        ("All traces (JSON)", f"{api_base}/traces", "Paginated list"),
+        ("Error traces", f"{api_base}/traces/errors", "Only failed traces"),
+        ("Global stats", f"{api_base}/stats", "Token/cost/error summary"),
+        ("Cost breakdown", f"{api_base}/cost/breakdown", "Cost by model & span"),
+        ("Pattern summary", f"{api_base}/patterns/summary", "Fleet-wide pattern stats"),
+        ("Health check", f"{dashboard_url}/health", "Server health"),
     ]
     for label, url, desc in endpoints:
         print(f"    {c(label + ':', DIM):<26}  {c(url, BRIGHT_CYAN)}  {c('# ' + desc, DIM)}")
@@ -439,9 +528,9 @@ def main() -> None:
 
     print(c("  curl commands:", BRIGHT_WHITE, BOLD))
     curl_examples = [
-        ("List traces",    f"curl -s http://127.0.0.1:{port}/v1/traces | python3 -m json.tool"),
-        ("Error traces",   f"curl -s http://127.0.0.1:{port}/v1/traces/errors"),
-        ("Stats",          f"curl -s http://127.0.0.1:{port}/v1/stats | python3 -m json.tool"),
+        ("List traces", f"curl -s http://127.0.0.1:{port}/v1/traces | python3 -m json.tool"),
+        ("Error traces", f"curl -s http://127.0.0.1:{port}/v1/traces/errors"),
+        ("Stats", f"curl -s http://127.0.0.1:{port}/v1/stats | python3 -m json.tool"),
         ("Cost breakdown", f"curl -s http://127.0.0.1:{port}/v1/cost/breakdown"),
     ]
     for label, cmd in curl_examples:

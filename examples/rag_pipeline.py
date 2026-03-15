@@ -69,7 +69,8 @@ from _utils import (
 # ── Simulated knowledge base ─────────────────────────────────────────────────
 KNOWLEDGE_BASE = [
     {
-        "id": "kb_001", "title": "Agentic AI Architectures 2026",
+        "id": "kb_001",
+        "title": "Agentic AI Architectures 2026",
         "content": (
             "Modern AI agents combine tool use, persistent memory, and self-reflection. "
             "ReAct, Toolformer, and AutoGPT patterns have converged into unified frameworks. "
@@ -78,7 +79,8 @@ KNOWLEDGE_BASE = [
         "embedding": [0.82, 0.91, 0.74, 0.66, 0.88],
     },
     {
-        "id": "kb_002", "title": "RAG Best Practices",
+        "id": "kb_002",
+        "title": "RAG Best Practices",
         "content": (
             "Hybrid search (dense + sparse BM25) outperforms pure vector search by 40%. "
             "Reranking with a cross-encoder adds 15–25% accuracy over bi-encoder retrieval. "
@@ -87,7 +89,8 @@ KNOWLEDGE_BASE = [
         "embedding": [0.78, 0.95, 0.61, 0.72, 0.83],
     },
     {
-        "id": "kb_003", "title": "LLM Cost Optimisation",
+        "id": "kb_003",
+        "title": "LLM Cost Optimisation",
         "content": (
             "Prompt compression, model routing, and semantic caching reduce costs by 40–70%. "
             "Use a small model for retrieval scoring and a large model only for final synthesis. "
@@ -96,7 +99,8 @@ KNOWLEDGE_BASE = [
         "embedding": [0.69, 0.77, 0.93, 0.58, 0.71],
     },
     {
-        "id": "kb_004", "title": "Observability for LLM Systems",
+        "id": "kb_004",
+        "title": "Observability for LLM Systems",
         "content": (
             "OpenTelemetry-compatible tracing, token accounting, and causal DAG analysis "
             "are essential for debugging production agents. FlowLens provides all three "
@@ -105,7 +109,8 @@ KNOWLEDGE_BASE = [
         "embedding": [0.55, 0.68, 0.79, 0.94, 0.62],
     },
     {
-        "id": "kb_005", "title": "Vector Search Fundamentals",
+        "id": "kb_005",
+        "title": "Vector Search Fundamentals",
         "content": (
             "Approximate Nearest Neighbour (ANN) search over dense embeddings enables "
             "semantic similarity retrieval at scale. HNSW and IVF indexes trade recall "
@@ -114,6 +119,7 @@ KNOWLEDGE_BASE = [
         "embedding": [0.91, 0.63, 0.55, 0.77, 0.89],
     },
 ]
+
 
 # ── Fake LLM response (Anthropic SDK shape) ──────────────────────────────────
 class FakeLLM:
@@ -127,20 +133,21 @@ class FakeLLM:
 # Pipeline stages
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 @trace_embedding(name="embed_query")
 async def embed_query(query: str) -> list[float]:
     """Convert user query to a dense embedding vector (simulated)."""
     await asyncio.sleep(random.uniform(0.01, 0.03))
     # Simulate an embedding — random unit-ish vector
     vec = [random.uniform(0.5, 1.0) for _ in range(5)]
-    norm = sum(v ** 2 for v in vec) ** 0.5
+    norm = sum(v**2 for v in vec) ** 0.5
     return [round(v / norm, 4) for v in vec]
 
 
 def _cosine_sim(a: list[float], b: list[float]) -> float:
     dot = sum(x * y for x, y in zip(a, b))
-    na  = sum(x ** 2 for x in a) ** 0.5
-    nb  = sum(x ** 2 for x in b) ** 0.5
+    na = sum(x**2 for x in a) ** 0.5
+    nb = sum(x**2 for x in b) ** 0.5
     return dot / (na * nb) if na * nb > 0 else 0.0
 
 
@@ -249,7 +256,7 @@ async def rag_agent(query: str) -> dict:
     for doc in candidates:
         bar = hbar(doc["score"], 1.0, width=16, color=BRIGHT_GREEN)
         score_str = c(f"{doc['score']:.3f}", BRIGHT_GREEN)
-        title_str = c(doc['title'], DIM)
+        title_str = c(doc["title"], DIM)
         print(f"    {bar}  {score_str}  {title_str}")
 
     # Stage 3: rerank
@@ -259,7 +266,7 @@ async def rag_agent(query: str) -> dict:
     for doc in top_docs:
         bar = hbar(doc["rerank_score"], 1.0, width=16, color=BRIGHT_CYAN)
         rscore_str = c(f"{doc['rerank_score']:.3f}", BRIGHT_CYAN)
-        rtitle_str = c(doc['title'], DIM)
+        rtitle_str = c(doc["title"], DIM)
         print(f"    {bar}  {rscore_str}  {rtitle_str}")
 
     # Stage 4: build prompt
@@ -278,12 +285,12 @@ async def rag_agent(query: str) -> dict:
     )
 
     return {
-        "query":       query,
-        "answer":      response.content[0].text,
-        "sources":     [d["title"] for d in top_docs],
-        "total_ms":    elapsed_ms,
-        "input_tok":   response.usage.input_tokens,
-        "output_tok":  response.usage.output_tokens,
+        "query": query,
+        "answer": response.content[0].text,
+        "sources": [d["title"] for d in top_docs],
+        "total_ms": elapsed_ms,
+        "input_tok": response.usage.input_tokens,
+        "output_tok": response.usage.output_tokens,
     }
 
 
@@ -291,12 +298,13 @@ async def rag_agent(query: str) -> dict:
 # Analysis & pretty report
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def print_analysis(trace: Trace) -> None:
     """Run FlowLens analysis and print results."""
-    dag      = build_causal_dag(trace)
+    dag = build_causal_dag(trace)
     patterns = detect_patterns(trace, dag)
-    advisor  = TraceAdvisor(trace=trace, dag=dag, patterns=patterns, traces_per_month=10_000)
-    report   = advisor.generate_report()
+    advisor = TraceAdvisor(trace=trace, dag=dag, patterns=patterns, traces_per_month=10_000)
+    report = advisor.generate_report()
 
     section("Trace Tree")
     print_trace_tree(trace)
@@ -307,17 +315,20 @@ def print_analysis(trace: Trace) -> None:
     for span in trace.spans:
         if span.token_usage and span.token_usage.total_tokens:
             model = span.attributes.get("gen_ai.request.model", "—")
-            rows.append([
-                span.name,
-                span.kind.value.upper(),
-                model,
-                f"{span.token_usage.input_tokens:,}",
-                f"{span.token_usage.output_tokens:,}",
-                f"${span.token_usage.total_cost_usd:.6f}",
-            ])
+            rows.append(
+                [
+                    span.name,
+                    span.kind.value.upper(),
+                    model,
+                    f"{span.token_usage.input_tokens:,}",
+                    f"{span.token_usage.output_tokens:,}",
+                    f"${span.token_usage.total_cost_usd:.6f}",
+                ]
+            )
     if rows:
         print_table(
-            headers, rows,
+            headers,
+            rows,
             colors=[BRIGHT_WHITE, BRIGHT_CYAN, DIM, BRIGHT_YELLOW, BRIGHT_YELLOW, BRIGHT_GREEN],
         )
     else:
@@ -328,9 +339,17 @@ def print_analysis(trace: Trace) -> None:
     score = report["severity_score"]
     score_col = BRIGHT_GREEN if score < 30 else BRIGHT_YELLOW if score < 60 else BRIGHT_RED
     progress("Health score (lower = better)", score, 100, f"{score}/100", score_col)
-    progress("Total tokens used",    trace.total_tokens, 5000, f"{trace.total_tokens:,} tok", BRIGHT_YELLOW)
-    progress("Total cost",           trace.total_cost_usd * 100_000, 50, f"${trace.total_cost_usd:.6f}", BRIGHT_GREEN)
-    progress("Pipeline latency",     trace.duration_ms, 500, f"{trace.duration_ms:.0f} ms", BRIGHT_CYAN)
+    progress(
+        "Total tokens used", trace.total_tokens, 5000, f"{trace.total_tokens:,} tok", BRIGHT_YELLOW
+    )
+    progress(
+        "Total cost",
+        trace.total_cost_usd * 100_000,
+        50,
+        f"${trace.total_cost_usd:.6f}",
+        BRIGHT_GREEN,
+    )
+    progress("Pipeline latency", trace.duration_ms, 500, f"{trace.duration_ms:.0f} ms", BRIGHT_CYAN)
     print()
 
     # Patterns
@@ -339,17 +358,19 @@ def print_analysis(trace: Trace) -> None:
         sev_colors = {"critical": BRIGHT_RED, "warning": BRIGHT_YELLOW, "info": BRIGHT_BLUE}
         for p in patterns:
             col = sev_colors.get(p.severity, WHITE)
-            print(f"  {c(f'[{p.severity.upper()}]', col, BOLD)}  {c(p.pattern_type.value, col)}  —  {p.description}")
+            print(
+                f"  {c(f'[{p.severity.upper()}]', col, BOLD)}  {c(p.pattern_type.value, col)}  —  {p.description}"
+            )
         print()
 
     # Advisor savings
     savings = report["estimated_savings"]
     monthly = report["estimated_monthly_savings"]
     section("Advisor — Estimated Savings")
-    cost_str    = c("${:.5f}".format(savings['cost_savings_usd']), BRIGHT_GREEN)
-    latency_str = c("{:.0f} ms".format(savings['time_savings_ms']), BRIGHT_YELLOW)
-    monthly_cost = c("${:.2f}".format(monthly['cost_savings_usd_monthly']), BRIGHT_GREEN, BOLD)
-    monthly_tok  = c("{:,}".format(monthly['token_savings_monthly']), BRIGHT_CYAN)
+    cost_str = c("${:.5f}".format(savings["cost_savings_usd"]), BRIGHT_GREEN)
+    latency_str = c("{:.0f} ms".format(savings["time_savings_ms"]), BRIGHT_YELLOW)
+    monthly_cost = c("${:.2f}".format(monthly["cost_savings_usd_monthly"]), BRIGHT_GREEN, BOLD)
+    monthly_tok = c("{:,}".format(monthly["token_savings_monthly"]), BRIGHT_CYAN)
     print(f"  {c('Per-trace savings:', DIM)}")
     print(f"    Token reduction  {c(str(savings['token_savings']), BRIGHT_CYAN)}")
     print(f"    Cost reduction   {cost_str}")
@@ -375,6 +396,7 @@ def print_analysis(trace: Trace) -> None:
 # Main
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 async def main() -> None:
     # FlowLens setup
     _traces: list[Trace] = []
@@ -386,14 +408,40 @@ async def main() -> None:
     )
 
     # Branding
-    print(c("\n╔══════════════════════════════════════════════════════════════════════╗", BRIGHT_CYAN, BOLD))
-    print(c("║         F L O W L E N S   —   Agent Observability Platform           ║", BRIGHT_CYAN, BOLD))
-    print(c("║         Example: RAG Pipeline  (embed → search → rerank → LLM)       ║", BRIGHT_CYAN, BOLD))
-    print(c("╚══════════════════════════════════════════════════════════════════════╝", BRIGHT_CYAN, BOLD))
+    print(
+        c(
+            "\n╔══════════════════════════════════════════════════════════════════════╗",
+            BRIGHT_CYAN,
+            BOLD,
+        )
+    )
+    print(
+        c(
+            "║         F L O W L E N S   —   Agent Observability Platform           ║",
+            BRIGHT_CYAN,
+            BOLD,
+        )
+    )
+    print(
+        c(
+            "║         Example: RAG Pipeline  (embed → search → rerank → LLM)       ║",
+            BRIGHT_CYAN,
+            BOLD,
+        )
+    )
+    print(
+        c(
+            "╚══════════════════════════════════════════════════════════════════════╝",
+            BRIGHT_CYAN,
+            BOLD,
+        )
+    )
     print()
-    print(f"  Decorators: {c('@trace_agent',BRIGHT_MAGENTA)}  {c('@trace_embedding',BRIGHT_WHITE)}  "
-          f"{c('@trace_retrieval',BRIGHT_GREEN)}  {c('@trace_tool',BRIGHT_CYAN)}  "
-          f"{c('@trace_chain',BRIGHT_YELLOW)}  {c('@trace_llm',BRIGHT_BLUE)}")
+    print(
+        f"  Decorators: {c('@trace_agent',BRIGHT_MAGENTA)}  {c('@trace_embedding',BRIGHT_WHITE)}  "
+        f"{c('@trace_retrieval',BRIGHT_GREEN)}  {c('@trace_tool',BRIGHT_CYAN)}  "
+        f"{c('@trace_chain',BRIGHT_YELLOW)}  {c('@trace_llm',BRIGHT_BLUE)}"
+    )
     print()
 
     # Run the RAG pipeline

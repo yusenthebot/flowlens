@@ -45,15 +45,15 @@ from flowlens import FlowLens
 # ANSI helpers
 # ───────────────────────────────────────────────────────────────────────────
 
-RESET   = "\033[0m"
-BOLD    = "\033[1m"
-DIM     = "\033[2m"
-GREEN   = "\033[92m"
-YELLOW  = "\033[93m"
-BLUE    = "\033[94m"
-CYAN    = "\033[96m"
-RED     = "\033[91m"
-WHITE   = "\033[97m"
+RESET = "\033[0m"
+BOLD = "\033[1m"
+DIM = "\033[2m"
+GREEN = "\033[92m"
+YELLOW = "\033[93m"
+BLUE = "\033[94m"
+CYAN = "\033[96m"
+RED = "\033[91m"
+WHITE = "\033[97m"
 MAGENTA = "\033[95m"
 
 
@@ -128,6 +128,7 @@ def _pretty_json(data: dict, indent: int = 4, max_lines: int = 20) -> None:
 # Find a free port
 # ───────────────────────────────────────────────────────────────────────────
 
+
 def _find_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("", 0))
@@ -137,6 +138,7 @@ def _find_free_port() -> int:
 # ───────────────────────────────────────────────────────────────────────────
 # Sample trace payloads
 # ───────────────────────────────────────────────────────────────────────────
+
 
 def _make_sample_payload(
     scenario: str = "healthy",
@@ -163,7 +165,11 @@ def _make_sample_payload(
             "duration_ms": 350,
             "attributes": {"scenario": scenario},
             "events": [],
-            "error": {"message": "web_search timed out after 30s", "type": "TimeoutError"} if has_error else None,
+            "error": (
+                {"message": "web_search timed out after 30s", "type": "TimeoutError"}
+                if has_error
+                else None
+            ),
         },
         {
             "span_id": llm_span_id,
@@ -187,7 +193,8 @@ def _make_sample_payload(
                 "total_tokens": token_count // 2 + token_count // 4,
                 "input_cost_usd": (token_count // 2) / 1_000_000 * 3.0,
                 "output_cost_usd": (token_count // 4) / 1_000_000 * 15.0,
-                "total_cost_usd": (token_count // 2) / 1_000_000 * 3.0 + (token_count // 4) / 1_000_000 * 15.0,
+                "total_cost_usd": (token_count // 2) / 1_000_000 * 3.0
+                + (token_count // 4) / 1_000_000 * 15.0,
             },
         },
         {
@@ -202,7 +209,11 @@ def _make_sample_payload(
             "duration_ms": 30_000 if has_error else 210,
             "attributes": {"tool.input.query": "agentic AI 2026"},
             "events": [],
-            "error": {"message": "web_search timed out after 30s", "type": "TimeoutError"} if has_error else None,
+            "error": (
+                {"message": "web_search timed out after 30s", "type": "TimeoutError"}
+                if has_error
+                else None
+            ),
         },
     ]
 
@@ -263,6 +274,7 @@ def _start_server(port: int) -> bool:
     while time.time() < deadline:
         try:
             import urllib.request
+
             urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=0.5)
             return True
         except Exception:
@@ -276,17 +288,21 @@ def _start_server(port: int) -> bool:
 # HTTP helper
 # ───────────────────────────────────────────────────────────────────────────
 
+
 def _http_get(url: str) -> dict:
     import urllib.request
+
     with urllib.request.urlopen(url, timeout=5) as resp:
         return json.loads(resp.read())
 
 
 def _http_post(url: str, data: dict) -> dict:
     import urllib.request
+
     body = json.dumps(data).encode()
     req = urllib.request.Request(
-        url, data=body,
+        url,
+        data=body,
         headers={"Content-Type": "application/json"},
         method="POST",
     )
@@ -297,6 +313,7 @@ def _http_post(url: str, data: dict) -> dict:
 # ───────────────────────────────────────────────────────────────────────────
 # Demo sections
 # ───────────────────────────────────────────────────────────────────────────
+
 
 def demo_health(base: str) -> None:
     step(1, "Health Check")
@@ -312,11 +329,11 @@ def demo_ingest(base: str) -> list[str]:
 
     trace_ids: list[str] = []
     scenarios = [
-        ("healthy_1",  False, 1200),
-        ("healthy_2",  False, 1600),
-        ("healthy_3",  False, 1400),
-        ("timeout_1",  True,  950),
-        ("timeout_2",  True,  1100),
+        ("healthy_1", False, 1200),
+        ("healthy_2", False, 1600),
+        ("healthy_3", False, 1400),
+        ("timeout_1", True, 950),
+        ("timeout_2", True, 1100),
     ]
 
     for scenario, has_error, tokens in scenarios:
@@ -325,8 +342,12 @@ def demo_ingest(base: str) -> list[str]:
 
         # Show the curl equivalent on first trace only
         if scenario == "healthy_1":
-            curl("POST", "/v1/traces/ingest", host=base.replace("http://", ""),
-                 body=json.dumps({k: v for k, v in payload.items() if k != "spans"})[:120])
+            curl(
+                "POST",
+                "/v1/traces/ingest",
+                host=base.replace("http://", ""),
+                body=json.dumps({k: v for k, v in payload.items() if k != "spans"})[:120],
+            )
 
         result = _http_post(f"{base}/v1/traces/ingest", payload)
         color = YELLOW if has_error else GREEN
@@ -365,15 +386,17 @@ def demo_trace_detail(base: str, trace_id: str) -> None:
     result = _http_get(f"{base}/v1/traces/{trace_id}")
     ok(f"Trace detail for {trace_id[:16]}...")
     print()
-    _pretty_json({
-        "trace_id": result.get("trace_id", "")[:24] + "...",
-        "service_name": result.get("service_name"),
-        "has_errors": result.get("has_errors"),
-        "span_count": result.get("span_count"),
-        "total_tokens": result.get("total_tokens"),
-        "total_cost_usd": result.get("total_cost_usd"),
-        "duration_ms": result.get("duration_ms"),
-    })
+    _pretty_json(
+        {
+            "trace_id": result.get("trace_id", "")[:24] + "...",
+            "service_name": result.get("service_name"),
+            "has_errors": result.get("has_errors"),
+            "span_count": result.get("span_count"),
+            "total_tokens": result.get("total_tokens"),
+            "total_cost_usd": result.get("total_cost_usd"),
+            "duration_ms": result.get("duration_ms"),
+        }
+    )
 
 
 def demo_dag(base: str, trace_id: str) -> None:
@@ -419,11 +442,11 @@ def demo_stats(base: str) -> None:
     ok("Statistics retrieved")
     print()
     fields = [
-        ("total_traces",   CYAN),
-        ("total_spans",    CYAN),
-        ("total_tokens",   YELLOW),
-        ("total_cost",     YELLOW),
-        ("error_traces",   RED),
+        ("total_traces", CYAN),
+        ("total_spans", CYAN),
+        ("total_tokens", YELLOW),
+        ("total_cost", YELLOW),
+        ("error_traces", RED),
         ("avg_duration_ms", CYAN),
     ]
     for field, color in fields:
@@ -512,19 +535,22 @@ def print_curl_cheatsheet(base: str) -> None:
     section("curl Cheatsheet — replay from any terminal")
     host = base.replace("http://", "")
     commands = [
-        ("Health check",       f"curl {base}/health"),
-        ("List traces",        f"curl '{base}/v1/traces?limit=20&offset=0'"),
-        ("List error traces",  f"curl '{base}/v1/traces/errors?limit=10'"),
-        ("Trace detail",       f"curl '{base}/v1/traces/<trace_id>'"),
-        ("Causal DAG",         f"curl '{base}/v1/traces/<trace_id>/dag'"),
-        ("Statistics",         f"curl '{base}/v1/stats'"),
-        ("Pattern summary",    f"curl '{base}/v1/patterns/summary'"),
-        ("Cost breakdown",     f"curl '{base}/v1/cost/breakdown'"),
-        ("Cost trends",        f"curl '{base}/v1/cost/trends?period=daily'"),
-        ("Ingest trace",       f"curl -X POST '{base}/v1/traces/ingest' -H 'Content-Type: application/json' -d @trace.json"),
-        ("WebSocket stream",   f"# Connect: ws://{host}/ws/traces"),
+        ("Health check", f"curl {base}/health"),
+        ("List traces", f"curl '{base}/v1/traces?limit=20&offset=0'"),
+        ("List error traces", f"curl '{base}/v1/traces/errors?limit=10'"),
+        ("Trace detail", f"curl '{base}/v1/traces/<trace_id>'"),
+        ("Causal DAG", f"curl '{base}/v1/traces/<trace_id>/dag'"),
+        ("Statistics", f"curl '{base}/v1/stats'"),
+        ("Pattern summary", f"curl '{base}/v1/patterns/summary'"),
+        ("Cost breakdown", f"curl '{base}/v1/cost/breakdown'"),
+        ("Cost trends", f"curl '{base}/v1/cost/trends?period=daily'"),
+        (
+            "Ingest trace",
+            f"curl -X POST '{base}/v1/traces/ingest' -H 'Content-Type: application/json' -d @trace.json",
+        ),
+        ("WebSocket stream", f"# Connect: ws://{host}/ws/traces"),
         ("API docs (Swagger)", f"{base}/docs"),
-        ("OpenAPI JSON",       f"{base}/openapi.json"),
+        ("OpenAPI JSON", f"{base}/openapi.json"),
     ]
     for label, cmd in commands:
         print(f"  {c(label + ':', DIM):<28}  {c(cmd, CYAN)}")
@@ -534,6 +560,7 @@ def print_curl_cheatsheet(base: str) -> None:
 # ───────────────────────────────────────────────────────────────────────────
 # Pure-SDK fallback (no server required)
 # ───────────────────────────────────────────────────────────────────────────
+
 
 async def demo_sdk_only() -> None:
     """Run a short SDK demo when the server cannot be started."""
@@ -596,6 +623,7 @@ async def demo_sdk_only() -> None:
 # ───────────────────────────────────────────────────────────────────────────
 # Main
 # ───────────────────────────────────────────────────────────────────────────
+
 
 async def main() -> None:
     banner("FlowLens Server Demo — Tutorial Walkthrough")

@@ -75,19 +75,32 @@ from _utils import (
 
 # ── Shared knowledge base (reused across agents) ─────────────────────────────
 KNOWLEDGE_BASE = [
-    {"id": "1", "title": "Multi-Agent Coordination Patterns",
-     "content": "Orchestrator-subagent architectures use a planner to decompose tasks. "
-                "Blackboard and message-passing are the two dominant coordination models."},
-    {"id": "2", "title": "LLM Reliability Techniques",
-     "content": "Chain-of-thought, self-consistency, and critique-revision loops improve "
-                "output quality. Constitutional AI adds automated review steps."},
-    {"id": "3", "title": "Document Generation Best Practices",
-     "content": "Structured outlines reduce hallucination. Iterative refinement with "
-                "human-in-the-loop review improves accuracy by 35%."},
-    {"id": "4", "title": "Error Recovery in Agentic Systems",
-     "content": "Retry with exponential backoff, fallback chains, and reviewer-gated "
-                "outputs reduce cascade failures. Circuit breakers prevent retry storms."},
+    {
+        "id": "1",
+        "title": "Multi-Agent Coordination Patterns",
+        "content": "Orchestrator-subagent architectures use a planner to decompose tasks. "
+        "Blackboard and message-passing are the two dominant coordination models.",
+    },
+    {
+        "id": "2",
+        "title": "LLM Reliability Techniques",
+        "content": "Chain-of-thought, self-consistency, and critique-revision loops improve "
+        "output quality. Constitutional AI adds automated review steps.",
+    },
+    {
+        "id": "3",
+        "title": "Document Generation Best Practices",
+        "content": "Structured outlines reduce hallucination. Iterative refinement with "
+        "human-in-the-loop review improves accuracy by 35%.",
+    },
+    {
+        "id": "4",
+        "title": "Error Recovery in Agentic Systems",
+        "content": "Retry with exponential backoff, fallback chains, and reviewer-gated "
+        "outputs reduce cascade failures. Circuit breakers prevent retry storms.",
+    },
 ]
+
 
 # ── Fake LLM response ────────────────────────────────────────────────────────
 class FakeLLM:
@@ -95,6 +108,7 @@ class FakeLLM:
         self.content = [type("B", (), {"text": text})()]
         self.usage = type("U", (), {"input_tokens": inp, "output_tokens": out})()
         self.stop_reason = "end_turn"
+
 
 # ── Counters for simulating reject/retry ─────────────────────────────────────
 _writer_attempt = 0
@@ -105,6 +119,7 @@ _reviewer_call = 0
 # Sub-agent helper functions (tools / llm calls used by the sub-agents)
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 @trace_retrieval(name="vector_search")
 async def vector_search(query: str) -> list[dict]:
     """Knowledge base retrieval — simulates ANN search."""
@@ -112,7 +127,7 @@ async def vector_search(query: str) -> list[dict]:
     scored = []
     for doc in KNOWLEDGE_BASE:
         words = set(query.lower().split())
-        hits  = sum(1 for w in words if w in doc["content"].lower())
+        hits = sum(1 for w in words if w in doc["content"].lower())
         scored.append({**doc, "score": round(0.5 + hits * 0.1 + random.uniform(0, 0.15), 3)})
     scored.sort(key=lambda d: d["score"], reverse=True)
     return scored[:3]
@@ -125,7 +140,8 @@ async def summarise_sources(docs: list[dict], topic: str) -> FakeLLM:
     bullets = "\n".join(f"- {d['content'][:80]}…" for d in docs)
     return FakeLLM(
         f"Research summary for '{topic}':\n{bullets}",
-        inp=random.randint(300, 600), out=random.randint(80, 150),
+        inp=random.randint(300, 600),
+        out=random.randint(80, 150),
     )
 
 
@@ -137,7 +153,8 @@ async def draft_outline(topic: str, research: str) -> FakeLLM:
         f"## Outline: {topic}\n"
         "1. Introduction\n2. Background\n3. Key Findings\n"
         "4. Implementation Guide\n5. Conclusion",
-        inp=random.randint(400, 700), out=random.randint(100, 200),
+        inp=random.randint(400, 700),
+        out=random.randint(100, 200),
     )
 
 
@@ -150,7 +167,8 @@ async def expand_sections(outline: str, research: str) -> FakeLLM:
         "## Introduction\nThis document covers the state of the art in multi-agent AI.\n\n"
         "## Key Findings\nOrchestrator patterns and critique-revision loops are essential.\n\n"
         "## Conclusion\nProduction agents require observability tooling like FlowLens.",
-        inp=random.randint(600, 1000), out=random.randint(250, 500),
+        inp=random.randint(600, 1000),
+        out=random.randint(250, 500),
     )
 
 
@@ -200,18 +218,21 @@ async def llm_review(draft: str, quality: dict) -> FakeLLM:
         return FakeLLM(
             f"REJECTED — Quality score {quality['score']:.2f}. Issues: {issues_text}. "
             "Please revise and resubmit.",
-            inp=random.randint(300, 500), out=random.randint(60, 120),
+            inp=random.randint(300, 500),
+            out=random.randint(60, 120),
         )
     return FakeLLM(
         f"APPROVED — Quality score {quality['score']:.2f}. "
         "Document meets all quality standards. Ready for publication.",
-        inp=random.randint(300, 500), out=random.randint(60, 100),
+        inp=random.randint(300, 500),
+        out=random.randint(60, 100),
     )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Sub-agents
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 @trace_agent(name="research_agent")
 async def research_agent(topic: str) -> dict:
@@ -224,7 +245,10 @@ async def research_agent(topic: str) -> dict:
         print(f"    {bar}  {c(d['score'], BRIGHT_GREEN)}  {c(d['title'], DIM)}")
 
     summary = await summarise_sources(docs, topic)
-    ok("Sources summarised", f"{summary.usage.input_tokens} in / {summary.usage.output_tokens} out tok")
+    ok(
+        "Sources summarised",
+        f"{summary.usage.input_tokens} in / {summary.usage.output_tokens} out tok",
+    )
     return {"summary": summary.content[0].text, "doc_count": len(docs)}
 
 
@@ -246,8 +270,10 @@ async def writer_agent(topic: str, research: str, attempt: int) -> dict:
         "draft": draft_resp.content[0].text,
         "attempt": attempt,
         "total_tokens": (
-            outline_resp.usage.input_tokens + outline_resp.usage.output_tokens +
-            draft_resp.usage.input_tokens + draft_resp.usage.output_tokens
+            outline_resp.usage.input_tokens
+            + outline_resp.usage.output_tokens
+            + draft_resp.usage.input_tokens
+            + draft_resp.usage.output_tokens
         ),
     }
 
@@ -257,7 +283,7 @@ async def reviewer_agent(draft: str, attempt: int) -> dict:
     """Quality-gate the draft. Returns approved=True or raises for retry."""
     info(f"Reviewer agent: checking draft (attempt {attempt})")
     quality = await quality_gate(draft)
-    review  = await llm_review(draft, quality)
+    review = await llm_review(draft, quality)
 
     verdict = review.content[0].text
     if not quality["passed"]:
@@ -268,16 +294,17 @@ async def reviewer_agent(draft: str, attempt: int) -> dict:
         ok(f"Draft APPROVED (score={quality['score']:.2f})")
 
     return {
-        "passed":  quality["passed"],
-        "score":   quality["score"],
+        "passed": quality["passed"],
+        "score": quality["score"],
         "verdict": verdict,
-        "issues":  quality["issues"],
+        "issues": quality["issues"],
     }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Planner (root orchestrator)
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 @trace_agent(name="planner_agent")
 async def planner_agent(task: str) -> dict:
@@ -317,18 +344,19 @@ async def planner_agent(task: str) -> dict:
 
     ok(f"Planner: task complete  approved={final_review['passed']}")
     return {
-        "task":           task,
-        "approved":       final_review["passed"],
-        "review_score":   final_review["score"],
+        "task": task,
+        "approved": final_review["passed"],
+        "review_score": final_review["score"],
         "writer_attempts": write_result["attempt"],
-        "research_docs":  research_result["doc_count"],
-        "final_draft":    write_result["draft"],
+        "research_docs": research_result["doc_count"],
+        "final_draft": write_result["draft"],
     }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Analysis & pretty report
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def print_dag_section(trace: Trace) -> None:
     """Print the causal DAG in human-readable form."""
@@ -369,19 +397,25 @@ def print_dag_section(trace: Trace) -> None:
 
 def print_pattern_section(trace: Trace) -> None:
     """Detect and print patterns from the trace."""
-    dag      = build_causal_dag(trace)
+    dag = build_causal_dag(trace)
     patterns = detect_patterns(trace, dag)
-    advisor  = TraceAdvisor(trace=trace, dag=dag, patterns=patterns, traces_per_month=2000)
-    report   = advisor.generate_report()
+    advisor = TraceAdvisor(trace=trace, dag=dag, patterns=patterns, traces_per_month=2000)
+    report = advisor.generate_report()
 
     section("Detected Patterns")
     if patterns:
-        sev_icons  = {"critical": c("●", BRIGHT_RED), "warning": c("◆", BRIGHT_YELLOW), "info": c("○", BRIGHT_BLUE)}
+        sev_icons = {
+            "critical": c("●", BRIGHT_RED),
+            "warning": c("◆", BRIGHT_YELLOW),
+            "info": c("○", BRIGHT_BLUE),
+        }
         sev_colors = {"critical": BRIGHT_RED, "warning": BRIGHT_YELLOW, "info": BRIGHT_BLUE}
         for p in patterns:
             icon = sev_icons.get(p.severity, c("○", WHITE))
-            col  = sev_colors.get(p.severity, WHITE)
-            print(f"  {icon}  {c(f'[{p.severity.upper()}]', col, BOLD)}  {c(p.pattern_type.value, col)}")
+            col = sev_colors.get(p.severity, WHITE)
+            print(
+                f"  {icon}  {c(f'[{p.severity.upper()}]', col, BOLD)}  {c(p.pattern_type.value, col)}"
+            )
             print(f"      {c(p.description, DIM)}")
             print()
     else:
@@ -391,9 +425,9 @@ def print_pattern_section(trace: Trace) -> None:
     section("Savings Estimate (2,000 traces/mo)")
     savings = report["estimated_savings"]
     monthly = report["estimated_monthly_savings"]
-    cost_s  = "${:.5f}".format(savings["cost_savings_usd"])
-    cost_m  = "${:.2f}".format(monthly["cost_savings_usd_monthly"])
-    tok_m   = "{:,}".format(monthly["token_savings_monthly"])
+    cost_s = "${:.5f}".format(savings["cost_savings_usd"])
+    cost_m = "${:.2f}".format(monthly["cost_savings_usd_monthly"])
+    tok_m = "{:,}".format(monthly["token_savings_monthly"])
     print(f"  Per-trace token savings  : {c(str(savings['token_savings']), BRIGHT_CYAN)}")
     print(f"  Per-trace cost savings   : {c(cost_s, BRIGHT_GREEN)}")
     print(f"  Monthly cost savings     : {c(cost_m, BRIGHT_GREEN, BOLD)}")
@@ -405,7 +439,7 @@ def print_pattern_section(trace: Trace) -> None:
         section("Top Action Items")
         for i, rec in enumerate(recs[:4], 1):
             sev_col = BRIGHT_RED if rec["severity"] == "critical" else BRIGHT_YELLOW
-            badge   = c("[{}]".format(rec["severity"].upper()), sev_col, BOLD)
+            badge = c("[{}]".format(rec["severity"].upper()), sev_col, BOLD)
             print(f"  {i}. {badge}  {c(rec['title'], BOLD)}")
             print(f"     {c(rec['description'][:115] + '…', DIM)}")
             print()
@@ -414,6 +448,7 @@ def print_pattern_section(trace: Trace) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 # Main
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 async def main() -> None:
     _traces: list[Trace] = []
@@ -425,19 +460,49 @@ async def main() -> None:
     )
 
     # Banner
-    print(c("\n╔══════════════════════════════════════════════════════════════════════╗", BRIGHT_CYAN, BOLD))
-    print(c("║         F L O W L E N S   —   Agent Observability Platform           ║", BRIGHT_CYAN, BOLD))
-    print(c("║         Example: Multi-Agent Collaboration (plan → research →        ║", BRIGHT_CYAN, BOLD))
-    print(c("║                  write → review → retry → approve)                   ║", BRIGHT_CYAN, BOLD))
-    print(c("╚══════════════════════════════════════════════════════════════════════╝", BRIGHT_CYAN, BOLD))
+    print(
+        c(
+            "\n╔══════════════════════════════════════════════════════════════════════╗",
+            BRIGHT_CYAN,
+            BOLD,
+        )
+    )
+    print(
+        c(
+            "║         F L O W L E N S   —   Agent Observability Platform           ║",
+            BRIGHT_CYAN,
+            BOLD,
+        )
+    )
+    print(
+        c(
+            "║         Example: Multi-Agent Collaboration (plan → research →        ║",
+            BRIGHT_CYAN,
+            BOLD,
+        )
+    )
+    print(
+        c(
+            "║                  write → review → retry → approve)                   ║",
+            BRIGHT_CYAN,
+            BOLD,
+        )
+    )
+    print(
+        c(
+            "╚══════════════════════════════════════════════════════════════════════╝",
+            BRIGHT_CYAN,
+            BOLD,
+        )
+    )
     print()
 
     # Agent legend
     agents = [
-        ("planner_agent",   BRIGHT_MAGENTA, "root orchestrator — decomposes task & coordinates"),
-        ("research_agent",  BRIGHT_GREEN,   "retrieves & summarises knowledge base"),
-        ("writer_agent",    BRIGHT_BLUE,    "drafts document (with retry on rejection)"),
-        ("reviewer_agent",  BRIGHT_YELLOW,  "quality-gates output — first attempt rejects"),
+        ("planner_agent", BRIGHT_MAGENTA, "root orchestrator — decomposes task & coordinates"),
+        ("research_agent", BRIGHT_GREEN, "retrieves & summarises knowledge base"),
+        ("writer_agent", BRIGHT_BLUE, "drafts document (with retry on rejection)"),
+        ("reviewer_agent", BRIGHT_YELLOW, "quality-gates output — first attempt rejects"),
     ]
     print(c("  Agent pipeline:", BRIGHT_WHITE, BOLD))
     for name, col, desc in agents:
@@ -459,12 +524,15 @@ async def main() -> None:
     print_table(
         ["Metric", "Value"],
         [
-            ["Task",              task[:55] + "…" if len(task) > 55 else task],
-            ["Writer attempts",   str(result["writer_attempts"])],
-            ["Research docs",     str(result["research_docs"])],
-            ["Review score",      f"{result['review_score']:.2f}"],
-            ["Status",            c("APPROVED", BRIGHT_GREEN) if result["approved"] else c("REJECTED", BRIGHT_RED)],
-            ["Total latency",     f"{elapsed_ms:.0f} ms"],
+            ["Task", task[:55] + "…" if len(task) > 55 else task],
+            ["Writer attempts", str(result["writer_attempts"])],
+            ["Research docs", str(result["research_docs"])],
+            ["Review score", f"{result['review_score']:.2f}"],
+            [
+                "Status",
+                c("APPROVED", BRIGHT_GREEN) if result["approved"] else c("REJECTED", BRIGHT_RED),
+            ],
+            ["Total latency", f"{elapsed_ms:.0f} ms"],
         ],
         colors=[DIM, BRIGHT_WHITE],
     )

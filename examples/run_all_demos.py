@@ -24,14 +24,14 @@ from pathlib import Path
 
 # ─── ANSI colour helpers ──────────────────────────────────────────────────────
 
-RESET  = "\033[0m"
-BOLD   = "\033[1m"
-DIM    = "\033[2m"
-CYAN   = "\033[96m"
-GREEN  = "\033[92m"
+RESET = "\033[0m"
+BOLD = "\033[1m"
+DIM = "\033[2m"
+CYAN = "\033[96m"
+GREEN = "\033[92m"
 YELLOW = "\033[93m"
-RED    = "\033[91m"
-BLUE   = "\033[94m"
+RED = "\033[91m"
+BLUE = "\033[94m"
 
 
 def _c(color: str, text: str) -> str:
@@ -115,6 +115,7 @@ DEMOS: list[tuple[str, str, str, bool]] = [
 
 # ─── Runner ───────────────────────────────────────────────────────────────────
 
+
 def run_demo(
     label: str,
     script: str,
@@ -157,7 +158,7 @@ def _write_stub(path: Path, label: str, description: str) -> None:
     """Write a minimal stub script so the runner doesn't crash."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        f'#!/usr/bin/env python3\n'
+        f"#!/usr/bin/env python3\n"
         f'"""FlowLens stub for: {label}\n\n{description}\n"""\n\n'
         f'print("[ {label} — coming soon ]")\n',
         encoding="utf-8",
@@ -165,6 +166,7 @@ def _write_stub(path: Path, label: str, description: str) -> None:
 
 
 # ─── Summary table ────────────────────────────────────────────────────────────
+
 
 def print_summary(results: list[tuple[str, bool, float]]) -> None:
     width = 64
@@ -196,6 +198,7 @@ def print_summary(results: list[tuple[str, bool, float]]) -> None:
 
 
 # ─── Entry point ──────────────────────────────────────────────────────────────
+
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(

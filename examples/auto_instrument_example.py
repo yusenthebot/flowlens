@@ -31,15 +31,15 @@ from flowlens.sdk.models import Trace
 # ANSI helpers
 # ───────────────────────────────────────────────────────────────────────────
 
-RESET  = "\033[0m"
-BOLD   = "\033[1m"
-DIM    = "\033[2m"
-GREEN  = "\033[92m"
+RESET = "\033[0m"
+BOLD = "\033[1m"
+DIM = "\033[2m"
+GREEN = "\033[92m"
 YELLOW = "\033[93m"
-BLUE   = "\033[94m"
-CYAN   = "\033[96m"
-RED    = "\033[91m"
-WHITE  = "\033[97m"
+BLUE = "\033[94m"
+CYAN = "\033[96m"
+RED = "\033[91m"
+WHITE = "\033[97m"
 
 
 def c(text: str, *codes: str) -> str:
@@ -87,6 +87,7 @@ def warn(text: str) -> None:
 # This lets auto_instrument() patch them exactly as it would the real SDK,
 # without requiring `pip install anthropic` or an API key.
 
+
 class _FakeUsage:
     def __init__(self, inp: int, out: int):
         self.input_tokens = inp
@@ -101,14 +102,13 @@ class _FakeContentBlock:
 
 class _FakeAnthropicResponse:
     """Minimal Anthropic Message object (real SDK shape)."""
+
     def __init__(self, prompt: str, model: str):
         words = len(prompt.split())
         self.id = f"msg_{random.randint(100000, 999999)}"
         self.model = model
         self.stop_reason = "end_turn"
-        self.content = [_FakeContentBlock(
-            f"[Mocked {model}] Answer to: {prompt[:60]}..."
-        )]
+        self.content = [_FakeContentBlock(f"[Mocked {model}] Answer to: {prompt[:60]}...")]
         self.usage = _FakeUsage(
             inp=words * 4 + random.randint(50, 200),
             out=random.randint(80, 300),
@@ -117,6 +117,7 @@ class _FakeAnthropicResponse:
 
 class _FakeMessages:
     """Mimics anthropic.Anthropic.messages"""
+
     def create(self, *, model: str, messages: list, max_tokens: int = 1024, **kw):
         time.sleep(0.02)  # simulate latency
         prompt = messages[-1]["content"] if messages else ""
@@ -130,12 +131,14 @@ class _FakeMessages:
 
 class _FakeAnthropic:
     """Mimics anthropic.Anthropic (sync client)."""
+
     def __init__(self, api_key: str = "mock-key"):
         self.messages = _FakeMessages()
 
 
 class _FakeAsyncAnthropic:
     """Mimics anthropic.AsyncAnthropic (async client)."""
+
     def __init__(self, api_key: str = "mock-key"):
         self.messages = _FakeMessages()
 
@@ -146,14 +149,15 @@ class _FakeAsyncAnthropic:
 import types
 
 _mock_anthropic_module = types.ModuleType("anthropic")
-_mock_anthropic_module.Anthropic = _FakeAnthropic           # type: ignore
-_mock_anthropic_module.AsyncAnthropic = _FakeAsyncAnthropic # type: ignore
+_mock_anthropic_module.Anthropic = _FakeAnthropic  # type: ignore
+_mock_anthropic_module.AsyncAnthropic = _FakeAsyncAnthropic  # type: ignore
 sys.modules["anthropic"] = _mock_anthropic_module
 
 
 # ───────────────────────────────────────────────────────────────────────────
 # Mock OpenAI SDK (same pattern)
 # ───────────────────────────────────────────────────────────────────────────
+
 
 class _FakeOpenAIUsage:
     def __init__(self, inp: int, out: int):
@@ -180,9 +184,7 @@ class _FakeOpenAIResponse:
         words = len(prompt.split())
         self.id = f"chatcmpl-{random.randint(100000, 999999)}"
         self.model = model
-        self.choices = [_FakeOpenAIChoice(
-            f"[Mocked {model}] Response to: {prompt[:60]}..."
-        )]
+        self.choices = [_FakeOpenAIChoice(f"[Mocked {model}] Response to: {prompt[:60]}...")]
         self.usage = _FakeOpenAIUsage(
             inp=words * 4 + random.randint(50, 200),
             out=random.randint(80, 300),
@@ -217,14 +219,15 @@ class _FakeAsyncOpenAI:
 
 
 _mock_openai_module = types.ModuleType("openai")
-_mock_openai_module.OpenAI = _FakeOpenAI           # type: ignore
-_mock_openai_module.AsyncOpenAI = _FakeAsyncOpenAI # type: ignore
+_mock_openai_module.OpenAI = _FakeOpenAI  # type: ignore
+_mock_openai_module.AsyncOpenAI = _FakeAsyncOpenAI  # type: ignore
 sys.modules["openai"] = _mock_openai_module
 
 
 # ───────────────────────────────────────────────────────────────────────────
 # BEFORE: call without any instrumentation
 # ───────────────────────────────────────────────────────────────────────────
+
 
 def demo_before_instrumentation() -> None:
     """Show that without FlowLens, nothing is recorded."""
@@ -234,6 +237,7 @@ def demo_before_instrumentation() -> None:
     note("Calling messages.create() directly — zero spans will be recorded")
 
     import anthropic  # picks up our mock module
+
     client = anthropic.Anthropic(api_key="mock-key")
 
     t0 = time.perf_counter()
@@ -295,7 +299,9 @@ async def demo_after_instrumentation() -> None:
             messages=[{"role": "user", "content": "Explain agentic AI in one sentence."}],
             max_tokens=150,
         )
-        ok(f"Anthropic → {anthr_resp.usage.input_tokens} in / {anthr_resp.usage.output_tokens} out tokens")
+        ok(
+            f"Anthropic → {anthr_resp.usage.input_tokens} in / {anthr_resp.usage.output_tokens} out tokens"
+        )
 
         # OpenAI call — also automatically traced
         info("Calling OpenAI (auto-traced)...")
@@ -305,7 +311,9 @@ async def demo_after_instrumentation() -> None:
             messages=[{"role": "user", "content": "What is observability for LLMs?"}],
             max_tokens=150,
         )
-        ok(f"OpenAI → {oai_resp.usage.prompt_tokens} in / {oai_resp.usage.completion_tokens} out tokens")
+        ok(
+            f"OpenAI → {oai_resp.usage.prompt_tokens} in / {oai_resp.usage.completion_tokens} out tokens"
+        )
 
         return {
             "anthropic_text": anthr_resp.content[0].text,
@@ -324,11 +332,11 @@ async def demo_after_instrumentation() -> None:
     print(f"  {'Before auto_instrument':<35}  {'After auto_instrument'}")
     print(c("  " + "─" * 70, DIM))
     rows = [
-        ("Traces recorded",        c("0", RED),      c(str(len(_traces)), GREEN)),
-        ("LLM spans",              c("0", RED),      c("2", GREEN)),
-        ("Token usage tracked",    c("No", RED),     c("Yes", GREEN)),
-        ("Cost estimated",         c("No", RED),     c("Yes", GREEN)),
-        ("Code changes needed",    c("None", GREEN), c("None", GREEN)),
+        ("Traces recorded", c("0", RED), c(str(len(_traces)), GREEN)),
+        ("LLM spans", c("0", RED), c("2", GREEN)),
+        ("Token usage tracked", c("No", RED), c("Yes", GREEN)),
+        ("Cost estimated", c("No", RED), c("Yes", GREEN)),
+        ("Code changes needed", c("None", GREEN), c("None", GREEN)),
     ]
     for label, before, after in rows:
         print(f"  {label:<35}  {before:<30}  {after}")
@@ -346,6 +354,7 @@ async def demo_after_instrumentation() -> None:
 # ───────────────────────────────────────────────────────────────────────────
 # Step 4: Show what auto_instrument patches under the hood
 # ───────────────────────────────────────────────────────────────────────────
+
 
 def explain_how_it_works() -> None:
     step(4, "How auto_instrument() works internally")
@@ -404,6 +413,7 @@ def explain_how_it_works() -> None:
 # ───────────────────────────────────────────────────────────────────────────
 # Main
 # ───────────────────────────────────────────────────────────────────────────
+
 
 async def main() -> None:
     banner("FlowLens Auto-Instrumentation — Zero-Code LLM Tracing")

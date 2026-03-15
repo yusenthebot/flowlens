@@ -15,7 +15,6 @@ The server must be running:
 import os
 import sys
 
-
 BASE_URL = "http://localhost:8585"
 OUT_DIR = os.path.dirname(os.path.abspath(__file__))
 VIEWPORT = {"width": 1440, "height": 900}
@@ -34,7 +33,9 @@ def main() -> None:
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
-        print("ERROR: playwright not installed. Run: pip install playwright && playwright install chromium")
+        print(
+            "ERROR: playwright not installed. Run: pip install playwright && playwright install chromium"
+        )
         sys.exit(1)
 
     with sync_playwright() as p:

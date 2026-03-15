@@ -15,38 +15,39 @@ import time
 # ANSI escape codes
 # ─────────────────────────────────────────────────────────────────────────────
 
-RESET   = "\033[0m"
-BOLD    = "\033[1m"
-DIM     = "\033[2m"
-ITALIC  = "\033[3m"
+RESET = "\033[0m"
+BOLD = "\033[1m"
+DIM = "\033[2m"
+ITALIC = "\033[3m"
 
-BLACK   = "\033[30m"
-RED     = "\033[31m"
-GREEN   = "\033[32m"
-YELLOW  = "\033[33m"
-BLUE    = "\033[34m"
+BLACK = "\033[30m"
+RED = "\033[31m"
+GREEN = "\033[32m"
+YELLOW = "\033[33m"
+BLUE = "\033[34m"
 MAGENTA = "\033[35m"
-CYAN    = "\033[36m"
-WHITE   = "\033[37m"
+CYAN = "\033[36m"
+WHITE = "\033[37m"
 
-BRIGHT_RED     = "\033[91m"
-BRIGHT_GREEN   = "\033[92m"
-BRIGHT_YELLOW  = "\033[93m"
-BRIGHT_BLUE    = "\033[94m"
+BRIGHT_RED = "\033[91m"
+BRIGHT_GREEN = "\033[92m"
+BRIGHT_YELLOW = "\033[93m"
+BRIGHT_BLUE = "\033[94m"
 BRIGHT_MAGENTA = "\033[95m"
-BRIGHT_CYAN    = "\033[96m"
-BRIGHT_WHITE   = "\033[97m"
+BRIGHT_CYAN = "\033[96m"
+BRIGHT_WHITE = "\033[97m"
 
-BG_BLACK  = "\033[40m"
-BG_RED    = "\033[41m"
-BG_GREEN  = "\033[42m"
-BG_BLUE   = "\033[44m"
-BG_CYAN   = "\033[46m"
+BG_BLACK = "\033[40m"
+BG_RED = "\033[41m"
+BG_GREEN = "\033[42m"
+BG_BLUE = "\033[44m"
+BG_CYAN = "\033[46m"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Core color helper
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def c(text: str, *codes: str) -> str:
     """Wrap *text* with one or more ANSI codes, appending RESET at the end."""
@@ -79,6 +80,7 @@ def print_logo(subtitle: str = "Agent Observability Platform") -> None:
 # Section / banner helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def banner(title: str, width: int = 72) -> None:
     """Print a double-line box banner."""
     pad = (width - len(title) - 4) // 2
@@ -108,6 +110,7 @@ def subsection(title: str) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 # Step / status helpers
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def step(icon: str, text: str, detail: str = "") -> None:
     ts = c(f"[{time.strftime('%H:%M:%S')}]", DIM)
@@ -141,8 +144,8 @@ def note(text: str) -> None:
 # Progress bar
 # ─────────────────────────────────────────────────────────────────────────────
 
-def hbar(value: float, max_val: float = 100.0, width: int = 20,
-         color: str = BRIGHT_GREEN) -> str:
+
+def hbar(value: float, max_val: float = 100.0, width: int = 20, color: str = BRIGHT_GREEN) -> str:
     """Return a horizontal bar string of *width* chars."""
     if max_val <= 0:
         filled = 0
@@ -151,8 +154,14 @@ def hbar(value: float, max_val: float = 100.0, width: int = 20,
     return c("█" * filled + "░" * (width - filled), color)
 
 
-def progress(label: str, value: float, max_val: float = 100.0,
-             suffix: str = "", color: str = BRIGHT_CYAN, width: int = 20) -> None:
+def progress(
+    label: str,
+    value: float,
+    max_val: float = 100.0,
+    suffix: str = "",
+    color: str = BRIGHT_CYAN,
+    width: int = 20,
+) -> None:
     """Print a labelled horizontal progress bar."""
     bar = hbar(value, max_val, width, color)
     pct = (value / max_val * 100) if max_val > 0 else 0
@@ -162,6 +171,7 @@ def progress(label: str, value: float, max_val: float = 100.0,
 # ─────────────────────────────────────────────────────────────────────────────
 # Table formatter
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def print_table(
     headers: list[str],
@@ -224,6 +234,7 @@ def print_table(
 def _strip_ansi(text: str) -> str:
     """Remove ANSI escape sequences for length calculation."""
     import re
+
     return re.sub(r"\033\[[0-9;]*m", "", text)
 
 
@@ -233,13 +244,13 @@ def _strip_ansi(text: str) -> str:
 
 # Icons and colors per span kind
 _KIND_ICON = {
-    "agent":     (c("◈", BRIGHT_MAGENTA), BRIGHT_MAGENTA),
-    "llm":       (c("◉", BRIGHT_BLUE),    BRIGHT_BLUE),
-    "tool":      (c("◆", BRIGHT_CYAN),    BRIGHT_CYAN),
-    "chain":     (c("◎", BRIGHT_YELLOW),  BRIGHT_YELLOW),
-    "retrieval": (c("◐", BRIGHT_GREEN),   BRIGHT_GREEN),
-    "embedding": (c("◌", BRIGHT_WHITE),   BRIGHT_WHITE),
-    "custom":    (c("○", WHITE),          WHITE),
+    "agent": (c("◈", BRIGHT_MAGENTA), BRIGHT_MAGENTA),
+    "llm": (c("◉", BRIGHT_BLUE), BRIGHT_BLUE),
+    "tool": (c("◆", BRIGHT_CYAN), BRIGHT_CYAN),
+    "chain": (c("◎", BRIGHT_YELLOW), BRIGHT_YELLOW),
+    "retrieval": (c("◐", BRIGHT_GREEN), BRIGHT_GREEN),
+    "embedding": (c("◌", BRIGHT_WHITE), BRIGHT_WHITE),
+    "custom": (c("○", WHITE), WHITE),
 }
 
 
@@ -271,14 +282,19 @@ def print_trace_tree(trace, indent_size: int = 4) -> None:
         icon, color = _KIND_ICON.get(kind_val, (c("○", WHITE), WHITE))
 
         status_val = span.status.value if hasattr(span.status, "value") else str(span.status)
-        status_sym = c("✓", BRIGHT_GREEN) if status_val == "ok" else (
-            c("✗", BRIGHT_RED) if status_val == "error" else c("·", DIM)
+        status_sym = (
+            c("✓", BRIGHT_GREEN)
+            if status_val == "ok"
+            else (c("✗", BRIGHT_RED) if status_val == "error" else c("·", DIM))
         )
 
         duration_str = c(f"{span.duration_ms:.0f}ms", DIM)
         token_str = ""
         if span.token_usage and span.token_usage.total_tokens:
-            token_str = c(f" · {span.token_usage.total_tokens:,} tok · ${span.token_usage.total_cost_usd:.5f}", DIM)
+            token_str = c(
+                f" · {span.token_usage.total_tokens:,} tok · ${span.token_usage.total_cost_usd:.5f}",
+                DIM,
+            )
 
         kind_badge = c(f"[{kind_val.upper():<9}]", color)
         name_str = c(span.name, BOLD if not span.parent_span_id else "")
@@ -292,11 +308,16 @@ def print_trace_tree(trace, indent_size: int = 4) -> None:
 
     print()
     print(c(f"  Trace: {trace.trace_id[:24]}…", DIM))
-    print(c(f"  Service: {trace.service_name}  |  "
+    print(
+        c(
+            f"  Service: {trace.service_name}  |  "
             f"Duration: {trace.duration_ms:.0f}ms  |  "
             f"Spans: {len(trace.spans)}  |  "
             f"Tokens: {trace.total_tokens:,}  |  "
-            f"Cost: ${trace.total_cost_usd:.5f}", DIM))
+            f"Cost: ${trace.total_cost_usd:.5f}",
+            DIM,
+        )
+    )
     print()
 
     for i, root in enumerate(root_spans):
@@ -307,6 +328,7 @@ def print_trace_tree(trace, indent_size: int = 4) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 # Spinner (simple synchronous)
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def spin(label: str, seconds: float = 0.5) -> None:
     """Show an animated spinner for *seconds*, then clear the line."""

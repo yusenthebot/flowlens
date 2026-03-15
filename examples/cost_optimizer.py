@@ -65,10 +65,13 @@ class FakeLLM:
 # Scenario A — Baseline (claude-sonnet, reasonable token budget)
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 @trace_llm(model="claude-sonnet-4-20250514", name="planner_sonnet")
 async def planner_sonnet(prompt: str) -> FakeLLM:
     await asyncio.sleep(random.uniform(0.03, 0.07))
-    return FakeLLM("Plan: Step 1 → Step 2 → Step 3", random.randint(400, 700), random.randint(80, 150))
+    return FakeLLM(
+        "Plan: Step 1 → Step 2 → Step 3", random.randint(400, 700), random.randint(80, 150)
+    )
 
 
 @trace_llm(model="claude-haiku-4-20250514", name="executor_haiku")
@@ -96,10 +99,13 @@ async def baseline_agent(task: str) -> dict:
 # Scenario B — Expensive: uses claude-opus for everything
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 @trace_llm(model="claude-opus-4-20250514", name="planner_opus")
 async def planner_opus(prompt: str) -> FakeLLM:
     await asyncio.sleep(random.uniform(0.05, 0.10))
-    return FakeLLM("Opus plan: Step 1 → Step 2 → Step 3", random.randint(600, 1000), random.randint(150, 250))
+    return FakeLLM(
+        "Opus plan: Step 1 → Step 2 → Step 3", random.randint(600, 1000), random.randint(150, 250)
+    )
 
 
 @trace_llm(model="claude-opus-4-20250514", name="executor_opus")
@@ -120,6 +126,7 @@ async def expensive_agent(task: str) -> dict:
 # ─────────────────────────────────────────────────────────────────────────────
 # Scenario C — Context overflow: massive prompt stuffed into every call
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 @trace_llm(model="claude-sonnet-4-20250514", name="bloated_planner")
 async def bloated_planner(prompt: str) -> FakeLLM:
@@ -147,6 +154,7 @@ async def context_overflow_agent(task: str) -> dict:
 # Scenario D — gpt-4o comparison
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 @trace_llm(model="gpt-4o", name="planner_gpt4o")
 async def planner_gpt4o(prompt: str) -> FakeLLM:
     await asyncio.sleep(random.uniform(0.04, 0.08))
@@ -172,14 +180,15 @@ async def gpt4o_agent(task: str) -> dict:
 # Run all scenarios and collect traces
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 async def run_all_scenarios(lens: FlowLens, task: str, traces: list) -> list[dict]:
     """Run each scenario 3 times and return timing + summary data."""
     results = []
     scenarios = [
-        ("Baseline (sonnet+haiku)",   baseline_agent,         BRIGHT_GREEN),
-        ("Expensive (opus+opus)",     expensive_agent,        BRIGHT_RED),
+        ("Baseline (sonnet+haiku)", baseline_agent, BRIGHT_GREEN),
+        ("Expensive (opus+opus)", expensive_agent, BRIGHT_RED),
         ("Context overflow (sonnet)", context_overflow_agent, BRIGHT_YELLOW),
-        ("GPT-4o (4o+4o-mini)",       gpt4o_agent,            BRIGHT_BLUE),
+        ("GPT-4o (4o+4o-mini)", gpt4o_agent, BRIGHT_BLUE),
     ]
 
     for label, agent_fn, col in scenarios:
@@ -205,20 +214,22 @@ async def run_all_scenarios(lens: FlowLens, task: str, traces: list) -> list[dic
                 run_ms.append(elapsed)
 
         if run_costs:
-            avg_cost   = sum(run_costs) / len(run_costs)
+            avg_cost = sum(run_costs) / len(run_costs)
             avg_tokens = int(sum(run_tokens) / len(run_tokens))
-            avg_ms     = sum(run_ms) / len(run_ms)
+            avg_ms = sum(run_ms) / len(run_ms)
             ok(
                 f"3 runs avg: {c(f'${avg_cost:.5f}', col)} cost | "
                 f"{c(str(avg_tokens), col)} tokens | {c(f'{avg_ms:.0f}ms', col)} lat"
             )
-            results.append({
-                "label":      label,
-                "color":      col,
-                "avg_cost":   avg_cost,
-                "avg_tokens": avg_tokens,
-                "avg_ms":     avg_ms,
-            })
+            results.append(
+                {
+                    "label": label,
+                    "color": col,
+                    "avg_cost": avg_cost,
+                    "avg_tokens": avg_tokens,
+                    "avg_ms": avg_ms,
+                }
+            )
 
     return results
 
@@ -226,6 +237,7 @@ async def run_all_scenarios(lens: FlowLens, task: str, traces: list) -> list[dic
 # ─────────────────────────────────────────────────────────────────────────────
 # Model comparison table
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def print_cost_comparison(results: list[dict]) -> None:
     """Pretty-print the side-by-side cost table."""
@@ -242,14 +254,18 @@ def print_cost_comparison(results: list[dict]) -> None:
     rows = []
     for r in results:
         ratio = r["avg_cost"] / best_cost if best_cost > 0 else 1.0
-        ratio_str = c("(baseline)", BRIGHT_GREEN) if ratio < 1.05 else c(f"+{ratio:.1f}x", BRIGHT_RED)
-        rows.append([
-            r["label"],
-            c("${:.5f}".format(r["avg_cost"]), r["color"]),
-            c(str(r["avg_tokens"]), BRIGHT_YELLOW),
-            c("{:.0f} ms".format(r["avg_ms"]), BRIGHT_CYAN),
-            ratio_str,
-        ])
+        ratio_str = (
+            c("(baseline)", BRIGHT_GREEN) if ratio < 1.05 else c(f"+{ratio:.1f}x", BRIGHT_RED)
+        )
+        rows.append(
+            [
+                r["label"],
+                c("${:.5f}".format(r["avg_cost"]), r["color"]),
+                c(str(r["avg_tokens"]), BRIGHT_YELLOW),
+                c("{:.0f} ms".format(r["avg_ms"]), BRIGHT_CYAN),
+                ratio_str,
+            ]
+        )
     print_table(headers, rows, colors=[BRIGHT_WHITE, None, None, None, None])
 
     # Bar chart of relative cost
@@ -267,6 +283,7 @@ def print_cost_comparison(results: list[dict]) -> None:
 # Analysis of the most expensive trace
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def print_worst_trace_analysis(traces: list[Trace]) -> None:
     """Find the most expensive trace and run full FlowLens analysis on it."""
     if not traces:
@@ -275,28 +292,36 @@ def print_worst_trace_analysis(traces: list[Trace]) -> None:
     worst = max(traces, key=lambda t: t.total_cost_usd)
     section(f"Worst Trace Analysis — {worst.service_name} (${worst.total_cost_usd:.6f})")
 
-    dag      = build_causal_dag(worst)
+    dag = build_causal_dag(worst)
     patterns = detect_patterns(worst, dag)
-    advisor  = TraceAdvisor(trace=worst, dag=dag, patterns=patterns, traces_per_month=50_000)
-    report   = advisor.generate_report()
+    advisor = TraceAdvisor(trace=worst, dag=dag, patterns=patterns, traces_per_month=50_000)
+    report = advisor.generate_report()
 
     print_trace_tree(worst)
 
-    score     = report["severity_score"]
+    score = report["severity_score"]
     score_col = BRIGHT_GREEN if score < 30 else BRIGHT_YELLOW if score < 60 else BRIGHT_RED
-    level     = report["severity_level"].upper()
-    bar       = hbar(score, 100, width=30, color=score_col)
-    print(f"  Severity  {c(bar, score_col)}  {c(str(score) + '/100', score_col, BOLD)}  {c(level, score_col)}")
+    level = report["severity_level"].upper()
+    bar = hbar(score, 100, width=30, color=score_col)
+    print(
+        f"  Severity  {c(bar, score_col)}  {c(str(score) + '/100', score_col, BOLD)}  {c(level, score_col)}"
+    )
     print()
 
     if patterns:
         section("Detected Waste Patterns")
-        sev_icons  = {"critical": c("●", BRIGHT_RED), "warning": c("◆", BRIGHT_YELLOW), "info": c("○", BRIGHT_BLUE)}
+        sev_icons = {
+            "critical": c("●", BRIGHT_RED),
+            "warning": c("◆", BRIGHT_YELLOW),
+            "info": c("○", BRIGHT_BLUE),
+        }
         sev_colors = {"critical": BRIGHT_RED, "warning": BRIGHT_YELLOW, "info": BRIGHT_BLUE}
         for p in patterns:
             icon = sev_icons.get(p.severity, c("○", WHITE))
-            col  = sev_colors.get(p.severity, WHITE)
-            print(f"  {icon}  {c(f'[{p.severity.upper()}]', col, BOLD)}  {c(p.pattern_type.value, col)}")
+            col = sev_colors.get(p.severity, WHITE)
+            print(
+                f"  {icon}  {c(f'[{p.severity.upper()}]', col, BOLD)}  {c(p.pattern_type.value, col)}"
+            )
             print(f"      {c(p.description, DIM)}")
             print()
 
@@ -305,11 +330,19 @@ def print_worst_trace_analysis(traces: list[Trace]) -> None:
     monthly = report["estimated_monthly_savings"]
 
     metrics = [
-        ("Per-trace token savings",   "{:,}".format(savings["token_savings"]),                  BRIGHT_CYAN),
-        ("Per-trace cost savings",    "${:.5f}".format(savings["cost_savings_usd"]),            BRIGHT_GREEN),
-        ("Per-trace latency savings", "{:.0f} ms".format(savings["time_savings_ms"]),           BRIGHT_YELLOW),
-        ("Monthly cost savings",      "${:.2f}".format(monthly["cost_savings_usd_monthly"]),   BRIGHT_GREEN),
-        ("Monthly token savings",     "{:,}".format(monthly["token_savings_monthly"]),         BRIGHT_CYAN),
+        ("Per-trace token savings", "{:,}".format(savings["token_savings"]), BRIGHT_CYAN),
+        ("Per-trace cost savings", "${:.5f}".format(savings["cost_savings_usd"]), BRIGHT_GREEN),
+        (
+            "Per-trace latency savings",
+            "{:.0f} ms".format(savings["time_savings_ms"]),
+            BRIGHT_YELLOW,
+        ),
+        (
+            "Monthly cost savings",
+            "${:.2f}".format(monthly["cost_savings_usd_monthly"]),
+            BRIGHT_GREEN,
+        ),
+        ("Monthly token savings", "{:,}".format(monthly["token_savings_monthly"]), BRIGHT_CYAN),
     ]
     for label, val, col in metrics:
         print(f"  {c(label + ':', DIM):<38}  {c(val, col, BOLD)}")
@@ -320,7 +353,7 @@ def print_worst_trace_analysis(traces: list[Trace]) -> None:
         section("Optimisation Action Plan")
         for i, rec in enumerate(recs[:5], 1):
             sev_col = BRIGHT_RED if rec["severity"] == "critical" else BRIGHT_YELLOW
-            badge   = c("[{}]".format(rec["severity"].upper()), sev_col, BOLD)
+            badge = c("[{}]".format(rec["severity"].upper()), sev_col, BOLD)
             print(f"  {i}. {badge}  {c(rec['title'], BOLD)}")
             print(f"     {c(rec['description'][:120] + '…', DIM)}")
             if rec.get("code_snippet"):
@@ -333,6 +366,7 @@ def print_worst_trace_analysis(traces: list[Trace]) -> None:
 # Main
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 async def main() -> None:
     _traces: list[Trace] = []
     lens = FlowLens(
@@ -343,18 +377,48 @@ async def main() -> None:
     )
 
     # Banner
-    print(c("\n╔══════════════════════════════════════════════════════════════════════╗", BRIGHT_CYAN, BOLD))
-    print(c("║         F L O W L E N S   —   Agent Observability Platform           ║", BRIGHT_CYAN, BOLD))
-    print(c("║         Example: Cost Optimiser                                      ║", BRIGHT_CYAN, BOLD))
-    print(c("║         Compare models, detect waste, estimate savings               ║", BRIGHT_CYAN, BOLD))
-    print(c("╚══════════════════════════════════════════════════════════════════════╝", BRIGHT_CYAN, BOLD))
+    print(
+        c(
+            "\n╔══════════════════════════════════════════════════════════════════════╗",
+            BRIGHT_CYAN,
+            BOLD,
+        )
+    )
+    print(
+        c(
+            "║         F L O W L E N S   —   Agent Observability Platform           ║",
+            BRIGHT_CYAN,
+            BOLD,
+        )
+    )
+    print(
+        c(
+            "║         Example: Cost Optimiser                                      ║",
+            BRIGHT_CYAN,
+            BOLD,
+        )
+    )
+    print(
+        c(
+            "║         Compare models, detect waste, estimate savings               ║",
+            BRIGHT_CYAN,
+            BOLD,
+        )
+    )
+    print(
+        c(
+            "╚══════════════════════════════════════════════════════════════════════╝",
+            BRIGHT_CYAN,
+            BOLD,
+        )
+    )
     print()
     print(c("  Scenarios:", BRIGHT_WHITE, BOLD))
     scenarios_info = [
-        (BRIGHT_GREEN,  "Baseline",          "claude-sonnet (planning) + claude-haiku (execution)"),
-        (BRIGHT_RED,    "Expensive",         "claude-opus for EVERYTHING — 5-10x cost"),
-        (BRIGHT_YELLOW, "Context overflow",  "150k token prompts sent on every LLM call"),
-        (BRIGHT_BLUE,   "GPT-4o hybrid",     "gpt-4o (planning) + gpt-4o-mini (execution)"),
+        (BRIGHT_GREEN, "Baseline", "claude-sonnet (planning) + claude-haiku (execution)"),
+        (BRIGHT_RED, "Expensive", "claude-opus for EVERYTHING — 5-10x cost"),
+        (BRIGHT_YELLOW, "Context overflow", "150k token prompts sent on every LLM call"),
+        (BRIGHT_BLUE, "GPT-4o hybrid", "gpt-4o (planning) + gpt-4o-mini (execution)"),
     ]
     for col, name, desc in scenarios_info:
         print(f"    {c('▸', col)}  {c(name, col, BOLD):<22}  {c(desc, DIM)}")
@@ -372,17 +436,23 @@ async def main() -> None:
     # Final headline summary
     section("Summary: Cost Optimisation Opportunities")
     if results and len(results) >= 2:
-        cheapest  = min(results, key=lambda r: r["avg_cost"])
+        cheapest = min(results, key=lambda r: r["avg_cost"])
         expensive = max(results, key=lambda r: r["avg_cost"])
-        ratio     = expensive["avg_cost"] / cheapest["avg_cost"] if cheapest["avg_cost"] > 0 else 1
+        ratio = expensive["avg_cost"] / cheapest["avg_cost"] if cheapest["avg_cost"] > 0 else 1
         monthly_waste = (expensive["avg_cost"] - cheapest["avg_cost"]) * 50_000
         print(f"  {c('Cheapest scenario:', DIM)}  {c(cheapest['label'], BRIGHT_GREEN, BOLD)}")
         print(f"  {c('Costliest scenario:', DIM)} {c(expensive['label'], BRIGHT_RED, BOLD)}")
-        print(f"  {c('Cost ratio:', DIM)}          {c(f'{ratio:.1f}x', BRIGHT_RED, BOLD)} more expensive")
-        print(f"  {c('Monthly waste (50k):', DIM)} {c(f'${monthly_waste:.2f}/mo', BRIGHT_RED, BOLD)}")
+        print(
+            f"  {c('Cost ratio:', DIM)}          {c(f'{ratio:.1f}x', BRIGHT_RED, BOLD)} more expensive"
+        )
+        print(
+            f"  {c('Monthly waste (50k):', DIM)} {c(f'${monthly_waste:.2f}/mo', BRIGHT_RED, BOLD)}"
+        )
         print()
         print(c("  Recommendation:", BRIGHT_WHITE, BOLD))
-        print(f"    Use {c(cheapest['label'], BRIGHT_GREEN, BOLD)} as your baseline model strategy.")
+        print(
+            f"    Use {c(cheapest['label'], BRIGHT_GREEN, BOLD)} as your baseline model strategy."
+        )
         print("    Reserve claude-opus / gpt-4o for high-stakes generation only.")
         print("    Implement RAG with chunked context instead of full KB injection.")
         print()
