@@ -1840,20 +1840,65 @@ function openSpanDetail(spanId) {
   const kind = (span.kind || 'custom').toLowerCase();
   const cfg = SPAN_KIND_COLORS[kind] || SPAN_KIND_COLORS.custom;
   const isError = span.status === 'error';
+  const attrs = span.attributes || {};
+
+  // Parse semantic fields from attributes
+  const toolName = attrs['tool.name'] || attrs['tool_name'] || attrs['gen_ai.tool.name'] || null;
+  const toolInput = attrs['tool.input'] || attrs['tool_input'] || attrs['input'] || null;
+  const toolOutput = attrs['tool.output'] || attrs['tool_output'] || attrs['tool.output_summary'] || attrs['output'] || null;
+  const llmModel = attrs['gen_ai.request.model'] || attrs['llm.model'] || attrs['model'] || null;
+  const llmInputTokens = parseInt(attrs['gen_ai.usage.input_tokens'] || attrs['llm.usage.prompt_tokens'] || 0, 10);
+  const llmOutputTokens = parseInt(attrs['gen_ai.usage.output_tokens'] || attrs['llm.usage.completion_tokens'] || 0, 10);
+  const llmResponse = attrs['gen_ai.response.text'] || attrs['llm.response'] || attrs['response'] || null;
+  const errorType = attrs['error.type'] || attrs['exception.type'] || null;
+  const errorMsg = attrs['error.message'] || attrs['exception.message'] || span.error_message ||
+    (span.error ? (span.error.message || JSON.stringify(span.error)) : null);
+
+  // Semantic attribute keys to exclude from the "Metadata" section (already shown above)
+  const SEMANTIC_KEYS = new Set([
+    'tool.name', 'tool_name', 'gen_ai.tool.name',
+    'tool.input', 'tool_input', 'input',
+    'tool.output', 'tool_output', 'tool.output_summary', 'output',
+    'gen_ai.request.model', 'llm.model', 'model',
+    'gen_ai.usage.input_tokens', 'llm.usage.prompt_tokens',
+    'gen_ai.usage.output_tokens', 'llm.usage.completion_tokens',
+    'gen_ai.response.text', 'llm.response', 'response',
+    'error.type', 'exception.type',
+    'error.message', 'exception.message',
+    'agent', 'agent.name',
+  ]);
 
   // Resolve agent for this span
-  const spanDetailAttrs = span.attributes || {};
-  const sdAgentFromAttr = spanDetailAttrs.agent || spanDetailAttrs['agent.name'] || (currentTraceData && (currentTraceData.tags || {}).agent) || null;
+  const sdAgentFromAttr = attrs['agent'] || attrs['agent.name'] || (currentTraceData && (currentTraceData.tags || {}).agent) || null;
   const sdAgentFromName = extractAgentFromSpanName(span.name);
   const sdAgentKey = sdAgentFromAttr || sdAgentFromName;
   const sdAgentProfile = sdAgentKey ? getAgentProfile(sdAgentKey) : null;
 
+  // Timing
+  const durationMs = span.duration_ms || ((span.end_time - span.start_time) * 1000) || 0;
+  const traceStart = currentTraceData.spans.reduce((mn, s) => Math.min(mn, s.start_time || Infinity), Infinity);
+  const traceEnd = currentTraceData.spans.reduce((mx, s) => Math.max(mx, s.end_time || 0), 0);
+  const traceDurationMs = (traceEnd - traceStart) * 1000;
+  const relOffset = traceStart > 0 && span.start_time > 0 ? ((span.start_time - traceStart) * 1000) : 0;
+  const barLeft = traceDurationMs > 0 ? Math.min(99, (relOffset / traceDurationMs) * 100).toFixed(1) : 0;
+  const barWidth = traceDurationMs > 0 ? Math.max(1, (durationMs / traceDurationMs) * 100).toFixed(1) : 2;
+
   let html = '';
 
-  // Header — agent avatar + kind badge + status
-  html += `<div class="mb-4">`;
+  // ---- Error header (prominent, always first if error) ----
+  if (isError && errorMsg) {
+    html += `
+      <div class="mb-4 rounded-xl p-3 border-2" style="background:rgba(239,68,68,0.08);border-color:rgba(239,68,68,0.45)">
+        <div class="flex items-center gap-2 mb-1.5">
+          <svg class="w-4 h-4 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+          <span class="text-xs font-bold text-red-400 uppercase tracking-wider">Error${errorType ? ': ' + escHtml(errorType) : ''}</span>
+        </div>
+        <p class="text-xs text-red-300 font-mono break-all leading-relaxed">${escHtml(errorMsg)}</p>
+      </div>`;
+  }
 
-  // Agent row at the top if we know the agent
+  // ---- Header — agent avatar + kind badge + span name ----
+  html += `<div class="mb-4">`;
   if (sdAgentProfile) {
     html += `<div class="flex items-center gap-2 mb-3 p-2 rounded-lg" style="background:${sdAgentProfile.color}18;border:1px solid ${sdAgentProfile.color}30">
       ${renderAgentAvatar(sdAgentKey, 'md')}
@@ -1863,31 +1908,118 @@ function openSpanDetail(spanId) {
       </div>
     </div>`;
   }
-
   html += `<div class="flex items-center gap-2 mb-2">
       <span class="px-2 py-0.5 text-xs font-medium rounded ${cfg.bg} ${cfg.text}">${cfg.label}</span>
       ${isError ? '<span class="px-2 py-0.5 text-xs font-medium rounded bg-red-500/10 text-red-300 border border-red-500/20">ERROR</span>' : '<span class="px-2 py-0.5 text-xs font-medium rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">OK</span>'}
     </div>
-    <h4 class="text-base font-semibold text-white">${escHtml(span.name)}</h4>
+    <h4 class="text-base font-semibold text-white leading-snug">${escHtml(span.name)}</h4>
     <div class="flex items-center gap-1 mt-1">
-      <span class="text-xs text-slate-500 font-mono">${span.span_id}</span>
-      <button onclick="navigator.clipboard.writeText('${span.span_id}');showToast('Span ID copied','success',1500)" class="p-0.5 rounded hover:bg-white/5 text-slate-600 hover:text-slate-400 transition" title="Copy span ID">
+      <span class="text-[10px] text-slate-500 font-mono truncate">${span.span_id}</span>
+      <button onclick="navigator.clipboard.writeText('${span.span_id}');showToast('Span ID copied','success',1500)" class="p-0.5 rounded hover:bg-white/5 text-slate-600 hover:text-slate-400 transition flex-shrink-0" title="Copy span ID">
         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
       </button>
     </div>
   </div>`;
 
-  // Timing — collapsible
-  const startStr = span.start_time > 0 ? new Date(span.start_time * 1000).toLocaleTimeString() : '--';
-  const durationMs = span.duration_ms || ((span.end_time - span.start_time) * 1000) || 0;
+  // ---- Timing with visual bar ----
+  const startStr = span.start_time > 0 ? new Date(span.start_time * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 }) : '--';
+  const endStr = span.end_time > 0 ? new Date(span.end_time * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 }) : '--';
   html += renderCollapsibleSection('Timing', `
-    <div class="space-y-1 text-xs">
-      <div class="flex justify-between"><span class="text-slate-500">Start</span><span class="text-slate-300">${startStr}</span></div>
-      <div class="flex justify-between"><span class="text-slate-500">Duration</span><span class="text-slate-300">${formatDuration(durationMs)}</span></div>
+    <div class="space-y-2 text-xs">
+      <div class="flex justify-between"><span class="text-slate-500">Start</span><span class="text-slate-300 tabular-nums">${startStr}</span></div>
+      <div class="flex justify-between"><span class="text-slate-500">End</span><span class="text-slate-300 tabular-nums">${endStr}</span></div>
+      <div class="flex justify-between"><span class="text-slate-500">Duration</span><span class="text-amber-300 font-semibold tabular-nums">${formatDuration(durationMs)}</span></div>
+      ${traceDurationMs > 0 ? `<div>
+        <div class="text-[10px] text-slate-600 mb-1">Position in trace</div>
+        <div class="relative h-4 rounded bg-surface-200 overflow-hidden">
+          <div class="absolute h-full rounded" style="left:${barLeft}%;width:${barWidth}%;background:linear-gradient(90deg,${isError ? '#ef4444' : '#7c7aef'},${isError ? '#f87171' : '#9b8ec4'});min-width:4px"></div>
+        </div>
+        <div class="flex justify-between text-[10px] text-slate-600 mt-0.5">
+          <span>+${formatDuration(relOffset)}</span>
+          <span>trace: ${formatDuration(traceDurationMs)}</span>
+        </div>
+      </div>` : ''}
     </div>
   `, true);
 
-  // Parent
+  // ---- Tool Input section (for tool spans) ----
+  if (toolName || toolInput) {
+    const toolHeader = toolName ? `<div class="flex items-center gap-1.5 mb-2">
+      <span class="px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded bg-blue-500/15 text-blue-400 border border-blue-500/25">Tool</span>
+      <span class="text-xs font-semibold text-white">${escHtml(toolName || span.name)}</span>
+    </div>` : '';
+    const isPath = toolInput && (toolInput.startsWith('/') || toolInput.match(/^[A-Za-z]:\\/));
+    const isCode = toolInput && toolInput.length > 20 && !isPath;
+    html += renderCollapsibleSection('Tool Input', `
+      ${toolHeader}
+      ${toolInput ? `<div class="rounded-lg overflow-hidden border border-white/8">
+        <div class="px-2 py-1 text-[9px] text-slate-600 uppercase tracking-wider font-semibold" style="background:rgba(255,255,255,0.03)">${isPath ? 'Path' : isCode ? 'Command / Query' : 'Input'}</div>
+        <pre class="p-2.5 text-[11px] text-slate-300 font-mono overflow-x-auto leading-relaxed whitespace-pre-wrap break-words" style="background:rgba(0,0,0,0.2);max-height:160px">${escHtml(String(toolInput))}</pre>
+      </div>` : '<span class="text-xs text-slate-500 italic">No input recorded</span>'}
+    `, true);
+  }
+
+  // ---- Tool Output section ----
+  if (toolOutput) {
+    const outputStr = String(toolOutput);
+    const truncated = outputStr.length > 500;
+    html += renderCollapsibleSection('Tool Output', `
+      <div class="rounded-lg overflow-hidden border border-white/8">
+        <div class="px-2 py-1 text-[9px] text-slate-600 uppercase tracking-wider font-semibold" style="background:rgba(255,255,255,0.03)">Result</div>
+        <pre class="p-2.5 text-[11px] text-emerald-300/90 font-mono overflow-x-auto leading-relaxed whitespace-pre-wrap break-words" style="background:rgba(16,185,129,0.04);max-height:160px">${escHtml(truncated ? outputStr.substring(0, 500) + '\n… (' + (outputStr.length - 500) + ' more chars)' : outputStr)}</pre>
+      </div>
+    `, true);
+  }
+
+  // ---- LLM Details section ----
+  const tu = span.token_usage;
+  const hasLlmData = llmModel || tu || llmInputTokens || llmOutputTokens;
+  if (hasLlmData) {
+    const inputTok = tu ? (tu.input_tokens || 0) : llmInputTokens;
+    const outputTok = tu ? (tu.output_tokens || 0) : llmOutputTokens;
+    const totalTok = inputTok + outputTok;
+    const inputPct = totalTok > 0 ? ((inputTok / totalTok) * 100).toFixed(1) : 0;
+    const outputPct = totalTok > 0 ? ((outputTok / totalTok) * 100).toFixed(1) : 0;
+    const costUsd = tu ? (tu.total_cost_usd || 0) : 0;
+    html += renderCollapsibleSection('LLM Details', `
+      <div class="space-y-2.5 text-xs">
+        ${llmModel ? `<div class="flex items-center gap-2">
+          <span class="text-slate-500">Model</span>
+          <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-500/15 text-indigo-300 border border-indigo-500/25 font-mono">${escHtml(llmModel)}</span>
+        </div>` : ''}
+        ${totalTok > 0 ? `<div>
+          <div class="flex justify-between mb-1">
+            <span class="text-slate-500">Tokens</span>
+            <span class="text-slate-300 tabular-nums font-mono">${totalTok.toLocaleString()} total</span>
+          </div>
+          <div class="flex h-3 rounded overflow-hidden gap-px" style="background:rgba(255,255,255,0.05)">
+            <div class="bg-blue-500/60 rounded-l transition-all" style="width:${inputPct}%" title="Input ${inputPct}%"></div>
+            <div class="bg-emerald-500/60 rounded-r transition-all" style="width:${outputPct}%" title="Output ${outputPct}%"></div>
+          </div>
+          <div class="flex justify-between text-[10px] text-slate-600 mt-1">
+            <span><span class="w-2 h-2 rounded-sm inline-block bg-blue-500/60 mr-1"></span>Input: ${inputTok.toLocaleString()} (${inputPct}%)</span>
+            <span><span class="w-2 h-2 rounded-sm inline-block bg-emerald-500/60 mr-1"></span>Output: ${outputTok.toLocaleString()} (${outputPct}%)</span>
+          </div>
+        </div>` : ''}
+        ${costUsd > 0 ? `<div class="flex justify-between pt-1 border-t border-white/5">
+          <span class="text-slate-500">Cost</span>
+          <span class="text-emerald-300 font-semibold tabular-nums">$${costUsd.toFixed(6)}</span>
+        </div>` : ''}
+      </div>
+    `, true);
+  }
+
+  // ---- LLM Response preview (collapsible, closed by default) ----
+  if (llmResponse) {
+    const respStr = String(llmResponse);
+    html += renderCollapsibleSection('Response Preview', `
+      <div class="rounded-lg overflow-hidden border border-white/8">
+        <pre class="p-2.5 text-[11px] text-slate-300 font-mono overflow-x-auto leading-relaxed whitespace-pre-wrap break-words" style="background:rgba(0,0,0,0.15);max-height:200px">${escHtml(respStr.length > 800 ? respStr.substring(0, 800) + '\n… (' + (respStr.length - 800) + ' more chars)' : respStr)}</pre>
+      </div>
+    `, false);
+  }
+
+  // ---- Parent ----
   if (span.parent_span_id) {
     const parentSpan = currentTraceData.spans.find(s => s.span_id === span.parent_span_id);
     html += renderCollapsibleSection('Parent', `
@@ -1897,7 +2029,7 @@ function openSpanDetail(spanId) {
     `, true);
   }
 
-  // Children
+  // ---- Children ----
   const children = currentTraceData.spans.filter(s => s.parent_span_id === span.span_id);
   if (children.length > 0) {
     let childrenHtml = '<div class="space-y-1">';
@@ -1917,78 +2049,35 @@ function openSpanDetail(spanId) {
     html += renderCollapsibleSection(`Children (${children.length})`, childrenHtml, true);
   }
 
-  // Token Usage — mini bar chart (input vs output)
-  const tu = span.token_usage;
-  if (tu) {
-    const totalTok = (tu.input_tokens || 0) + (tu.output_tokens || 0);
-    const inputPct = totalTok > 0 ? ((tu.input_tokens || 0) / totalTok * 100).toFixed(1) : 0;
-    const outputPct = totalTok > 0 ? ((tu.output_tokens || 0) / totalTok * 100).toFixed(1) : 0;
-    html += renderCollapsibleSection('Token Usage', `
-      <div class="space-y-2 text-xs">
-        <div class="flex justify-between items-center">
-          <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-sm bg-blue-500/60 flex-shrink-0"></span><span class="text-slate-500">Input</span></div>
-          <span class="text-slate-300 tabular-nums">${(tu.input_tokens || 0).toLocaleString()} <span class="text-slate-600 text-[10px]">(${inputPct}%)</span></span>
-        </div>
-        <div class="flex justify-between items-center">
-          <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-sm bg-emerald-500/60 flex-shrink-0"></span><span class="text-slate-500">Output</span></div>
-          <span class="text-slate-300 tabular-nums">${(tu.output_tokens || 0).toLocaleString()} <span class="text-slate-600 text-[10px]">(${outputPct}%)</span></span>
-        </div>
-        ${totalTok > 0 ? `<div>
-          <div class="flex h-3 rounded overflow-hidden bg-surface-200 mt-1 gap-0.5">
-            <div class="bg-blue-500/70 rounded-l transition-all" style="width:${inputPct}%" title="Input: ${inputPct}%"></div>
-            <div class="bg-emerald-500/70 rounded-r transition-all" style="width:${outputPct}%" title="Output: ${outputPct}%"></div>
-          </div>
-          <div class="flex justify-between text-[10px] text-slate-600 mt-0.5">
-            <span>Input ${inputPct}%</span>
-            <span>Total: ${totalTok.toLocaleString()}</span>
-            <span>Output ${outputPct}%</span>
-          </div>
-        </div>` : ''}
-        <div class="flex justify-between border-t border-white/5 pt-1.5">
-          <span class="text-slate-500">Cost</span>
-          <span class="text-emerald-300 font-medium">$${(tu.total_cost_usd || 0).toFixed(6)}</span>
-        </div>
-      </div>
-    `, true);
-  }
-
-  // Error — collapsible, always open, with prominent red-bordered box
-  if (span.error || span.error_message) {
-    const errMsg = span.error ? (span.error.message || JSON.stringify(span.error)) : span.error_message;
-    html += renderCollapsibleSection('Error', `
-      <div class="p-3 rounded-lg bg-red-500/8 border-2 border-red-500/60 text-xs text-red-300 font-mono break-all" style="border-left:4px solid #ef4444;background:rgba(239,68,68,0.06)">
-        <div class="flex items-center gap-1.5 mb-1.5">
-          <svg class="w-3.5 h-3.5 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
-          <span class="font-semibold text-red-400 text-[11px] uppercase tracking-wider">Error</span>
-        </div>
-        ${escHtml(errMsg)}
-      </div>
-    `, true, 'text-red-400');
-  }
-
-  // Attributes — collapsible, better key-value table layout
-  const attrs = span.attributes || {};
-  if (Object.keys(attrs).length > 0) {
+  // ---- Metadata — remaining attributes not already shown ----
+  const remainingAttrs = Object.entries(attrs).filter(([k]) => !SEMANTIC_KEYS.has(k));
+  if (remainingAttrs.length > 0) {
     let attrHtml = '<table class="w-full text-xs border-collapse">';
-    for (const [key, val] of Object.entries(attrs)) {
+    for (const [key, val] of remainingAttrs) {
+      const valStr = String(val);
+      const isMono = key.includes('.') || valStr.length > 40 || /^[\w.-]+$/.test(valStr);
       attrHtml += `<tr class="border-b border-white/5 last:border-0">
-        <td class="py-1 pr-3 text-slate-500 font-medium align-top w-2/5 break-all">${escHtml(key)}</td>
-        <td class="py-1 text-slate-300 text-right align-top break-all">${escHtml(String(val))}</td>
+        <td class="py-1.5 pr-3 text-slate-500 font-medium align-top w-2/5 break-all text-[11px]">${escHtml(key)}</td>
+        <td class="py-1.5 text-slate-300 text-right align-top break-all ${isMono ? 'font-mono text-[10px]' : 'text-xs'}">${escHtml(valStr)}</td>
       </tr>`;
     }
     attrHtml += '</table>';
-    html += renderCollapsibleSection(`Attributes (${Object.keys(attrs).length})`, attrHtml, false);
+    html += renderCollapsibleSection(`Metadata (${remainingAttrs.length})`, attrHtml, false);
   }
 
-  // Events — collapsible
+  // ---- Events timeline ----
   const events = span.events || [];
   if (events.length > 0) {
     let eventsHtml = '<div class="space-y-2">';
     events.forEach(ev => {
-      const evTime = ev.timestamp > 0 ? new Date(ev.timestamp * 1000).toLocaleTimeString() : '--';
-      eventsHtml += `<div class="p-2 rounded bg-surface-100 border border-white/5">
-        <div class="flex justify-between text-xs mb-1"><span class="text-slate-300 font-medium">${escHtml(ev.name)}</span><span class="text-slate-600">${evTime}</span></div>
-        ${Object.keys(ev.attributes || {}).length > 0 ? `<pre class="text-[10px] text-slate-500 mt-1 overflow-x-auto">${escHtml(JSON.stringify(ev.attributes, null, 2))}</pre>` : ''}
+      const evTime = ev.timestamp > 0 ? new Date(ev.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '--';
+      const evOffset = ev.timestamp > 0 && span.start_time > 0 ? formatDuration((ev.timestamp - span.start_time) * 1000) : null;
+      eventsHtml += `<div class="p-2 rounded-lg bg-surface-100 border border-white/5">
+        <div class="flex justify-between text-xs mb-1">
+          <span class="text-slate-300 font-medium">${escHtml(ev.name)}</span>
+          <span class="text-slate-600 tabular-nums">${evTime}${evOffset ? ` (+${evOffset})` : ''}</span>
+        </div>
+        ${Object.keys(ev.attributes || {}).length > 0 ? `<pre class="text-[10px] text-slate-500 mt-1 overflow-x-auto rounded p-1" style="background:rgba(0,0,0,0.15)">${escHtml(JSON.stringify(ev.attributes, null, 2))}</pre>` : ''}
       </div>`;
     });
     eventsHtml += '</div>';
@@ -2321,11 +2410,26 @@ function renderPatternCard(pattern, traceId) {
   const cfg = SEVERITY_CONFIG[sev] || SEVERITY_CONFIG.info;
   const patternName = escHtml((pattern.pattern || 'Unknown').replace(/_/g, ' '));
   const description = escHtml(pattern.description || '');
-  const recommendation = escHtml(pattern.recommendation || '');
+  const recommendation = pattern.recommendation || '';
+  const codeSnippet = pattern.code_snippet || pattern.fix_code || null;
+  const estimatedSavings = pattern.estimated_savings || null;
   const affectedCount = pattern.involved_spans ? pattern.involved_spans.length : 0;
   const cardId = 'pattern-' + Math.random().toString(36).substring(2, 8);
+  const shortTraceId = traceId ? traceId.substring(0, 8) : '?';
 
-  // Build involved spans detail section
+  // Savings badge
+  let savingsBadgeHtml = '';
+  if (estimatedSavings) {
+    const parts = [];
+    if (estimatedSavings.tokens) parts.push(`~${estimatedSavings.tokens.toLocaleString()} tokens`);
+    if (estimatedSavings.cost_usd) parts.push(`$${Number(estimatedSavings.cost_usd).toFixed(4)}`);
+    if (estimatedSavings.time_ms) parts.push(`${formatDuration(estimatedSavings.time_ms)}`);
+    if (parts.length > 0) {
+      savingsBadgeHtml = `<span class="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">Save: ${escHtml(parts.join(' · '))}</span>`;
+    }
+  }
+
+  // Involved spans section
   let spansDetailHtml = '';
   if (pattern.involved_spans && pattern.involved_spans.length > 0) {
     const spanItems = pattern.involved_spans.map(s => {
@@ -2334,14 +2438,31 @@ function renderPatternCard(pattern, traceId) {
       return `<div class="flex items-center gap-2 px-2 py-1.5 rounded bg-surface-100/50 text-[11px]">
         <span class="w-1.5 h-1.5 rounded-full ${cfg.dotColor} flex-shrink-0"></span>
         <span class="text-slate-300 font-mono truncate">${escHtml(spanName)}</span>
-        ${spanRole ? `<span class="text-slate-600">${escHtml(spanRole)}</span>` : ''}
+        ${spanRole ? `<span class="text-slate-600 text-[10px]">${escHtml(spanRole)}</span>` : ''}
       </div>`;
     }).join('');
     spansDetailHtml = `
-      <div class="pattern-detail-section mt-3 pt-3 border-t border-white/5">
-        <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-2">Affected Spans</div>
-        <div class="space-y-1 max-h-48 overflow-y-auto">${spanItems}</div>
-        <button class="mt-2 text-[10px] text-indigo-400 hover:text-indigo-300 transition" onclick="event.stopPropagation(); openTrace('${escHtml(traceId)}')">View full trace --></button>
+      <div class="mt-2">
+        <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1.5">Affected Spans</div>
+        <div class="space-y-1 max-h-40 overflow-y-auto">${spanItems}</div>
+      </div>`;
+  }
+
+  // Code fix section
+  let codeFixHtml = '';
+  if (codeSnippet) {
+    const fixId = cardId + '-fix';
+    codeFixHtml = `
+      <div class="mt-2 pt-2 border-t border-white/5">
+        <button class="flex items-center gap-1.5 text-[10px] text-indigo-400 hover:text-indigo-300 transition font-semibold"
+                onclick="event.stopPropagation();var el=document.getElementById('${fixId}');el.classList.toggle('hidden');">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+          Show Code Fix
+        </button>
+        <div id="${fixId}" class="hidden mt-2 rounded-lg overflow-hidden border border-white/8">
+          <div class="px-2 py-1 text-[9px] text-slate-600 uppercase tracking-wider font-semibold" style="background:rgba(255,255,255,0.03)">Recommended Fix</div>
+          <pre class="p-2.5 text-[10px] text-emerald-300/90 font-mono overflow-x-auto leading-relaxed whitespace-pre-wrap" style="background:rgba(16,185,129,0.04);max-height:200px">${escHtml(codeSnippet)}</pre>
+        </div>
       </div>`;
   }
 
@@ -2349,8 +2470,8 @@ function renderPatternCard(pattern, traceId) {
     <div id="${cardId}" class="glass rounded-xl p-4 border border-white/5 ${cfg.cardClass} glass-hover cursor-pointer transition pattern-card-expandable"
          data-severity="${escHtml(sev)}"
          onclick="this.classList.toggle('expanded');">
-      <div class="flex items-start gap-3 mb-2">
-        <div class="pattern-severity-icon ${cfg.iconBg}">
+      <div class="flex items-start gap-3">
+        <div class="pattern-severity-icon ${cfg.iconBg} flex-shrink-0">
           ${cfg.largeIcon}
         </div>
         <div class="flex-1 min-w-0">
@@ -2358,19 +2479,31 @@ function renderPatternCard(pattern, traceId) {
             <span class="text-xs font-bold text-white">${patternName}</span>
             <span class="px-1.5 py-0.5 text-[10px] font-semibold uppercase rounded ${cfg.badgeClass}">${escHtml(sev)}</span>
             ${affectedCount > 0 ? `<span class="pattern-count-badge">${affectedCount} span${affectedCount > 1 ? 's' : ''}</span>` : ''}
+            ${savingsBadgeHtml}
             <span class="pattern-expand-chevron text-slate-600 ml-auto">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
             </span>
           </div>
           <p class="text-xs text-slate-400 mt-1 leading-relaxed">${description}</p>
+          <!-- Trace link always visible -->
+          <button class="mt-1.5 flex items-center gap-1 text-[10px] text-indigo-400 hover:text-indigo-300 transition"
+                  onclick="event.stopPropagation(); openTrace('${escHtml(traceId)}')">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+            View trace ${shortTraceId}...
+          </button>
         </div>
-        <span class="text-[10px] text-slate-600 font-mono flex-shrink-0">${traceId.substring(0, 8)}...</span>
       </div>
-      ${recommendation ? `
-        <div class="mt-2 p-2.5 rounded-lg bg-surface-100 border border-white/5 text-xs text-slate-500">
-          <span class="text-slate-600 font-medium">Rec: </span>${recommendation}
-        </div>` : ''}
-      ${spansDetailHtml}
+
+      <!-- Expandable detail section -->
+      <div class="pattern-detail-section">
+        ${recommendation ? `
+          <div class="mt-3 p-2.5 rounded-lg border border-white/5 text-xs" style="background:rgba(255,255,255,0.03)">
+            <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1">Recommendation</div>
+            <p class="text-slate-300 leading-relaxed">${escHtml(recommendation)}</p>
+          </div>` : ''}
+        ${spansDetailHtml}
+        ${codeFixHtml}
+      </div>
     </div>
   `;
 }
@@ -2407,7 +2540,6 @@ function _renderFilteredPatterns() {
     const sub = _activePatternFilter === 'all'
       ? 'Checked recent error traces — all clear.'
       : 'Try a different severity filter.';
-    // Preserve count header
     const headerHtml = `
       <div class="flex items-center justify-between mb-4">
         <span class="text-xs text-slate-500">${_allPatternsData.length} total pattern(s) across all severities</span>
@@ -2418,13 +2550,49 @@ function _renderFilteredPatterns() {
 
   const totalCount = _allPatternsData.length;
   const visibleCount = filtered.length;
+
+  // Group by severity: critical → warning → info
+  const SEVERITY_ORDER = ['critical', 'warning', 'info'];
+  const grouped = {};
+  SEVERITY_ORDER.forEach(s => { grouped[s] = []; });
+  filtered.forEach(item => {
+    const sev = (item.pattern.severity || 'info').toLowerCase();
+    if (!grouped[sev]) grouped[sev] = [];
+    grouped[sev].push(item);
+  });
+
+  const SEV_LABELS = { critical: 'Critical', warning: 'Warning', info: 'Info' };
+  const SEV_COLORS = { critical: '#ef4444', warning: '#f59e0b', info: '#3b82f6' };
+
+  let groupsHtml = '';
+  SEVERITY_ORDER.forEach(sev => {
+    const items = grouped[sev];
+    if (!items || items.length === 0) return;
+    const color = SEV_COLORS[sev];
+    const groupId = 'pgroup-' + sev;
+    groupsHtml += `
+      <div class="mb-5">
+        <div class="flex items-center gap-2 mb-3 collapsible-header" onclick="var g=document.getElementById('${groupId}');g.classList.toggle('collapsed');this.querySelector('.collapsible-chevron').classList.toggle('rotated');">
+          <span class="w-2 h-2 rounded-full flex-shrink-0" style="background:${color}"></span>
+          <span class="text-xs font-bold uppercase tracking-wider" style="color:${color}">${SEV_LABELS[sev]}</span>
+          <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold" style="background:${color}22;color:${color}">${items.length}</span>
+          <span class="collapsible-chevron rotated text-slate-600 ml-1">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+          </span>
+        </div>
+        <div id="${groupId}" class="collapsible-content" style="max-height:9999px">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            ${items.map(item => renderPatternCard(item.pattern, item.traceId)).join('')}
+          </div>
+        </div>
+      </div>`;
+  });
+
   container.innerHTML = `
     <div class="flex items-center justify-between mb-4">
       <span class="text-xs text-slate-500">${visibleCount} of ${totalCount} pattern(s) shown</span>
     </div>
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
-      ${filtered.map(item => renderPatternCard(item.pattern, item.traceId)).join('')}
-    </div>
+    ${groupsHtml}
   `;
 }
 

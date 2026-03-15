@@ -587,6 +587,32 @@
           </div>
           <div style="height:220px"><canvas id="chart-cost-agent"></canvas></div>
         </div>
+
+        <!-- Cost by Model -->
+        <div class="glass rounded-xl p-5">
+          <h3 class="text-sm font-semibold text-white mb-4">Cost by Model</h3>
+          <div class="h-60"><canvas id="chart-cost-model"></canvas></div>
+        </div>
+
+        <!-- Top 5 Most Expensive Traces -->
+        <div class="glass rounded-xl p-5">
+          <h3 class="text-sm font-semibold text-white mb-3">Most Expensive Traces</h3>
+          <p class="text-[10px] text-slate-600 mb-3">Click any trace to open it in the Traces view</p>
+          <div id="cost-top-traces">
+            <div class="text-xs text-slate-500 italic py-2">Loading...</div>
+          </div>
+        </div>
+
+        <!-- Optimization Suggestions -->
+        <div class="glass rounded-xl p-5 lg:col-span-2">
+          <div class="flex items-center gap-2 mb-3">
+            <svg class="w-4 h-4 text-indigo-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+            <h3 class="text-sm font-semibold text-white">Cost Optimization Suggestions</h3>
+          </div>
+          <div id="cost-optimization-tips">
+            <div class="text-xs text-slate-500 italic py-2">Loading...</div>
+          </div>
+        </div>
       </div>
     </div>
 

@@ -8,8 +8,8 @@
 |-------|-----------|-----------|-----------------------------------------------------------------------|--------|-------------|
 | Lead  | sonnet 4.6| idle      | —                                                                     | main   | 4587523     |
 | Alpha | sonnet 4.6| in_progress | 3D Agent Network performance: SVG/CSS rendering, lazy-load Three.js   | dev    | b739517     |
-| Beta  | sonnet 4.6| idle        | Cycle 12 complete: stat trends, live feed, light theme fixes, empty state | main | pending commit |
-| Gamma | sonnet 4.6| idle      | —                                                                     | —      | —           |
+| Beta  | sonnet 4.6| idle        | Refactored app.py into routes/ package (done, Cycle 11)                | feat/beta-route-modularization | 7af0433     |
+| Gamma | sonnet 4.6| idle        | Cycle 12 complete: span detail, cost insights, patterns grouping      | worktree-agent-affa5fa5 | 252d203 |
 
 ### Alpha — 3D Agent Network Performance Optimization
 
