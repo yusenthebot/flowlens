@@ -472,13 +472,8 @@ async function loadAgentData() {
 }
 
 function filterTracesByAgent(agentName) {
+  _tracesAgentFilter = agentName || null;
   switchView('traces');
-  // Populate the search box with the agent name so the user can refine
-  const searchInput = document.getElementById('search-input');
-  if (searchInput) {
-    searchInput.value = agentName;
-    loadTraces();
-  }
 }
 // =========================================================================
 // Agent Detail Modal
@@ -746,11 +741,37 @@ function formatTimeAgo(timestamp) {
   return Math.floor(seconds / 86400) + 'd ago';
 }
 
+/** Build a smart one-line summary from spans array (e.g. "3 Read, 2 Bash, 1 Edit") */
+function buildTraceSummary(trace) {
+  const spans = trace.spans || [];
+  if (spans.length === 0 && (trace.span_count || 0) === 0) return null;
+
+  // Count by tool name (from span name suffix after "/")
+  const toolCounts = {};
+  spans.forEach(s => {
+    const slash = (s.name || '').lastIndexOf('/');
+    const tool = slash >= 0 ? s.name.substring(slash + 1) : (s.name || s.kind || 'span');
+    toolCounts[tool] = (toolCounts[tool] || 0) + 1;
+  });
+
+  if (Object.keys(toolCounts).length === 0) {
+    const count = trace.span_count || 0;
+    return count > 0 ? `${count} span${count !== 1 ? 's' : ''}` : null;
+  }
+
+  // Sort by count desc, top 4 types
+  const sorted = Object.entries(toolCounts).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  return sorted.map(([tool, n]) => `${n} ${tool}`).join(', ');
+}
+
 function renderTraceRow(trace, compact = false) {
   const hasErrors = trace.has_errors === true || trace.has_errors === 1;
+  const isEmpty = (trace.span_count || 0) === 0 && !(trace.spans && trace.spans.length > 0);
   const statusDot = hasErrors
     ? '<span class="w-2 h-2 rounded-full bg-red-500 flex-shrink-0"></span>'
-    : '<span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>';
+    : isEmpty
+      ? '<span class="w-2 h-2 rounded-full bg-slate-600 flex-shrink-0" title="Empty trace"></span>'
+      : '<span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>';
 
   const tags = trace.tags || {};
   const meta = trace.metadata || {};
@@ -768,9 +789,16 @@ function renderTraceRow(trace, compact = false) {
     displayName = projectName || trace.service_name || 'session';
   }
 
+  // Smart one-line summary
+  const smartSummary = buildTraceSummary(trace);
+  const summaryHtml = smartSummary
+    ? `<span class="text-[11px] text-slate-500 truncate">${escHtml(smartSummary)}</span>`
+    : '';
+
   // Time ago and span count
   const timeAgo = formatTimeAgo(trace.start_time);
-  const spanOps = `${trace.span_count || 0} ops`;
+  const spanCount = trace.span_count || (trace.spans || []).length;
+  const spanOps = `${spanCount} ops`;
 
   const duration = (trace.duration_ms || 0).toFixed(0);
   const cost = (trace.total_cost_usd || 0).toFixed(4);
@@ -789,9 +817,10 @@ function renderTraceRow(trace, compact = false) {
   const durationNum = trace.duration_ms || 0;
   const durationPct = Math.min((durationNum / 10000) * 100, 100);
   const durationBarColor = durationNum > 5000 ? '#ef4444' : durationNum > 2000 ? '#f59e0b' : '#7c7aef';
+  const emptyOpacity = isEmpty ? 'opacity-50' : '';
 
   return `
-    <div class="trace-row flex items-center gap-4 px-5 py-3.5 hover:bg-white/[0.02] cursor-pointer transition group ${errorRowClass}" data-trace-id="${escHtml(trace.trace_id)}" data-agent="${escHtml(agentName || '')}" onclick="openTrace('${escHtml(trace.trace_id)}')" style="${borderStyle}" ${_previewAttrs}>
+    <div class="trace-row flex items-center gap-4 px-5 py-3.5 hover:bg-white/[0.02] cursor-pointer transition group ${errorRowClass} ${emptyOpacity}" data-trace-id="${escHtml(trace.trace_id)}" data-agent="${escHtml(agentName || '')}" onclick="openTrace('${escHtml(trace.trace_id)}')" style="${borderStyle}" ${_previewAttrs}>
       ${!compact ? `<input type="checkbox" class="compare-checkbox ${isSelected ? 'checked' : ''} w-3.5 h-3.5 rounded bg-surface-100 border-white/10 text-indigo-500 focus:ring-indigo-500/30 flex-shrink-0" title="Select for comparison" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleCompare('${escHtml(trace.trace_id)}', this)" />` : ''}
       ${statusDot}
       <div class="flex-1 min-w-0">
@@ -800,10 +829,12 @@ function renderTraceRow(trace, compact = false) {
           ${agentBadge}
           ${!agentName && trace.service_name ? `<span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">${escHtml(trace.service_name)}</span>` : ''}
           ${hasErrors ? `<span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-red-500/10 text-red-300 border border-red-500/20">${trace.error_count || 1} error${(trace.error_count || 1) > 1 ? 's' : ''}</span>` : ''}
+          ${isEmpty ? '<span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-slate-700/40 text-slate-500 border border-slate-600/30">empty</span>' : ''}
         </div>
-        <div class="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
+        <div class="text-xs text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
           <span>${timeAgo}</span>
           ${!compact ? `<span class="text-slate-600">·</span><span>${spanOps}</span>` : ''}
+          ${summaryHtml}
         </div>
       </div>
       <div class="flex items-center gap-6 text-xs text-slate-500 trace-row-details">
@@ -899,8 +930,13 @@ async function loadRecentTraces() {
 }
 
 let _tracesAgentFilter = null; // current agent filter for traces view
+let _tracesStatusFilter = 'all';  // 'all' | 'success' | 'error'
+let _tracesDurationFilter = 'all'; // 'all' | '>1s' | '>5s' | '>10s'
+let _tracesTimeFilter = 'all';    // 'all' | '1h' | '6h' | '24h' | '7d'
+let _tracesHideEmpty = false;     // hide traces with span_count === 0
 
 async function loadTraces() {
+  renderQuickFilterBar();
   const service = document.getElementById('filter-service').value.trim() || null;
   const errorsOnly = document.getElementById('filter-errors').checked;
 
@@ -976,7 +1012,7 @@ function _renderTracesAgentPills(agentMap) {
   container.innerHTML = html;
 }
 
-/** Apply client-side filters (date range, token count, cost, span kind) */
+/** Apply client-side filters (date range, token count, cost, span kind, status, duration, time window, empty) */
 function applyClientFilters(traces) {
   const dateFrom = document.getElementById('filter-date-from').value;
   const dateTo = document.getElementById('filter-date-to').value;
@@ -989,7 +1025,30 @@ function applyClientFilters(traces) {
   const kindCheckboxes = document.querySelectorAll('.filter-kind:checked');
   const selectedKinds = Array.from(kindCheckboxes).map(cb => cb.value);
 
+  // Time window cutoff
+  const timeWindowMs = { '1h': 3600, '6h': 21600, '24h': 86400, '7d': 604800 };
+  const cutoffSeconds = _tracesTimeFilter !== 'all'
+    ? (Date.now() / 1000) - (timeWindowMs[_tracesTimeFilter] || 0)
+    : null;
+
+  // Duration threshold
+  const durationThresh = { '>1s': 1000, '>5s': 5000, '>10s': 10000 };
+  const minDurationMs = _tracesDurationFilter !== 'all' ? (durationThresh[_tracesDurationFilter] || 0) : 0;
+
   return traces.filter(t => {
+    // Hide empty traces toggle
+    if (_tracesHideEmpty && (t.span_count || 0) === 0) return false;
+
+    // Status filter
+    if (_tracesStatusFilter === 'error' && !(t.has_errors === true || t.has_errors === 1)) return false;
+    if (_tracesStatusFilter === 'success' && (t.has_errors === true || t.has_errors === 1)) return false;
+
+    // Duration filter
+    if (minDurationMs > 0 && (t.duration_ms || 0) < minDurationMs) return false;
+
+    // Time window filter
+    if (cutoffSeconds && t.start_time > 0 && t.start_time < cutoffSeconds) return false;
+
     // Date range filter
     if (dateFrom && t.start_time > 0) {
       const traceDate = new Date(t.start_time * 1000);
@@ -1027,6 +1086,91 @@ function applyClientFilters(traces) {
   });
 }
 
+/** Count active non-default filters for badge display */
+function countActiveFilters() {
+  let n = 0;
+  if (_tracesStatusFilter !== 'all') n++;
+  if (_tracesDurationFilter !== 'all') n++;
+  if (_tracesTimeFilter !== 'all') n++;
+  if (_tracesHideEmpty) n++;
+  if (_tracesAgentFilter) n++;
+  const dateFrom = document.getElementById('filter-date-from');
+  const dateTo = document.getElementById('filter-date-to');
+  if (dateFrom && dateFrom.value) n++;
+  if (dateTo && dateTo.value) n++;
+  const kindCount = document.querySelectorAll('.filter-kind:checked').length;
+  n += kindCount;
+  return n;
+}
+
+/** Render the quick filter bar (status, duration, time window, hide empty) */
+function renderQuickFilterBar() {
+  const bar = document.getElementById('traces-quick-filter-bar');
+  if (!bar) return;
+
+  const activeCount = countActiveFilters();
+  const badgeHtml = activeCount > 0
+    ? `<span class="ml-1 px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-indigo-500 text-white">${activeCount}</span>`
+    : '';
+
+  const statusOptions = [
+    { val: 'all', label: 'All Status' },
+    { val: 'success', label: 'Success' },
+    { val: 'error', label: 'Errors' },
+  ];
+  const durationOptions = [
+    { val: 'all', label: 'Any Duration' },
+    { val: '>1s', label: '>1s' },
+    { val: '>5s', label: '>5s' },
+    { val: '>10s', label: '>10s' },
+  ];
+  const timeOptions = [
+    { val: 'all', label: 'All Time' },
+    { val: '1h', label: 'Last 1h' },
+    { val: '6h', label: 'Last 6h' },
+    { val: '24h', label: 'Last 24h' },
+    { val: '7d', label: 'Last 7d' },
+  ];
+
+  const selectClass = 'filter-input bg-surface-100 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-300 cursor-pointer transition';
+
+  bar.innerHTML = `
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="text-xs text-slate-500 font-medium mr-1">Filters${badgeHtml}:</span>
+
+      <select class="${selectClass}" onchange="_tracesStatusFilter = this.value; traceOffset = 0; loadTraces(); renderQuickFilterBar();" title="Filter by status">
+        ${statusOptions.map(o => `<option value="${o.val}" ${_tracesStatusFilter === o.val ? 'selected' : ''}>${o.label}</option>`).join('')}
+      </select>
+
+      <select class="${selectClass}" onchange="_tracesDurationFilter = this.value; traceOffset = 0; loadTraces(); renderQuickFilterBar();" title="Filter by minimum duration">
+        ${durationOptions.map(o => `<option value="${o.val}" ${_tracesDurationFilter === o.val ? 'selected' : ''}>${o.label}</option>`).join('')}
+      </select>
+
+      <select class="${selectClass}" onchange="_tracesTimeFilter = this.value; traceOffset = 0; loadTraces(); renderQuickFilterBar();" title="Filter by time window">
+        ${timeOptions.map(o => `<option value="${o.val}" ${_tracesTimeFilter === o.val ? 'selected' : ''}>${o.label}</option>`).join('')}
+      </select>
+
+      <label class="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer select-none">
+        <input type="checkbox" class="rounded bg-surface-100 border-white/10 text-indigo-500 focus:ring-indigo-500/30" ${_tracesHideEmpty ? 'checked' : ''} onchange="_tracesHideEmpty = this.checked; traceOffset = 0; loadTraces(); renderQuickFilterBar();" />
+        <span>Hide empty</span>
+      </label>
+
+      ${activeCount > 0 ? `<button onclick="clearQuickFilters()" class="px-2 py-1 text-[11px] text-slate-400 hover:text-white bg-surface-100 rounded-lg border border-white/10 hover:border-white/20 transition">Clear filters</button>` : ''}
+    </div>
+  `;
+}
+
+function clearQuickFilters() {
+  _tracesStatusFilter = 'all';
+  _tracesDurationFilter = 'all';
+  _tracesTimeFilter = 'all';
+  _tracesHideEmpty = false;
+  _tracesAgentFilter = null;
+  traceOffset = 0;
+  renderQuickFilterBar();
+  loadTraces();
+}
+
 function clearFilters() {
   document.getElementById('filter-service').value = '';
   document.getElementById('filter-errors').checked = false;
@@ -1038,7 +1182,12 @@ function clearFilters() {
   document.getElementById('filter-cost-max').value = '';
   document.querySelectorAll('.filter-kind').forEach(cb => cb.checked = false);
   _tracesAgentFilter = null;
+  _tracesStatusFilter = 'all';
+  _tracesDurationFilter = 'all';
+  _tracesTimeFilter = 'all';
+  _tracesHideEmpty = false;
   traceOffset = 0;
+  renderQuickFilterBar();
   loadTraces();
 }
 
@@ -1197,6 +1346,80 @@ const SPAN_KIND_COLORS = {
   custom:    { bg: 'bg-[#a0a09a]/20', bar: '#a0a09a', text: 'text-[#a0a09a]', label: 'Custom' },
 };
 
+/**
+ * Extract the most useful inline detail for a span to show next to its name.
+ * Returns a short string like a file path, command excerpt, or grep pattern.
+ */
+function extractSpanInlineDetail(span) {
+  const attrs = span.attributes || {};
+  const toolName = attrs['tool.name'] || attrs['gen_ai.request.model']
+    ? attrs['tool.name']
+    : null;
+
+  // Detect from span name suffix (e.g. "vr-alpha/Read" => "Read")
+  const slash = (span.name || '').lastIndexOf('/');
+  const nameTool = slash >= 0 ? span.name.substring(slash + 1) : span.name;
+  const tool = toolName || nameTool || '';
+
+  // Try to get a meaningful value from tool.input JSON or individual attrs
+  let detail = null;
+
+  // tool.input is often a JSON string with the actual inputs
+  const toolInput = attrs['tool.input'];
+  if (toolInput) {
+    try {
+      const parsed = typeof toolInput === 'string' ? JSON.parse(toolInput) : toolInput;
+      if (tool === 'Read' || tool === 'Write' || tool === 'Edit') {
+        detail = parsed.file_path || parsed.path || parsed.filename || null;
+      } else if (tool === 'Bash') {
+        const cmd = parsed.command || parsed.cmd || null;
+        detail = cmd ? cmd.substring(0, 70) : null;
+      } else if (tool === 'Grep') {
+        detail = parsed.pattern ? `/${parsed.pattern}/` : null;
+      }
+    } catch (_) {
+      // Not JSON, use raw value trimmed
+      detail = String(toolInput).substring(0, 70);
+    }
+  }
+
+  // Fall back to individual attribute checks
+  if (!detail) {
+    if (tool === 'Read' || tool === 'Write' || tool === 'Edit') {
+      detail = attrs['file_path'] || attrs['path'] || attrs['tool.file_path'] || null;
+    } else if (tool === 'Bash') {
+      const cmd = attrs['command'] || attrs['tool.command'] || null;
+      detail = cmd ? cmd.substring(0, 70) : null;
+    } else if (tool === 'Grep') {
+      detail = attrs['pattern'] ? `/${attrs['pattern']}/` : null;
+    }
+  }
+
+  if (detail) {
+    // Shorten file paths: keep last 2 segments
+    if ((tool === 'Read' || tool === 'Write' || tool === 'Edit') && detail.includes('/')) {
+      const parts = detail.split('/');
+      detail = '…/' + parts.slice(-2).join('/');
+    }
+    if (detail.length > 60) detail = detail.substring(0, 60) + '…';
+  }
+
+  return detail;
+}
+
+/**
+ * Extract model name from span attributes (e.g. "claude-sonnet-4-6").
+ * Returns a short label like "sonnet-4-6" or null.
+ */
+function extractModelBadge(span) {
+  const attrs = span.attributes || {};
+  const model = attrs['gen_ai.request.model'] || attrs['llm.model'] || attrs['model'] || null;
+  if (!model) return null;
+  // Shorten claude-* model names
+  const short = model.replace(/^claude-/i, '').replace(/^anthropic\//i, '');
+  return short.length > 0 ? short : null;
+}
+
 /** Extract agent name prefix from span name (e.g. "vr-alpha/Read" -> "vr-alpha") */
 function extractAgentFromSpanName(spanName) {
   if (!spanName) return null;
@@ -1242,7 +1465,7 @@ function renderWaterfallTimeline(spans) {
 
   // Time axis markers
   const timeMarkers = 5;
-  let timeAxisHtml = '<div class="flex justify-between text-[10px] text-slate-600 mb-1 ml-[220px] mr-[70px]">';
+  let timeAxisHtml = '<div class="flex justify-between text-[10px] text-slate-600 mb-1 ml-[280px] mr-[70px]">';
   for (let i = 0; i <= timeMarkers; i++) {
     const ms = (totalDurationMs * i / timeMarkers);
     timeAxisHtml += `<span>${formatDuration(ms)}</span>`;
@@ -1284,7 +1507,7 @@ function renderWaterfallTimeline(spans) {
   }
 
   // Vertical gridlines behind bars
-  let gridHtml = '<div class="absolute inset-0 ml-[220px] mr-[70px] pointer-events-none" style="top:0;bottom:0">';
+  let gridHtml = '<div class="absolute inset-0 ml-[280px] mr-[70px] pointer-events-none" style="top:0;bottom:0">';
   for (let i = 1; i < timeMarkers; i++) {
     const pct = (i / timeMarkers) * 100;
     gridHtml += `<div class="absolute top-0 bottom-0 border-l border-white/[0.03]" style="left:${pct}%"></div>`;
@@ -1328,8 +1551,17 @@ function renderWaterfallTimeline(spans) {
     const cost = span.token_usage ? (span.token_usage.total_cost_usd || 0) : 0;
     const canCollapse = hasChildren[span.span_id];
 
+    // Inline detail (key attribute for the tool)
+    const inlineDetail = extractSpanInlineDetail(span);
+    // Model badge for LLM spans
+    const modelBadge = kind === 'llm' ? extractModelBadge(span) : null;
+
+    // Agent left-border style (3px colored border by agent, not span kind)
+    const agentBorderColor = spanAgentKey ? getAgentProfile(spanAgentKey).color : null;
+    const agentBorderStyle = agentBorderColor ? `border-left:3px solid ${agentBorderColor};padding-left:6px;` : '';
+
     // Error row: red left border + light red background tint
-    const rowErrorStyle = isError ? 'border-left:4px solid #c47070;background:rgba(196,112,112,0.06);' : '';
+    const rowErrorStyle = isError ? 'border-left:4px solid #c47070;background:rgba(196,112,112,0.06);' : agentBorderStyle;
 
     rowsHtml += `
       <div class="flex items-center gap-0 py-1 px-2 rounded-lg hover:bg-white/[0.03] cursor-pointer transition group waterfall-row"
@@ -1347,11 +1579,15 @@ function renderWaterfallTimeline(spans) {
            onmouseenter="showWaterfallTooltip(event, this)"
            onmouseleave="hideWaterfallTooltip()">
         <!-- Label column with tree indentation -->
-        <div class="span-label-col flex items-center gap-1 w-[220px] min-w-[220px] flex-shrink-0" style="padding-left:${indent}px">
+        <div class="span-label-col flex items-center gap-1 w-[280px] min-w-[280px] flex-shrink-0" style="padding-left:${indent}px">
           ${canCollapse ? `<button class="collapsible-chevron rotated w-4 h-4 flex items-center justify-center text-slate-600 hover:text-slate-400 flex-shrink-0 transition" onclick="event.stopPropagation(); toggleSpanChildren('${span.span_id}', this)" title="Collapse/Expand"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg></button>` : (depth > 0 ? '<span class="w-4 flex-shrink-0"></span>' : '')}
           ${isError ? `<svg class="w-3 h-3 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" title="Error"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>` : ''}
           <span class="px-1.5 py-0.5 text-[10px] font-medium rounded flex-shrink-0 ${cfg.bg} ${cfg.text}">${cfg.label}</span>
-          <span class="text-xs ${isError ? 'text-red-300' : 'text-slate-300'} truncate group-hover:text-white transition">${escHtml(span.name)}</span>
+          <div class="min-w-0 flex flex-col">
+            <span class="text-xs ${isError ? 'text-red-300' : 'text-slate-300'} truncate group-hover:text-white transition">${escHtml(span.name)}</span>
+            ${inlineDetail ? `<span class="text-[10px] text-slate-500 font-mono truncate leading-tight" title="${escHtml(inlineDetail)}">${escHtml(inlineDetail)}</span>` : ''}
+          </div>
+          ${modelBadge ? `<span class="ml-auto flex-shrink-0 px-1 py-0.5 text-[9px] font-mono font-medium rounded bg-violet-500/10 text-violet-400 border border-violet-500/20 whitespace-nowrap">${escHtml(modelBadge)}</span>` : ''}
         </div>
         <!-- Bar column -->
         <div class="flex-1 relative h-7 min-w-0">
