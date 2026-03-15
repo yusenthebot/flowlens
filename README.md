@@ -123,27 +123,33 @@ stats = collector.stats()
 ## Dashboard
 
 <p align="center">
-  <img src="examples/screenshot_overview.png" alt="Overview — stat cards, agent strip, live monitor" width="820">
+  <img src="examples/dashboard_full.png" alt="Overview — stat cards with trend indicators, agent team strip, per-agent detail cards with cost/error/latency" width="820">
+  <br><em>Overview: stat cards, agent team strip, per-agent detail cards with cost and error rates</em>
 </p>
 
 <p align="center">
-  <img src="examples/screenshot_sessions.png" alt="Sessions — session timeline grouped by session_id" width="820">
+  <img src="examples/screenshot_traces.png" alt="Traces — filterable trace list with agent pills, duration bars, tool breakdowns" width="820">
+  <br><em>Traces: filterable list with agent pills, duration color indicators, and tool category pills</em>
 </p>
 
 <p align="center">
-  <img src="examples/screenshot_agents.png" alt="Agents — real-time agent team monitoring with tool breakdowns" width="820">
+  <img src="examples/screenshot_terminal.png" alt="Live Terminal — tmux-style floating terminal monitoring 3 agents in real-time" width="820">
+  <br><em>Live Terminal: tmux-style floating panes showing real-time agent activity (draggable, resizable)</em>
 </p>
 
 <p align="center">
-  <img src="examples/screenshot_dag.png" alt="Causal Error DAG — root cause and cascade visualization" width="820">
+  <img src="examples/screenshot_cost.png" alt="Cost Analysis — total cost summary, monthly forecast with confidence interval, cost-over-time chart" width="820">
+  <br><em>Cost Analysis: total cost summary, monthly forecast with confidence intervals, cost-over-time chart</em>
 </p>
 
 <p align="center">
-  <img src="examples/screenshot_cost.png" alt="Cost Analysis — forecasting, trends, breakdown by model" width="820">
+  <img src="examples/screenshot_sessions.png" alt="Sessions — session timeline grouped by session_id with trace and span counts" width="820">
+  <br><em>Sessions: timeline grouped by session_id showing trace counts, span counts, cost, and duration</em>
 </p>
 
 <p align="center">
-  <img src="examples/screenshot_patterns.png" alt="Pattern Detection — anti-pattern alerts with severity" width="820">
+  <img src="examples/screenshot_agents.png" alt="Agents — agent dashboard with cards showing traces, errors, cost, latency, activity sparklines, and recent tools" width="820">
+  <br><em>Agents: team dashboard with per-agent cards, activity sparklines, recent tools, and status indicators</em>
 </p>
 
 **Key views:**

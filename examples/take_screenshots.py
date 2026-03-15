@@ -91,20 +91,25 @@ def main() -> None:
         print("  screenshot_overview.png")
 
         # ------------------------------------------------------------------
-        # 3. screenshot_dag.png — Trace detail with Causal DAG sub-tab
+        # 3. screenshot_traces.png — Traces tab with list and filters
         # ------------------------------------------------------------------
         _click_tab(page, "traces")
         page.evaluate("window.scrollTo(0, 0)")
 
         # Wait for trace rows to appear (they load via API after tab switch)
         try:
-            # Find a visible trace row (not hidden, not empty placeholder)
             page.locator("#view-traces .trace-row:not(.trace-empty-row)").first.wait_for(
                 state="visible", timeout=8000
             )
         except Exception:
             pass
+        page.wait_for_timeout(1000)
+        page.screenshot(path=os.path.join(OUT_DIR, "screenshot_traces.png"), full_page=False)
+        print("  screenshot_traces.png")
 
+        # ------------------------------------------------------------------
+        # 3b. screenshot_dag.png — Trace detail with Causal DAG sub-tab
+        # ------------------------------------------------------------------
         # Click the first visible, non-empty trace row
         trace_selector = "#view-traces .trace-row:not(.trace-empty-row)"
         first_trace = page.locator(trace_selector).first
@@ -154,17 +159,39 @@ def main() -> None:
         page.screenshot(path=os.path.join(OUT_DIR, "screenshot_agents.png"), full_page=False)
         print("  screenshot_agents.png")
 
+        # ------------------------------------------------------------------
+        # 8. screenshot_terminal.png — Tmux-style floating terminal overlay
+        # ------------------------------------------------------------------
+        _click_tab(page, "overview")
+        page.evaluate("window.scrollTo(0, 0)")
+        page.wait_for_timeout(1000)
+
+        # Programmatically open agent terminal panes
+        for agent in ["vr-alpha", "vr-beta", "vr-gamma"]:
+            try:
+                page.evaluate(
+                    f"typeof openAgentTerminal === 'function' && openAgentTerminal('{agent}')"
+                )
+                page.wait_for_timeout(800)
+            except Exception:
+                pass
+        page.wait_for_timeout(2000)
+        page.screenshot(path=os.path.join(OUT_DIR, "screenshot_terminal.png"), full_page=False)
+        print("  screenshot_terminal.png")
+
         browser.close()
 
     print(f"\nAll screenshots saved to {OUT_DIR}/")
     saved = [
         "dashboard_full.png",
         "screenshot_overview.png",
+        "screenshot_traces.png",
         "screenshot_dag.png",
         "screenshot_cost.png",
         "screenshot_patterns.png",
         "screenshot_sessions.png",
         "screenshot_agents.png",
+        "screenshot_terminal.png",
     ]
     for name in saved:
         path = os.path.join(OUT_DIR, name)
