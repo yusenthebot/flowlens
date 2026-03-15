@@ -45,7 +45,7 @@
       -webkit-font-smoothing: antialiased;
     }
 
-    /* ─── Progress bar ─── */
+    /* --- Progress bar --- */
     #progress-bar {
       position: fixed;
       top: 0; left: 0;
@@ -56,7 +56,7 @@
       border-radius: 0 2px 2px 0;
     }
 
-    /* ─── Scene dots ─── */
+    /* --- Scene dots --- */
     #scene-dots {
       position: fixed;
       bottom: 24px;
@@ -81,7 +81,7 @@
     }
     .dot:hover:not(.active) { background: var(--text-muted); }
 
-    /* ─── Click hint ─── */
+    /* --- Click hint --- */
     #click-hint {
       position: fixed;
       bottom: 60px;
@@ -101,7 +101,7 @@
     }
     #click-hint.hidden { opacity: 0; }
 
-    /* ─── Nav arrows ─── */
+    /* --- Nav arrows --- */
     .nav-arrow {
       position: fixed;
       top: 50%;
@@ -125,7 +125,7 @@
     #nav-next { right: 16px; }
     .nav-arrow.hidden { opacity: 0; pointer-events: none; }
 
-    /* ─── Scene container ─── */
+    /* --- Scene container --- */
     #stage {
       position: relative;
       width: 100vw;
@@ -156,7 +156,7 @@
       transform: translateX(-60px);
     }
 
-    /* ─── Fade-up animation for scene content ─── */
+    /* --- Fade-up animation for scene content --- */
     .fade-up {
       opacity: 0;
       transform: translateY(18px);
@@ -170,8 +170,9 @@
     .scene.active .fade-up-2 { transition-delay: 0.16s; }
     .scene.active .fade-up-3 { transition-delay: 0.24s; }
     .scene.active .fade-up-4 { transition-delay: 0.32s; }
+    .scene.active .fade-up-5 { transition-delay: 0.40s; }
 
-    /* ─── Common scene elements ─── */
+    /* --- Common scene elements --- */
     .scene-label {
       font-size: 11px;
       font-weight: 600;
@@ -205,7 +206,7 @@
       background-clip: text;
     }
 
-    /* ─── Cards ─── */
+    /* --- Cards --- */
     .card {
       background: var(--bg-card);
       border: 1px solid var(--border);
@@ -242,7 +243,7 @@
     .card-title { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
     .card-desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.55; }
 
-    /* ─── Code blocks ─── */
+    /* --- Code blocks --- */
     .code-block {
       background: #1e1c1a;
       border-radius: var(--radius);
@@ -251,7 +252,7 @@
       font-size: 13.5px;
       line-height: 1.7;
       box-shadow: var(--shadow-lg);
-      min-width: 400px;
+      min-width: 320px;
       max-width: 580px;
       width: 100%;
       position: relative;
@@ -285,7 +286,87 @@
     }
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
 
-    /* ─── Waterfall ─── */
+    /* --- Terminal mock (Scene 1) --- */
+    .terminal {
+      background: #0d0d0d;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.4), 0 0 0 1px rgba(255,255,255,.06);
+      overflow: hidden;
+      width: 100%;
+      max-width: 820px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12.5px;
+    }
+    .terminal-bar {
+      background: #1a1a1a;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid #222;
+    }
+    .terminal-bar-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .terminal-bar-title {
+      flex: 1;
+      text-align: center;
+      color: #666;
+      font-size: 11px;
+      font-family: 'Inter', sans-serif;
+    }
+    .terminal-panes {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      min-height: 220px;
+    }
+    .terminal-pane {
+      padding: 0;
+      border-right: 1px solid #222;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .terminal-pane:last-child { border-right: none; }
+    .terminal-pane-header {
+      padding: 8px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      border-bottom: 1px solid #222;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: 'Inter', sans-serif;
+    }
+    .pane-status {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      margin-left: auto;
+    }
+    .terminal-pane-body {
+      padding: 8px 12px;
+      flex: 1;
+      overflow: hidden;
+    }
+    .term-line {
+      color: #999;
+      line-height: 1.7;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      opacity: 0;
+      transform: translateX(-8px);
+    }
+    .term-line.visible {
+      animation: typeIn 0.3s ease forwards;
+    }
+    .term-time { color: #555; }
+    .term-tool { margin-right: 4px; }
+
+    @keyframes typeIn {
+      from { opacity: 0; transform: translateX(-8px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    /* --- Waterfall --- */
     .waterfall {
       background: var(--bg-card);
       border: 1px solid var(--border);
@@ -305,6 +386,16 @@
     }
     .wf-title { font-size: 13px; font-weight: 600; color: var(--text); }
     .wf-duration { font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+    .wf-ruler {
+      display: flex;
+      justify-content: space-between;
+      padding: 0 0 8px 120px;
+      font-size: 10px;
+      color: var(--text-faint);
+      font-family: 'JetBrains Mono', monospace;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 8px;
+    }
     .wf-row {
       display: flex;
       align-items: center;
@@ -350,7 +441,7 @@
       font-family: 'JetBrains Mono', monospace;
     }
 
-    /* ─── Network graph (SVG) ─── */
+    /* --- Network graph --- */
     .network-wrap {
       background: var(--bg-card);
       border: 1px solid var(--border);
@@ -361,7 +452,7 @@
       max-width: 620px;
     }
 
-    /* ─── Pattern cards ─── */
+    /* --- Pattern cards --- */
     .pattern-card {
       background: var(--bg-card);
       border: 1px solid var(--border);
@@ -398,7 +489,7 @@
     .badge-warning { background: var(--amber-pale); color: #b87a2a; }
     .badge-info { background: var(--indigo-pale); color: var(--indigo); }
 
-    /* ─── Cost chart ─── */
+    /* --- Cost chart --- */
     .cost-wrap {
       background: var(--bg-card);
       border: 1px solid var(--border);
@@ -408,25 +499,80 @@
       width: 100%;
       max-width: 680px;
     }
-    .cost-bars {
+    .cost-header {
       display: flex;
-      align-items: flex-end;
-      gap: 8px;
-      height: 120px;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .cost-header-title { font-size: 14px; font-weight: 700; color: var(--text); }
+    .cost-forecast {
+      font-size: 12px;
+      color: var(--sage);
+      font-weight: 600;
+      background: var(--sage-pale);
+      padding: 4px 10px;
+      border-radius: 99px;
+    }
+    .cost-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .cost-agent-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      width: 80px;
+      flex-shrink: 0;
+    }
+    .cost-bar-track {
+      flex: 1;
+      height: 24px;
+      background: var(--bg-muted);
+      border-radius: 6px;
+      overflow: hidden;
+      position: relative;
+    }
+    .cost-bar-fill {
+      height: 100%;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      padding-left: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      color: white;
+      font-family: 'JetBrains Mono', monospace;
+      transition: width 1s cubic-bezier(.4,0,.2,1);
+    }
+    .cost-budget {
       margin-top: 16px;
-      padding-bottom: 4px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
     }
-    .cost-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
-    .cost-bar {
-      width: 100%;
-      border-radius: 5px 5px 0 0;
-      transition: height 1s cubic-bezier(.4,0,.2,1);
-      min-height: 4px;
+    .cost-budget-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
     }
-    .cost-bar-label { font-size: 10px; color: var(--text-muted); text-align: center; }
-    .cost-bar-val { font-size: 11px; font-weight: 600; color: var(--text); font-family: 'JetBrains Mono', monospace; }
+    .cost-budget-bar {
+      height: 8px;
+      background: var(--bg-muted);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .cost-budget-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--sage), var(--amber));
+      border-radius: 99px;
+      transition: width 1s cubic-bezier(.4,0,.2,1);
+    }
 
-    /* ─── Timeline ─── */
+    /* --- Timeline --- */
     .timeline {
       background: var(--bg-card);
       border: 1px solid var(--border);
@@ -439,10 +585,8 @@
     .timeline-row {
       display: flex;
       gap: 14px;
-      margin-bottom: 0;
       position: relative;
     }
-    .timeline-row + .timeline-row { margin-top: 0; }
     .tl-left { display: flex; flex-direction: column; align-items: center; width: 32px; flex-shrink: 0; }
     .tl-dot {
       width: 26px; height: 26px;
@@ -464,1032 +608,892 @@
       color: var(--indigo);
     }
 
-    /* ─── Dashboard mock ─── */
-    .dash-mock {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-lg);
-      overflow: hidden;
-      width: 100%;
-      max-width: 740px;
-    }
-    .dash-header {
-      background: linear-gradient(135deg, #1e1c1a, #2a2825);
-      padding: 10px 16px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .dash-dot { width: 10px; height: 10px; border-radius: 50%; }
-    .dash-body { padding: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .dash-card {
-      background: var(--bg-muted);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 12px 14px;
-    }
-    .dash-stat-val { font-size: 22px; font-weight: 800; color: var(--text); }
-    .dash-stat-label { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
-    .dash-agent-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 0;
-    }
-    .dash-agent-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-    }
-    .dash-agent-name { font-size: 12px; font-weight: 500; color: var(--text); flex: 1; }
-    .dash-agent-ops { font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
-
-    /* ─── Terminal ─── */
-    .terminal {
-      background: #141210;
-      border: 1px solid #2a2826;
-      border-radius: var(--radius);
-      box-shadow: var(--shadow-lg);
-      overflow: hidden;
-      width: 100%;
-      max-width: 640px;
-      font-family: 'JetBrains Mono', monospace;
-    }
-    .term-header {
-      background: #1e1c1a;
-      padding: 8px 14px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      border-bottom: 1px solid #2a2826;
-    }
-    .term-dot { width: 10px; height: 10px; border-radius: 50%; }
-    .term-title { font-size: 11px; color: #6b6660; margin-left: 6px; }
-    .term-body { padding: 14px 18px; }
-    .term-line { font-size: 12px; line-height: 1.9; color: #c8c4be; }
-    .term-prompt { color: var(--sage); }
-    .term-cmd { color: #e8e4de; }
-    .term-out { color: #7a8a9a; font-size: 11px; }
-    .term-info { color: var(--amber); }
-    .term-success { color: var(--sage); }
-    .term-error { color: var(--coral); }
-
-    /* ─── Star rating ─── */
-    .stars { display: flex; gap: 4px; font-size: 22px; color: #fbbf24; }
-    .feedback-card {
+    /* --- Agent task cards (Scene 2) --- */
+    .agent-card {
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      box-shadow: var(--shadow-lg);
-      padding: 28px 32px;
-      width: 100%;
-      max-width: 500px;
-      text-align: center;
+      box-shadow: var(--shadow-md);
+      padding: 18px 20px;
+      flex: 1 1 260px;
+      max-width: 320px;
+      min-width: 260px;
     }
-
-    /* ─── Get started ─── */
-    .gs-pill {
-      display: inline-flex;
+    .agent-card-header {
+      display: flex;
       align-items: center;
       gap: 10px;
-      background: #1e1c1a;
-      border-radius: 10px;
-      padding: 12px 20px;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 14px;
-      color: #c3e88d;
-      margin-bottom: 10px;
-      width: 100%;
-      max-width: 380px;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
     }
-    .gs-pill-prompt { color: #546e7a; }
-    .gs-btn-row { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-top: 28px; }
-    .gs-btn {
-      padding: 10px 22px;
-      border-radius: var(--radius-sm);
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      text-decoration: none;
-      transition: all 0.2s ease;
+    .agent-avatar {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700; color: white;
+    }
+    .agent-card-name { font-size: 14px; font-weight: 700; color: var(--text); }
+    .agent-task-list { list-style: none; padding: 0; }
+    .agent-task {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 0;
+      font-size: 12.5px;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .task-ok { color: var(--sage); font-weight: 700; }
+    .task-fail { color: var(--coral); font-weight: 700; }
+    .agent-card-footer {
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .status-badge {
       display: inline-flex;
       align-items: center;
-      gap: 7px;
+      gap: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      padding: 2px 8px;
+      border-radius: 99px;
+    }
+    .status-active { background: var(--sage-pale); color: var(--sage); }
+    .status-warn { background: var(--amber-pale); color: #b87a2a; }
+
+    /* --- CTA buttons (Scene 10) --- */
+    .cta-row {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .cta-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s ease;
       border: none;
+      cursor: pointer;
     }
-    .gs-btn-primary {
-      background: linear-gradient(135deg, var(--indigo), var(--coral));
+    .cta-primary {
+      background: var(--indigo);
       color: white;
-      box-shadow: 0 4px 16px rgba(107,92,231,.35);
     }
-    .gs-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(107,92,231,.45); }
-    .gs-btn-secondary {
-      background: var(--bg-card);
+    .cta-primary:hover { background: var(--indigo-light); }
+    .cta-secondary {
+      background: var(--bg-muted);
       color: var(--text);
       border: 1px solid var(--border);
-      box-shadow: var(--shadow-sm);
     }
-    .gs-btn-secondary:hover { border-color: var(--indigo); color: var(--indigo); }
+    .cta-secondary:hover { border-color: var(--indigo); color: var(--indigo); }
 
-    /* ─── Animations ─── */
-    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
-    @keyframes pulse-ring { 0%{transform:scale(1);opacity:.6} 100%{transform:scale(1.5);opacity:0} }
-    @keyframes shimmer { 0%{background-position:-200% center} 100%{background-position:200% center} }
-    @keyframes spin-slow { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
-    @keyframes bar-grow { from{transform:scaleY(0)} to{transform:scaleY(1)} }
-    @keyframes fade-up { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+    /* --- SVG glow filter --- */
+    .node-glow { filter: url(#glow); }
 
-    .fade-up { animation: fade-up 0.5s ease both; }
-    .fade-up-1 { animation-delay: .1s; }
-    .fade-up-2 { animation-delay: .2s; }
-    .fade-up-3 { animation-delay: .3s; }
-    .fade-up-4 { animation-delay: .4s; }
-    .fade-up-5 { animation-delay: .5s; }
-
-    /* ─── Hero particles ─── */
-    #particles-canvas {
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      opacity: .5;
-    }
-
-    /* ─── Logo ─── */
-    .hero-logo {
-      width: 80px; height: 80px;
-      border-radius: 22px;
-      background: linear-gradient(135deg, var(--indigo) 0%, var(--coral) 100%);
-      display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 16px 48px rgba(107,92,231,.35), 0 4px 12px rgba(107,92,231,.2);
-      margin-bottom: 24px;
-      animation: float 4s ease-in-out infinite;
-    }
-
-    /* ─── Responsive ─── */
-    @media (max-width: 640px) {
-      .scene { padding: 24px 16px 72px; }
-      .code-block { min-width: unset; font-size: 12px; }
-      .card-row { flex-direction: column; align-items: stretch; }
-      .card-sm { max-width: 100%; }
-      .wf-label { width: 70px; font-size: 10px; }
+    /* --- Responsive --- */
+    @media (max-width: 700px) {
+      .terminal-panes { grid-template-columns: 1fr; }
+      .terminal-pane { border-right: none; border-bottom: 1px solid #222; }
+      .terminal-pane:last-child { border-bottom: none; }
+      .terminal-pane-body { min-height: 60px; }
+      .card-row { flex-direction: column; align-items: center; }
+      .agent-card { max-width: 100%; }
       .nav-arrow { display: none; }
-      .dash-body { grid-template-columns: 1fr; }
-    }
-
-    /* Scene counter */
-    #scene-counter {
-      position: fixed;
-      top: 14px;
-      right: 20px;
-      font-size: 12px;
-      color: var(--text-faint);
-      z-index: 100;
-      font-family: 'JetBrains Mono', monospace;
+      .wf-label { width: 70px; font-size: 10px; }
+      .wf-ruler { padding-left: 80px; }
+      .cost-agent-name { width: 60px; font-size: 11px; }
     }
   </style>
 </head>
 <body>
+  <!-- Progress bar -->
+  <div id="progress-bar" style="width: 10%"></div>
 
-<!-- Progress bar -->
-<div id="progress-bar" style="width:0%"></div>
+  <!-- Click hint -->
+  <div id="click-hint">Click anywhere to continue &rarr;</div>
 
-<!-- Scene counter -->
-<div id="scene-counter">1 / 12</div>
+  <!-- Nav arrows -->
+  <button class="nav-arrow hidden" id="nav-prev" aria-label="Previous scene">&larr;</button>
+  <button class="nav-arrow" id="nav-next" aria-label="Next scene">&rarr;</button>
 
-<!-- Navigation arrows -->
-<button class="nav-arrow hidden" id="nav-prev" aria-label="Previous scene">&#8592;</button>
-<button class="nav-arrow" id="nav-next" aria-label="Next scene">&#8594;</button>
+  <!-- Scene dots -->
+  <div id="scene-dots"></div>
 
-<!-- Click hint -->
-<div id="click-hint">Press Space or click anywhere to continue &rarr;</div>
+  <!-- Stage -->
+  <div id="stage">
 
-<!-- Scene dots -->
-<div id="scene-dots" role="tablist"></div>
-
-<!-- Stage -->
-<div id="stage" role="main">
-
-  <!-- ══════════════════════════════════════════
-       SCENE 1: HERO
-  ══════════════════════════════════════════ -->
-  <section class="scene" id="scene-0">
-    <canvas id="particles-canvas"></canvas>
-
-    <div class="hero-logo fade-up">
-      <svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M10 32V18a4 4 0 018 0v14M22 32V10a4 4 0 018 0v22" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
-        <circle cx="36" cy="32" r="3" fill="white" opacity=".6"/>
-      </svg>
-    </div>
-
-    <div class="scene-label fade-up fade-up-1">FlowLens</div>
-    <h1 class="scene-title fade-up fade-up-2">
-      Agent <span class="gradient-text">Observability</span><br>Platform
-    </h1>
-    <p class="scene-sub fade-up fade-up-3">
-      Chrome DevTools for LLM Agents — trace every call, understand every cost,<br>catch every failure before your users do.
-    </p>
-    <div class="fade-up fade-up-4" style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
-      <span style="background:var(--indigo-pale);color:var(--indigo);padding:5px 13px;border-radius:99px;font-size:12px;font-weight:600">One-line setup</span>
-      <span style="background:var(--sage-pale);color:#4a7a62;padding:5px 13px;border-radius:99px;font-size:12px;font-weight:600">Zero overhead</span>
-      <span style="background:var(--coral-pale);color:var(--coral);padding:5px 13px;border-radius:99px;font-size:12px;font-weight:600">Real-time dashboard</span>
-    </div>
-  </section>
-
-  <!-- ══════════════════════════════════════════
-       SCENE 2: THE PROBLEM
-  ══════════════════════════════════════════ -->
-  <section class="scene" id="scene-1">
-    <div class="scene-label fade-up">The Problem</div>
-    <h2 class="scene-title fade-up fade-up-1">Your LLM agents are <span class="gradient-text">black boxes</span></h2>
-    <p class="scene-sub fade-up fade-up-2">When something goes wrong, you have no idea why. Every bug costs you real money.</p>
-
-    <div class="card-row fade-up fade-up-3">
-      <div class="card-sm">
-        <div class="card-icon" style="background:var(--coral-pale)">💸</div>
-        <div class="card-title">Cost Explosion</div>
-        <div class="card-desc">GPT-4 calls add up fast. Without tracing you can't see which agent is burning your budget on redundant calls.</div>
-        <div style="margin-top:10px;background:var(--bg-muted);border-radius:8px;padding:8px 10px;font-size:12px;font-weight:700;color:var(--coral);font-family:'JetBrains Mono',monospace">$847 unexpected this month</div>
+    <!-- Scene 1: Hero + Live Terminal Preview -->
+    <div class="scene active" data-scene="0">
+      <div class="fade-up fade-up-1" style="margin-bottom: 8px;">
+        <svg width="38" height="38" viewBox="0 0 32 32" style="margin: 0 auto; display: block;">
+          <defs><linearGradient id="logo-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#6b5ce7"/><stop offset="100%" stop-color="#e07a5f"/></linearGradient></defs>
+          <rect width="32" height="32" rx="6" fill="url(#logo-g)"/>
+          <path d="M8 22V14a2 2 0 014 0v8m4 0V10a2 2 0 014 0v12" stroke="white" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+        </svg>
       </div>
-      <div class="card-sm">
-        <div class="card-icon" style="background:var(--amber-pale)">🔇</div>
-        <div class="card-title">Silent Failures</div>
-        <div class="card-desc">Agents swallow errors silently. Wrong tool calls, hallucinated outputs — you only find out from user complaints.</div>
-        <div style="margin-top:10px;background:var(--bg-muted);border-radius:8px;padding:8px 10px;font-size:12px;font-weight:700;color:var(--amber);font-family:'JetBrains Mono',monospace">23% error rate, invisible</div>
+      <div class="scene-title fade-up fade-up-2" style="font-size: clamp(22px, 3.5vw, 38px); margin-bottom: 6px;">
+        <span class="gradient-text">FlowLens</span>
       </div>
-      <div class="card-sm">
-        <div class="card-icon" style="background:var(--indigo-pale)">🔁</div>
-        <div class="card-title">Retry Storms</div>
-        <div class="card-desc">One bad API response cascades into hundreds of retries. Your agent loops forever, burning tokens and time.</div>
-        <div style="margin-top:10px;background:var(--bg-muted);border-radius:8px;padding:8px 10px;font-size:12px;font-weight:700;color:var(--indigo);font-family:'JetBrains Mono',monospace">48 retries detected</div>
+      <div class="scene-sub fade-up fade-up-2" style="margin-bottom: 24px;">
+        See what every agent is doing. In real time.
       </div>
-    </div>
-  </section>
-
-  <!-- ══════════════════════════════════════════
-       SCENE 3: ONE-LINE SETUP
-  ══════════════════════════════════════════ -->
-  <section class="scene" id="scene-2">
-    <div class="scene-label fade-up">Setup</div>
-    <h2 class="scene-title fade-up fade-up-1">Three lines. <span class="gradient-text">Total visibility.</span></h2>
-    <p class="scene-sub fade-up fade-up-2">No config files. No agents to manage. Drop it into any Python project in seconds.</p>
-
-    <div class="code-block fade-up fade-up-3">
-      <div class="code-line" style="margin-bottom:12px">
-        <span class="code-num">$</span>
-        <span class="code-text"><span class="tok-cm"># Install</span></span>
-      </div>
-      <div class="code-line" style="margin-bottom:18px">
-        <span class="code-num">&nbsp;</span>
-        <span class="code-text"><span class="tok-fn">pip</span> <span class="tok-var">install</span> <span class="tok-str">flowlens</span></span>
-      </div>
-      <div class="code-line" style="margin-bottom:4px">
-        <span class="code-num">1</span>
-        <span class="code-text"><span class="tok-kw">from</span> <span class="tok-var">flowlens</span> <span class="tok-kw">import</span> <span class="tok-cls">FlowLens</span><span class="tok-op">,</span> <span class="tok-fn">trace_agent</span></span>
-      </div>
-      <div class="code-line" style="margin-bottom:4px">
-        <span class="code-num">2</span>
-        <span class="code-text"><span class="tok-var">lens</span> <span class="tok-op">=</span> <span class="tok-cls">FlowLens</span><span class="tok-op">(</span><span class="tok-var">service_name</span><span class="tok-op">=</span><span class="tok-str">"my-agent"</span><span class="tok-op">)</span></span>
-      </div>
-      <div class="code-line">
-        <span class="code-num">3</span>
-        <span class="code-text"><span class="tok-op">@</span><span class="tok-fn">trace_agent</span><span class="tok-op">(</span><span class="tok-var">lens</span><span class="tok-op">)</span><span class="code-cursor"></span></span>
+      <div class="terminal fade-up fade-up-3" id="hero-terminal">
+        <div class="terminal-bar">
+          <div class="terminal-bar-dot" style="background:#ff5f57"></div>
+          <div class="terminal-bar-dot" style="background:#febc2e"></div>
+          <div class="terminal-bar-dot" style="background:#28c840"></div>
+          <div class="terminal-bar-title">agent-terminal</div>
+        </div>
+        <div class="terminal-panes">
+          <div class="terminal-pane">
+            <div class="terminal-pane-header" style="color: #6b5ce7;">
+              A Alpha
+              <div class="pane-status" style="background: #28c840;"></div>
+            </div>
+            <div class="terminal-pane-body" id="pane-alpha"></div>
+          </div>
+          <div class="terminal-pane">
+            <div class="terminal-pane-header" style="color: #e07a5f;">
+              B Beta
+              <div class="pane-status" style="background: #28c840;"></div>
+            </div>
+            <div class="terminal-pane-body" id="pane-beta"></div>
+          </div>
+          <div class="terminal-pane">
+            <div class="terminal-pane-header" style="color: #81b29a;">
+              G Gamma
+              <div class="pane-status" style="background: #e6a65d;"></div>
+            </div>
+            <div class="terminal-pane-body" id="pane-gamma"></div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="fade-up fade-up-4" style="margin-top:20px;display:flex;gap:20px;flex-wrap:wrap;justify-content:center">
-      <div style="text-align:center">
-        <div style="font-size:24px;font-weight:800;color:var(--indigo)">3s</div>
-        <div style="font-size:11px;color:var(--text-muted)">setup time</div>
-      </div>
-      <div style="width:1px;background:var(--border)"></div>
-      <div style="text-align:center">
-        <div style="font-size:24px;font-weight:800;color:var(--sage)">0</div>
-        <div style="font-size:11px;color:var(--text-muted)">config files</div>
-      </div>
-      <div style="width:1px;background:var(--border)"></div>
-      <div style="text-align:center">
-        <div style="font-size:24px;font-weight:800;color:var(--coral)">&lt;1%</div>
-        <div style="font-size:11px;color:var(--text-muted)">overhead</div>
+    <!-- Scene 2: Agent Task Dashboard -->
+    <div class="scene" data-scene="1">
+      <div class="scene-label fade-up">Live Dashboard</div>
+      <div class="scene-title fade-up fade-up-1">Track every agent's work.<br><span class="gradient-text">Catch failures instantly.</span></div>
+      <div class="card-row fade-up fade-up-2">
+        <div class="agent-card">
+          <div class="agent-card-header">
+            <div class="agent-avatar" style="background: var(--indigo);">A</div>
+            <div class="agent-card-name">Alpha</div>
+          </div>
+          <ul class="agent-task-list">
+            <li class="agent-task"><span class="task-ok">&#10003;</span> Read server/app.py</li>
+            <li class="agent-task"><span class="task-ok">&#10003;</span> Edit routes/traces.py</li>
+            <li class="agent-task"><span class="task-ok">&#10003;</span> Grep /loadAgent/</li>
+          </ul>
+          <div class="agent-card-footer">
+            <span>3/3 tasks</span>
+            <span class="status-badge status-active">&#9679; active</span>
+          </div>
+        </div>
+        <div class="agent-card">
+          <div class="agent-card-header">
+            <div class="agent-avatar" style="background: var(--coral);">B</div>
+            <div class="agent-card-name">Beta</div>
+          </div>
+          <ul class="agent-task-list">
+            <li class="agent-task"><span class="task-ok">&#10003;</span> Bash: pytest tests/</li>
+            <li class="agent-task"><span class="task-fail">&#10007;</span> Bash: npm build</li>
+            <li class="agent-task"><span class="task-ok">&#10003;</span> Read flowlens/init.py</li>
+          </ul>
+          <div class="agent-card-footer">
+            <span>2/3 tasks</span>
+            <span class="status-badge status-warn">&#9679; warning</span>
+          </div>
+        </div>
+        <div class="agent-card">
+          <div class="agent-card-header">
+            <div class="agent-avatar" style="background: var(--sage);">G</div>
+            <div class="agent-card-name">Gamma</div>
+          </div>
+          <ul class="agent-task-list">
+            <li class="agent-task"><span class="task-ok">&#10003;</span> Edit dashboard.js</li>
+            <li class="agent-task"><span class="task-ok">&#10003;</span> Read charts.js</li>
+            <li class="agent-task"><span class="task-ok">&#10003;</span> Grep /renderChart/</li>
+          </ul>
+          <div class="agent-card-footer">
+            <span>3/3 tasks</span>
+            <span class="status-badge status-active">&#9679; active</span>
+          </div>
+        </div>
       </div>
     </div>
-  </section>
 
-  <!-- ══════════════════════════════════════════
-       SCENE 4: TRACE WATERFALL
-  ══════════════════════════════════════════ -->
-  <section class="scene" id="scene-3">
-    <div class="scene-label fade-up">Trace Visualization</div>
-    <h2 class="scene-title fade-up fade-up-1">Every call, <span class="gradient-text">rendered precisely</span></h2>
-    <p class="scene-sub fade-up fade-up-2">Waterfall timelines show exactly where time is spent — model latency, tool execution, retries.</p>
-
-    <div class="waterfall fade-up fade-up-3">
-      <div class="wf-header">
-        <div>
-          <div class="wf-title">research_agent — trace_id: a7f3c1</div>
-          <div class="wf-duration" style="margin-top:2px">Total: 3.2s &nbsp;·&nbsp; 5 spans &nbsp;·&nbsp; $0.0084</div>
+    <!-- Scene 3: The Problem -->
+    <div class="scene" data-scene="2">
+      <div class="scene-label fade-up">The Problem</div>
+      <div class="scene-title fade-up fade-up-1">Your AI agents are <span class="gradient-text">black boxes</span></div>
+      <div class="scene-sub fade-up fade-up-2">You can't see what they're doing, what they're spending, or when they fail silently.</div>
+      <div class="card-row fade-up fade-up-3">
+        <div class="card-sm" style="border-top: 3px solid var(--coral);">
+          <div class="card-icon" style="background: var(--coral-pale);">&#128176;</div>
+          <div class="card-title">Cost Explosion</div>
+          <div style="font-size: 28px; font-weight: 800; color: var(--coral); margin: 6px 0;">$847<span style="font-size: 14px; color: var(--text-muted);">/mo</span></div>
+          <div class="card-desc">Unmonitored agents burn through tokens with redundant calls nobody sees.</div>
         </div>
-        <span style="background:var(--sage-pale);color:#4a7a62;padding:3px 9px;border-radius:99px;font-size:11px;font-weight:600">OK</span>
-      </div>
-
-      <div class="wf-row">
-        <div class="wf-label">research_agent</div>
-        <div class="wf-track">
-          <div class="wf-span" style="left:0%;width:100%;background:linear-gradient(90deg,var(--indigo),var(--indigo-light))">research_agent</div>
+        <div class="card-sm" style="border-top: 3px solid var(--amber);">
+          <div class="card-icon" style="background: var(--amber-pale);">&#9888;</div>
+          <div class="card-title">Silent Failures</div>
+          <div style="font-size: 28px; font-weight: 800; color: var(--amber); margin: 6px 0;">23%<span style="font-size: 14px; color: var(--text-muted);"> error rate</span></div>
+          <div class="card-desc">Errors hide in nested tool calls. By the time you notice, damage is done.</div>
         </div>
-        <div class="wf-time">3.2s</div>
-      </div>
-      <div class="wf-row">
-        <div class="wf-label">GPT-4 call #1</div>
-        <div class="wf-track">
-          <div class="wf-span" style="left:3%;width:38%;background:#7c4dff">gpt-4-turbo</div>
+        <div class="card-sm" style="border-top: 3px solid var(--indigo);">
+          <div class="card-icon" style="background: var(--indigo-pale);">&#128260;</div>
+          <div class="card-title">Retry Storms</div>
+          <div style="font-size: 28px; font-weight: 800; color: var(--indigo); margin: 6px 0;">48<span style="font-size: 14px; color: var(--text-muted);"> retries</span></div>
+          <div class="card-desc">Agents retry failed operations in loops, wasting tokens and compute.</div>
         </div>
-        <div class="wf-time">1.2s</div>
-      </div>
-      <div class="wf-row">
-        <div class="wf-label">web_search</div>
-        <div class="wf-track">
-          <div class="wf-span" style="left:43%;width:25%;background:var(--amber)">Brave API</div>
-        </div>
-        <div class="wf-time">0.8s</div>
-      </div>
-      <div class="wf-row">
-        <div class="wf-label">read_file</div>
-        <div class="wf-track">
-          <div class="wf-span" style="left:43%;width:6%;background:var(--sage)">fs</div>
-        </div>
-        <div class="wf-time">0.2s</div>
-      </div>
-      <div class="wf-row">
-        <div class="wf-label">GPT-4 call #2</div>
-        <div class="wf-track">
-          <div class="wf-span" style="left:70%;width:28%;background:#7c4dff">gpt-4-turbo</div>
-        </div>
-        <div class="wf-time">0.9s</div>
-      </div>
-
-      <!-- Time ruler -->
-      <div style="display:flex;padding-left:120px;padding-right:50px;margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">
-        <div style="flex:1;font-size:10px;color:var(--text-faint);font-family:'JetBrains Mono',monospace">0ms</div>
-        <div style="font-size:10px;color:var(--text-faint);font-family:'JetBrains Mono',monospace">1s</div>
-        <div style="flex:1;text-align:center;font-size:10px;color:var(--text-faint);font-family:'JetBrains Mono',monospace">2s</div>
-        <div style="font-size:10px;color:var(--text-faint);font-family:'JetBrains Mono',monospace">3.2s</div>
       </div>
     </div>
-  </section>
 
-  <!-- ══════════════════════════════════════════
-       SCENE 5: MULTI-AGENT MONITORING
-  ══════════════════════════════════════════ -->
-  <section class="scene" id="scene-4">
-    <div class="scene-label fade-up">Multi-Agent</div>
-    <h2 class="scene-title fade-up fade-up-1">Monitor your <span class="gradient-text">entire fleet</span> at once</h2>
-    <p class="scene-sub fade-up fade-up-2">Alpha, Beta, Gamma, Lead, Scribe — all visible simultaneously. See who's active, who's stuck, who's spending.</p>
+    <!-- Scene 4: Three-Line Setup -->
+    <div class="scene" data-scene="3">
+      <div class="scene-label fade-up">Getting Started</div>
+      <div class="scene-title fade-up fade-up-1">Three lines. <span class="gradient-text">That's it.</span></div>
+      <div class="scene-sub fade-up fade-up-2">Add FlowLens to any agent framework in under 30 seconds.</div>
+      <div class="code-block fade-up fade-up-3" id="setup-code">
+        <div class="code-line" id="code-line-1" style="opacity:0">
+          <span class="code-num">1</span>
+          <span class="code-text"><span class="tok-cm"># Install</span></span>
+        </div>
+        <div class="code-line" id="code-line-2" style="opacity:0">
+          <span class="code-num">2</span>
+          <span class="code-text"><span class="tok-var">$ </span><span class="tok-fn">pip install</span> <span class="tok-str">flowlens</span></span>
+        </div>
+        <div class="code-line" style="height: 8px; opacity: 1;"><span class="code-num"></span></div>
+        <div class="code-line" id="code-line-3" style="opacity:0">
+          <span class="code-num">3</span>
+          <span class="code-text"><span class="tok-cm"># Instrument your agent</span></span>
+        </div>
+        <div class="code-line" id="code-line-4" style="opacity:0">
+          <span class="code-num">4</span>
+          <span class="code-text"><span class="tok-kw">from</span> <span class="tok-cls">flowlens</span> <span class="tok-kw">import</span> <span class="tok-fn">observe</span></span>
+        </div>
+        <div class="code-line" id="code-line-5" style="opacity:0">
+          <span class="code-num">5</span>
+          <span class="code-text"><span class="tok-fn">observe</span><span class="tok-op">(</span><span class="tok-var">agent</span><span class="tok-op">,</span> <span class="tok-var">name</span><span class="tok-op">=</span><span class="tok-str">"alpha"</span><span class="tok-op">)</span><span class="code-cursor"></span></span>
+        </div>
+      </div>
+    </div>
 
-    <div class="network-wrap fade-up fade-up-3">
-      <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:14px">Live Agent Network &nbsp;<span style="color:var(--sage);font-size:10px">● 5 active</span></div>
-      <svg id="network-svg" width="100%" viewBox="0 0 560 260" xmlns="http://www.w3.org/2000/svg">
-        <!-- Connections -->
-        <g stroke="var(--border)" stroke-width="1.5" fill="none" opacity="0.7">
-          <!-- Lead to others -->
-          <line x1="280" y1="130" x2="140" y2="65" />
-          <line x1="280" y1="130" x2="420" y2="65" />
-          <line x1="280" y1="130" x2="140" y2="195" />
-          <line x1="280" y1="130" x2="420" y2="195" />
-          <!-- Alpha to Beta (peer) -->
-          <line x1="140" y1="65" x2="420" y2="65" opacity="0.35"/>
-        </g>
+    <!-- Scene 5: Trace Waterfall -->
+    <div class="scene" data-scene="4">
+      <div class="scene-label fade-up">Trace Explorer</div>
+      <div class="scene-title fade-up fade-up-1">See every step, <span class="gradient-text">visualized</span></div>
+      <div class="scene-sub fade-up fade-up-2">Waterfall timelines show exactly how your agent thinks, calls, and responds.</div>
+      <div class="waterfall fade-up fade-up-3">
+        <div class="wf-header">
+          <div class="wf-title">Trace: deploy-feature-branch</div>
+          <div class="wf-duration">Total: 4.2s</div>
+        </div>
+        <div class="wf-ruler">
+          <span>0s</span><span>1s</span><span>2s</span><span>3s</span><span>4s</span>
+        </div>
+        <div class="wf-row">
+          <div class="wf-label">Agent Plan</div>
+          <div class="wf-track"><div class="wf-span" style="left:0%;width:100%;background:var(--indigo);opacity:.15;"></div></div>
+          <div class="wf-time">4.2s</div>
+        </div>
+        <div class="wf-row">
+          <div class="wf-label" style="padding-left:12px;">LLM Call</div>
+          <div class="wf-track"><div class="wf-span" style="left:0%;width:22%;background:var(--indigo);">920ms</div></div>
+          <div class="wf-time">0.9s</div>
+        </div>
+        <div class="wf-row">
+          <div class="wf-label" style="padding-left:24px;">Read file</div>
+          <div class="wf-track"><div class="wf-span" style="left:22%;width:10%;background:var(--sage);">120ms</div></div>
+          <div class="wf-time">0.1s</div>
+        </div>
+        <div class="wf-row">
+          <div class="wf-label" style="padding-left:12px;">LLM Call</div>
+          <div class="wf-track"><div class="wf-span" style="left:32%;width:30%;background:var(--indigo);">1.2s</div></div>
+          <div class="wf-time">1.2s</div>
+        </div>
+        <div class="wf-row">
+          <div class="wf-label" style="padding-left:24px;">Edit file</div>
+          <div class="wf-track"><div class="wf-span" style="left:62%;width:8%;background:var(--coral);">80ms</div></div>
+          <div class="wf-time">0.1s</div>
+        </div>
+        <div class="wf-row">
+          <div class="wf-label" style="padding-left:24px;">Bash: test</div>
+          <div class="wf-track"><div class="wf-span" style="left:70%;width:25%;background:var(--amber);">1.8s</div></div>
+          <div class="wf-time">1.8s</div>
+        </div>
+      </div>
+    </div>
 
-        <!-- Animated particles on edges -->
-        <circle r="3" fill="var(--indigo)" opacity="0.7">
-          <animateMotion dur="2s" repeatCount="indefinite" path="M 280 130 L 140 65"/>
-        </circle>
-        <circle r="3" fill="var(--coral)" opacity="0.7">
-          <animateMotion dur="2.4s" repeatCount="indefinite" path="M 280 130 L 420 65"/>
-        </circle>
-        <circle r="3" fill="var(--sage)" opacity="0.7">
-          <animateMotion dur="3s" repeatCount="indefinite" path="M 420 195 L 280 130"/>
-        </circle>
-        <circle r="3" fill="var(--amber)" opacity="0.7">
-          <animateMotion dur="1.8s" repeatCount="indefinite" path="M 140 195 L 280 130"/>
-        </circle>
+    <!-- Scene 6: Agent Network Graph -->
+    <div class="scene" data-scene="5">
+      <div class="scene-label fade-up">Agent Graph</div>
+      <div class="scene-title fade-up fade-up-1">Visualize <span class="gradient-text">agent interactions</span></div>
+      <div class="scene-sub fade-up fade-up-2">See how your agents connect, communicate, and coordinate in real time.</div>
+      <div class="network-wrap fade-up fade-up-3">
+        <svg viewBox="0 0 560 340" width="100%" height="auto" style="display:block;">
+          <defs>
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="4" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <linearGradient id="edge-g1" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#6b5ce7" stop-opacity="0.3"/>
+              <stop offset="100%" stop-color="#e07a5f" stop-opacity="0.3"/>
+            </linearGradient>
+            <linearGradient id="n-indigo" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#8b7cf7"/><stop offset="100%" stop-color="#6b5ce7"/>
+            </linearGradient>
+            <linearGradient id="n-coral" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#f09070"/><stop offset="100%" stop-color="#e07a5f"/>
+            </linearGradient>
+            <linearGradient id="n-sage" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#a0d4b8"/><stop offset="100%" stop-color="#81b29a"/>
+            </linearGradient>
+            <linearGradient id="n-amber" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#f0be7a"/><stop offset="100%" stop-color="#e6a65d"/>
+            </linearGradient>
+            <radialGradient id="spec" cx="0.35" cy="0.3" r="0.5">
+              <stop offset="0%" stop-color="white" stop-opacity="0.4"/><stop offset="100%" stop-color="white" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
 
-        <!-- Lead node (center) -->
-        <g transform="translate(280,130)">
-          <circle r="32" fill="var(--indigo-pale)" stroke="var(--indigo)" stroke-width="2"/>
-          <circle r="32" fill="none" stroke="var(--indigo)" stroke-width="2" opacity="0.4">
-            <animate attributeName="r" values="32;46;32" dur="2.5s" repeatCount="indefinite"/>
-            <animate attributeName="opacity" values="0.4;0;0.4" dur="2.5s" repeatCount="indefinite"/>
+          <!-- Edges (drawn first, behind nodes) -->
+          <line x1="280" y1="60" x2="120" y2="170" stroke="#6b5ce7" stroke-opacity="0.2" stroke-width="2"/>
+          <line x1="280" y1="60" x2="440" y2="170" stroke="#e07a5f" stroke-opacity="0.2" stroke-width="2"/>
+          <line x1="280" y1="60" x2="280" y2="180" stroke="#81b29a" stroke-opacity="0.2" stroke-width="2"/>
+          <line x1="120" y1="170" x2="200" y2="290" stroke="#6b5ce7" stroke-opacity="0.15" stroke-width="1.5"/>
+          <line x1="120" y1="170" x2="280" y2="180" stroke="#e6a65d" stroke-opacity="0.15" stroke-width="1.5"/>
+          <line x1="440" y1="170" x2="360" y2="290" stroke="#e07a5f" stroke-opacity="0.15" stroke-width="1.5"/>
+          <line x1="440" y1="170" x2="280" y2="180" stroke="#81b29a" stroke-opacity="0.15" stroke-width="1.5"/>
+          <line x1="200" y1="290" x2="360" y2="290" stroke="#e6a65d" stroke-opacity="0.15" stroke-width="1.5"/>
+
+          <!-- Animated particles on edges -->
+          <circle r="3" fill="#6b5ce7" opacity="0.7">
+            <animateMotion dur="3s" repeatCount="indefinite" path="M280,60 L120,170"/>
           </circle>
-          <text text-anchor="middle" dominant-baseline="middle" fill="var(--indigo)" font-size="11" font-weight="700" font-family="Inter,sans-serif">Lead</text>
-          <circle cx="20" cy="-20" r="7" fill="var(--sage)">
-            <animate attributeName="opacity" values="1;0.4;1" dur="1.5s" repeatCount="indefinite"/>
+          <circle r="3" fill="#e07a5f" opacity="0.7">
+            <animateMotion dur="2.5s" repeatCount="indefinite" path="M280,60 L440,170"/>
           </circle>
-        </g>
+          <circle r="3" fill="#81b29a" opacity="0.7">
+            <animateMotion dur="4s" repeatCount="indefinite" path="M120,170 L200,290"/>
+          </circle>
+          <circle r="3" fill="#e6a65d" opacity="0.7">
+            <animateMotion dur="3.5s" repeatCount="indefinite" path="M440,170 L360,290"/>
+          </circle>
+          <circle r="2.5" fill="#6b5ce7" opacity="0.5">
+            <animateMotion dur="3s" repeatCount="indefinite" path="M200,290 L360,290"/>
+          </circle>
 
-        <!-- Alpha (top-left) -->
-        <g transform="translate(140,65)">
-          <circle r="24" fill="var(--indigo-pale)" stroke="var(--indigo)" stroke-width="1.5"/>
-          <text text-anchor="middle" dominant-baseline="middle" fill="var(--indigo)" font-size="10" font-weight="700" font-family="Inter,sans-serif">Alpha</text>
-        </g>
+          <!-- Node: Orchestrator (top center) -->
+          <circle cx="280" cy="60" r="28" fill="none" stroke="#6b5ce7" stroke-opacity="0.15" stroke-width="8" class="node-glow"/>
+          <circle cx="280" cy="60" r="22" fill="url(#n-indigo)"/>
+          <circle cx="280" cy="60" r="22" fill="url(#spec)"/>
+          <text x="280" y="65" text-anchor="middle" fill="white" font-size="12" font-weight="700" font-family="Inter, sans-serif">O</text>
+          <text x="280" y="100" text-anchor="middle" fill="#6b6660" font-size="11" font-weight="500" font-family="Inter, sans-serif">Orchestrator</text>
 
-        <!-- Beta (top-right) -->
-        <g transform="translate(420,65)">
-          <circle r="24" fill="var(--coral-pale)" stroke="var(--coral)" stroke-width="1.5"/>
-          <text text-anchor="middle" dominant-baseline="middle" fill="var(--coral)" font-size="10" font-weight="700" font-family="Inter,sans-serif">Beta</text>
-        </g>
+          <!-- Node: Alpha (left) -->
+          <circle cx="120" cy="170" r="24" fill="none" stroke="#6b5ce7" stroke-opacity="0.12" stroke-width="6" class="node-glow"/>
+          <circle cx="120" cy="170" r="20" fill="url(#n-indigo)"/>
+          <circle cx="120" cy="170" r="20" fill="url(#spec)"/>
+          <text x="120" y="175" text-anchor="middle" fill="white" font-size="11" font-weight="700" font-family="Inter, sans-serif">A</text>
+          <text x="120" y="205" text-anchor="middle" fill="#6b6660" font-size="11" font-weight="500" font-family="Inter, sans-serif">Alpha</text>
 
-        <!-- Gamma (bottom-left) -->
-        <g transform="translate(140,195)">
-          <circle r="24" fill="var(--sage-pale)" stroke="var(--sage)" stroke-width="1.5"/>
-          <text text-anchor="middle" dominant-baseline="middle" fill="#4a7a62" font-size="10" font-weight="700" font-family="Inter,sans-serif">Gamma</text>
-        </g>
+          <!-- Node: Beta (right) -->
+          <circle cx="440" cy="170" r="24" fill="none" stroke="#e07a5f" stroke-opacity="0.12" stroke-width="6" class="node-glow"/>
+          <circle cx="440" cy="170" r="20" fill="url(#n-coral)"/>
+          <circle cx="440" cy="170" r="20" fill="url(#spec)"/>
+          <text x="440" y="175" text-anchor="middle" fill="white" font-size="11" font-weight="700" font-family="Inter, sans-serif">B</text>
+          <text x="440" y="205" text-anchor="middle" fill="#6b6660" font-size="11" font-weight="500" font-family="Inter, sans-serif">Beta</text>
 
-        <!-- Scribe (bottom-right) -->
-        <g transform="translate(420,195)">
-          <circle r="24" fill="var(--amber-pale)" stroke="var(--amber)" stroke-width="1.5"/>
-          <text text-anchor="middle" dominant-baseline="middle" fill="#b87a2a" font-size="10" font-weight="700" font-family="Inter,sans-serif">Scribe</text>
-        </g>
-      </svg>
+          <!-- Node: Gamma (center) -->
+          <circle cx="280" cy="180" r="20" fill="none" stroke="#81b29a" stroke-opacity="0.12" stroke-width="6" class="node-glow"/>
+          <circle cx="280" cy="180" r="17" fill="url(#n-sage)"/>
+          <circle cx="280" cy="180" r="17" fill="url(#spec)"/>
+          <text x="280" y="184" text-anchor="middle" fill="white" font-size="10" font-weight="700" font-family="Inter, sans-serif">G</text>
+          <text x="280" y="213" text-anchor="middle" fill="#6b6660" font-size="10" font-weight="500" font-family="Inter, sans-serif">Gamma</text>
 
-      <div style="display:flex;gap:20px;justify-content:center;margin-top:8px;flex-wrap:wrap">
-        <div style="font-size:11px;color:var(--text-muted)"><span style="color:var(--indigo);font-weight:700">847</span> traces today</div>
-        <div style="font-size:11px;color:var(--text-muted)"><span style="color:var(--coral);font-weight:700">$2.34</span> total cost</div>
-        <div style="font-size:11px;color:var(--text-muted)"><span style="color:var(--sage);font-weight:700">98.2%</span> success rate</div>
-      </div>
-    </div>
-  </section>
+          <!-- Node: Scribe (bottom left) -->
+          <circle cx="200" cy="290" r="18" fill="none" stroke="#e6a65d" stroke-opacity="0.12" stroke-width="5" class="node-glow"/>
+          <circle cx="200" cy="290" r="15" fill="url(#n-amber)"/>
+          <circle cx="200" cy="290" r="15" fill="url(#spec)"/>
+          <text x="200" y="294" text-anchor="middle" fill="white" font-size="10" font-weight="700" font-family="Inter, sans-serif">S</text>
+          <text x="200" y="320" text-anchor="middle" fill="#6b6660" font-size="10" font-weight="500" font-family="Inter, sans-serif">Scribe</text>
 
-  <!-- ══════════════════════════════════════════
-       SCENE 6: PATTERN DETECTION
-  ══════════════════════════════════════════ -->
-  <section class="scene" id="scene-5">
-    <div class="scene-label fade-up">Smart Patterns</div>
-    <h2 class="scene-title fade-up fade-up-1"><span class="gradient-text">12 anti-patterns</span> detected automatically</h2>
-    <p class="scene-sub fade-up fade-up-2">FlowLens watches your agents 24/7 and flags dangerous behaviors before they become incidents.</p>
-
-    <div class="card-row fade-up fade-up-3">
-      <div class="pattern-card">
-        <div class="pattern-icon" style="background:var(--coral-pale)">⛈️</div>
-        <div class="pattern-info">
-          <div class="pattern-name">Retry Storm</div>
-          <div class="pattern-desc">Agent retried the same tool 48 times in 90 seconds, burning $0.73 without progress.</div>
-          <span class="badge badge-critical">Critical</span>
-        </div>
-      </div>
-      <div class="pattern-card">
-        <div class="pattern-icon" style="background:var(--amber-pale)">📦</div>
-        <div class="pattern-info">
-          <div class="pattern-name">Context Overflow</div>
-          <div class="pattern-desc">System prompt + history exceeds 95% of context window. Degraded response quality expected.</div>
-          <span class="badge badge-warning">Warning</span>
-        </div>
-      </div>
-      <div class="pattern-card">
-        <div class="pattern-icon" style="background:var(--indigo-pale)">📈</div>
-        <div class="pattern-info">
-          <div class="pattern-name">Cost Spike</div>
-          <div class="pattern-desc">Cost per trace jumped 340% vs 24h baseline. Possible prompt injection or runaway loop.</div>
-          <span class="badge badge-warning">Warning</span>
-        </div>
+          <!-- Node: Monitor (bottom right) -->
+          <circle cx="360" cy="290" r="18" fill="none" stroke="#e07a5f" stroke-opacity="0.12" stroke-width="5" class="node-glow"/>
+          <circle cx="360" cy="290" r="15" fill="url(#n-coral)"/>
+          <circle cx="360" cy="290" r="15" fill="url(#spec)"/>
+          <text x="360" y="294" text-anchor="middle" fill="white" font-size="10" font-weight="700" font-family="Inter, sans-serif">M</text>
+          <text x="360" y="320" text-anchor="middle" fill="#6b6660" font-size="10" font-weight="500" font-family="Inter, sans-serif">Monitor</text>
+        </svg>
       </div>
     </div>
 
-    <div class="fade-up fade-up-4" style="margin-top:18px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
-      <span style="background:var(--bg-card);border:1px solid var(--border);border-radius:99px;padding:4px 11px;font-size:11px;color:var(--text-muted)">Slow LLM Response</span>
-      <span style="background:var(--bg-card);border:1px solid var(--border);border-radius:99px;padding:4px 11px;font-size:11px;color:var(--text-muted)">Tool Failure Loop</span>
-      <span style="background:var(--bg-card);border:1px solid var(--border);border-radius:99px;padding:4px 11px;font-size:11px;color:var(--text-muted)">Dead Agent</span>
-      <span style="background:var(--bg-card);border:1px solid var(--border);border-radius:99px;padding:4px 11px;font-size:11px;color:var(--text-muted)">+9 more&hellip;</span>
-    </div>
-  </section>
-
-  <!-- ══════════════════════════════════════════
-       SCENE 7: COST INTELLIGENCE
-  ══════════════════════════════════════════ -->
-  <section class="scene" id="scene-6">
-    <div class="scene-label fade-up">Cost Intelligence</div>
-    <h2 class="scene-title fade-up fade-up-1">Know exactly <span class="gradient-text">where your money goes</span></h2>
-    <p class="scene-sub fade-up fade-up-2">Per-agent, per-model, per-operation cost tracking. Monthly forecasts. Budget alerts before you overspend.</p>
-
-    <div class="cost-wrap fade-up fade-up-3">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">
-        <div>
-          <div style="font-size:12px;font-weight:600;color:var(--text-muted)">March 2026 — Spending</div>
-          <div style="font-size:28px;font-weight:800;color:var(--text);margin-top:4px">$127.40 <span style="font-size:14px;color:var(--sage);font-weight:500">&#x2197; on track</span></div>
-        </div>
-        <div style="background:var(--indigo-pale);border-radius:10px;padding:8px 14px;text-align:center">
-          <div style="font-size:10px;color:var(--indigo);font-weight:600;text-transform:uppercase;letter-spacing:.08em">Forecast</div>
-          <div style="font-size:18px;font-weight:800;color:var(--indigo)">$184</div>
-          <div style="font-size:10px;color:var(--text-muted)">end of month</div>
-        </div>
-      </div>
-
-      <div class="cost-bars" id="cost-bars">
-        <!-- JS fills these -->
-      </div>
-
-      <div style="display:flex;justify-content:space-between;margin-top:8px">
-        <div style="font-size:10px;color:var(--text-faint)">by agent</div>
-        <div style="font-size:10px;color:var(--indigo);font-weight:600;cursor:pointer">View breakdown &rarr;</div>
-      </div>
-
-      <div style="margin-top:14px;background:var(--bg-muted);border-radius:10px;padding:10px 14px">
-        <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:6px">Budget Alert</div>
-        <div style="height:8px;background:var(--border);border-radius:99px;overflow:hidden">
-          <div style="height:100%;width:69%;background:linear-gradient(90deg,var(--sage),var(--amber));border-radius:99px"></div>
-        </div>
-        <div style="display:flex;justify-content:space-between;margin-top:4px">
-          <div style="font-size:10px;color:var(--text-muted)">$127.40 spent</div>
-          <div style="font-size:10px;color:var(--text-muted)">$184 budget</div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ══════════════════════════════════════════
-       SCENE 8: SESSION TIMELINE
-  ══════════════════════════════════════════ -->
-  <section class="scene" id="scene-7">
-    <div class="scene-label fade-up">Sessions</div>
-    <h2 class="scene-title fade-up fade-up-1">Full conversations, <span class="gradient-text">not just calls</span></h2>
-    <p class="scene-sub fade-up fade-up-2">Group traces by session to see the complete arc of what your agent did — start to finish.</p>
-
-    <div class="timeline fade-up fade-up-3">
-      <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:16px">Session: sess_8f2d1a &nbsp;·&nbsp; 14 traces &nbsp;·&nbsp; 8m 32s</div>
-
-      <div class="timeline-row">
-        <div class="tl-left">
-          <div class="tl-dot" style="background:var(--indigo)">A</div>
-          <div class="tl-line"></div>
-        </div>
-        <div class="tl-content">
-          <div class="tl-name">User request received</div>
-          <div class="tl-meta">Alpha &nbsp;·&nbsp; 09:14:22 &nbsp;·&nbsp; 0.3s</div>
-          <div class="tl-pills"><span class="tl-pill">LLM</span><span class="tl-pill" style="background:var(--sage-pale);color:#4a7a62">Bash</span></div>
-        </div>
-      </div>
-
-      <div class="timeline-row">
-        <div class="tl-left">
-          <div class="tl-dot" style="background:var(--coral)">B</div>
-          <div class="tl-line"></div>
-        </div>
-        <div class="tl-content">
-          <div class="tl-name">Research phase — web + docs</div>
-          <div class="tl-meta">Beta &nbsp;·&nbsp; 09:14:25 &nbsp;·&nbsp; 2.1s</div>
-          <div class="tl-pills"><span class="tl-pill" style="background:var(--amber-pale);color:#b87a2a">Read</span><span class="tl-pill">LLM</span></div>
-        </div>
-      </div>
-
-      <div class="timeline-row">
-        <div class="tl-left">
-          <div class="tl-dot" style="background:var(--sage)">G</div>
-          <div class="tl-line"></div>
-        </div>
-        <div class="tl-content">
-          <div class="tl-name">Code generation + tests</div>
-          <div class="tl-meta">Gamma &nbsp;·&nbsp; 09:14:48 &nbsp;·&nbsp; 4.7s</div>
-          <div class="tl-pills"><span class="tl-pill" style="background:var(--coral-pale);color:var(--coral)">Write</span><span class="tl-pill">LLM</span><span class="tl-pill" style="background:var(--sage-pale);color:#4a7a62">Bash</span></div>
-        </div>
-      </div>
-
-      <div class="timeline-row">
-        <div class="tl-left">
-          <div class="tl-dot" style="background:var(--amber)">S</div>
-        </div>
-        <div class="tl-content">
-          <div class="tl-name">Summary written to devlog</div>
-          <div class="tl-meta">Scribe &nbsp;·&nbsp; 09:15:36 &nbsp;·&nbsp; 0.8s</div>
-          <div class="tl-pills"><span class="tl-pill" style="background:var(--coral-pale);color:var(--coral)">Write</span></div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ══════════════════════════════════════════
-       SCENE 9: REAL-TIME DASHBOARD
-  ══════════════════════════════════════════ -->
-  <section class="scene" id="scene-8">
-    <div class="scene-label fade-up">Dashboard</div>
-    <h2 class="scene-title fade-up fade-up-1"><span class="gradient-text">Real-time</span> visibility into everything</h2>
-    <p class="scene-sub fade-up fade-up-2">WebSocket-powered live updates. No refreshing. No polling. Just instant truth.</p>
-
-    <div class="dash-mock fade-up fade-up-3">
-      <div class="dash-header">
-        <div class="dash-dot" style="background:#ff5f57"></div>
-        <div class="dash-dot" style="background:#febc2e"></div>
-        <div class="dash-dot" style="background:#28c840"></div>
-        <span style="font-size:11px;color:#6b6660;margin-left:8px">FlowLens — Overview</span>
-        <span style="margin-left:auto;width:7px;height:7px;border-radius:50%;background:var(--sage);display:inline-block;animation:pulse-ring 1.5s ease infinite"></span>
-        <span style="font-size:10px;color:var(--sage);margin-left:5px">Live</span>
-      </div>
-      <div class="dash-body">
-        <div class="dash-card">
-          <div class="dash-stat-val">1,247</div>
-          <div class="dash-stat-label">Traces Today</div>
-          <div style="height:30px;margin-top:8px">
-            <svg viewBox="0 0 80 30" width="80" height="30">
-              <polyline points="0,25 10,22 20,18 30,20 40,12 50,15 60,8 70,10 80,5"
-                fill="none" stroke="var(--indigo)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
+    <!-- Scene 7: Pattern Detection -->
+    <div class="scene" data-scene="6">
+      <div class="scene-label fade-up">Smart Detection</div>
+      <div class="scene-title fade-up fade-up-1">Detect <span class="gradient-text">anti-patterns</span> automatically</div>
+      <div class="scene-sub fade-up fade-up-2">FlowLens identifies costly patterns before they become problems.</div>
+      <div class="card-row fade-up fade-up-3">
+        <div class="pattern-card" style="border-left: 3px solid var(--coral);">
+          <div class="pattern-icon" style="background: var(--coral-pale);">&#128168;</div>
+          <div class="pattern-info">
+            <div class="pattern-name">Retry Storm</div>
+            <div class="pattern-desc">Agent retried file read 12 times in 8 seconds, burning 3,400 tokens.</div>
+            <div class="badge badge-critical">Critical</div>
+            <div style="font-size: 11px; color: var(--sage); font-weight: 600; margin-top: 4px;">Save ~$18/mo</div>
           </div>
         </div>
-        <div class="dash-card">
-          <div class="dash-stat-val">$2.34</div>
-          <div class="dash-stat-label">Cost Today</div>
-          <div style="height:30px;margin-top:8px">
-            <svg viewBox="0 0 80 30" width="80" height="30">
-              <polyline points="0,20 10,18 20,22 30,15 40,16 50,11 60,13 70,8 80,6"
-                fill="none" stroke="var(--coral)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
+        <div class="pattern-card" style="border-left: 3px solid var(--amber);">
+          <div class="pattern-icon" style="background: var(--amber-pale);">&#128203;</div>
+          <div class="pattern-info">
+            <div class="pattern-name">Context Overflow</div>
+            <div class="pattern-desc">Beta's context hit 180k tokens. Responses degraded after 120k.</div>
+            <div class="badge badge-warning">Warning</div>
+            <div style="font-size: 11px; color: var(--sage); font-weight: 600; margin-top: 4px;">Save ~$12/mo</div>
           </div>
         </div>
-        <div class="dash-card" style="grid-column:span 2">
-          <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:10px">Live Agents</div>
-          <div class="dash-agent-row">
-            <div class="dash-agent-dot" style="background:var(--sage)"></div>
-            <div class="dash-agent-name">Alpha</div>
-            <div class="dash-agent-ops">247 ops &nbsp;·&nbsp; $0.82</div>
-          </div>
-          <div class="dash-agent-row">
-            <div class="dash-agent-dot" style="background:var(--sage)"></div>
-            <div class="dash-agent-name">Beta</div>
-            <div class="dash-agent-ops">183 ops &nbsp;·&nbsp; $0.61</div>
-          </div>
-          <div class="dash-agent-row">
-            <div class="dash-agent-dot" style="background:var(--amber)"></div>
-            <div class="dash-agent-name">Gamma</div>
-            <div class="dash-agent-ops">91 ops &nbsp;·&nbsp; $0.33</div>
-          </div>
-          <div class="dash-agent-row">
-            <div class="dash-agent-dot" style="background:#ccc"></div>
-            <div class="dash-agent-name">Scribe</div>
-            <div class="dash-agent-ops">idle &nbsp;·&nbsp; $0.08</div>
+        <div class="pattern-card" style="border-left: 3px solid var(--indigo);">
+          <div class="pattern-icon" style="background: var(--indigo-pale);">&#128257;</div>
+          <div class="pattern-info">
+            <div class="pattern-name">Redundant Calls</div>
+            <div class="pattern-desc">Same file read 4 times across agents. Cache or share results.</div>
+            <div class="badge badge-info">Info</div>
+            <div style="font-size: 11px; color: var(--sage); font-weight: 600; margin-top: 4px;">Save ~$6/mo</div>
           </div>
         </div>
       </div>
     </div>
-  </section>
 
-  <!-- ══════════════════════════════════════════
-       SCENE 10: TMUX TERMINAL
-  ══════════════════════════════════════════ -->
-  <section class="scene" id="scene-9">
-    <div class="scene-label fade-up">Live Terminal</div>
-    <h2 class="scene-title fade-up fade-up-1">tmux-style <span class="gradient-text">agent panes</span></h2>
-    <p class="scene-sub fade-up fade-up-2">Click any agent to open a live terminal pane. Watch tool calls, LLM outputs, and errors stream in real-time.</p>
-
-    <div class="terminal fade-up fade-up-3">
-      <div class="term-header">
-        <div class="term-dot" style="background:#ff5f57"></div>
-        <div class="term-dot" style="background:#febc2e"></div>
-        <div class="term-dot" style="background:#28c840"></div>
-        <span class="term-title">Alpha — Live Activity</span>
-        <span style="margin-left:auto;font-size:10px;color:var(--sage)">● streaming</span>
-      </div>
-      <div class="term-body">
-        <div class="term-line"><span class="term-prompt">alpha&gt;</span> <span class="term-cmd">trace_agent(task="implement nav arrows")</span></div>
-        <div class="term-line"><span class="term-out">  [09:14:22] span=root latency=0ms</span></div>
-        <div class="term-line"><span class="term-info">  [09:14:22] LLM gpt-4-turbo tokens=1847 cost=$0.0037</span></div>
-        <div class="term-line"><span class="term-prompt">alpha&gt;</span> <span class="term-cmd">tool:Read("/examples/demo_autoplay.html")</span></div>
-        <div class="term-line"><span class="term-success">  [09:14:23] ✓ 1240 lines read (48.3KB)</span></div>
-        <div class="term-line"><span class="term-prompt">alpha&gt;</span> <span class="term-cmd">tool:Write("/examples/demo_autoplay.html")</span></div>
-        <div class="term-line"><span class="term-info">  [09:14:24] LLM gpt-4-turbo tokens=4201 cost=$0.0084</span></div>
-        <div class="term-line"><span class="term-success">  [09:14:28] ✓ 680 lines written</span></div>
-        <div class="term-line"><span class="term-prompt">alpha&gt;</span> <span class="term-cmd">tool:Bash("git commit -m '[alpha] feat: product tour rebuild'")</span></div>
-        <div class="term-line"><span class="term-out">  [09:14:29] main a3f8c12 [alpha] feat: product tour rebuild<span style="color:var(--sage)">█</span></span></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ══════════════════════════════════════════
-       SCENE 11: TRACE FEEDBACK
-  ══════════════════════════════════════════ -->
-  <section class="scene" id="scene-10">
-    <div class="scene-label fade-up">Feedback</div>
-    <h2 class="scene-title fade-up fade-up-1">Rate agent quality. <span class="gradient-text">Track improvement.</span></h2>
-    <p class="scene-sub fade-up fade-up-2">Star-rate individual traces, leave annotations, and measure quality over time with trend charts.</p>
-
-    <div class="feedback-card fade-up fade-up-3">
-      <div style="font-size:13px;font-weight:600;color:var(--text-muted);margin-bottom:6px">Trace — research_agent · 3.2s · $0.0084</div>
-      <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:18px">How well did this agent perform?</div>
-
-      <div class="stars" style="justify-content:center;margin-bottom:16px">
-        &#9733;&#9733;&#9733;&#9733;<span style="color:#ddd">&#9734;</span>
-      </div>
-
-      <div style="display:flex;gap:10px;justify-content:center;margin-bottom:20px">
-        <button style="background:var(--sage-pale);color:#4a7a62;border:none;border-radius:99px;padding:6px 16px;font-size:13px;font-weight:600;cursor:pointer">&#128077; Helpful</button>
-        <button style="background:var(--coral-pale);color:var(--coral);border:none;border-radius:99px;padding:6px 16px;font-size:13px;font-weight:600;cursor:pointer">&#128078; Needs work</button>
-      </div>
-
-      <textarea placeholder="Optional: add a note about this trace..." style="width:100%;border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:13px;color:var(--text);background:var(--bg-muted);resize:none;height:64px;outline:none;font-family:'Inter',sans-serif"></textarea>
-
-      <div style="display:flex;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
-        <div style="text-align:center;flex:1">
-          <div style="font-size:18px;font-weight:800;color:var(--amber)">4.2</div>
-          <div style="font-size:10px;color:var(--text-muted)">Avg rating (30d)</div>
+    <!-- Scene 8: Cost Intelligence -->
+    <div class="scene" data-scene="7">
+      <div class="scene-label fade-up">Cost Intelligence</div>
+      <div class="scene-title fade-up fade-up-1">Know where every <span class="gradient-text">dollar goes</span></div>
+      <div class="scene-sub fade-up fade-up-2">Breakdown by agent, forecast spend, and stay on budget.</div>
+      <div class="cost-wrap fade-up fade-up-3">
+        <div class="cost-header">
+          <div class="cost-header-title">Cost Breakdown by Agent</div>
+          <div class="cost-forecast">$47/mo projected</div>
         </div>
-        <div style="text-align:center;flex:1">
-          <div style="font-size:18px;font-weight:800;color:var(--indigo)">347</div>
-          <div style="font-size:10px;color:var(--text-muted)">Traces rated</div>
+        <div class="cost-row">
+          <div class="cost-agent-name" style="color: var(--indigo);">Alpha</div>
+          <div class="cost-bar-track">
+            <div class="cost-bar-fill" style="width:68%;background:var(--indigo);">$18.40</div>
+          </div>
         </div>
-        <div style="text-align:center;flex:1">
-          <div style="font-size:18px;font-weight:800;color:var(--sage)">+0.8</div>
-          <div style="font-size:10px;color:var(--text-muted)">Trend this week</div>
+        <div class="cost-row">
+          <div class="cost-agent-name" style="color: var(--coral);">Beta</div>
+          <div class="cost-bar-track">
+            <div class="cost-bar-fill" style="width:52%;background:var(--coral);">$14.10</div>
+          </div>
+        </div>
+        <div class="cost-row">
+          <div class="cost-agent-name" style="color: var(--sage);">Gamma</div>
+          <div class="cost-bar-track">
+            <div class="cost-bar-fill" style="width:30%;background:var(--sage);">$8.20</div>
+          </div>
+        </div>
+        <div class="cost-row">
+          <div class="cost-agent-name" style="color: var(--amber);">Scribe</div>
+          <div class="cost-bar-track">
+            <div class="cost-bar-fill" style="width:18%;background:var(--amber);">$4.80</div>
+          </div>
+        </div>
+        <div class="cost-row">
+          <div class="cost-agent-name" style="color: var(--text-muted);">Monitor</div>
+          <div class="cost-bar-track">
+            <div class="cost-bar-fill" style="width:6%;background:var(--text-faint);">$1.50</div>
+          </div>
+        </div>
+        <div class="cost-budget">
+          <div class="cost-budget-label">
+            <span>Monthly budget</span>
+            <span style="font-weight: 600;">$47 / $75</span>
+          </div>
+          <div class="cost-budget-bar">
+            <div class="cost-budget-fill" style="width: 63%;"></div>
+          </div>
         </div>
       </div>
     </div>
-  </section>
 
-  <!-- ══════════════════════════════════════════
-       SCENE 12: GET STARTED
-  ══════════════════════════════════════════ -->
-  <section class="scene" id="scene-11">
-    <div class="scene-label fade-up">Get Started</div>
-    <h2 class="scene-title fade-up fade-up-1">Start in <span class="gradient-text">30 seconds</span></h2>
-    <p class="scene-sub fade-up fade-up-2">Two commands. That's it. Full observability, production-ready, zero config.</p>
-
-    <div class="fade-up fade-up-3" style="display:flex;flex-direction:column;align-items:center;gap:0">
-      <div class="gs-pill">
-        <span class="gs-pill-prompt">$</span>
-        <span>pip install flowlens</span>
-      </div>
-      <div class="gs-pill">
-        <span class="gs-pill-prompt">$</span>
-        <span>flowlens demo --dashboard</span>
+    <!-- Scene 9: Session Timeline -->
+    <div class="scene" data-scene="8">
+      <div class="scene-label fade-up">Session Timeline</div>
+      <div class="scene-title fade-up fade-up-1">Replay any <span class="gradient-text">session</span></div>
+      <div class="scene-sub fade-up fade-up-2">Vertical timeline groups traces by session with agent details.</div>
+      <div class="timeline fade-up fade-up-3">
+        <div class="timeline-row">
+          <div class="tl-left">
+            <div class="tl-dot" style="background: var(--indigo);">A</div>
+            <div class="tl-line"></div>
+          </div>
+          <div class="tl-content">
+            <div class="tl-name">Alpha &mdash; Read &amp; Plan</div>
+            <div class="tl-meta">21:30:42 &middot; 1.2s</div>
+            <div class="tl-pills">
+              <span class="tl-pill">Read</span>
+              <span class="tl-pill">Grep</span>
+              <span class="tl-pill" style="background: var(--sage-pale); color: var(--sage);">LLM</span>
+            </div>
+          </div>
+        </div>
+        <div class="timeline-row">
+          <div class="tl-left">
+            <div class="tl-dot" style="background: var(--coral);">B</div>
+            <div class="tl-line"></div>
+          </div>
+          <div class="tl-content">
+            <div class="tl-name">Beta &mdash; Test Suite</div>
+            <div class="tl-meta">21:30:44 &middot; 3.8s</div>
+            <div class="tl-pills">
+              <span class="tl-pill" style="background: var(--coral-pale); color: var(--coral);">Bash</span>
+              <span class="tl-pill">Read</span>
+              <span class="tl-pill" style="background: var(--coral-pale); color: var(--coral);">Bash</span>
+            </div>
+          </div>
+        </div>
+        <div class="timeline-row">
+          <div class="tl-left">
+            <div class="tl-dot" style="background: var(--sage);">G</div>
+            <div class="tl-line"></div>
+          </div>
+          <div class="tl-content">
+            <div class="tl-name">Gamma &mdash; UI Updates</div>
+            <div class="tl-meta">21:30:43 &middot; 2.1s</div>
+            <div class="tl-pills">
+              <span class="tl-pill" style="background: var(--amber-pale); color: #b87a2a;">Edit</span>
+              <span class="tl-pill">Read</span>
+              <span class="tl-pill">Grep</span>
+            </div>
+          </div>
+        </div>
+        <div class="timeline-row">
+          <div class="tl-left">
+            <div class="tl-dot" style="background: var(--amber);">S</div>
+          </div>
+          <div class="tl-content">
+            <div class="tl-name">Scribe &mdash; Documentation</div>
+            <div class="tl-meta">21:30:50 &middot; 0.8s</div>
+            <div class="tl-pills">
+              <span class="tl-pill" style="background: var(--amber-pale); color: #b87a2a;">Write</span>
+              <span class="tl-pill" style="background: var(--sage-pale); color: var(--sage);">LLM</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="gs-btn-row fade-up fade-up-4">
-      <a href="https://github.com/flowlens/flowlens" class="gs-btn gs-btn-primary" target="_blank">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
-        GitHub
-      </a>
-      <a href="#" class="gs-btn gs-btn-secondary">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-        Documentation
-      </a>
-      <a href="#" class="gs-btn gs-btn-secondary">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
-        Live Demo
-      </a>
-    </div>
-
-    <div class="fade-up fade-up-5" style="margin-top:24px;display:flex;gap:24px;flex-wrap:wrap;justify-content:center">
-      <div style="text-align:center">
-        <div style="font-size:20px;font-weight:800;color:var(--indigo)">1,156</div>
-        <div style="font-size:11px;color:var(--text-muted)">tests passing</div>
+    <!-- Scene 10: Get Started -->
+    <div class="scene" data-scene="9">
+      <div class="scene-label fade-up">Get Started</div>
+      <div class="scene-title fade-up fade-up-1">Start monitoring your agents<br><span class="gradient-text">in 30 seconds</span></div>
+      <div class="code-block fade-up fade-up-2" style="margin-bottom: 20px;">
+        <div class="code-line">
+          <span class="code-num">$</span>
+          <span class="code-text"><span class="tok-fn">pip install</span> <span class="tok-str">flowlens</span></span>
+        </div>
+        <div class="code-line">
+          <span class="code-num">$</span>
+          <span class="code-text"><span class="tok-fn">flowlens demo</span> <span class="tok-op">--</span><span class="tok-var">dashboard</span></span>
+        </div>
       </div>
-      <div style="text-align:center">
-        <div style="font-size:20px;font-weight:800;color:var(--coral)">36+</div>
-        <div style="font-size:11px;color:var(--text-muted)">features shipped</div>
+      <div class="scene-sub fade-up fade-up-3" style="margin-bottom: 20px; font-size: 14px;">
+        Open <span style="font-family: 'JetBrains Mono', monospace; color: var(--indigo); font-weight: 500;">localhost:8713</span> and see your agents live.
       </div>
-      <div style="text-align:center">
-        <div style="font-size:20px;font-weight:800;color:var(--sage)">v1.0</div>
-        <div style="font-size:11px;color:var(--text-muted)">production ready</div>
+      <div class="cta-row fade-up fade-up-4">
+        <a href="https://github.com/flowlens/flowlens" class="cta-btn cta-primary" target="_blank">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          GitHub
+        </a>
+        <a href="#" class="cta-btn cta-secondary">Docs</a>
+        <a href="#" class="cta-btn cta-secondary">Live Demo</a>
       </div>
     </div>
-  </section>
 
-</div><!-- /stage -->
+  </div><!-- /stage -->
 
-<script>
-  // ─── State ──────────────────────────────────────────────────────────────────
-  const TOTAL = 12;
-  let current = 0;
-  let interacted = false;
-  let transitioning = false;
+  <script>
+    // ─── State ───
+    const TOTAL = 10;
+    let current = 0;
+    let transitioning = false;
 
-  // ─── Elements ───────────────────────────────────────────────────────────────
-  const progressBar = document.getElementById('progress-bar');
-  const counter = document.getElementById('scene-counter');
-  const hint = document.getElementById('click-hint');
-  const dotsEl = document.getElementById('scene-dots');
-  const prevBtn = document.getElementById('nav-prev');
-  const nextBtn = document.getElementById('nav-next');
-  const scenes = Array.from(document.querySelectorAll('.scene'));
+    // ─── DOM refs ───
+    const scenes = document.querySelectorAll('.scene');
+    const progressBar = document.getElementById('progress-bar');
+    const clickHint = document.getElementById('click-hint');
+    const navPrev = document.getElementById('nav-prev');
+    const navNext = document.getElementById('nav-next');
+    const dotsContainer = document.getElementById('scene-dots');
 
-  // ─── Build dots ─────────────────────────────────────────────────────────────
-  for (let i = 0; i < TOTAL; i++) {
-    const d = document.createElement('button');
-    d.className = 'dot' + (i === 0 ? ' active' : '');
-    d.setAttribute('role', 'tab');
-    d.setAttribute('aria-label', 'Go to scene ' + (i + 1));
-    d.onclick = (e) => { e.stopPropagation(); goTo(i); };
-    dotsEl.appendChild(d);
-  }
-
-  // ─── Navigation ─────────────────────────────────────────────────────────────
-  function goTo(n, dir) {
-    if (transitioning || n === current) return;
-    if (n < 0 || n >= TOTAL) return;
-    transitioning = true;
-
-    const oldIdx = current;
-    const direction = dir !== undefined ? dir : (n > current ? 1 : -1);
-
-    // Exit old scene
-    const old = scenes[oldIdx];
-    old.classList.remove('active');
-    old.classList.add(direction > 0 ? 'exit-left' : 'exit-right');
-
-    // Enter new scene
-    const next = scenes[n];
-    next.style.transform = direction > 0 ? 'translateX(60px)' : 'translateX(-60px)';
-    next.style.transition = 'none';
-    next.style.opacity = '0';
-
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        next.style.transition = '';
-        next.style.opacity = '';
-        next.style.transform = '';
-        next.classList.add('active');
-        current = n;
-
-        // Update UI
-        updateUI();
-
-        setTimeout(() => {
-          old.classList.remove('exit-left', 'exit-right');
-          transitioning = false;
-          onSceneEnter(n);
-        }, 380);
+    // ─── Build dots ───
+    for (let i = 0; i < TOTAL; i++) {
+      const dot = document.createElement('button');
+      dot.className = 'dot' + (i === 0 ? ' active' : '');
+      dot.setAttribute('aria-label', 'Scene ' + (i + 1));
+      dot.addEventListener('click', function(e) {
+        e.stopPropagation();
+        goTo(i);
       });
-    });
-  }
-
-  // Add exit-right class for CSS
-  const exitStyle = document.createElement('style');
-  exitStyle.textContent = '.scene.exit-right { opacity: 0; transform: translateX(60px); }';
-  document.head.appendChild(exitStyle);
-
-  function onSceneEnter(n) { /* placeholder for per-scene animations */ }
-  function next() { goTo(current + 1, 1); }
-  function prev() { goTo(current - 1, -1); }
-
-  function updateUI() {
-    const pct = ((current + 1) / TOTAL) * 100;
-    progressBar.style.width = pct + '%';
-    counter.textContent = (current + 1) + ' / ' + TOTAL;
-
-    const dots = dotsEl.querySelectorAll('.dot');
-    dots.forEach((d, i) => d.classList.toggle('active', i === current));
-
-    prevBtn.classList.toggle('hidden', current === 0);
-    nextBtn.classList.toggle('hidden', current === TOTAL - 1);
-  }
-
-  // ─── Event listeners ────────────────────────────────────────────────────────
-  document.addEventListener('click', (e) => {
-    // Don't advance if clicking a button, link, dot, nav arrow, textarea
-    const tag = e.target.tagName;
-    if (['BUTTON','A','TEXTAREA','INPUT','SELECT'].includes(tag)) return;
-    if (e.target.closest('#scene-dots, .nav-arrow')) return;
-
-    if (!interacted) {
-      interacted = true;
-      hint.classList.add('hidden');
+      dotsContainer.appendChild(dot);
     }
 
-    if (current < TOTAL - 1) next();
-  });
+    // ─── goTo ───
+    function goTo(n) {
+      if (n < 0 || n >= TOTAL || n === current || transitioning) return;
+      transitioning = true;
 
-  document.addEventListener('keydown', (e) => {
-    if (!interacted && e.key !== 'Escape') {
-      interacted = true;
-      hint.classList.add('hidden');
-    }
-    switch(e.key) {
-      case 'ArrowRight':
-      case ' ':
-      case 'Enter':
-        e.preventDefault();
-        if (current < TOTAL - 1) next();
-        break;
-      case 'ArrowLeft':
-      case 'Backspace':
-        e.preventDefault();
-        if (current > 0) prev();
-        break;
-      case 'Escape':
-        goTo(0, -1);
-        break;
-    }
-  });
+      const direction = n > current ? 1 : -1;
+      const oldScene = scenes[current];
+      const newScene = scenes[n];
 
-  // Touch/swipe support
-  let touchStartX = 0;
-  document.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; }, { passive: true });
-  document.addEventListener('touchend', (e) => {
-    const dx = touchStartX - e.changedTouches[0].clientX;
-    if (Math.abs(dx) > 50) {
-      if (!interacted) { interacted = true; hint.classList.add('hidden'); }
-      dx > 0 ? next() : prev();
-    }
-  }, { passive: true });
-
-  prevBtn.addEventListener('click', (e) => { e.stopPropagation(); prev(); });
-  nextBtn.addEventListener('click', (e) => { e.stopPropagation(); next(); });
-
-  // ─── Scene-specific logic ───────────────────────────────────────────────────
-  function onSceneEnter(n) {
-    if (n === 0) initParticles();
-    if (n === 6) animateCostBars();
-  }
-
-  // ─── Particles (scene 1 hero) ────────────────────────────────────────────────
-  function initParticles() {
-    const canvas = document.getElementById('particles-canvas');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const W = canvas.width = window.innerWidth;
-    const H = canvas.height = window.innerHeight;
-
-    const COLORS = ['#6b5ce7', '#e07a5f', '#81b29a', '#e6a65d'];
-    const particles = Array.from({ length: 55 }, () => ({
-      x: Math.random() * W,
-      y: Math.random() * H,
-      r: Math.random() * 2.5 + 0.8,
-      vx: (Math.random() - .5) * .5,
-      vy: (Math.random() - .5) * .5,
-      c: COLORS[Math.floor(Math.random() * COLORS.length)],
-      a: Math.random() * .5 + .2,
-    }));
-
-    let frame;
-    function draw() {
-      ctx.clearRect(0, 0, W, H);
-      particles.forEach(p => {
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = p.c;
-        ctx.globalAlpha = p.a;
-        ctx.fill();
-        p.x += p.vx; p.y += p.vy;
-        if (p.x < 0) p.x = W; if (p.x > W) p.x = 0;
-        if (p.y < 0) p.y = H; if (p.y > H) p.y = 0;
+      // Clear all inline styles and classes from ALL scenes
+      scenes.forEach(function(s) {
+        s.style.removeProperty('opacity');
+        s.style.removeProperty('transform');
+        s.style.removeProperty('pointer-events');
+        s.classList.remove('active', 'exit-left');
       });
-      // Draw connections
-      ctx.globalAlpha = 0.07;
-      ctx.strokeStyle = '#6b5ce7';
-      ctx.lineWidth = 1;
-      for (let i = 0; i < particles.length; i++) {
-        for (let j = i + 1; j < particles.length; j++) {
-          const dx = particles[i].x - particles[j].x;
-          const dy = particles[i].y - particles[j].y;
-          const d = Math.sqrt(dx*dx + dy*dy);
-          if (d < 120) {
-            ctx.beginPath();
-            ctx.moveTo(particles[i].x, particles[i].y);
-            ctx.lineTo(particles[j].x, particles[j].y);
-            ctx.stroke();
-          }
-        }
+
+      // Set up the exit direction for the old scene
+      if (direction > 0) {
+        oldScene.classList.add('exit-left');
       }
-      ctx.globalAlpha = 1;
-      if (current === 0) frame = requestAnimationFrame(draw);
-      else cancelAnimationFrame(frame);
+      // For backward, the default (not active, not exit-left) gives translateX(60px) + opacity:0
+
+      // Activate new scene
+      newScene.classList.add('active');
+
+      current = n;
+
+      // Update UI
+      updateProgress();
+      updateDots();
+      updateArrows();
+
+      // Hide click hint after first advance
+      if (current > 0) clickHint.classList.add('hidden');
+
+      // Run scene-specific animations
+      if (current === 0) startTerminalAnimation();
+      if (current === 3) startCodeAnimation();
+
+      setTimeout(function() { transitioning = false; }, 400);
     }
-    draw();
-  }
 
-  // ─── Cost bars (scene 7) ─────────────────────────────────────────────────────
-  function animateCostBars() {
-    const container = document.getElementById('cost-bars');
-    if (!container || container.dataset.built) return;
-    container.dataset.built = '1';
+    function updateProgress() {
+      progressBar.style.width = ((current + 1) / TOTAL * 100) + '%';
+    }
 
-    const agents = [
-      { name: 'Alpha', val: '$0.82', pct: 95, color: 'var(--indigo)' },
-      { name: 'Beta', val: '$0.61', pct: 71, color: 'var(--coral)' },
-      { name: 'Gamma', val: '$0.33', pct: 38, color: 'var(--sage)' },
-      { name: 'Lead', val: '$0.50', pct: 58, color: 'var(--amber)' },
-      { name: 'Scribe', val: '$0.08', pct: 10, color: 'var(--text-faint)' },
-    ];
+    function updateDots() {
+      var dots = dotsContainer.querySelectorAll('.dot');
+      dots.forEach(function(d, i) {
+        d.classList.toggle('active', i === current);
+      });
+    }
 
-    agents.forEach(a => {
-      const wrap = document.createElement('div');
-      wrap.className = 'cost-bar-wrap';
-      wrap.innerHTML = `
-        <div class="cost-bar-val">${a.val}</div>
-        <div class="cost-bar" style="height:${a.pct}%;background:${a.color};transform-origin:bottom;animation:bar-grow .8s ease both"></div>
-        <div class="cost-bar-label">${a.name}</div>
-      `;
-      container.appendChild(wrap);
+    function updateArrows() {
+      navPrev.classList.toggle('hidden', current === 0);
+      navNext.classList.toggle('hidden', current === TOTAL - 1);
+    }
+
+    // ─── Click anywhere to advance ───
+    document.addEventListener('click', function(e) {
+      // Don't advance if clicking on dots, nav arrows, or links
+      if (e.target.closest('#scene-dots') || e.target.closest('.nav-arrow') || e.target.closest('a')) return;
+      if (current < TOTAL - 1) goTo(current + 1);
     });
-  }
 
-  // ─── Init ───────────────────────────────────────────────────────────────────
-  scenes[0].classList.add('active');
-  updateUI();
-  initParticles();
+    // ─── Nav arrows ───
+    navPrev.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (current > 0) goTo(current - 1);
+    });
+    navNext.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (current < TOTAL - 1) goTo(current + 1);
+    });
 
-  // Fade hint after 6 seconds
-  setTimeout(() => {
-    if (!interacted) hint.classList.add('hidden');
-  }, 6000);
-</script>
+    // ─── Keyboard ───
+    document.addEventListener('keydown', function(e) {
+      switch (e.key) {
+        case 'ArrowRight':
+        case ' ':
+        case 'Enter':
+          e.preventDefault();
+          if (current < TOTAL - 1) goTo(current + 1);
+          break;
+        case 'ArrowLeft':
+        case 'Backspace':
+          e.preventDefault();
+          if (current > 0) goTo(current - 1);
+          break;
+        case 'Escape':
+          e.preventDefault();
+          goTo(0);
+          break;
+      }
+    });
+
+    // ─── Touch / swipe ───
+    (function() {
+      var touchStartX = 0;
+      var touchStartY = 0;
+      document.addEventListener('touchstart', function(e) {
+        touchStartX = e.changedTouches[0].screenX;
+        touchStartY = e.changedTouches[0].screenY;
+      }, { passive: true });
+      document.addEventListener('touchend', function(e) {
+        var dx = e.changedTouches[0].screenX - touchStartX;
+        var dy = e.changedTouches[0].screenY - touchStartY;
+        if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
+          if (dx < 0 && current < TOTAL - 1) goTo(current + 1);
+          if (dx > 0 && current > 0) goTo(current - 1);
+        }
+      }, { passive: true });
+    })();
+
+    // ─── Terminal animation (Scene 1) ───
+    var terminalData = {
+      alpha: [
+        { time: '21:30:45', icon: '\uD83D\uDCC4', tool: 'Read', target: 'server/app.py' },
+        { time: '21:30:42', icon: '\uD83D\uDD0D', tool: 'Grep', target: '/loadAgent/' },
+        { time: '21:30:38', icon: '\u270F\uFE0F', tool: 'Edit', target: 'routes/traces.py' },
+        { time: '21:30:35', icon: '\uD83D\uDCC4', tool: 'Read', target: 'models/agent.py' },
+        { time: '21:30:30', icon: '\u26A1', tool: 'Bash', target: 'colcon build' },
+        { time: '21:30:26', icon: '\uD83D\uDD0D', tool: 'Grep', target: '/session_id/' },
+      ],
+      beta: [
+        { time: '21:30:44', icon: '\u26A1', tool: 'Bash', target: 'pytest tests/' },
+        { time: '21:30:40', icon: '\uD83D\uDCC4', tool: 'Read', target: 'flowlens/init.py' },
+        { time: '21:30:38', icon: '\u26A1', tool: 'Bash', target: 'git push origin' },
+        { time: '21:30:34', icon: '\u270F\uFE0F', tool: 'Edit', target: 'config.yaml' },
+        { time: '21:30:31', icon: '\uD83D\uDCC4', tool: 'Read', target: 'pyproject.toml' },
+        { time: '21:30:28', icon: '\u26A1', tool: 'Bash', target: 'npm run build' },
+      ],
+      gamma: [
+        { time: '21:30:43', icon: '\u270F\uFE0F', tool: 'Edit', target: 'dashboard.js' },
+        { time: '21:30:41', icon: '\uD83D\uDCC4', tool: 'Read', target: 'charts.js' },
+        { time: '21:30:39', icon: '\uD83D\uDD0D', tool: 'Grep', target: '/renderChart/' },
+        { time: '21:30:36', icon: '\u270F\uFE0F', tool: 'Edit', target: 'styles.css' },
+        { time: '21:30:33', icon: '\uD83D\uDCC4', tool: 'Read', target: 'components.js' },
+        { time: '21:30:29', icon: '\u26A1', tool: 'Bash', target: 'npm test' },
+      ]
+    };
+
+    var termAnimTimer = null;
+
+    function startTerminalAnimation() {
+      if (termAnimTimer) clearInterval(termAnimTimer);
+
+      var panes = {
+        alpha: document.getElementById('pane-alpha'),
+        beta: document.getElementById('pane-beta'),
+        gamma: document.getElementById('pane-gamma')
+      };
+
+      // Clear panes
+      Object.values(panes).forEach(function(p) { p.innerHTML = ''; });
+
+      var indices = { alpha: 0, beta: 0, gamma: 0 };
+      var agents = ['alpha', 'beta', 'gamma'];
+      var agentIdx = 0;
+      var totalShown = 0;
+
+      function addLine() {
+        if (current !== 0) { clearInterval(termAnimTimer); return; }
+
+        var agent = agents[agentIdx % 3];
+        agentIdx++;
+        var data = terminalData[agent];
+        var idx = indices[agent];
+        if (idx >= data.length) {
+          // Cycle: remove first child and reset
+          if (panes[agent].children.length > 0) {
+            panes[agent].removeChild(panes[agent].firstChild);
+          }
+          idx = 0;
+          indices[agent] = 0;
+        }
+
+        var entry = data[idx];
+        indices[agent]++;
+
+        var line = document.createElement('div');
+        line.className = 'term-line';
+        line.innerHTML = '<span class="term-time">' + entry.time + '</span> ' +
+                         '<span class="term-tool">' + entry.icon + '</span> ' +
+                         '<span style="color:#ccc;">' + entry.tool + '</span> ' +
+                         '<span style="color:#777;">' + entry.target + '</span>';
+
+        panes[agent].appendChild(line);
+
+        // Keep max 5 lines per pane
+        while (panes[agent].children.length > 5) {
+          panes[agent].removeChild(panes[agent].firstChild);
+        }
+
+        // Trigger animation
+        requestAnimationFrame(function() {
+          line.classList.add('visible');
+        });
+
+        totalShown++;
+      }
+
+      // Add lines one at a time with stagger
+      var delay = 0;
+      for (var i = 0; i < 9; i++) {
+        (function(d) {
+          setTimeout(addLine, d);
+        })(delay);
+        delay += 200;
+      }
+
+      // Continue cycling
+      termAnimTimer = setInterval(addLine, 1500);
+    }
+
+    // ─── Code typing animation (Scene 4) ───
+    function startCodeAnimation() {
+      var lines = ['code-line-1', 'code-line-2', 'code-line-3', 'code-line-4', 'code-line-5'];
+      lines.forEach(function(id, i) {
+        var el = document.getElementById(id);
+        if (el) {
+          el.style.opacity = '0';
+          el.style.transform = 'translateX(-8px)';
+          setTimeout(function() {
+            el.style.transition = 'opacity 0.35s ease, transform 0.35s ease';
+            el.style.opacity = '1';
+            el.style.transform = 'translateX(0)';
+          }, 200 + i * 300);
+        }
+      });
+    }
+
+    // ─── Initial state ───
+    updateProgress();
+    updateArrows();
+    startTerminalAnimation();
+  </script>
 </body>
 </html>
