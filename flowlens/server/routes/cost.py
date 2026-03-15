@@ -57,19 +57,63 @@ def create_cost_router(store: TraceStore) -> APIRouter:
     @router.get("/v1/cost/forecast")
     async def cost_forecast(
         days: int = Query(30, ge=1, le=365, description="Forecast horizon in days"),
+        forecast_days: int = Query(7, ge=1, le=30, description="Number of days to forecast forward"),
     ) -> dict[str, Any]:
         """
         Project future costs using linear regression on daily cost data.
 
         Returns projected_daily_cost, projected_monthly_cost, trend,
-        confidence_interval, days_of_data, slope, and r_squared.
+        confidence_interval, days_of_data, slope, r_squared,
+        daily_costs (last N days actual), and forecast (next forecast_days).
         """
         from ...analysis.cost_forecast import CostForecaster
+        from datetime import datetime, timezone, timedelta
         try:
-            daily_records = store.get_daily_costs(days=max(days, 7))
+            history_days = max(days, 14)
+            daily_records = store.get_daily_costs(days=history_days)
             forecaster = CostForecaster()
-            forecast = forecaster.forecast(daily_records, days=days)
-            return forecast.to_dict()
+            fc = forecaster.forecast(daily_records, days=days)
+            result = fc.to_dict()
+
+            # Build daily_costs list (last 7 days of actual data)
+            result["daily_costs"] = [
+                {"date": r["date"], "cost": round(r.get("total_cost_usd", 0.0) or 0.0, 6)}
+                for r in daily_records[-7:]
+            ]
+
+            # Build forecast list (next forecast_days days using linear projection)
+            forecast_list = []
+            slope = fc.slope
+            # Use last known day as baseline
+            if daily_records:
+                last_date_str = daily_records[-1]["date"]
+                try:
+                    last_date = datetime.strptime(last_date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                except (ValueError, TypeError):
+                    last_date = datetime.now(timezone.utc)
+            else:
+                last_date = datetime.now(timezone.utc)
+
+            base_cost = fc.projected_daily_cost
+            ci_lower_base = fc.confidence_interval[0]
+            ci_upper_base = fc.confidence_interval[1]
+            half_range = (ci_upper_base - ci_lower_base) / 2.0
+
+            for i in range(1, forecast_days + 1):
+                future_date = last_date + timedelta(days=i)
+                projected = max(0.0, base_cost + slope * i)
+                ci_lo = max(0.0, projected - half_range)
+                ci_hi = projected + half_range
+                forecast_list.append({
+                    "date": future_date.strftime("%Y-%m-%d"),
+                    "cost": round(projected, 6),
+                    "ci_lower": round(ci_lo, 6),
+                    "ci_upper": round(ci_hi, 6),
+                })
+            result["forecast"] = forecast_list
+            result["daily_avg_usd"] = round(fc.projected_daily_cost, 6)
+            result["monthly_projection_usd"] = round(fc.projected_monthly_cost, 6)
+            return result
         except Exception:
             logger.exception("Failed to compute cost forecast")
             raise HTTPException(500, "Failed to compute cost forecast")

@@ -91,6 +91,32 @@
     </div>
   </header>
 
+  <!-- Budget Alert Bar (hidden by default, shown when budget is set) -->
+  <div id="budget-alert-bar" class="hidden w-full">
+    <div class="max-w-[1600px] mx-auto px-6 py-2 flex items-center gap-3 flex-wrap">
+      <svg id="budget-bar-icon" class="w-4 h-4 flex-shrink-0 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </svg>
+      <span id="budget-bar-label" class="text-xs font-medium text-slate-300">Budget: — / —</span>
+      <div class="budget-progress-track">
+        <div id="budget-progress-fill" class="budget-progress-fill budget-fill-green" style="width:0%"></div>
+      </div>
+      <span id="budget-bar-pct" class="text-xs font-bold text-emerald-400">0%</span>
+      <button onclick="openBudgetModal()" class="ml-auto text-[10px] text-slate-500 hover:text-slate-300 underline underline-offset-2 transition flex-shrink-0">Edit</button>
+      <button onclick="clearBudget()" class="text-[10px] text-slate-600 hover:text-red-400 transition flex-shrink-0">Remove</button>
+    </div>
+  </div>
+
+  <!-- Set Budget Button (shown when no budget is set) -->
+  <div id="budget-set-bar" class="hidden w-full">
+    <div class="max-w-[1600px] mx-auto px-6 py-1.5 flex items-center gap-2">
+      <button onclick="openBudgetModal()" class="text-[10px] text-slate-600 hover:text-indigo-400 transition flex items-center gap-1.5">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        Set monthly budget
+      </button>
+    </div>
+  </div>
+
   <!-- Navigation Tabs -->
   <nav class="max-w-[1600px] mx-auto px-6 pt-4">
     <div class="flex gap-1 border-b border-white/5">
@@ -547,6 +573,38 @@
       <!-- Cost Summary Cards -->
       <div id="cost-summary-cards" class="cost-summary-cards"></div>
 
+      <!-- Forecast Section -->
+      <div class="glass rounded-xl p-5 mb-4">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-indigo-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+            </svg>
+            <h3 class="text-sm font-semibold text-white">Cost Forecast</h3>
+          </div>
+          <div id="forecast-trend-badge" class="forecast-trend-badge forecast-trend-stable hidden">stable</div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+          <div class="forecast-projection-card">
+            <div class="text-[10px] text-slate-500 uppercase tracking-wider">Monthly Projection</div>
+            <div id="forecast-monthly" class="text-xl font-bold text-indigo-300">—</div>
+            <div class="text-[10px] text-slate-600">at current rate</div>
+          </div>
+          <div class="forecast-projection-card">
+            <div class="text-[10px] text-slate-500 uppercase tracking-wider">Daily Average</div>
+            <div id="forecast-daily" class="text-xl font-bold text-white">—</div>
+            <div class="text-[10px] text-slate-600">projected spend/day</div>
+          </div>
+          <div class="forecast-projection-card">
+            <div class="text-[10px] text-slate-500 uppercase tracking-wider">Confidence Range</div>
+            <div id="forecast-ci" class="text-base font-semibold text-slate-300">—</div>
+            <div class="text-[10px] text-slate-600">95% confidence interval</div>
+          </div>
+        </div>
+        <!-- Forecast chart: last 7 days actual + next 7 days dashed forecast -->
+        <div class="h-52"><canvas id="chart-cost-forecast"></canvas></div>
+      </div>
+
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <!-- Cost Over Time Line Chart -->
         <div class="glass rounded-xl p-5 lg:col-span-2">
@@ -768,6 +826,32 @@
           <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">t</kbd><span class="text-slate-300">Toggle theme</span></div>
           <div class="flex items-center gap-2 text-sm"><kbd class="px-1.5 py-0.5 rounded bg-surface-100 border border-white/10 font-mono text-xs text-slate-400">n</kbd><span class="text-slate-300">Notifications</span></div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Budget Modal -->
+  <div id="budget-modal-overlay" class="hidden" onclick="if(event.target===this)closeBudgetModal()">
+    <div id="budget-modal-box" class="glass fade-in">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-sm font-semibold text-white">Set Monthly Budget</h3>
+        <button onclick="closeBudgetModal()" class="text-slate-500 hover:text-slate-300 transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <p class="text-xs text-slate-500 mb-4">Enter your monthly cost budget in USD. A progress bar will appear across all tabs showing your spend against this limit.</p>
+      <div class="mb-4">
+        <label class="text-xs font-medium text-slate-400 block mb-1.5">Monthly Budget (USD)</label>
+        <div class="flex items-center gap-2">
+          <span class="text-slate-500 text-sm">$</span>
+          <input id="budget-input" type="number" min="0.01" step="0.01" placeholder="50.00"
+            class="filter-input flex-1 rounded-lg px-3 py-2 text-sm border border-white/10 bg-surface-100 text-white focus:outline-none focus:border-indigo-500/50 transition"
+            onkeydown="if(event.key==='Enter')saveBudget()">
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="saveBudget()" class="flex-1 py-2 text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition">Save Budget</button>
+        <button onclick="closeBudgetModal()" class="py-2 px-4 text-sm text-slate-400 hover:text-slate-200 transition">Cancel</button>
       </div>
     </div>
   </div>

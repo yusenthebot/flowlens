@@ -3440,6 +3440,279 @@ function restoreState() {
 }
 
 // =========================================================================
+// Budget Management
+// =========================================================================
+
+let _budgetUSD = null; // Current budget in USD (null = not set)
+
+function _getBudgetFromStorage() {
+  try {
+    const v = localStorage.getItem('flowlens-budget-usd');
+    if (v !== null) {
+      const n = parseFloat(v);
+      return isNaN(n) || n <= 0 ? null : n;
+    }
+  } catch (_) {}
+  return null;
+}
+
+function _saveBudgetToStorage(usd) {
+  try {
+    if (usd === null) {
+      localStorage.removeItem('flowlens-budget-usd');
+    } else {
+      localStorage.setItem('flowlens-budget-usd', String(usd));
+    }
+  } catch (_) {}
+}
+
+function openBudgetModal() {
+  const overlay = document.getElementById('budget-modal-overlay');
+  if (!overlay) return;
+  const input = document.getElementById('budget-input');
+  if (input && _budgetUSD !== null) input.value = _budgetUSD.toFixed(2);
+  overlay.classList.remove('hidden');
+  setTimeout(() => { if (input) input.focus(); }, 50);
+}
+
+function closeBudgetModal() {
+  const overlay = document.getElementById('budget-modal-overlay');
+  if (overlay) overlay.classList.add('hidden');
+}
+
+function saveBudget() {
+  const input = document.getElementById('budget-input');
+  if (!input) return;
+  const v = parseFloat(input.value);
+  if (isNaN(v) || v <= 0) {
+    showToast('Please enter a valid budget amount > 0', 'warning');
+    return;
+  }
+  _budgetUSD = v;
+  _saveBudgetToStorage(v);
+  closeBudgetModal();
+  _refreshBudgetBar();
+  showToast(`Budget set to $${v.toFixed(2)}/month`, 'success');
+}
+
+function clearBudget() {
+  _budgetUSD = null;
+  _saveBudgetToStorage(null);
+  _refreshBudgetBar();
+}
+
+async function _refreshBudgetBar() {
+  const alertBar = document.getElementById('budget-alert-bar');
+  const setBar = document.getElementById('budget-set-bar');
+  if (!alertBar || !setBar) return;
+
+  if (_budgetUSD === null) {
+    alertBar.classList.add('hidden');
+    setBar.classList.remove('hidden');
+    return;
+  }
+
+  // Fetch current spend from /v1/cost/budget
+  let spent = 0;
+  try {
+    const data = await apiFetch(`/v1/cost/budget?budget=${_budgetUSD}`);
+    spent = data.total_spent_usd || 0;
+  } catch (_) {
+    // Can't reach API, use 0
+  }
+
+  const pct = _budgetUSD > 0 ? Math.min(100, (spent / _budgetUSD) * 100) : 0;
+  const pctRounded = Math.round(pct);
+
+  const fill = document.getElementById('budget-progress-fill');
+  const label = document.getElementById('budget-bar-label');
+  const pctEl = document.getElementById('budget-bar-pct');
+  const icon = document.getElementById('budget-bar-icon');
+
+  if (label) label.textContent = `Budget: $${spent.toFixed(2)} / $${_budgetUSD.toFixed(2)} (${pctRounded}%)`;
+  if (pctEl) pctEl.textContent = pctRounded + '%';
+
+  // Remove all color classes
+  alertBar.classList.remove('budget-bar-green', 'budget-bar-yellow', 'budget-bar-red');
+  if (fill) fill.classList.remove('budget-fill-green', 'budget-fill-yellow', 'budget-fill-red');
+  if (pctEl) pctEl.className = 'text-xs font-bold';
+  if (icon) icon.className = 'w-4 h-4 flex-shrink-0';
+
+  if (pct >= 100) {
+    alertBar.classList.add('budget-bar-red');
+    if (fill) { fill.classList.add('budget-fill-red'); fill.style.width = '100%'; }
+    if (pctEl) pctEl.classList.add('text-red-400');
+    if (icon) icon.classList.add('text-red-400');
+    if (label) label.textContent = 'Budget exceeded! $' + spent.toFixed(2) + ' / $' + _budgetUSD.toFixed(2);
+    // Add notification if not already present
+    addNotification('warning', 'Budget Exceeded', `Spend $${spent.toFixed(2)} exceeds budget $${_budgetUSD.toFixed(2)}`);
+  } else if (pct >= 80) {
+    alertBar.classList.add('budget-bar-yellow');
+    if (fill) { fill.classList.add('budget-fill-yellow'); fill.style.width = pct + '%'; }
+    if (pctEl) pctEl.classList.add('text-amber-400');
+    if (icon) icon.classList.add('text-amber-400');
+  } else {
+    alertBar.classList.add('budget-bar-green');
+    if (fill) { fill.classList.add('budget-fill-green'); fill.style.width = pct + '%'; }
+    if (pctEl) pctEl.classList.add('text-emerald-400');
+    if (icon) icon.classList.add('text-emerald-400');
+  }
+
+  setBar.classList.add('hidden');
+  alertBar.classList.remove('hidden');
+}
+
+// =========================================================================
+// Cost Forecast Chart
+// =========================================================================
+async function loadCostForecast() {
+  try {
+    const data = await apiFetch('/v1/cost/forecast?days=30&forecast_days=7');
+
+    // Update projection cards
+    const monthly = data.monthly_projection_usd || data.projected_monthly_cost || 0;
+    const daily = data.daily_avg_usd || data.projected_daily_cost || 0;
+    const ci = data.confidence_interval || { lower: 0, upper: 0 };
+
+    const monthlyEl = document.getElementById('forecast-monthly');
+    if (monthlyEl) monthlyEl.textContent = '$' + monthly.toFixed(4);
+
+    const dailyEl = document.getElementById('forecast-daily');
+    if (dailyEl) dailyEl.textContent = '$' + daily.toFixed(4) + '/day';
+
+    const ciEl = document.getElementById('forecast-ci');
+    if (ciEl) ciEl.textContent = `$${(ci.lower || 0).toFixed(4)} – $${(ci.upper || 0).toFixed(4)}`;
+
+    // Update trend badge
+    const trend = data.trend || 'stable';
+    const badge = document.getElementById('forecast-trend-badge');
+    if (badge) {
+      badge.classList.remove('hidden', 'forecast-trend-increasing', 'forecast-trend-decreasing', 'forecast-trend-stable');
+      badge.classList.add('forecast-trend-' + trend);
+      const arrows = { increasing: '↑ increasing', decreasing: '↓ decreasing', stable: '→ stable' };
+      badge.textContent = arrows[trend] || trend;
+    }
+
+    // Render forecast chart
+    _renderForecastChart(data.daily_costs || [], data.forecast || []);
+  } catch (err) {
+    console.warn('Cost forecast not available:', err);
+  }
+}
+
+function _renderForecastChart(actualDays, forecastDays) {
+  const canvasId = 'chart-cost-forecast';
+  if (chartInstances[canvasId]) { chartInstances[canvasId].destroy(); delete chartInstances[canvasId]; }
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+
+  const isDark = document.documentElement.classList.contains('dark');
+  const tickColor = isDark ? '#64748b' : '#94a3b8';
+  const gridColor = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)';
+
+  // Build combined label array
+  const actualLabels = actualDays.map(d => d.date ? d.date.substring(5) : '');  // MM-DD
+  const forecastLabels = forecastDays.map(d => d.date ? d.date.substring(5) : '');
+  const labels = [...actualLabels, ...forecastLabels];
+
+  const actualCosts = actualDays.map(d => d.cost || 0);
+  // Actual dataset: null for forecast points
+  const actualDataset = [...actualCosts, ...forecastDays.map(() => null)];
+  // Forecast dataset: null for actual points, then forecast values
+  const forecastDataset = [...actualDays.map(() => null), ...forecastDays.map(d => d.cost || 0)];
+  // Overlap point: last actual = first forecast
+  if (actualCosts.length > 0 && forecastDays.length > 0) {
+    forecastDataset[actualCosts.length - 1] = actualCosts[actualCosts.length - 1];
+  }
+
+  // Confidence interval upper/lower (for band visualization)
+  const ciBands = forecastDays.map(d => ({
+    lo: d.ci_lower || 0,
+    hi: d.ci_upper || 0,
+  }));
+
+  const ctx = canvas.getContext('2d');
+  const grad = ctx.createLinearGradient(0, 0, 0, canvas.height || 200);
+  grad.addColorStop(0, 'rgba(99, 102, 241, 0.22)');
+  grad.addColorStop(1, 'rgba(99, 102, 241, 0.02)');
+
+  chartInstances[canvasId] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Actual',
+          data: actualDataset,
+          borderColor: '#7c7aef',
+          backgroundColor: grad,
+          fill: true,
+          tension: 0.3,
+          pointRadius: 3,
+          pointHoverRadius: 6,
+          pointBackgroundColor: '#7c7aef',
+          borderWidth: 2,
+          spanGaps: false,
+        },
+        {
+          label: 'Forecast',
+          data: forecastDataset,
+          borderColor: '#a5b4fc',
+          backgroundColor: 'rgba(165, 180, 252, 0.08)',
+          fill: false,
+          tension: 0.3,
+          pointRadius: 2,
+          pointHoverRadius: 5,
+          pointBackgroundColor: '#a5b4fc',
+          borderWidth: 2,
+          borderDash: [5, 4],
+          spanGaps: false,
+        },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top',
+          align: 'end',
+          labels: { color: tickColor, font: { family: 'Inter', size: 10 }, boxWidth: 24, padding: 8 }
+        },
+        tooltip: {
+          backgroundColor: isDark ? 'rgba(42,42,40,0.95)' : 'rgba(255,255,255,0.97)',
+          borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#e8e6e1',
+          borderWidth: 1,
+          titleColor: isDark ? '#e2e0db' : '#2c2c2a',
+          bodyColor: isDark ? '#94a3b8' : '#64748b',
+          callbacks: {
+            label: (item) => {
+              const v = item.parsed.y;
+              if (v === null) return null;
+              const datasetLabel = item.dataset.label;
+              return ` ${datasetLabel}: $${v.toFixed(6)}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: tickColor, font: { size: 10 }, maxRotation: 45 },
+          grid: { color: gridColor },
+        },
+        y: {
+          ticks: { color: tickColor, font: { size: 10 }, callback: v => '$' + v.toFixed(4) },
+          grid: { color: gridColor },
+          beginAtZero: true,
+        }
+      }
+    }
+  });
+}
+
+// =========================================================================
 // Init
 // =========================================================================
 document.addEventListener('DOMContentLoaded', async () => {
@@ -3453,6 +3726,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.documentElement.classList.remove('dark');
     document.body.classList.remove('dark');
     isDarkTheme = false;
+  }
+
+  // Initialize budget bar from localStorage
+  _budgetUSD = _getBudgetFromStorage();
+  // Show budget set bar if no budget set yet
+  if (_budgetUSD === null) {
+    const setBar = document.getElementById('budget-set-bar');
+    if (setBar) setBar.classList.remove('hidden');
+  } else {
+    // Budget is set — refresh bar (will fetch spend)
+    _refreshBudgetBar();
   }
 
   // Restore persisted session state (search query, scroll position)

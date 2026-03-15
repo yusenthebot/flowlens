@@ -580,6 +580,63 @@
     html:not(.dark) .waterfall-row .text-slate-600 { color: #aaa8a3 !important; }
     html:not(.dark) #timeline-container .divide-y > * { border-color: rgba(0,0,0,0.05); }
 
+    /* ========== Cycle 13: Cost Forecasting & Budget Alerts ========== */
+
+    /* Budget alert bar — persistent across all tabs */
+    #budget-alert-bar {
+      transition: all 0.3s ease;
+    }
+    .budget-bar-green  { background: rgba(16, 185, 129, 0.08); border-bottom: 1px solid rgba(16, 185, 129, 0.2); }
+    .budget-bar-yellow { background: rgba(245, 158, 11, 0.10); border-bottom: 1px solid rgba(245, 158, 11, 0.25); }
+    .budget-bar-red    { background: rgba(239, 68, 68, 0.12);  border-bottom: 1px solid rgba(239, 68, 68, 0.3); }
+    html:not(.dark) .budget-bar-green  { background: rgba(16, 185, 129, 0.06);  border-bottom: 1px solid rgba(16, 185, 129, 0.15); }
+    html:not(.dark) .budget-bar-yellow { background: rgba(245, 158, 11, 0.08);  border-bottom: 1px solid rgba(245, 158, 11, 0.2); }
+    html:not(.dark) .budget-bar-red    { background: rgba(239, 68, 68, 0.08);   border-bottom: 1px solid rgba(239, 68, 68, 0.2); }
+
+    /* Budget progress track */
+    .budget-progress-track {
+      height: 6px; border-radius: 3px; overflow: hidden; flex: 1; min-width: 80px; max-width: 160px;
+    }
+    .dark .budget-progress-track { background: rgba(255,255,255,0.07); }
+    html:not(.dark) .budget-progress-track { background: rgba(0,0,0,0.07); }
+    .budget-progress-fill {
+      height: 100%; border-radius: 3px; transition: width 0.5s ease;
+    }
+    .budget-fill-green  { background: linear-gradient(90deg, #10b981, #34d399); }
+    .budget-fill-yellow { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+    .budget-fill-red    { background: linear-gradient(90deg, #ef4444, #f87171); }
+
+    /* Budget modal overlay */
+    #budget-modal-overlay {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(0,0,0,0.55); backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center;
+    }
+    #budget-modal-box {
+      width: 320px; border-radius: 16px; padding: 24px;
+    }
+    .dark #budget-modal-box { background: rgba(15,23,42,0.97); border: 1px solid rgba(255,255,255,0.1); }
+    html:not(.dark) #budget-modal-box { background: rgba(255,255,255,0.99); border: 1px solid #e8e6e1; }
+
+    /* Forecast section */
+    .forecast-projection-card {
+      border-radius: 12px; padding: 14px 18px;
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .dark .forecast-projection-card { background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.18); }
+    html:not(.dark) .forecast-projection-card { background: rgba(99,102,241,0.05); border: 1px solid rgba(99,102,241,0.15); }
+
+    .forecast-trend-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 8px; border-radius: 9999px; font-size: 10px; font-weight: 600;
+    }
+    .forecast-trend-increasing { background: rgba(239,68,68,0.12); color: #f87171; }
+    .forecast-trend-decreasing { background: rgba(16,185,129,0.12); color: #34d399; }
+    .forecast-trend-stable     { background: rgba(99,102,241,0.12); color: #a5b4fc; }
+    html:not(.dark) .forecast-trend-increasing { background: rgba(239,68,68,0.08); color: #dc2626; }
+    html:not(.dark) .forecast-trend-decreasing { background: rgba(16,185,129,0.08); color: #059669; }
+    html:not(.dark) .forecast-trend-stable     { background: rgba(99,102,241,0.08); color: #4f46e5; }
+
     /* ========== Trace hover preview tooltip ========== */
     .trace-preview-tooltip {
       position: fixed;
