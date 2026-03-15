@@ -42,7 +42,7 @@
       document.documentElement.classList.remove('dark');
     }
   </script>
-  <link rel="stylesheet" href="/static/dashboard.css?v=15">
+  <link rel="stylesheet" href="/static/dashboard.css?v=16">
 </head>
 <body class="min-h-screen font-sans text-slate-200 antialiased">
 
@@ -971,8 +971,15 @@
     <div id="notification-list" class="divide-y divide-white/5"></div>
   </div>
 
+  <!-- Back-to-top button -->
+  <button id="back-to-top" onclick="scrollToTop()" aria-label="Back to top" title="Back to top">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/>
+    </svg>
+  </button>
+
   <!-- External JS modules (order matters: dashboard.js first for state, then modules) -->
-  <script src="/static/dashboard.js?v=13"></script>
+  <script src="/static/dashboard.js?v=16"></script>
   <script src="/static/websocket.js?v=13"></script>
   <script src="/static/network.js?v=13"></script>
   <script src="/static/charts.js?v=13"></script>

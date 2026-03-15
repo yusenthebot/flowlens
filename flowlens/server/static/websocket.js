@@ -137,7 +137,9 @@ function handleLiveTrace(traceData) {
     tempDiv.innerHTML = rowHtml;
     const newRow = tempDiv.firstElementChild;
     if (newRow) {
-      newRow.classList.add('new-trace-highlight');
+      // Use green WS flash instead of purple highlight
+      newRow.classList.add('new-trace-ws');
+      newRow.addEventListener('animationend', () => newRow.classList.remove('new-trace-ws'), { once: true });
       // Remove existing dividers by wrapping
       const wrapper = document.createElement('div');
       wrapper.className = 'border-b border-white/5';
@@ -165,7 +167,9 @@ function handleLiveTrace(traceData) {
     tempDiv.innerHTML = rowHtml;
     const newRow = tempDiv.firstElementChild;
     if (newRow) {
-      newRow.classList.add('new-trace-highlight');
+      // Use green WS flash
+      newRow.classList.add('new-trace-ws');
+      newRow.addEventListener('animationend', () => newRow.classList.remove('new-trace-ws'), { once: true });
       container.insertBefore(newRow, container.firstChild);
     }
   }

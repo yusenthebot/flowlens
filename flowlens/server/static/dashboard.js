@@ -286,17 +286,36 @@ function showToast(message, type = 'info', duration = 4000) {
 function switchView(view) {
   currentView = view;
   selectedTraceIndex = -1;
-  document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
+
+  // Fade out current visible panel before switching
+  const currentPanel = document.querySelector('.view-panel:not(.hidden)');
+  if (currentPanel && currentPanel.id !== `view-${view}`) {
+    currentPanel.classList.add('view-leaving');
+    setTimeout(() => {
+      currentPanel.classList.add('hidden');
+      currentPanel.classList.remove('view-leaving');
+    }, 150);
+  } else if (!currentPanel) {
+    document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
+  }
+
   document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('tab-active'); b.classList.add('tab-inactive'); });
 
   const panel = document.getElementById(`view-${view}`);
   if (panel) {
-    panel.classList.remove('hidden');
-    // Trigger smooth cross-fade enter animation (opacity 0->1, translateY 4px->0)
-    panel.classList.remove('view-enter', 'tab-fade-in');
-    void panel.offsetWidth;
-    panel.classList.add('view-enter', 'tab-fade-in');
+    // Delay showing new panel until leave animation completes
+    const delay = currentPanel && currentPanel.id !== `view-${view}` ? 140 : 0;
+    setTimeout(() => {
+      document.querySelectorAll('.view-panel').forEach(p => { if (p !== panel) p.classList.add('hidden'); });
+      panel.classList.remove('hidden');
+      panel.classList.remove('view-enter', 'tab-fade-in');
+      void panel.offsetWidth;
+      panel.classList.add('view-enter', 'tab-fade-in');
+    }, delay);
   }
+
+  // Move the pill nav glider to the active tab
+  _movePillGlider(view);
 
   const tabBtn = document.querySelector(`[data-tab="${view}"]`);
   if (tabBtn) { tabBtn.classList.remove('tab-inactive'); tabBtn.classList.add('tab-active'); }
@@ -4506,6 +4525,106 @@ function _renderForecastChart(actualDays, forecastDays) {
 }
 
 // =========================================================================
+// Cycle 16: Interaction Polish helpers
+// =========================================================================
+
+/**
+ * Move (or create) the pill-nav sliding indicator to sit under the active tab.
+ * Uses CSS `transition` on left+width for a smooth glide effect.
+ */
+function _movePillGlider(view) {
+  const container = document.querySelector('.pill-nav-container');
+  if (!container) return;
+  const btn = container.querySelector(`[data-tab="${view}"]`);
+  if (!btn) return;
+
+  let glider = container.querySelector('.pill-nav-glider');
+  if (!glider) {
+    glider = document.createElement('div');
+    glider.className = 'pill-nav-glider';
+    container.prepend(glider);
+  }
+
+  // Position relative to nav container
+  const containerRect = container.getBoundingClientRect();
+  const btnRect = btn.getBoundingClientRect();
+  glider.style.left = (btnRect.left - containerRect.left + container.scrollLeft) + 'px';
+  glider.style.width = btnRect.width + 'px';
+}
+
+/** Scroll the page (main element) smoothly to the top */
+function scrollToTop() {
+  const main = document.querySelector('main');
+  if (main) {
+    main.scrollTo({ top: 0, behavior: 'smooth' });
+  } else {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+}
+
+/**
+ * Show a "Copied!" tooltip on a button element for 1.5s.
+ * Button must have position:relative (or a wrapper will be created).
+ */
+function showCopyTooltip(btn) {
+  // Remove any existing tooltip on this button
+  const existing = btn.querySelector('.copy-tooltip');
+  if (existing) existing.remove();
+
+  const tip = document.createElement('span');
+  tip.className = 'copy-tooltip';
+  tip.textContent = 'Copied!';
+  btn.style.position = 'relative';
+  btn.appendChild(tip);
+
+  setTimeout(() => {
+    tip.classList.add('fading');
+    setTimeout(() => tip.remove(), 200);
+  }, 1300);
+}
+
+/**
+ * Copy text to clipboard and show a tooltip on the trigger element.
+ */
+function copyWithTooltip(text, triggerEl) {
+  navigator.clipboard.writeText(text).then(() => {
+    if (triggerEl) showCopyTooltip(triggerEl);
+  }).catch(() => {
+    showToast('Failed to copy', 'error', 2000);
+  });
+}
+
+/**
+ * Flash a trace row with the "new trace via WebSocket" green border effect.
+ */
+function flashNewTraceRow(traceId) {
+  const row = document.querySelector(`[data-trace-id="${traceId}"]`);
+  if (!row) return;
+  row.classList.remove('new-trace-ws');
+  void row.offsetWidth; // force reflow
+  row.classList.add('new-trace-ws');
+  row.addEventListener('animationend', () => row.classList.remove('new-trace-ws'), { once: true });
+}
+
+/**
+ * Add press feedback to a trace row (scale-down 0.9975 → back up).
+ */
+function _addTraceRowPressListeners(container) {
+  container.addEventListener('mousedown', (e) => {
+    const row = e.target.closest('.trace-row');
+    if (!row) return;
+    row.classList.add('pressing');
+  }, { passive: true });
+  container.addEventListener('mouseup', (e) => {
+    const row = e.target.closest('.trace-row');
+    if (row) row.classList.remove('pressing');
+  }, { passive: true });
+  container.addEventListener('mouseleave', (e) => {
+    document.querySelectorAll('.trace-row.pressing').forEach(r => r.classList.remove('pressing'));
+  }, { passive: true });
+}
+
+// =========================================================================
 // Init
 // =========================================================================
 document.addEventListener('DOMContentLoaded', async () => {
@@ -4576,11 +4695,43 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Persist scroll position on scroll
   const mainEl = document.querySelector('main');
+  const backToTopBtn = document.getElementById('back-to-top');
+  const headerEl = document.querySelector('header');
+
   if (mainEl) {
     mainEl.addEventListener('scroll', () => {
-      try { sessionStorage.setItem('flowlens-scroll', mainEl.scrollTop); } catch (_) {}
+      const st = mainEl.scrollTop;
+
+      // Persist state
+      try { sessionStorage.setItem('flowlens-scroll', st); } catch (_) {}
+
+      // Header scroll shadow
+      if (headerEl) {
+        headerEl.classList.toggle('scrolled', st > 20);
+      }
+
+      // Back-to-top visibility
+      if (backToTopBtn) {
+        backToTopBtn.classList.toggle('visible', st > 400);
+      }
     }, { passive: true });
   }
+
+  // Also listen on window scroll for the back-to-top (in case main is not the scroll container)
+  window.addEventListener('scroll', () => {
+    const st = window.scrollY;
+    if (headerEl) headerEl.classList.toggle('scrolled', st > 20);
+    if (backToTopBtn) backToTopBtn.classList.toggle('visible', st > 400);
+  }, { passive: true });
+
+  // Trace row press feedback — delegate from main container
+  const mainContent = document.getElementById('main-content');
+  if (mainContent) {
+    _addTraceRowPressListeners(mainContent);
+  }
+
+  // Initialize pill nav glider on current view
+  _movePillGlider(currentView || 'overview');
 
   // Register dagre layout for Cytoscape if both libs loaded
   if (typeof cytoscape !== 'undefined' && typeof cytoscapeDagre !== 'undefined') {
