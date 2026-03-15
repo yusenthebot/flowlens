@@ -377,12 +377,14 @@ async function loadTrendChart(hours) {
 // =========================================================================
 async function loadCostData() {
   try {
-    const [byService, byKind, byName, agentSummary, costTrends] = await Promise.all([
+    const [byService, byKind, byName, agentSummary, costTrends, optimization, tracesData] = await Promise.all([
       apiFetch('/v1/cost/breakdown?group_by=service_name'),
       apiFetch('/v1/cost/breakdown?group_by=kind'),
       apiFetch('/v1/cost/breakdown?group_by=name'),
       apiFetch('/v1/agents/summary').catch(() => ({ agents: [] })),
       apiFetch('/v1/cost/trends?granularity=daily&limit=30').catch(() => []),
+      apiFetch('/v1/cost/optimization').catch(() => null),
+      apiFetch('/v1/traces?limit=50').catch(() => ({ traces: [] })),
     ]);
 
     // Render cost summary cards
@@ -399,10 +401,164 @@ async function loadCostData() {
     // Render token distribution pie chart
     _renderTokenDistributionChart(byKind);
 
+    // Enhanced: Cost by Model breakdown
+    if (optimization && optimization.by_model) {
+      _renderModelCostChart('chart-cost-model', optimization.by_model);
+    }
+
+    // Enhanced: Top 5 most expensive traces
+    _renderTopExpensiveTraces(tracesData.traces || []);
+
+    // Enhanced: Optimization suggestions
+    _renderOptimizationSuggestions(optimization);
+
     updateRefreshTime();
   } catch (err) {
     console.error('Cost load error:', err);
   }
+}
+
+function _renderModelCostChart(canvasId, byModel) {
+  if (chartInstances[canvasId]) { chartInstances[canvasId].destroy(); delete chartInstances[canvasId]; }
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || !byModel || byModel.length === 0) return;
+
+  const sorted = [...byModel].sort((a, b) => (b.total_cost_usd || 0) - (a.total_cost_usd || 0));
+  const labels = sorted.map(m => m.model || m.dimension || 'unknown');
+  const costs = sorted.map(m => m.total_cost_usd || 0);
+  const tokens = sorted.map(m => m.total_tokens || 0);
+
+  // Color palette for models
+  const MODEL_COLORS = ['#7c7aef', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#8b5cf6'];
+  const colors = labels.map((_, i) => MODEL_COLORS[i % MODEL_COLORS.length] + 'cc');
+  const borders = labels.map((_, i) => MODEL_COLORS[i % MODEL_COLORS.length]);
+
+  chartInstances[canvasId] = new Chart(canvas.getContext('2d'), {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data: costs, backgroundColor: colors, borderColor: borders, borderWidth: 1, hoverOffset: 8 }] },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '58%',
+      plugins: {
+        legend: { position: 'right', labels: { color: '#94a3b8', font: { family: 'Inter', size: 10 }, padding: 10, boxWidth: 12 } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const idx = ctx.dataIndex;
+              const total = costs.reduce((s, c) => s + c, 0);
+              const pct = total > 0 ? ((costs[idx] / total) * 100).toFixed(1) : 0;
+              return ` $${costs[idx].toFixed(6)} (${pct}%) | ${tokens[idx].toLocaleString()} tokens`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+function _renderTopExpensiveTraces(traces) {
+  const container = document.getElementById('cost-top-traces');
+  if (!container) return;
+
+  // Sort by cost descending; fall back to duration
+  const sorted = [...traces]
+    .filter(t => t.total_cost_usd > 0 || t.cost > 0)
+    .sort((a, b) => ((b.total_cost_usd || b.cost || 0) - (a.total_cost_usd || a.cost || 0)));
+
+  if (sorted.length === 0) {
+    container.innerHTML = '<p class="text-xs text-slate-500 italic py-2">No cost data available for traces yet.</p>';
+    return;
+  }
+
+  const top5 = sorted.slice(0, 5);
+  const maxCost = top5[0].total_cost_usd || top5[0].cost || 0;
+
+  container.innerHTML = top5.map((t, i) => {
+    const cost = t.total_cost_usd || t.cost || 0;
+    const barPct = maxCost > 0 ? ((cost / maxCost) * 100).toFixed(1) : 0;
+    const agent = (t.tags && t.tags.agent) || t.agent || 'unknown';
+    const shortId = (t.trace_id || '').substring(0, 8);
+    const durationStr = t.duration_ms ? (t.duration_ms < 1000 ? t.duration_ms.toFixed(0) + 'ms' : (t.duration_ms / 1000).toFixed(2) + 's') : '--';
+    const isError = t.has_errors === true || t.has_errors === 1;
+
+    return `
+      <div class="flex items-center gap-3 py-2 border-b border-white/5 last:border-0 group cursor-pointer hover:bg-white/[0.02] transition rounded px-1"
+           onclick="typeof openTrace === 'function' ? openTrace('${escHtml(t.trace_id)}') : null">
+        <span class="text-[11px] text-slate-600 tabular-nums w-4 flex-shrink-0">#${i + 1}</span>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-1.5 mb-0.5">
+            <span class="text-[11px] text-slate-300 font-mono truncate">${shortId}...</span>
+            ${isError ? '<span class="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0"></span>' : ''}
+            <span class="text-[10px] text-slate-600 ml-auto flex-shrink-0">${durationStr}</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="text-[10px] text-slate-600">${escHtml(agent)}</span>
+            <div class="flex-1 h-1.5 rounded overflow-hidden" style="background:rgba(255,255,255,0.05)">
+              <div class="h-full rounded" style="width:${barPct}%;background:linear-gradient(90deg,#7c7aef,#9b8ec4)"></div>
+            </div>
+          </div>
+        </div>
+        <span class="text-xs font-semibold text-emerald-400 tabular-nums flex-shrink-0 group-hover:text-emerald-300 transition">$${cost.toFixed(5)}</span>
+        <svg class="w-3 h-3 text-slate-600 flex-shrink-0 opacity-0 group-hover:opacity-100 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      </div>`;
+  }).join('');
+}
+
+function _renderOptimizationSuggestions(optimization) {
+  const container = document.getElementById('cost-optimization-tips');
+  if (!container) return;
+
+  if (!optimization || !optimization.suggestions || optimization.suggestions.length === 0) {
+    container.innerHTML = `
+      <div class="flex items-center gap-2 py-3">
+        <svg class="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <span class="text-xs text-slate-400">No optimization opportunities detected — usage looks efficient.</span>
+      </div>`;
+    return;
+  }
+
+  const totalSavings = optimization.total_estimated_monthly_savings_usd || 0;
+  const suggestions = optimization.suggestions.slice(0, 5);
+
+  const headerHtml = totalSavings > 0 ? `
+    <div class="flex items-center gap-2 mb-3 p-2.5 rounded-lg" style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2)">
+      <svg class="w-4 h-4 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+      <span class="text-xs text-emerald-300">Estimated monthly savings: <strong>$${totalSavings.toFixed(4)}</strong></span>
+    </div>` : '';
+
+  const TIP_ICONS = {
+    model: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>',
+    context: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>',
+    retry: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>',
+    default: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>',
+  };
+
+  const tipsHtml = suggestions.map(s => {
+    // API returns: type, description, span_name, model, suggested_model, estimated_monthly_savings_usd
+    const rawTitle = s.title || s.suggestion || (s.type === 'model_switch' ? `Switch ${s.model} → ${s.suggested_model}` : s.type === 'caching' ? `Cache "${s.span_name}"` : 'Optimization tip');
+    const title = escHtml(rawTitle);
+    const detail = escHtml(s.detail || s.description || '');
+    const savings = s.estimated_monthly_savings_usd ? `<span class="text-[10px] text-emerald-400 font-semibold">~$${Number(s.estimated_monthly_savings_usd).toFixed(4)}/mo</span>` : '';
+    const category = (s.type || s.category || '').toLowerCase();
+    const iconKey = category.includes('model') ? 'model' : category.includes('cach') ? 'retry' : category.includes('context') ? 'context' : 'default';
+    const iconPath = TIP_ICONS[iconKey] || TIP_ICONS.default;
+    return `
+      <div class="flex items-start gap-2.5 py-2.5 border-b border-white/5 last:border-0">
+        <div class="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" style="background:rgba(99,102,241,0.12)">
+          <svg class="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">${iconPath}</svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-xs font-semibold text-white">${title}</span>
+            ${savings}
+          </div>
+          ${detail ? `<p class="text-[11px] text-slate-400 mt-0.5 leading-relaxed">${detail}</p>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+
+  container.innerHTML = headerHtml + tipsHtml;
 }
 
 function _renderCostSummaryCards(byService, byKind, trends) {

@@ -420,6 +420,44 @@
     .stat-card-cost { background: linear-gradient(135deg, rgba(16,185,129,0.05), transparent); }
     .stat-card-agents { background: linear-gradient(135deg, rgba(139,92,246,0.05), transparent); }
 
+    /* ========== Span detail panel — semantic sections ========== */
+    .span-detail-code-block {
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .span-detail-code-block .code-label {
+      padding: 3px 10px;
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 700;
+      color: #64748b;
+      background: rgba(255,255,255,0.03);
+    }
+    .span-detail-code-block pre {
+      padding: 10px;
+      font-size: 11px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 160px;
+      line-height: 1.55;
+    }
+    html:not(.dark) .span-detail-code-block { border-color: rgba(0,0,0,0.08); }
+    html:not(.dark) .span-detail-code-block .code-label { background: rgba(0,0,0,0.03); }
+
+    /* ========== Cost tab — top traces list ========== */
+    #cost-top-traces .trace-cost-row:hover { background: rgba(255,255,255,0.02); }
+    html:not(.dark) #cost-top-traces .trace-cost-row:hover { background: rgba(0,0,0,0.02); }
+
+    /* ========== Cost optimization tips ========== */
+    #cost-optimization-tips .tip-icon-box {
+      width: 24px; height: 24px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(99,102,241,0.12); flex-shrink: 0;
+    }
+
     /* ========== Smooth scroll ========== */
     html { scroll-behavior: smooth; }
     .overflow-y-auto { scroll-behavior: smooth; }
