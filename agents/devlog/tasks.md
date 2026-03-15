@@ -1,6 +1,6 @@
 # Task Board — FlowLens Development
 
-**Project Status: Cycle 23 complete — UI Animation Polish delivered (Gamma)**
+**Project Status: Cycle 25 complete — Search & Keyboard UX delivered (Alpha/UX)**
 
 ---
 
