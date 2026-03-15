@@ -31,19 +31,30 @@ It traces every LLM call, tool execution, and decision point — then builds **c
 | **15+ Anti-Pattern Detectors** | Retry storms, infinite loops, context overflow, timeout cascades, token waste, cold start penalty, and more — all configurable via env vars |
 | **Zero-Intrusion Tracing** | Decorators instrument any Python agent without touching business logic |
 | **Auto-Instrumentation** | One call patches Anthropic, OpenAI, and LangChain automatically |
-| **3D Agent Network Visualization** | Lightweight SVG-based agent network with animated particles and glow effects (Three.js fallback for advanced 3D, lazy-loaded). Drag to rotate, hover to highlight, click for details. Includes mini preview on Overview tab |
-| **Real-time Agent Team Monitoring** | WebSocket live feed of agent activity with status tracking and timeline |
+| **Lightweight SVG Agent Network** | Interactive agent relationship graph with animated particles and glow effects. Drag to rotate, hover to highlight, click for details. Lazy-loads Three.js for advanced 3D as fallback |
+| **Real-time Agent Team Monitoring** | WebSocket live feed of agent activity with status tracking, per-agent activity timelines, and tmux-style floating terminal |
+| **Live Monitor Terminal** | Click agent to open terminal-style activity pane; auto grid layout (1/2/4 agents); draggable, resizable from all edges; real-time WebSocket push per pane; rich detail with file paths, commands, grep patterns, model names |
+| **Session Timeline View** | Group traces by session_id; vertical timeline showing related traces and interactions in chronological order |
+| **Trace Feedback & Annotations** | Star rating (5-point scale), quick reactions (thumbs up/down), optional comments; filter traces by rating; recent feedback overview on dashboard |
+| **Cost Forecasting** | Monthly projection based on daily trend; daily trend + forecast chart with confidence intervals; budget alerts with progress bar (green/yellow/red) |
 | **Agent Avatar System** | SVG icons per agent with unique color identities from AGENT_PROFILES |
-| **Cost Attribution** | Token + cost breakdown by model, tool, or service (16+ models priced) |
+| **Cost Attribution** | Token + cost breakdown by model, tool, or service (16+ models priced); cost insights, trends, optimization suggestions |
 | **LocalCollector** | Direct SQLite access — no server required, thread-safe ingest and query |
 | **FTS5 Full-Text Search** | Fast full-text search over trace and span content with LIKE fallback |
-| **Budget Alerts with AND conditions** | Compound alert rules using `&&` / `AND` operators on any metric |
-| **Notification Panel** | WebSocket-driven alert notifications in the dashboard |
+| **Budget Alerts with AND conditions** | Compound alert rules using `&&` / `AND` operators on any metric; localStorage persistence across page reloads |
+| **Notification Panel** | WebSocket-driven alert notifications in the dashboard with bell icon badge |
 | **Plugin System** | Extensible plugin registry with entry-point discovery |
 | **Multiple Exporters** | Console, HTTP, OTLP, CSV, JSONL, Local — with batch and gzip support |
 | **CLI Tools** | 8 commands: `serve`, `analyze`, `export`, `import`, `stats`, `health`, `demo`, `version` |
 | **Configurable Pattern Thresholds** | Override any detector threshold via environment variables |
 | **Trace Ingest Validation** | Validates incoming traces for data integrity: detects span cycles (self-refs, bidirectional), orphan references, size limits. Three validation levels (strict/warning/informational) for gradual adoption |
+| **Smart Trace Summaries** | Instead of UUID display: "3 Read, 2 Bash, 1 Edit" summary per trace showing span kind breakdown |
+| **Quick Filter Bar** | Agent/status/duration/time window dropdowns for rapid trace filtering |
+| **Enhanced Waterfall** | Inline file paths, commands, grep patterns per span; agent-colored visualization |
+| **Overview Stat Cards** | Trend indicators (↑↓ percentage changes); sparkline micro visualizations for at-a-glance metrics |
+| **Structured Span Detail** | Tool I/O display; LLM tokens/cost; timing bar; error highlighting; model name |
+| **Comprehensive Light Theme** | 80+ CSS rules ensuring readability in light mode across all tabs |
+| **SessionStorage State Persistence** | Tab selection, active filters, scroll position preserved across page reloads |
 
 ---
 
@@ -128,13 +139,16 @@ stats = collector.stats()
 </p>
 
 **Key views:**
-- **Overview** — metrics cards with counter animations, latency trends, trace volume charts, mini 3D agent network preview
-- **Agents** — real-time agent team status with SVG avatars, error rates, activity timelines, 3D relationship graph
-- **Trace detail** — agent-colored waterfall timeline with span breakdown, error highlights, and root cause identification
+- **Overview** — stat cards with trend indicators and sparklines, trace volume charts, live activity feed, agent details with per-agent activity feeds, live monitor terminal, cost forecasting
+- **Sessions** — group traces by session_id, vertical timeline of related traces, interaction flow visualization
+- **Agents** — real-time agent team status with SVG avatars, error rates, activity timelines, relationship graph
+- **Traces** — smart trace summaries with quick filter bar (agent/status/duration/time window), hover previews, trace feedback/rating badges
+- **Trace detail** — agent-colored waterfall timeline with inline paths/commands, structured span detail panel, error highlights, and root cause identification
 - **Causal DAG** — interactive graph showing error propagation and root causes
-- **Cost analysis** — cost breakdown by model, service, and agent with trend charts
+- **Cost analysis** — cost breakdown by model, service, and agent with trend charts and forecasting
 - **Pattern alerts** — detected anti-patterns with severity levels and click-to-filter
 - **Compare** — side-by-side trace comparison with verdict badge and diff progress bars
+- **Feedback** — recent trace annotations with star ratings and comments
 
 > [**Open Live Dashboard Demo**](https://yusenthebot.github.io/flowlens/demo_dashboard.html) — interactive preview with 10 embedded sample traces, no install needed.
 
@@ -145,12 +159,14 @@ stats = collector.stats()
 FlowLens is built for monitoring AI agent teams. Each agent gets:
 
 - A unique SVG avatar and color identity drawn from a global `AGENT_PROFILES` registry
-- Real-time status tracking (active / idle) with activity timeline showing what each agent is doing
-- 3D network visualization of agent relationships — glowing WebGL spheres sized by workload, with drag rotation and hover highlights
+- Real-time status tracking (active / idle) with per-agent activity timeline showing what each agent is doing
+- SVG-based agent network visualization with animated particles, glow effects, and drag-to-interact controls
+- Relationship graph showing spawn hierarchies and call patterns across complex multi-agent systems
 - Per-agent cost breakdown and error analysis across all traces
 - Comprehensive agent detail modal with profile, roles, recent activity, related agents, and spawn hierarchy
+- Live terminal-style activity pane (click to open; auto grid layout for multiple agents; draggable/resizable; rich detail with file paths, commands, model names)
 
-The dashboard Agents tab shows your entire team at a glance. The Overview mini graph keeps topology visible without switching views. Agent relationship graphs (powered by Cytoscape.js with a Three.js upgrade path) reveal spawn hierarchies and call patterns across complex multi-agent systems.
+The dashboard Agents tab shows your entire team at a glance. The Overview includes live activity feeds per agent. The Session Timeline reveals causal relationships between traces and spans. Agent relationship graphs reveal spawn hierarchies and call patterns without requiring a separate 3D navigation step.
 
 ---
 
@@ -214,14 +230,22 @@ make demo                               # run all demos via Makefile
                      export        │       Server Layer             │
                                    │                                │
                                    │ · FastAPI REST API (25+ routes)│
+                                   │ · 6 Modular route modules      │
+                                   │ · Trace ingest validation      │
                                    │ · WebSocket live feed          │
-                                   │ · SQLite + FTS5 full-text search│
-                                   │ · Agent APIs (profiles, network)│
+                                   │ · SQLite + FTS5 full-text      │
+                                   │ · Agent APIs (profiles, net)   │
                                    │ · Stats & Trends APIs          │
                                    │ · Export & Report APIs         │
-                                   │ · 3D Dashboard (Three.js)      │
+                                   │ · SVG Dashboard (single-page)  │
                                    └────────────────────────────────┘
 ```
+
+**Three-layer architecture:**
+
+1. **SDK Layer** (`flowlens/sdk/`): Instrumentation via decorators and auto-patching, context propagation, data collection, and export.
+2. **Analysis Layer** (`flowlens/analysis/`): Post-trace processing — causal DAG construction, error classification, pattern detection, cost estimation.
+3. **Server Layer** (`flowlens/server/`): FastAPI REST API with 6 modular route modules (traces.py, cost.py, agents.py, stats.py, alerts.py, system.py), shared utils.py, validation.py for trace ingest integrity, real-time WebSocket broadcasting, persistence, querying, and static dashboard serving.
 
 ---
 
@@ -309,6 +333,8 @@ Base URL: `http://localhost:8585` — interactive docs at `/docs`.
 | `GET` | `/v1/traces/errors` | Error traces only |
 | `GET` | `/v1/traces/search?q=<query>` | FTS5 full-text search |
 | `POST` | `/v1/traces/cleanup` | Delete traces older than N days |
+| `POST` | `/v1/traces/{trace_id}/feedback` | Submit trace feedback/annotation (rating, reaction, comment) |
+| `GET` | `/v1/feedback/recent` | Get recent trace feedback |
 
 ### Agents
 
@@ -317,7 +343,7 @@ Base URL: `http://localhost:8585` — interactive docs at `/docs`.
 | `GET` | `/v1/agents/summary` | Aggregated stats grouped by agent tag |
 | `GET` | `/v1/agents/activity` | Recent agent activity events |
 | `GET` | `/v1/agents/profiles` | All agent profiles with SVG avatars and roles |
-| `GET` | `/v1/agents/network` | Enriched topology for 3D visualization (nodes with color, size, status) |
+| `GET` | `/v1/agents/network` | Enriched topology for visualization (nodes with color, size, status) |
 | `GET` | `/v1/agents/relationships` | Agent spawn graph with call counts and timing |
 
 ### Activity & Stats
@@ -335,6 +361,7 @@ Base URL: `http://localhost:8585` — interactive docs at `/docs`.
 |---|---|---|
 | `GET` | `/v1/cost/breakdown` | Cost by service, kind, or operation name |
 | `GET` | `/v1/cost/trends` | Cost over time (hour/day/week intervals) |
+| `GET` | `/v1/cost/forecast` | Monthly cost projection with confidence intervals |
 
 ### Patterns & Alerts
 
@@ -380,9 +407,12 @@ API docs also available at `http://localhost:8585/docs` when the server is runni
 | **Causal DAG Analysis** | No | No | No | **Yes** |
 | **Error Cascade Detection** | No | No | No | **Yes** |
 | **Anti-Pattern Detection** | No | No | No | **15+ configurable** |
-| **3D Agent Network Graph** | No | No | No | **Yes (Three.js)** |
-| **Agent Team Monitoring** | No | Partial | No | **Yes (real-time)** |
+| **SVG Agent Network** | No | No | No | **Yes (lightweight + 3D fallback)** |
+| **Agent Team Monitoring** | No | Partial | No | **Yes (real-time + live terminal)** |
 | **Agent Avatar System** | No | No | No | **Yes (SVG)** |
+| **Session Timeline** | No | No | No | **Yes** |
+| **Trace Feedback/Annotations** | No | Partial | No | **Yes (star, emoji, comments)** |
+| **Cost Forecasting** | No | No | No | **Yes (monthly projection + confidence)** |
 | **LocalCollector (no server)** | No | No | No | **Yes (SQLite)** |
 | **FTS5 Full-Text Search** | No | No | No | **Yes** |
 | **Budget Alerts (AND rules)** | No | Partial | No | **Yes** |
@@ -405,7 +435,7 @@ Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 git clone https://github.com/yusenthebot/flowlens.git
 cd flowlens
 pip install -e ".[dev]"
-python3 -m pytest tests/ -q   # 1071 tests — all must pass
+python3 -m pytest tests/ -q   # 1156 tests — all must pass
 ```
 
 ---
