@@ -1237,7 +1237,7 @@ function renderAgentCostChart(canvasId, agents) {
 const CHART_COLORS = ['#6b5ce7', '#e07a5f', '#81b29a', '#e6a65d', '#a78bfa', '#9ca3af', '#f0c27f', '#c4a882'];
 
 function renderCostChart(canvasId, data, type) {
-  if (chartInstances[canvasId]) { chartInstances[canvasId].destroy(); }
+  if (chartInstances[canvasId]) { chartInstances[canvasId].destroy(); delete chartInstances[canvasId]; }
 
   const canvas = document.getElementById(canvasId);
   if (!canvas || !data || data.length === 0) {

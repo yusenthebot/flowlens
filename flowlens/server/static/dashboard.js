@@ -1894,6 +1894,7 @@ async function loadTraces() {
   // Show skeleton rows during load (only if list is empty/stale to avoid flash on filter changes)
   const traceListEl = document.getElementById('traces-list');
   if (traceListEl && !traceListEl.children.length) {
+    traceListEl.dataset.traceIds = ''; // clear diff cache so next render isn't skipped
     traceListEl.innerHTML = [1,2,3,4,5].map(() => `
       <div class="flex items-center gap-4 px-5 py-3 border-b border-white/5">
         <div class="skeleton w-2 h-2 rounded-full flex-shrink-0"></div>
@@ -4199,13 +4200,25 @@ function highlightTraceRow(rows) {
 function startAutoRefresh() {
   if (autoRefreshTimer) clearInterval(autoRefreshTimer);
   autoRefreshTimer = setInterval(async () => {
+    // Pause when the browser tab is hidden — no point hitting the server
+    if (document.hidden) return;
     const ok = await healthCheck();
     if (!ok) return;
-    // Only refresh lightweight data — skip heavy charts/agents/graph to avoid lag
+    // Only refresh the CURRENT tab with lightweight data
+    // Skip heavy charts/agents/graph to avoid lag
     if (currentView === 'overview') { loadStats(); loadRecentTraces(); }
     else if (currentView === 'traces') { loadTraces(); }
-  }, 30000); // 30s instead of 15s
+  }, 30000); // 30s interval
 }
+
+// Pause auto-refresh when tab goes hidden, resume when it becomes visible
+document.addEventListener('visibilitychange', () => {
+  // When returning to the tab, do an immediate refresh so data is fresh
+  if (!document.hidden && autoRefreshTimer) {
+    if (currentView === 'overview') { loadStats(); loadRecentTraces(); }
+    else if (currentView === 'traces') { loadTraces(); }
+  }
+});
 
 // ==================================================================// Collapsible Sections Helper
 // ==================================================================
@@ -4693,9 +4706,18 @@ function renderVirtualizedTraces(traces, containerId) {
   // Capture current search query for text highlighting
   const searchQuery = (document.getElementById('filter-service')?.value || '').trim() || null;
 
-  // For small lists, render normally
+  // For small lists, use DocumentFragment to batch DOM insertion
   if (traces.length <= 50) {
-    container.innerHTML = traces.map(t => renderTraceRow(t, false, searchQuery)).join('');
+    const newIds = traces.map(t => t.trace_id).join(',');
+    const oldIds = container.dataset.traceIds || '';
+    if (newIds === oldIds) return; // nothing changed — skip DOM rebuild
+    container.dataset.traceIds = newIds;
+
+    const frag = document.createDocumentFragment();
+    const tmp = document.createElement('div');
+    tmp.innerHTML = traces.map(t => renderTraceRow(t, false, searchQuery)).join('');
+    while (tmp.firstChild) frag.appendChild(tmp.firstChild);
+    container.replaceChildren(frag);
     return;
   }
 
