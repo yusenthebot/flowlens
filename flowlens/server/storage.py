@@ -1272,6 +1272,144 @@ class TraceStore:
     def close(self) -> None:
         self._pool.close_all()
 
+    # ------------------------------------------------------------------
+    # Session grouping queries
+    # ------------------------------------------------------------------
+
+    def list_sessions(
+        self,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
+        """
+        Return sessions grouped by session_id, ordered by most recent trace DESC.
+
+        Each session entry contains aggregate stats across all traces that share
+        the same session_id.  Traces with a NULL session_id are excluded.
+
+        The session_id is taken from the traces.session_id column which is
+        populated from either the top-level ``session_id`` field on ingest or
+        from ``metadata.session_id`` (the ingest route stores both).
+        """
+        conn = self._pool.primary
+        rows = conn.execute(
+            """SELECT
+                   session_id,
+                   COUNT(*)                          AS trace_count,
+                   SUM(span_count)                   AS total_spans,
+                   SUM(total_cost_usd)               AS total_cost_usd,
+                   SUM(duration_ms)                  AS total_duration_ms,
+                   MIN(start_time)                   AS first_trace_time,
+                   MAX(start_time)                   AS last_trace_time,
+                   MAX(has_errors)                   AS has_errors,
+                   SUM(error_count)                  AS error_count,
+                   GROUP_CONCAT(DISTINCT service_name) AS services,
+                   GROUP_CONCAT(DISTINCT tags_json)    AS all_tags_json
+               FROM traces
+               WHERE session_id IS NOT NULL AND session_id != ''
+               GROUP BY session_id
+               ORDER BY MAX(start_time) DESC
+               LIMIT ? OFFSET ?""",
+            (limit, offset),
+        ).fetchall()
+
+        result = []
+        for row in rows:
+            d = dict(row)
+            # Parse agents from concatenated tags JSON strings
+            agents: list[str] = []
+            project: str = ""
+            all_tags_raw = d.pop("all_tags_json", None) or ""
+            # GROUP_CONCAT joins multiple JSON strings with comma — split and parse
+            for tags_chunk in all_tags_raw.split(","):
+                tags_chunk = tags_chunk.strip()
+                if not tags_chunk:
+                    continue
+                try:
+                    tags = json.loads(tags_chunk)
+                    agent = tags.get("agent", "")
+                    if agent and agent not in agents:
+                        agents.append(agent)
+                    if not project:
+                        project = tags.get("project", "")
+                except (json.JSONDecodeError, AttributeError):
+                    pass
+
+            services_raw = d.pop("services", "") or ""
+            # Use first service_name as project fallback
+            if not project and services_raw:
+                project = services_raw.split(",")[0]
+
+            result.append({
+                "session_id": d["session_id"],
+                "trace_count": d["trace_count"] or 0,
+                "total_spans": d["total_spans"] or 0,
+                "total_cost_usd": round(d["total_cost_usd"] or 0.0, 6),
+                "total_duration_ms": d["total_duration_ms"] or 0,
+                "first_trace_time": d["first_trace_time"],
+                "last_trace_time": d["last_trace_time"],
+                "agents": agents,
+                "has_errors": bool(d["has_errors"]),
+                "error_count": d["error_count"] or 0,
+                "project": project,
+            })
+        return result
+
+    def get_session(self, session_id: str) -> dict[str, Any] | None:
+        """
+        Return all traces in a session ordered by start_time ascending,
+        along with a summary of aggregate stats.
+
+        Returns None if no traces exist for the given session_id.
+        """
+        conn = self._pool.primary
+        rows = conn.execute(
+            """SELECT * FROM traces
+               WHERE session_id = ?
+               ORDER BY start_time ASC""",
+            (session_id,),
+        ).fetchall()
+
+        if not rows:
+            return None
+
+        traces = [self._deserialise_trace(r) for r in rows]
+
+        # Build agents list from tags
+        agents: list[str] = []
+        project: str = ""
+        for t in traces:
+            tags = t.get("tags") or {}
+            agent = tags.get("agent", "")
+            if agent and agent not in agents:
+                agents.append(agent)
+            if not project:
+                project = tags.get("project", t.get("service_name", ""))
+
+        total_spans = sum(t.get("span_count", 0) for t in traces)
+        total_cost = sum(t.get("total_cost_usd", 0.0) for t in traces)
+        total_duration = sum(t.get("duration_ms", 0) for t in traces)
+        error_count = sum(t.get("error_count", 0) for t in traces)
+        has_errors = any(t.get("has_errors") for t in traces)
+
+        summary = {
+            "trace_count": len(traces),
+            "total_spans": total_spans,
+            "total_cost_usd": round(total_cost, 6),
+            "total_duration_ms": total_duration,
+            "agents": agents,
+            "has_errors": has_errors,
+            "error_count": error_count,
+            "project": project,
+            "first_trace_time": traces[0]["start_time"] if traces else None,
+            "last_trace_time": traces[-1]["start_time"] if traces else None,
+        }
+
+        return {
+            "session_id": session_id,
+            "traces": traces,
+            "summary": summary,
+        }
 
     # ------------------------------------------------------------------
     # Cost intelligence queries

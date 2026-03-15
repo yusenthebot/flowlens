@@ -306,6 +306,7 @@ function switchView(view) {
     setTimeout(() => { loadOverviewGraph(); }, 1200);
   }
   else if (view === 'traces') { loadTraces(); }
+  else if (view === 'sessions') { loadSessions(); }
   else if (view === 'cost') { loadCostData(); }
   else if (view === 'patterns') { loadAllPatterns(); }
   else if (view === 'compare') { renderCompareView(); }
@@ -3506,3 +3507,330 @@ document.addEventListener('DOMContentLoaded', async () => {
     try { cytoscape.use(cytoscapeDagre); } catch (e) { /* already registered */ }
   }
 });
+
+// =========================================================================
+// Sessions — List + Timeline
+// =========================================================================
+
+let _currentSessionId = null;
+
+async function loadSessions() {
+  const list = document.getElementById('sessions-list');
+  const panel = document.getElementById('session-timeline-panel');
+  if (!list) return;
+
+  list.innerHTML = '<div class="flex items-center justify-center py-10"><div class="text-xs text-slate-500">Loading sessions...</div></div>';
+  if (panel) { panel.classList.add('hidden'); panel.innerHTML = ''; }
+  _currentSessionId = null;
+
+  try {
+    const data = await apiFetch('/v1/sessions?limit=30');
+    const sessions = data.sessions || [];
+
+    if (sessions.length === 0) {
+      list.innerHTML = renderEmptyState(
+        'No sessions found',
+        'Sessions group multiple traces from the same conversation. Make sure your traces include a session_id field.',
+        false
+      );
+      return;
+    }
+
+    list.innerHTML = sessions.map(s => renderSessionCard(s)).join('');
+  } catch (err) {
+    list.innerHTML = `<div class="text-center py-8 text-red-400/70 text-sm">Failed to load sessions: ${escHtml(err.message)}</div>`;
+  }
+}
+
+function renderSessionCard(session) {
+  const sid = session.session_id || '';
+  const shortId = sid.substring(0, 8) + '...';
+  const traceCount = session.trace_count || 0;
+  const totalSpans = session.total_spans || 0;
+  const cost = session.total_cost_usd || 0;
+  const hasErrors = session.has_errors;
+  const errorCount = session.error_count || 0;
+  const project = session.project || 'unknown';
+  const agents = session.agents || [];
+
+  // Duration
+  let durationStr = '--';
+  if (session.first_trace_time && session.last_trace_time) {
+    const durMs = (session.last_trace_time - session.first_trace_time) * 1000;
+    durationStr = formatDuration(durMs);
+  }
+
+  // Time range
+  let timeStr = '--';
+  if (session.last_trace_time) {
+    timeStr = formatTimeAgo(session.last_trace_time);
+  }
+
+  // Agent badges (max 3)
+  const visibleAgents = agents.slice(0, 3);
+  const extraCount = agents.length - 3;
+  const agentBadges = visibleAgents.map(a => {
+    const p = getAgentProfile(a);
+    return `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border ${p.badgeClass}">${p.name || a}</span>`;
+  }).join('');
+  const extraBadge = extraCount > 0
+    ? `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-500/15 text-slate-400 border border-slate-500/25">+${extraCount}</span>`
+    : '';
+
+  const statusDot = hasErrors
+    ? '<span class="w-2 h-2 rounded-full bg-red-500 flex-shrink-0"></span>'
+    : '<span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>';
+
+  const isActive = _currentSessionId === sid;
+  const activeClass = isActive ? 'session-card-active' : '';
+
+  return `
+    <div class="session-card glass rounded-xl p-4 cursor-pointer hover:bg-white/[0.02] transition ${activeClass}"
+         onclick="toggleSessionTimeline('${escHtml(sid)}')" id="session-card-${escHtml(sid)}">
+      <div class="flex items-start justify-between gap-4">
+        <div class="flex items-start gap-3 min-w-0 flex-1">
+          ${statusDot}
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="font-mono text-xs text-slate-400">${escHtml(shortId)}</span>
+              <span class="text-[10px] text-slate-600 hidden sm:inline">${escHtml(sid)}</span>
+            </div>
+            <div class="flex items-center gap-2 mt-1 flex-wrap">
+              <span class="text-[11px] font-medium text-slate-300">${escHtml(project)}</span>
+              <span class="text-[10px] text-slate-600">·</span>
+              <span class="text-[11px] text-slate-500">${timeStr}</span>
+            </div>
+            <div class="flex items-center gap-1.5 mt-2 flex-wrap">
+              ${agentBadges}${extraBadge}
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center gap-4 flex-shrink-0 text-right">
+          <div class="hidden sm:block">
+            <div class="text-[10px] text-slate-500 uppercase tracking-wider">Traces</div>
+            <div class="text-sm font-semibold text-white">${traceCount}</div>
+          </div>
+          <div class="hidden sm:block">
+            <div class="text-[10px] text-slate-500 uppercase tracking-wider">Spans</div>
+            <div class="text-sm font-semibold text-white">${totalSpans}</div>
+          </div>
+          <div>
+            <div class="text-[10px] text-slate-500 uppercase tracking-wider">Cost</div>
+            <div class="text-sm font-semibold text-indigo-400">$${cost.toFixed(4)}</div>
+          </div>
+          <div class="hidden md:block">
+            <div class="text-[10px] text-slate-500 uppercase tracking-wider">Duration</div>
+            <div class="text-sm font-semibold text-white">${durationStr}</div>
+          </div>
+          ${hasErrors ? `<div class="text-[10px] text-red-400 font-medium">${errorCount} err${errorCount !== 1 ? 's' : ''}</div>` : ''}
+          <svg class="w-4 h-4 text-slate-500 session-chevron transition-transform ${isActive ? 'rotate-90' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+          </svg>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function toggleSessionTimeline(sessionId) {
+  const panel = document.getElementById('session-timeline-panel');
+  if (!panel) return;
+
+  // If same session clicked again, collapse
+  if (_currentSessionId === sessionId) {
+    _currentSessionId = null;
+    panel.classList.add('hidden');
+    panel.innerHTML = '';
+    // Update all cards to remove active state
+    document.querySelectorAll('.session-card').forEach(c => c.classList.remove('session-card-active'));
+    document.querySelectorAll('.session-chevron').forEach(c => c.classList.remove('rotate-90'));
+    return;
+  }
+
+  _currentSessionId = sessionId;
+
+  // Update card visual states
+  document.querySelectorAll('.session-card').forEach(c => c.classList.remove('session-card-active'));
+  document.querySelectorAll('.session-chevron').forEach(c => c.classList.remove('rotate-90'));
+  const activeCard = document.getElementById(`session-card-${sessionId}`);
+  if (activeCard) {
+    activeCard.classList.add('session-card-active');
+    const chevron = activeCard.querySelector('.session-chevron');
+    if (chevron) chevron.classList.add('rotate-90');
+  }
+
+  // Scroll panel into view
+  panel.classList.remove('hidden');
+  panel.innerHTML = `<div class="glass rounded-xl p-6 flex items-center justify-center">
+    <div class="text-xs text-slate-500">Loading session timeline...</div>
+  </div>`;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  try {
+    const data = await apiFetch(`/v1/sessions/${encodeURIComponent(sessionId)}`);
+    renderSessionTimeline(data, panel);
+  } catch (err) {
+    panel.innerHTML = `<div class="glass rounded-xl p-6 text-center text-red-400/70 text-sm">Failed to load session: ${escHtml(err.message)}</div>`;
+  }
+}
+
+function renderSessionTimeline(data, container) {
+  const traces = data.traces || [];
+  const summary = data.summary || {};
+  const sessionId = data.session_id || '';
+
+  if (traces.length === 0) {
+    container.innerHTML = `<div class="glass rounded-xl p-6 text-center text-slate-500 text-sm">No traces in this session.</div>`;
+    return;
+  }
+
+  const sessionStartTime = traces[0].start_time || 0;
+
+  // Summary header
+  const agents = summary.agents || [];
+  const agentBadges = agents.map(a => {
+    const p = getAgentProfile(a);
+    return `<span class="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium border ${p.badgeClass}">${p.name || a}</span>`;
+  }).join('');
+
+  const totalCost = (summary.total_cost_usd || 0).toFixed(4);
+  const totalSpans = summary.total_spans || 0;
+  const errorCount = summary.error_count || 0;
+
+  const traceNodes = traces.map((trace, idx) => {
+    return renderSessionTraceNode(trace, idx, sessionStartTime, traces.length);
+  }).join('');
+
+  container.innerHTML = `
+    <div class="glass rounded-xl overflow-hidden">
+      <!-- Session Summary Header -->
+      <div class="px-5 py-4 border-b border-white/5">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <div class="text-xs font-medium text-slate-300 mb-1">Session</div>
+            <div class="font-mono text-[11px] text-slate-400 break-all">${escHtml(sessionId)}</div>
+            <div class="flex items-center gap-2 mt-2 flex-wrap">${agentBadges}</div>
+          </div>
+          <div class="flex items-center gap-5 flex-shrink-0 text-right">
+            <div>
+              <div class="text-[10px] text-slate-500 uppercase tracking-wider">Traces</div>
+              <div class="text-lg font-bold text-white">${traces.length}</div>
+            </div>
+            <div>
+              <div class="text-[10px] text-slate-500 uppercase tracking-wider">Spans</div>
+              <div class="text-lg font-bold text-white">${totalSpans}</div>
+            </div>
+            <div>
+              <div class="text-[10px] text-slate-500 uppercase tracking-wider">Cost</div>
+              <div class="text-lg font-bold text-indigo-400">$${totalCost}</div>
+            </div>
+            ${errorCount > 0 ? `<div>
+              <div class="text-[10px] text-slate-500 uppercase tracking-wider">Errors</div>
+              <div class="text-lg font-bold text-red-400">${errorCount}</div>
+            </div>` : ''}
+          </div>
+        </div>
+      </div>
+
+      <!-- Timeline -->
+      <div class="px-5 py-4">
+        <div class="session-timeline">
+          ${traceNodes}
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderSessionTraceNode(trace, idx, sessionStartTime, totalTraces) {
+  const hasErrors = trace.has_errors === true || trace.has_errors === 1;
+  const traceId = trace.trace_id || '';
+  const spanCount = trace.span_count || 0;
+  const cost = (trace.total_cost_usd || 0).toFixed(4);
+  const duration = formatDuration(trace.duration_ms || 0);
+
+  // Compute offset from session start
+  const offsetMs = ((trace.start_time || 0) - sessionStartTime) * 1000;
+  const offsetStr = offsetMs > 0 ? `+${formatDuration(offsetMs)}` : 'start';
+
+  // Time string
+  const timeStr = trace.start_time > 0
+    ? new Date(trace.start_time * 1000).toLocaleTimeString()
+    : '--';
+
+  // Extract agent from tags
+  const tags = trace.tags || {};
+  const agent = tags.agent || trace.service_name || '';
+  const p = getAgentProfile(agent);
+
+  // Span kind summary
+  const spanSummary = getTraceSpanSummary(trace);
+
+  const nodeColor = hasErrors ? '#ef4444' : p.color;
+  const isLast = idx === totalTraces - 1;
+
+  return `
+    <div class="session-timeline-node ${isLast ? 'last' : ''}">
+      <!-- Connector line -->
+      <div class="session-timeline-connector">
+        <div class="session-timeline-dot" style="background:${nodeColor};box-shadow:0 0 8px ${nodeColor}44"></div>
+        ${!isLast ? '<div class="session-timeline-line"></div>' : ''}
+      </div>
+      <!-- Node Content -->
+      <div class="session-timeline-content glass-hover rounded-xl p-4 mb-3 cursor-pointer transition"
+           onclick="openTrace('${escHtml(traceId)}')" title="Click to open trace detail">
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex items-start gap-3 min-w-0 flex-1">
+            <div class="flex-shrink-0 mt-0.5">
+              <div class="w-7 h-7 rounded-lg bg-gradient-to-br ${p.bgClass} flex items-center justify-center" style="color:${p.color}">
+                <span class="text-[9px] font-bold">${String(idx + 1).padStart(2, '0')}</span>
+              </div>
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2 mb-1 flex-wrap">
+                <span class="text-xs font-medium" style="color:${p.color}">${escHtml(p.name || agent)}</span>
+                ${hasErrors ? '<span class="px-1.5 py-0.5 rounded text-[10px] bg-red-500/15 text-red-400 border border-red-500/25">error</span>' : ''}
+                <span class="text-[10px] text-slate-500">${timeStr}</span>
+                <span class="text-[10px] text-slate-600">${offsetStr}</span>
+              </div>
+              <div class="font-mono text-[10px] text-slate-600 truncate">${escHtml(traceId)}</div>
+              ${spanSummary ? `<div class="text-[11px] text-slate-400 mt-1">${escHtml(spanSummary)}</div>` : ''}
+            </div>
+          </div>
+          <div class="flex items-center gap-3 flex-shrink-0 text-right">
+            <div>
+              <div class="text-[10px] text-slate-500">spans</div>
+              <div class="text-sm font-semibold text-white">${spanCount}</div>
+            </div>
+            <div>
+              <div class="text-[10px] text-slate-500">duration</div>
+              <div class="text-sm font-semibold text-white">${duration}</div>
+            </div>
+            <div>
+              <div class="text-[10px] text-slate-500">cost</div>
+              <div class="text-sm font-semibold text-indigo-400">$${cost}</div>
+            </div>
+            <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function getTraceSpanSummary(trace) {
+  // Use top-level span_count + metadata if available; deep scan if spans array present
+  const spans = trace.spans || [];
+  if (spans.length === 0) {
+    return trace.span_count > 0 ? `${trace.span_count} spans` : '';
+  }
+  const kindCounts = {};
+  spans.forEach(s => {
+    const k = s.kind || 'unknown';
+    kindCounts[k] = (kindCounts[k] || 0) + 1;
+  });
+  const parts = Object.entries(kindCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4)
+    .map(([k, n]) => `${n} ${k.charAt(0).toUpperCase() + k.slice(1)}`);
+  return parts.join(', ');
+}
