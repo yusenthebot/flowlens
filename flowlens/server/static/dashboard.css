@@ -204,17 +204,22 @@
       min-width: 360px; min-height: 180px;
       animation: fadeIn 0.2s ease;
     }
-    .tmux-resize-handle {
-      position: absolute; left: 0; top: 0; width: 14px; height: 14px;
-      cursor: nw-resize; z-index: 2;
-    }
-    .tmux-resize-handle::after {
-      content: ''; position: absolute; left: 3px; top: 3px;
+    .tmux-edge { position: absolute; z-index: 3; }
+    .tmux-edge-r { right: 0; top: 0; width: 6px; height: 100%; cursor: e-resize; }
+    .tmux-edge-b { bottom: 0; left: 0; height: 6px; width: 100%; cursor: s-resize; }
+    .tmux-edge-l { left: 0; top: 0; width: 6px; height: 100%; cursor: w-resize; }
+    .tmux-edge-t { top: 0; left: 0; height: 6px; width: 100%; cursor: n-resize; }
+    .tmux-edge-br { right: 0; bottom: 0; width: 14px; height: 14px; cursor: se-resize; }
+    .tmux-edge-bl { left: 0; bottom: 0; width: 14px; height: 14px; cursor: sw-resize; }
+    .tmux-edge-tl { left: 0; top: 0; width: 14px; height: 14px; cursor: nw-resize; }
+    .tmux-edge-tr { right: 0; top: 0; width: 14px; height: 14px; cursor: ne-resize; }
+    .tmux-edge-br::after {
+      content: ''; position: absolute; right: 3px; bottom: 3px;
       width: 8px; height: 8px;
-      border-left: 2px solid #475569; border-top: 2px solid #475569;
-      opacity: 0.5;
+      border-right: 2px solid #475569; border-bottom: 2px solid #475569;
+      opacity: 0.4;
     }
-    .tmux-resize-handle:hover::after { opacity: 1; }
+    .tmux-edge-br:hover::after { opacity: 1; }
     .tmux-minimized {
       width: 220px !important; height: auto !important;
       min-height: 0 !important; resize: none;

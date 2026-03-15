@@ -540,11 +540,14 @@ function _termRender() {
     <span>${_termPanes.length} pane${_termPanes.length > 1 ? 's' : ''} · ${_termLayout}</span>
     <span style="color:#475569;">click agent to add pane</span>`;
 
-  // Resize handle
-  if (!w.querySelector('.tmux-resize-handle')) {
-    const rh = document.createElement('div');
-    rh.className = 'tmux-resize-handle';
-    w.appendChild(rh);
+  // Resize edge handles (all 8 edges/corners)
+  if (!w.querySelector('.tmux-edge')) {
+    ['r','b','l','t','br','bl','tl','tr'].forEach(edge => {
+      const h = document.createElement('div');
+      h.className = `tmux-edge tmux-edge-${edge}`;
+      h.dataset.edge = edge;
+      w.appendChild(h);
+    });
   }
 }
 
@@ -677,29 +680,48 @@ function _termMakeDraggable(el) {
 }
 
 function _termMakeResizable(el) {
-  let isResize = false, startX, startY, origW, origH, origL, origT;
+  let edge = null, startX, startY, origW, origH, origL, origT;
+
   el.addEventListener('mousedown', e => {
-    if (!e.target.closest('.tmux-resize-handle')) return;
-    isResize = true; startX = e.clientX; startY = e.clientY;
+    const edgeEl = e.target.closest('.tmux-edge');
+    if (!edgeEl) return;
+    edge = edgeEl.dataset.edge;
+    startX = e.clientX; startY = e.clientY;
     const rect = el.getBoundingClientRect();
     origW = rect.width; origH = rect.height;
     origL = rect.left; origT = rect.top;
     e.preventDefault(); e.stopPropagation();
+    document.body.style.cursor = getComputedStyle(edgeEl).cursor;
+    document.body.style.userSelect = 'none';
   });
+
   document.addEventListener('mousemove', e => {
-    if (!isResize) return;
-    const dx = startX - e.clientX; // left handle: drag left = grow
-    const dy = startY - e.clientY; // top handle: drag up = grow
-    const newW = Math.max(360, origW + dx);
-    const newH = Math.max(180, origH + dy);
+    if (!edge) return;
+    const dx = e.clientX - startX, dy = e.clientY - startY;
+    let newW = origW, newH = origH, newL = origL, newT = origT;
+
+    // Right edges
+    if (edge.includes('r')) newW = Math.max(360, origW + dx);
+    // Left edges
+    if (edge.includes('l')) { newW = Math.max(360, origW - dx); newL = origL + origW - newW; }
+    // Bottom edges
+    if (edge.includes('b')) newH = Math.max(180, origH + dy);
+    // Top edges
+    if (edge.includes('t')) { newH = Math.max(180, origH - dy); newT = origT + origH - newH; }
+
     el.style.width = newW + 'px';
     el.style.height = newH + 'px';
-    el.style.left = (origL - dx + (origW - Math.max(360, origW + dx))) + 'px';
-    el.style.left = (origL + origW - newW) + 'px';
-    el.style.top = (origT + origH - newH) + 'px';
-    el.style.right = 'auto'; el.style.bottom = 'auto';
+    el.style.left = newL + 'px';
+    el.style.top = newT + 'px';
+    el.style.right = 'auto';
+    el.style.bottom = 'auto';
   });
-  document.addEventListener('mouseup', () => { isResize = false; });
+
+  document.addEventListener('mouseup', () => {
+    edge = null;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  });
 }
 
 // =========================================================================
