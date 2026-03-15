@@ -2717,6 +2717,44 @@ function renderWaterfallTimeline(spans) {
     if (s.parent_span_id) hasChildren[s.parent_span_id] = true;
   });
 
+  // Build "is last child" map and ancestry for tree connector lines
+  const _lastChildSet = new Set();
+  const _parentOf = {};
+  flatList.forEach(({ span }) => {
+    if (span.parent_span_id) _parentOf[span.span_id] = span.parent_span_id;
+  });
+  // For each parent, mark its last child
+  for (const [parentId, children] of Object.entries(childMap)) {
+    if (children.length > 0) _lastChildSet.add(children[children.length - 1].span_id);
+  }
+
+  // Helper: build tree indent lines for a given span at a given depth
+  function buildTreeIndent(span, depth) {
+    if (depth === 0) return '';
+    let html = '';
+    // Walk ancestors to determine which depth levels still have continuing siblings
+    const ancestorIsLast = [];
+    let cur = span.span_id;
+    for (let d = depth; d >= 1; d--) {
+      ancestorIsLast[d] = _lastChildSet.has(cur);
+      cur = _parentOf[cur] || null;
+    }
+    for (let d = 1; d < depth; d++) {
+      if (ancestorIsLast[d]) {
+        html += '<span class="wf-tree-spacer"></span>';
+      } else {
+        html += '<span class="wf-tree-vline"></span>';
+      }
+    }
+    // Current level: L-corner if last child, T-junction otherwise
+    if (_lastChildSet.has(span.span_id)) {
+      html += '<span class="wf-tree-corner"></span>';
+    } else {
+      html += '<span class="wf-tree-tee"></span>';
+    }
+    return html;
+  }
+
   let rowsHtml = '';
   flatList.forEach(({ span, depth }, idx) => {
     const kind = (span.kind || 'custom').toLowerCase();
@@ -2773,10 +2811,14 @@ function renderWaterfallTimeline(spans) {
            data-span-status="${isError ? 'error' : 'ok'}"
            data-span-tokens="${tokens}"
            data-span-cost="${cost.toFixed(6)}"
+           data-span-model="${escHtml(modelBadge || '')}"
+           data-span-detail="${escHtml(inlineDetail || '')}"
+           data-span-agent="${escHtml(spanAgentKey || '')}"
            onmouseenter="showWaterfallTooltip(event, this)"
            onmouseleave="hideWaterfallTooltip()">
         <!-- Label column with tree indentation -->
-        <div class="span-label-col flex items-center gap-1 w-[280px] min-w-[280px] flex-shrink-0" style="padding-left:${indent}px">
+        <div class="span-label-col flex items-center gap-1 w-[280px] min-w-[280px] flex-shrink-0">
+          ${buildTreeIndent(span, depth)}
           ${canCollapse ? `<button class="collapsible-chevron rotated w-4 h-4 flex items-center justify-center text-slate-600 hover:text-slate-400 flex-shrink-0 transition" onclick="event.stopPropagation(); toggleSpanChildren('${span.span_id}', this)" title="Collapse/Expand"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg></button>` : (depth > 0 ? '<span class="w-4 flex-shrink-0"></span>' : '')}
           ${isError ? `<svg class="w-3 h-3 flex-shrink-0" style="color:var(--color-coral,#e07a5f)" fill="none" stroke="currentColor" viewBox="0 0 24 24" title="Error"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>` : ''}
           <span class="px-1.5 py-0.5 text-[10px] font-medium rounded flex-shrink-0 ${cfg.bg} ${cfg.text}">${cfg.label}</span>
@@ -2788,7 +2830,6 @@ function renderWaterfallTimeline(spans) {
         </div>
         <!-- Bar column -->
         <div class="flex-1 relative h-7 min-w-0">
-          ${depth > 0 ? `<div class="wf-connector" style="left:${indent - 14}px"></div>` : ''}
           <div class="wf-bar-gradient ${isError ? 'wf-bar-error' : ''} flex items-center overflow-hidden"
                style="left:${leftPct}%;width:${widthPct}%;background:linear-gradient(90deg,${barColor}ee,${barColor}88);opacity:${barOpacity};${barBorder ? `outline:${barBorder};outline-offset:-1px;` : ''}${errorTintStyle}">
             ${widthPct > 8 ? `<span class="px-1.5 text-[10px] font-medium text-white/90 whitespace-nowrap">${durationStr}</span>` : ''}
@@ -2826,16 +2867,30 @@ function showWaterfallTooltip(event, row) {
   const status = row.dataset.spanStatus;
   const tokens = parseInt(row.dataset.spanTokens);
   const cost = parseFloat(row.dataset.spanCost);
+  const model = row.dataset.spanModel || '';
+  const detail = row.dataset.spanDetail || '';
+  const agentKey = row.dataset.spanAgent || '';
+
+  // Agent header in tooltip
+  let agentLine = '';
+  if (agentKey) {
+    const _ap = typeof getAgentProfile === 'function' ? getAgentProfile(agentKey) : null;
+    if (_ap) agentLine = `<div class="flex items-center gap-1.5 mb-1 pb-1" style="border-bottom:1px solid rgba(255,255,255,0.08)"><span class="w-2 h-2 rounded-full flex-shrink-0" style="background:${_ap.color}"></span><span style="color:${_ap.color};font-weight:600">${escHtml(_ap.name)}</span></div>`;
+  }
 
   let html = `
+    ${agentLine}
     <div class="font-semibold text-white mb-1">${escHtml(name)}</div>
+    ${detail ? `<div class="text-[10px] font-mono mb-1.5" style="color:#94a3b8;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(detail)}</div>` : ''}
     <div class="space-y-0.5 text-slate-400">
       <div>Kind: <span class="text-slate-200">${kind}</span></div>
       <div>Duration: <span class="text-slate-200">${duration}</span></div>
-      <div>Status: <span style="color:${status === 'error' ? 'var(--color-coral,#e07a5f)' : 'var(--color-sage,#81b29a)'}">${status}</span></div>
+      <div>Status: <span style="color:${status === 'error' ? 'var(--color-coral,#e07a5f)' : 'var(--color-sage,#81b29a)'}">${status === 'error' ? 'ERROR' : 'OK'}</span></div>
+      ${model ? `<div>Model: <span class="text-slate-200 font-mono text-[10px]">${escHtml(model)}</span></div>` : ''}
       ${tokens > 0 ? `<div>Tokens: <span class="text-slate-200">${tokens.toLocaleString()}</span></div>` : ''}
       ${cost > 0 ? `<div>Cost: <span style="color:var(--color-sage,#81b29a)">$${cost}</span></div>` : ''}
     </div>
+    <div class="mt-1.5 pt-1" style="border-top:1px solid rgba(255,255,255,0.06);color:#64748b;font-size:10px">Click to view details</div>
   `;
   tooltipEl.innerHTML = html;
   tooltipEl.style.display = 'block';
@@ -2985,11 +3040,35 @@ function openSpanDetail(spanId) {
     </div>` : '';
     const isPath = toolInput && (toolInput.startsWith('/') || toolInput.match(/^[A-Za-z]:\\/));
     const isCode = toolInput && toolInput.length > 20 && !isPath;
+    // Parse JSON tool input for structured display
+    let structuredInputHtml = '';
+    if (toolInput) {
+      try {
+        const parsedInput = typeof toolInput === 'string' ? JSON.parse(toolInput) : toolInput;
+        if (typeof parsedInput === 'object' && parsedInput !== null) {
+          structuredInputHtml = '<div class="space-y-1.5">';
+          for (const [k, v] of Object.entries(parsedInput)) {
+            const valStr = typeof v === 'string' ? v : JSON.stringify(v);
+            const isFilePath = typeof v === 'string' && (v.startsWith('/') || v.match(/^[A-Za-z]:\\/));
+            structuredInputHtml += `<div class="flex gap-2 text-[11px]">
+              <span class="text-slate-500 font-medium flex-shrink-0 min-w-[60px]">${escHtml(k)}</span>
+              ${isFilePath
+                ? `<span class="span-detail-filepath font-mono">${escHtml(v)}</span>`
+                : `<span class="text-slate-300 font-mono break-all">${escHtml(valStr.length > 200 ? valStr.substring(0, 200) + '...' : valStr)}</span>`}
+            </div>`;
+          }
+          structuredInputHtml += '</div>';
+        }
+      } catch (_) { /* not JSON, fall back to raw */ }
+    }
     html += renderCollapsibleSection('Tool Input', `
       ${toolHeader}
-      ${toolInput ? `<div class="rounded-lg overflow-hidden border border-white/8">
+      ${structuredInputHtml ? `<div class="rounded-lg overflow-hidden border border-white/8">
+        <div class="px-2 py-1 text-[9px] text-slate-600 uppercase tracking-wider font-semibold" style="background:rgba(255,255,255,0.03)">Parameters</div>
+        <div class="p-2.5" style="background:rgba(0,0,0,0.15)">${structuredInputHtml}</div>
+      </div>` : toolInput ? `<div class="rounded-lg overflow-hidden border border-white/8">
         <div class="px-2 py-1 text-[9px] text-slate-600 uppercase tracking-wider font-semibold" style="background:rgba(255,255,255,0.03)">${isPath ? 'Path' : isCode ? 'Command / Query' : 'Input'}</div>
-        <pre class="p-2.5 text-[11px] text-slate-300 font-mono overflow-x-auto leading-relaxed whitespace-pre-wrap break-words" style="background:rgba(0,0,0,0.2);max-height:160px">${escHtml(String(toolInput))}</pre>
+        <pre class="p-2.5 text-[11px] text-slate-300 font-mono overflow-x-auto leading-relaxed whitespace-pre-wrap break-words" style="background:rgba(0,0,0,0.2);max-height:160px">${isPath ? `<span class="span-detail-filepath">${escHtml(String(toolInput))}</span>` : escHtml(String(toolInput))}</pre>
       </div>` : '<span class="text-xs text-slate-500 italic">No input recorded</span>'}
     `, true);
   }
@@ -3323,7 +3402,8 @@ function renderDAG(dagData) {
     openSpanDetail(evt.target.id());
   });
 
-  // Hover effect on nodes
+  // Hover effect on nodes + rich tooltip
+  let _dagTooltip = null;
   cyInstance.on('mouseover', 'node', function(evt) {
     evt.target.style({
       'border-width': Math.max(evt.target.data('borderWidth') + 2, 4),
@@ -3331,6 +3411,37 @@ function renderDAG(dagData) {
       'height': 48,
     });
     document.getElementById('cy-container').style.cursor = 'pointer';
+
+    // Show rich tooltip
+    const d = evt.target.data();
+    if (!_dagTooltip) {
+      _dagTooltip = document.createElement('div');
+      _dagTooltip.className = 'dag-node-tooltip';
+      document.body.appendChild(_dagTooltip);
+    }
+    const statusColor = d.status === 'error' ? 'var(--color-coral,#e07a5f)' : 'var(--color-sage,#81b29a)';
+    const roleLabel = d.errorRole === 'root_cause' ? '<span style="color:#c47070;font-weight:700"> ROOT CAUSE</span>' : d.errorRole === 'cascaded' ? '<span style="color:#c49a5c;font-weight:600"> CASCADED</span>' : '';
+    _dagTooltip.innerHTML = `
+      <div class="font-semibold text-white text-xs mb-1">${escHtml(d.fullName)}</div>
+      <div class="space-y-0.5 text-[11px] text-slate-400">
+        <div>Kind: <span class="text-slate-200">${escHtml(d.kind || 'custom')}</span></div>
+        <div>Duration: <span class="text-slate-200">${d.duration}</span></div>
+        <div>Status: <span style="color:${statusColor}">${d.status === 'error' ? 'ERROR' : 'OK'}</span>${roleLabel}</div>
+      </div>
+      <div class="mt-1 pt-1 text-[10px]" style="border-top:1px solid rgba(255,255,255,0.06);color:#64748b">Click to inspect span</div>
+    `;
+    _dagTooltip.style.display = 'block';
+    const pos = evt.target.renderedPosition();
+    const cyRect = document.getElementById('cy-container').getBoundingClientRect();
+    _dagTooltip.style.left = (cyRect.left + pos.x + 30) + 'px';
+    _dagTooltip.style.top = (cyRect.top + pos.y - 20) + 'px';
+    // Keep within viewport
+    requestAnimationFrame(() => {
+      if (!_dagTooltip) return;
+      const ttR = _dagTooltip.getBoundingClientRect();
+      if (ttR.right > window.innerWidth - 10) _dagTooltip.style.left = (cyRect.left + pos.x - ttR.width - 10) + 'px';
+      if (ttR.top < 10) _dagTooltip.style.top = (cyRect.top + pos.y + 30) + 'px';
+    });
   });
   cyInstance.on('mouseout', 'node', function(evt) {
     evt.target.style({
@@ -3339,6 +3450,7 @@ function renderDAG(dagData) {
       'height': 40,
     });
     document.getElementById('cy-container').style.cursor = 'default';
+    if (_dagTooltip) _dagTooltip.style.display = 'none';
   });
 
   // Animate error edges (caused_by) with a pulsing dash effect
@@ -3483,6 +3595,7 @@ function renderPatternCard(pattern, traceId) {
   let codeFixHtml = '';
   if (codeSnippet) {
     const fixId = cardId + '-fix';
+    const escapedSnippet = codeSnippet.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n');
     codeFixHtml = `
       <div class="mt-2 pt-2 border-t border-white/5">
         <button class="flex items-center gap-1.5 text-[10px] text-indigo-400 hover:text-indigo-300 transition font-semibold"
@@ -3490,9 +3603,14 @@ function renderPatternCard(pattern, traceId) {
           <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
           Show Code Fix
         </button>
-        <div id="${fixId}" class="hidden mt-2 rounded-lg overflow-hidden border border-white/8">
-          <div class="px-2 py-1 text-[10px] text-slate-600 uppercase tracking-wider font-semibold" style="background:rgba(255,255,255,0.03)">Recommended Fix</div>
-          <pre class="p-2.5 text-[10px] font-mono overflow-x-auto leading-relaxed whitespace-pre-wrap" style="color:var(--color-sage,#81b29a);opacity:0.9;background:rgba(129,178,154,0.04);max-height:200px">${escHtml(codeSnippet)}</pre>
+        <div id="${fixId}" class="hidden mt-2 rounded-lg overflow-hidden border border-white/8 pattern-code-block">
+          <div class="flex items-center justify-between px-2.5 py-1.5" style="background:rgba(255,255,255,0.04)">
+            <span class="text-[10px] text-slate-600 uppercase tracking-wider font-semibold">Recommended Fix</span>
+            <button class="pattern-code-copy-btn" onclick="event.stopPropagation();navigator.clipboard.writeText('${escapedSnippet}');showToast('Code copied','success',1500)" title="Copy code">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+            </button>
+          </div>
+          <pre class="p-2.5 text-[10px] font-mono overflow-x-auto leading-relaxed whitespace-pre-wrap" style="max-height:200px">${escHtml(codeSnippet)}</pre>
         </div>
       </div>`;
   }
@@ -3510,12 +3628,12 @@ function renderPatternCard(pattern, traceId) {
             <span class="text-xs font-bold text-white">${patternName}</span>
             <span class="px-1.5 py-0.5 text-[10px] font-semibold uppercase rounded ${cfg.badgeClass}">${escHtml(sev)}</span>
             ${affectedCount > 0 ? `<span class="pattern-count-badge">${affectedCount} span${affectedCount > 1 ? 's' : ''}</span>` : ''}
-            ${savingsBadgeHtml}
             <span class="pattern-expand-chevron text-slate-600 ml-auto">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
             </span>
           </div>
           <p class="text-xs text-slate-400 mt-1 leading-relaxed">${description}</p>
+          ${savingsBadgeHtml ? `<div class="mt-1.5">${savingsBadgeHtml}</div>` : ''}
           <!-- Trace link always visible -->
           <button class="mt-1.5 flex items-center gap-1 text-[10px] text-indigo-400 hover:text-indigo-300 transition"
                   onclick="event.stopPropagation(); openTrace('${escHtml(traceId)}')">

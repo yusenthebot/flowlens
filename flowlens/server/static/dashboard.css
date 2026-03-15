@@ -2177,7 +2177,7 @@
     .wf-bar-error {
       animation: errorBarPulse 2s ease-in-out infinite;
     }
-    /* Parent-child connector line (left dotted vertical) */
+    /* Parent-child connector line (left dotted vertical) — legacy */
     .wf-connector {
       position: absolute;
       left: 0;
@@ -2189,6 +2189,175 @@
     }
     html:not(.dark) .wf-connector {
       border-left-color: rgba(107,104,217,0.2);
+    }
+
+    /* ---- Tree indent connector lines (Cycle 25) ---- */
+    .wf-tree-spacer {
+      display: inline-block;
+      width: 18px;
+      height: 28px;
+      flex-shrink: 0;
+    }
+    .wf-tree-vline {
+      display: inline-block;
+      width: 18px;
+      height: 28px;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .wf-tree-vline::after {
+      content: '';
+      position: absolute;
+      left: 8px;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: rgba(124,122,239,0.18);
+    }
+    html:not(.dark) .wf-tree-vline::after { background: rgba(107,104,217,0.14); }
+    .wf-tree-corner {
+      display: inline-block;
+      width: 18px;
+      height: 28px;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .wf-tree-corner::before {
+      content: '';
+      position: absolute;
+      left: 8px;
+      top: 0;
+      height: 14px;
+      width: 1px;
+      background: rgba(124,122,239,0.18);
+    }
+    .wf-tree-corner::after {
+      content: '';
+      position: absolute;
+      left: 8px;
+      top: 14px;
+      width: 9px;
+      height: 1px;
+      background: rgba(124,122,239,0.18);
+    }
+    html:not(.dark) .wf-tree-corner::before,
+    html:not(.dark) .wf-tree-corner::after { background: rgba(107,104,217,0.14); }
+    .wf-tree-tee {
+      display: inline-block;
+      width: 18px;
+      height: 28px;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .wf-tree-tee::before {
+      content: '';
+      position: absolute;
+      left: 8px;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: rgba(124,122,239,0.18);
+    }
+    .wf-tree-tee::after {
+      content: '';
+      position: absolute;
+      left: 8px;
+      top: 14px;
+      width: 9px;
+      height: 1px;
+      background: rgba(124,122,239,0.18);
+    }
+    html:not(.dark) .wf-tree-tee::before,
+    html:not(.dark) .wf-tree-tee::after { background: rgba(107,104,217,0.14); }
+
+    /* ---- DAG node tooltip (Cycle 25) ---- */
+    .dag-node-tooltip {
+      position: fixed;
+      z-index: 200;
+      backdrop-filter: blur(14px);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 12px;
+      pointer-events: none;
+      white-space: nowrap;
+      max-width: 320px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+    .dark .dag-node-tooltip {
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: #e2e0db;
+    }
+    html:not(.dark) .dag-node-tooltip {
+      background: rgba(255, 255, 255, 0.97);
+      border: 1px solid #e8e6e1;
+      color: #2c2c2a;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    }
+
+    /* ---- File path highlight in span detail (Cycle 25) ---- */
+    .span-detail-filepath {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: rgba(107,92,231,0.08);
+      border: 1px solid rgba(107,92,231,0.18);
+      color: var(--color-indigo-warm, #6b5ce7);
+      word-break: break-all;
+      font-size: 11px;
+      line-height: 1.5;
+      cursor: default;
+    }
+    .span-detail-filepath::before {
+      content: '';
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      margin-right: 4px;
+      vertical-align: -2px;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b5ce7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z'/%3E%3Cpath d='M14 2v6h6'/%3E%3C/svg%3E") no-repeat center/contain;
+      opacity: 0.7;
+    }
+    html:not(.dark) .span-detail-filepath {
+      background: rgba(107,92,231,0.06);
+      border-color: rgba(107,92,231,0.15);
+      color: #4f46e5;
+    }
+
+    /* ---- Pattern code block enhancements (Cycle 25) ---- */
+    .pattern-code-block pre {
+      background: rgba(10,12,24,0.92) !important;
+      color: #a5f3a0 !important;
+      border: none !important;
+      border-radius: 0 0 8px 8px;
+      padding: 14px 16px !important;
+      font-family: 'SF Mono','Fira Code','JetBrains Mono','Cascadia Code','Menlo',monospace;
+      font-size: 11px;
+      line-height: 1.65;
+    }
+    html:not(.dark) .pattern-code-block pre {
+      background: #1a1730 !important;
+      color: #a5f3a0 !important;
+    }
+    .pattern-code-copy-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3px;
+      border-radius: 4px;
+      color: #64748b;
+      transition: color 0.15s ease, background 0.15s ease;
+      cursor: pointer;
+      background: transparent;
+      border: none;
+    }
+    .pattern-code-copy-btn:hover {
+      color: #e2e0db;
+      background: rgba(255,255,255,0.08);
+    }
+    html:not(.dark) .pattern-code-copy-btn:hover {
+      color: #374151;
+      background: rgba(0,0,0,0.05);
     }
     .toast-v14.toast-success::before { background: var(--color-sage); }
     .toast-v14.toast-error::before   { background: var(--color-coral); }
