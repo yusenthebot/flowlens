@@ -775,12 +775,7 @@
     .dark .pattern-count-badge { background: rgba(255,255,255,0.08); color: #cbd5e1; }
     html:not(.dark) .pattern-count-badge { background: rgba(0,0,0,0.06); color: #475569; }
 
-    /* ========== Stat card gradient tints ========== */
-    .stat-card-traces { background: linear-gradient(135deg, rgba(99,102,241,0.05), transparent); }
-    .stat-card-errors { background: linear-gradient(135deg, rgba(239,68,68,0.05), transparent); }
-    .stat-card-latency { background: linear-gradient(135deg, rgba(245,158,11,0.05), transparent); }
-    .stat-card-cost { background: linear-gradient(135deg, rgba(16,185,129,0.05), transparent); }
-    .stat-card-agents { background: linear-gradient(135deg, rgba(139,92,246,0.05), transparent); }
+    /* Stat card gradient tints: superseded by Cycle 14 variants in .stat-card-v17 section below */
 
     /* ========== Span detail panel — semantic sections ========== */
     .span-detail-code-block {
@@ -2063,11 +2058,7 @@
       background-position: right 10px center;
       padding-right: 28px !important;
     }
-    .filter-select-v14:focus {
-      outline: none;
-      border-color: rgba(107, 92, 231, 0.45) !important;
-      box-shadow: 0 0 0 3px rgba(107, 92, 231, 0.12) !important;
-    }
+    /* Focus ring consolidated below with .filter-input:focus */
 
     /* Toggle switches: warm style */
     .toggle-v14 {

@@ -1,5 +1,22 @@
 # Agent Status — 2026-03-15
 
+## Cycle 27: QA Consistency & Cleanup — COMPLETE (Gamma, 2026-03-15)
+
+**Gamma**: Final consistency pass — CSS deduplication, version audit, .gitignore fixes, full test run
+- Branch: `worktree-agent-ad6bdd5a`
+- Tests: 1208 passing (unchanged)
+- Delivered:
+  - CSS: Removed duplicate `.filter-select-v14:focus` block (lines 2066-2070 eliminated; combined rule at 2100 retained)
+  - CSS: Removed superseded `.stat-card-{traces,errors,latency,cost,agents}` base rules (lines 779-783; fully overridden by Cycle 14 v17 blocks with `!important`)
+  - CSS: Replaced orphan `.filter-select-v14:focus` with a comment pointing to consolidated location
+  - `.gitignore`: Added `*.db-shm`, `*.db-wal` (SQLite WAL journal files), `*.bak` (backup files)
+  - Version audit: `__version__ = "1.0.0"` in `flowlens/__init__.py`, `version = "1.0.0"` in `pyproject.toml`, `"version": "1.0.0"` in `/health` endpoint, `FlowLens v1.0.0` in dashboard footer — all consistent
+  - v14/v17 suffix audit: Both suffixes actively used in HTML/JS — intentional design tokens, not naming inconsistencies
+  - Full test suite: ruff (clean), black (87 files unchanged), mypy (43 source files, no issues), pytest (1208/1208 passed)
+- Files: `flowlens/server/static/dashboard.css`, `.gitignore`
+
+---
+
 ## Cycle 26: DB Optimization — COMPLETE (Beta, 2026-03-15)
 
 **Beta**: Eliminated N+1 queries, added batch SQL methods, added 30s TTL cache
