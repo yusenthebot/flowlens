@@ -250,28 +250,32 @@ function formatDuration(ms) {
 function showToast(message, type = 'info', duration = 4000) {
   const container = document.getElementById('toast-container');
   const toast = document.createElement('div');
-  const colors = {
-    info: 'border-indigo-500/40 bg-indigo-500/10 text-indigo-200',
-    error: 'border-red-500/40 bg-red-500/10 text-red-200',
-    success: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200',
-    warning: 'border-amber-500/40 bg-amber-500/10 text-amber-200',
-  };
+
   const icons = {
-    info: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>',
-    error: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>',
+    info:    '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>',
+    error:   '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>',
     success: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>',
     warning: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>',
   };
 
-  toast.className = `toast-enter pointer-events-auto flex items-center gap-2 px-4 py-3 rounded-xl border backdrop-blur-lg text-sm ${colors[type] || colors.info} shadow-lg max-w-sm`;
+  toast.className = `toast-v14 toast-${type} pointer-events-auto`;
   toast.innerHTML = `
-    <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">${icons[type] || icons.info}</svg>
-    <span class="flex-1">${escHtml(message)}</span>
+    <svg class="toast-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">${icons[type] || icons.info}</svg>
+    <span class="flex-1 leading-snug">${escHtml(message)}</span>
+    <div class="toast-progress"><div class="toast-progress-fill" id="tp-${Date.now()}"></div></div>
   `;
   container.appendChild(toast);
 
+  // Animate progress bar countdown
+  const fill = toast.querySelector('.toast-progress-fill');
+  if (fill) {
+    fill.style.transition = `transform ${duration}ms linear`;
+    // Trigger reflow then start animation
+    void fill.offsetWidth;
+    fill.style.transform = 'scaleX(0)';
+  }
+
   setTimeout(() => {
-    toast.classList.remove('toast-enter');
     toast.classList.add('toast-exit');
     setTimeout(() => toast.remove(), 300);
   }, duration);
@@ -890,63 +894,75 @@ async function loadAgentData() {
         : '<span class="text-[10px] text-slate-600">no recent tools</span>';
       const opsLastHour = activity ? activity.trace_count_1h : 0;
 
-      // Mini activity bar: 24 dots representing last 24h (simulated from available data)
+      // Mini activity bar: 24 dots representing last 24h — taller + fully rounded
       const activityDots = [];
       for (let h = 0; h < 24; h++) {
-        // Use available hourly data if present, otherwise simulate from trace_count
         const hasActivity = activity && activity.hourly_counts ? (activity.hourly_counts[h] || 0) > 0 : (Math.random() < Math.min(0.7, (a.trace_count || 1) / 100));
-        const dotColor = hasActivity ? (isActive ? '#34d399' : '#6366f1') : '#1e293b';
-        activityDots.push(`<span style="display:inline-block;width:6px;height:14px;border-radius:2px;background:${dotColor};margin-right:1px;" title="Hour ${h}"></span>`);
+        const dotColor = hasActivity ? (isActive ? '#81b29a' : '#6b5ce7') : (isDarkTheme ? '#1e293b' : '#e2e8f0');
+        const dotOpacity = hasActivity ? '1' : '0.5';
+        activityDots.push(`<span class="activity-dot-v14" style="background:${dotColor};opacity:${dotOpacity}" title="Hour ${h}"></span>`);
       }
 
       const p = getAgentProfile(a.agent);
-      // Large colored avatar with agent initial
       const avatarInitial = (p.name || a.agent).charAt(0).toUpperCase();
-      const avatarBg = p.color || '#6366f1';
-      const largeAvatarHtml = `<div style="width:48px;height:48px;border-radius:14px;background:${avatarBg}22;border:2px solid ${avatarBg};display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative;">
-        <span style="font-size:20px;font-weight:700;color:${avatarBg}">${avatarInitial}</span>
-        ${isActive ? '<span style="position:absolute;bottom:-2px;right:-2px;width:12px;height:12px;border-radius:50%;background:#34d399;border:2px solid #0f172a;"></span>' : ''}
+      const avatarBg = p.color || '#6b5ce7';
+
+      // Large avatar (56px) with shadow + ring in agent color
+      const largeAvatarHtml = `<div class="agent-avatar-lg" style="background:${avatarBg}1a;border:2px solid ${avatarBg}50;box-shadow:0 4px 16px ${avatarBg}30;position:relative;display:flex;align-items:center;justify-content:center;">
+        <span style="font-size:22px;font-weight:700;color:${avatarBg}">${avatarInitial}</span>
+        ${isActive ? `<span style="position:absolute;bottom:-2px;right:-2px;width:13px;height:13px;border-radius:50%;background:#81b29a;border:2px solid var(--bg-base, #0f172a);box-shadow:0 0 6px #81b29a60;"></span>` : ''}
       </div>`;
+
+      // Status badge using new design
+      const statusBadgeClass = isActive ? 'status-badge status-badge-active' : 'status-badge status-badge-idle';
+      const statusDotHtml = isActive
+        ? `<span style="width:6px;height:6px;border-radius:50%;background:#81b29a;display:inline-block;"></span>`
+        : `<span style="width:6px;height:6px;border-radius:50%;background:#94a3b8;display:inline-block;"></span>`;
+
+      // Tool badges using monospace style
+      const toolsHtmlV14 = recentTools.length > 0
+        ? recentTools.map(t => `<span class="tool-badge">${escHtml(t)}</span>`).join(' ')
+        : '<span class="text-[10px] text-slate-600">no recent tools</span>';
 
       // Store agent data for modal access
       const agentDataEncoded = escHtml(JSON.stringify({ agent: a.agent, trace_count: a.trace_count, error_rate: a.error_rate, avg_duration_ms: a.avg_duration_ms, total_cost_usd: a.total_cost_usd, total_spans: a.total_spans }));
-      return `<div class="glass rounded-xl p-5 cursor-pointer hover:border-indigo-500/40 border border-transparent transition card-3d-hover" onclick="openAgentDetailModal('${escHtml(a.agent)}', ${JSON.stringify(agentDataEncoded)})">
+      return `<div class="glass rounded-xl p-5 cursor-pointer border transition agent-card-polished" style="border-color:${avatarBg}18" onmouseover="this.style.borderColor='${avatarBg}45';this.style.boxShadow='0 8px 32px ${avatarBg}20'" onmouseout="this.style.borderColor='${avatarBg}18';this.style.boxShadow=''" onclick="openAgentDetailModal('${escHtml(a.agent)}', ${JSON.stringify(agentDataEncoded)})">
         <div class="flex items-center gap-3 mb-4">
           ${largeAvatarHtml}
           <div class="min-w-0 flex-1">
-            <div class="text-base font-semibold text-white truncate" title="${escHtml(a.agent)}">${escHtml(p.name || a.agent)}</div>
-            <div class="text-[11px] text-slate-500">${escHtml(p.role || 'Agent')}</div>
+            <div class="text-base font-semibold text-white agents-grid-card-title truncate" title="${escHtml(a.agent)}">${escHtml(p.name || a.agent)}</div>
+            <div class="text-[11px] text-slate-500 agents-grid-card-meta">${escHtml(p.role || 'Agent')}</div>
           </div>
-          <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full border ${statusBadgeBg}">${statusLabel}</span>
+          <span class="${statusBadgeClass}">${statusDotHtml}${statusLabel}</span>
         </div>
-        <div class="grid grid-cols-4 gap-2 text-xs mb-3">
-          <div>
-            <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Traces</div>
-            <div class="text-white font-semibold">${a.trace_count}</div>
+        <div class="agent-stats-row mb-3 text-xs">
+          <div class="agent-stat-cell">
+            <div class="text-[9px] text-slate-500 uppercase tracking-wider mb-0.5">Traces</div>
+            <div class="text-white font-semibold agents-grid-card-title">${a.trace_count}</div>
           </div>
-          <div>
-            <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Errors</div>
+          <div class="agent-stat-cell">
+            <div class="text-[9px] text-slate-500 uppercase tracking-wider mb-0.5">Errors</div>
             <div class="${errColor} font-semibold">${errPct}%</div>
           </div>
-          <div>
-            <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Cost</div>
-            <div class="text-white font-semibold">${cost}</div>
+          <div class="agent-stat-cell">
+            <div class="text-[9px] text-slate-500 uppercase tracking-wider mb-0.5">Cost</div>
+            <div class="text-white font-semibold agents-grid-card-title">${cost}</div>
           </div>
-          <div>
-            <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Latency</div>
-            <div class="text-white font-semibold">${latency}</div>
+          <div class="agent-stat-cell">
+            <div class="text-[9px] text-slate-500 uppercase tracking-wider mb-0.5">Avg Lat</div>
+            <div class="text-white font-semibold agents-grid-card-title">${latency}</div>
           </div>
         </div>
         <div class="mb-3">
-          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Activity (24h)</div>
-          <div style="display:flex;align-items:flex-end;height:16px;">${activityDots.join('')}</div>
+          <div class="text-[9px] text-slate-500 uppercase tracking-wider mb-1.5">Activity (24h)</div>
+          <div style="display:flex;align-items:flex-end;height:20px;">${activityDots.join('')}</div>
         </div>
-        <div class="flex flex-wrap gap-1 mb-2">${toolsHtml}</div>
-        <div class="flex items-center justify-between text-[11px] text-slate-600 mb-3">
+        <div class="flex flex-wrap gap-1 mb-2">${toolsHtmlV14}</div>
+        <div class="flex items-center justify-between text-[11px] text-slate-600 agents-grid-card-meta mb-2">
           <span>${a.total_spans} spans</span>
           <span>${opsLastHour} ops/hr</span>
         </div>
-        <div class="agent-live-feed" id="agent-feed-${escHtml(a.agent)}" style="max-height:120px;overflow-y:auto;border-top:1px solid rgba(255,255,255,0.06);padding-top:8px;">
+        <div class="agent-live-feed agent-live-feed-v14" id="agent-feed-${escHtml(a.agent)}" style="max-height:120px;overflow-y:auto;">
           <div class="text-[10px] text-slate-600 italic">Loading activity...</div>
         </div>
       </div>`;
@@ -1450,25 +1466,37 @@ function renderTraceRow(trace, compact = false) {
 
   // Agent border color
   const agentProfile = agentName ? getAgentProfile(agentName) : null;
-  const borderStyle = agentProfile ? `border-left: 3px solid ${agentProfile.color}` : '';
+  const borderColor = agentProfile ? agentProfile.color : 'transparent';
   const errorRowClass = hasErrors ? 'trace-row-error-bg' : '';
+  const emptyRowClass = isEmpty ? 'trace-empty-row' : '';
 
-  // Mini duration bar (proportion of max 10s)
+  // Rebuilt agent badge: warm pill using agent color
+  let agentBadgeHtml = '';
+  if (agentName) {
+    const profile = getAgentProfile(agentName);
+    agentBadgeHtml = `<span class="trace-agent-badge" style="background:${profile.color}18;color:${profile.color};border:1px solid ${profile.color}30">${escHtml(profile.name)}</span>`;
+  }
+
+  // Error count badge: coral style
+  const errorBadgeHtml = hasErrors
+    ? `<span class="trace-error-badge">${trace.error_count || 1} error${(trace.error_count || 1) > 1 ? 's' : ''}</span>`
+    : '';
+
+  // Mini duration bar (proportion of max 10s) — positioned as thin underline via CSS
   const durationNum = trace.duration_ms || 0;
   const durationPct = Math.min((durationNum / 10000) * 100, 100);
-  const durationBarColor = durationNum > 5000 ? '#ef4444' : durationNum > 2000 ? '#f59e0b' : '#7c7aef';
-  const emptyOpacity = isEmpty ? 'opacity-50' : '';
+  const durationBarColor = durationNum > 5000 ? '#e07a5f' : durationNum > 2000 ? '#e6a65d' : '#6b5ce7';
 
   return `
-    <div class="trace-row flex items-center gap-4 px-5 py-3.5 hover:bg-white/[0.02] cursor-pointer transition group ${errorRowClass} ${emptyOpacity}" data-trace-id="${escHtml(trace.trace_id)}" data-agent="${escHtml(agentName || '')}" onclick="openTrace('${escHtml(trace.trace_id)}')" style="${borderStyle}" ${_previewAttrs}>
+    <div class="trace-row flex items-center gap-4 px-5 cursor-pointer transition group ${errorRowClass} ${emptyRowClass}" data-trace-id="${escHtml(trace.trace_id)}" data-agent="${escHtml(agentName || '')}" onclick="openTrace('${escHtml(trace.trace_id)}')" style="border-left-color:${borderColor}" ${_previewAttrs}>
       ${!compact ? `<input type="checkbox" class="compare-checkbox ${isSelected ? 'checked' : ''} w-3.5 h-3.5 rounded bg-surface-100 border-white/10 text-indigo-500 focus:ring-indigo-500/30 flex-shrink-0" title="Select for comparison" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleCompare('${escHtml(trace.trace_id)}', this)" />` : ''}
       ${statusDot}
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2 flex-wrap">
           <span class="text-sm font-medium text-slate-200 group-hover:text-white transition">${escHtml(displayName)}</span>
-          ${agentBadge}
+          ${agentBadgeHtml}
           ${!agentName && trace.service_name ? `<span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">${escHtml(trace.service_name)}</span>` : ''}
-          ${hasErrors ? `<span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-red-500/10 text-red-300 border border-red-500/20">${trace.error_count || 1} error${(trace.error_count || 1) > 1 ? 's' : ''}</span>` : ''}
+          ${errorBadgeHtml}
           ${isEmpty ? '<span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-slate-700/40 text-slate-500 border border-slate-600/30">empty</span>' : ''}
           ${_feedbackRatedTraces.has(trace.trace_id) ? `<span class="trace-feedback-badge" title="Has feedback">&#9733; ${_tracesFeedbackRatings.has(trace.trace_id) ? _tracesFeedbackRatings.get(trace.trace_id).toFixed(1) : ''}</span>` : ''}
         </div>
@@ -1479,9 +1507,6 @@ function renderTraceRow(trace, compact = false) {
         </div>
       </div>
       <div class="flex items-center gap-6 text-xs text-slate-500 trace-row-details">
-        ${!compact ? `<div class="trace-mini-duration" title="${duration}ms">
-          <div class="trace-mini-duration-fill" style="width:${durationPct}%;background:${durationBarColor}"></div>
-        </div>` : ''}
         <div class="text-right">
           <div class="text-slate-400">${duration}ms</div>
           ${!compact ? `<div>$${cost}</div>` : ''}
@@ -1489,6 +1514,7 @@ function renderTraceRow(trace, compact = false) {
         ${compact ? `<div class="text-right"><div class="text-slate-400">$${cost}</div></div>` : ''}
         <svg class="w-4 h-4 text-slate-600 group-hover:text-slate-400 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
       </div>
+      ${!compact ? `<div class="trace-mini-duration" title="${duration}ms"><div class="trace-mini-duration-fill" style="width:${durationPct}%;background:${durationBarColor}"></div></div>` : ''}
     </div>
   `;
 }
