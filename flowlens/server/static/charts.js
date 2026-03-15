@@ -224,11 +224,27 @@ async function loadOverviewCharts() {
           responsive: true, maintainAspectRatio: false,
           plugins: {
             legend: { display: false },
-            tooltip: { ..._chartTooltipConfig(), callbacks: { label: ctx => ` ${ctx.parsed.x} traces` } },
+            tooltip: {
+              ..._chartTooltipConfig(),
+              callbacks: {
+                title: ctx => labels[ctx[0].dataIndex] || ctx[0].label,
+                label: ctx => ` ${ctx.parsed.x} traces`,
+              },
+            },
           },
           scales: {
             x: { ticks: { color: tc, font: { size: 10 } }, grid: { color: gc }, border: { display: false }, beginAtZero: true },
-            y: { ticks: { color: tc, font: { size: 10 } }, grid: { display: false }, border: { display: false } }
+            y: {
+              type: 'category',
+              labels: labels,
+              ticks: {
+                color: tc,
+                font: { size: 10 },
+                callback: (val, index) => labels[index] ?? val,
+              },
+              grid: { display: false },
+              border: { display: false },
+            },
           },
           animation: { duration: 600, easing: 'easeOutQuart' },
         }

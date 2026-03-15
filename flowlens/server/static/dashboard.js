@@ -4619,10 +4619,21 @@ function toggleTheme() {
 function updateChartTheme() {
   const textColor = isDarkTheme ? '#94a3b8' : '#64748b';
   const gridColor = isDarkTheme ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.06)';
+  const tooltipBg = isDarkTheme ? 'rgba(26,26,24,0.96)' : 'rgba(255,255,255,0.97)';
+  const tooltipBorder = isDarkTheme ? 'rgba(255,255,255,0.1)' : '#e8e6e1';
+  const tooltipTitle = isDarkTheme ? '#e2e0db' : '#2c2c2a';
+  const tooltipBody = isDarkTheme ? '#94a3b8' : '#64748b';
   for (const [id, chart] of Object.entries(chartInstances)) {
     if (chart && chart.options) {
       if (chart.options.plugins && chart.options.plugins.legend && chart.options.plugins.legend.labels) {
         chart.options.plugins.legend.labels.color = textColor;
+      }
+      if (chart.options.plugins && chart.options.plugins.tooltip) {
+        const tt = chart.options.plugins.tooltip;
+        tt.backgroundColor = tooltipBg;
+        tt.borderColor = tooltipBorder;
+        tt.titleColor = tooltipTitle;
+        tt.bodyColor = tooltipBody;
       }
       if (chart.options.scales) {
         for (const axis of Object.values(chart.options.scales)) {
