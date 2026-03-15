@@ -208,11 +208,18 @@ async function apiFetch(path, opts = {}) {
   try {
     const res = await fetch(`${API_BASE}${path}`, opts);
     if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`HTTP ${res.status}: ${text}`);
+      const text = await res.text().catch(() => '');
+      throw new Error(`HTTP ${res.status}${text ? ': ' + text.substring(0, 120) : ''}`);
     }
     return await res.json();
   } catch (err) {
+    // Re-wrap network errors (TypeError: Failed to fetch) into a friendlier message
+    if (err instanceof TypeError && err.message.includes('fetch')) {
+      const friendly = new Error('Could not reach server. Is it running?');
+      friendly._isNetworkError = true;
+      console.warn(`API network error [${path}]:`, err.message);
+      throw friendly;
+    }
     console.error(`API error [${path}]:`, err);
     throw err;
   }
@@ -376,7 +383,13 @@ async function loadAgentActivity() {
         </div>`;
     }).join('');
     renderLiveMonitor(data.agents);
-  } catch (e) { /* silently fail */ }
+  } catch (e) {
+    // Non-critical: if agent activity fails, show a minimal placeholder so the bar is not blank
+    const bar = document.getElementById('agent-team-bar');
+    if (bar && !bar.children.length) {
+      bar.innerHTML = '<p class="text-xs text-slate-600 italic">Agent data unavailable</p>';
+    }
+  }
 }
 
 // ==================================================================// Live Agent Monitor
@@ -881,18 +894,30 @@ function _termMakeResizable(el) {
 async function loadAgentData() {
   const grid = document.getElementById('agents-grid');
   if (!grid) return;
-  grid.innerHTML = '<p class="text-xs text-slate-500 col-span-full">Loading...</p>';
+  // Show skeleton loading cards instead of plain "Loading..." text
+  grid.innerHTML = [1, 2, 3].map(() => `
+    <div class="glass rounded-xl p-5 border border-white/5">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="skeleton w-14 h-14 rounded-xl flex-shrink-0"></div>
+        <div class="flex-1 space-y-2">
+          <div class="skeleton skeleton-text w-24"></div>
+          <div class="skeleton skeleton-text w-16"></div>
+        </div>
+      </div>
+      <div class="grid grid-cols-4 gap-2 mb-3">
+        ${[1,2,3,4].map(() => '<div class="skeleton h-10 rounded-lg"></div>').join('')}
+      </div>
+      <div class="skeleton skeleton-bar mb-2"></div>
+    </div>`).join('');
   try {
     // Fetch both summary stats and live activity in parallel
-    const [summaryResp, activityData] = await Promise.all([
-      fetch('/v1/agents/summary'),
+    const [data, activityData] = await Promise.all([
+      apiFetch('/v1/agents/summary'),
       apiFetch('/v1/agents/activity').catch(() => ({ agents: [] })),
     ]);
-    if (!summaryResp.ok) throw new Error(`HTTP ${summaryResp.status}`);
-    const data = await summaryResp.json();
     const agents = data.agents || [];
     if (agents.length === 0) {
-      grid.innerHTML = '<p class="text-xs text-slate-500 col-span-full">No agent data found. Ingest traces with a <code>tags.agent</code> field to populate this view.</p>';
+      grid.innerHTML = renderEmptyState('No agents detected', 'Ingest traces with a <code>tags.agent</code> field to populate this view.', false);
       return;
     }
 
@@ -1517,6 +1542,9 @@ async function loadStats() {
     loadSparklines();
   } catch (err) {
     updateWsStatus('error');
+    // Show a friendly indicator on the refresh timestamp instead of breaking the UI
+    const refreshEl = document.getElementById('last-refresh');
+    if (refreshEl) refreshEl.textContent = 'Stats unavailable — server unreachable';
   }
 }
 
@@ -1796,6 +1824,19 @@ with tracer.start_trace("my-agent"):
 // ==================================================================// Traces — List + Filtering
 // ==================================================================
 async function loadRecentTraces() {
+  const container = document.getElementById('recent-traces-list');
+  // Only show skeleton if container is empty (avoid flash when refreshing live)
+  if (container && !container.children.length) {
+    container.innerHTML = [1,2,3,4].map(() => `
+      <div class="flex items-center gap-4 px-5 py-3 border-b border-white/5">
+        <div class="skeleton w-2 h-2 rounded-full flex-shrink-0"></div>
+        <div class="flex-1 space-y-1.5">
+          <div class="skeleton skeleton-text w-32"></div>
+          <div class="skeleton skeleton-text w-24"></div>
+        </div>
+        <div class="skeleton skeleton-text w-16 flex-shrink-0"></div>
+      </div>`).join('');
+  }
   try {
     const data = await apiFetch('/v1/traces?limit=8');
     const container = document.getElementById('recent-traces-list');
@@ -1849,6 +1890,23 @@ async function loadTraces() {
   let url = `/v1/traces?limit=${TRACE_LIMIT}&offset=${traceOffset}`;
   if (service) url += `&service=${encodeURIComponent(service)}`;
   if (errorsOnly) url += `&errors_only=true`;
+
+  // Show skeleton rows during load (only if list is empty/stale to avoid flash on filter changes)
+  const traceListEl = document.getElementById('traces-list');
+  if (traceListEl && !traceListEl.children.length) {
+    traceListEl.innerHTML = [1,2,3,4,5].map(() => `
+      <div class="flex items-center gap-4 px-5 py-3 border-b border-white/5">
+        <div class="skeleton w-2 h-2 rounded-full flex-shrink-0"></div>
+        <div class="flex-1 space-y-1.5">
+          <div class="skeleton skeleton-text w-40"></div>
+          <div class="skeleton skeleton-text w-28"></div>
+        </div>
+        <div class="flex items-center gap-4 flex-shrink-0">
+          <div class="skeleton skeleton-text w-16"></div>
+          <div class="skeleton skeleton-text w-12"></div>
+        </div>
+      </div>`).join('');
+  }
 
   try {
     const data = await apiFetch(url);
@@ -3631,10 +3689,23 @@ async function loadAllPatterns() {
   const container = document.getElementById('patterns-list');
   _allPatternsData = [];
 
+  // Show skeleton while loading
+  container.innerHTML = `
+    <div class="glass rounded-xl p-6 space-y-3">
+      <div class="skeleton skeleton-warm skeleton-text w-48"></div>
+      <div class="skeleton skeleton-warm skeleton-bar"></div>
+      <div class="skeleton skeleton-warm skeleton-bar"></div>
+      <div class="skeleton skeleton-warm skeleton-bar"></div>
+    </div>`;
+
   try {
     const tracesData = await apiFetch('/v1/traces?limit=20');
     if (!tracesData.traces || tracesData.traces.length === 0) {
-      container.innerHTML = renderEmptyState('No traces available', 'Patterns are detected per-trace via the DAG analysis.');
+      container.innerHTML = renderEmptyState(
+        'No patterns found',
+        'Patterns are detected from trace data. Start tracing your agents to see anti-pattern detection here.',
+        true
+      );
       return;
     }
 
@@ -4956,7 +5027,22 @@ async function loadSessions() {
   const panel = document.getElementById('session-timeline-panel');
   if (!list) return;
 
-  list.innerHTML = '<div class="flex items-center justify-center py-10"><div class="text-xs text-slate-500">Loading sessions...</div></div>';
+  // Show skeleton loading cards
+  list.innerHTML = [1, 2, 3].map(() => `
+    <div class="glass rounded-xl p-4 border border-white/5">
+      <div class="flex items-start gap-3">
+        <div class="skeleton w-2 h-2 rounded-full mt-1 flex-shrink-0"></div>
+        <div class="flex-1 space-y-2">
+          <div class="skeleton skeleton-text w-32"></div>
+          <div class="skeleton skeleton-text w-48"></div>
+          <div class="skeleton skeleton-bar w-24"></div>
+        </div>
+        <div class="flex gap-4 flex-shrink-0">
+          <div class="skeleton h-10 w-12 rounded"></div>
+          <div class="skeleton h-10 w-12 rounded"></div>
+        </div>
+      </div>
+    </div>`).join('');
   if (panel) { panel.classList.add('hidden'); panel.innerHTML = ''; }
   _currentSessionId = null;
 
@@ -4975,7 +5061,7 @@ async function loadSessions() {
 
     list.innerHTML = sessions.map(s => renderSessionCard(s)).join('');
   } catch (err) {
-    list.innerHTML = `<div class="text-center py-8 text-red-400/70 text-sm">Failed to load sessions: ${escHtml(err.message)}</div>`;
+    list.innerHTML = `<div class="text-center py-8 text-red-400/70 text-sm">Failed to load sessions: ${escHtml(err.message || 'Server unreachable')}</div>`;
   }
 }
 

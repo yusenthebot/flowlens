@@ -475,7 +475,11 @@ async function loadOverviewGraph() {
     // Use the same SVG network as the Agents tab
     _buildSVGNetwork(container, data);
 
-  } catch (e) { console.warn('Network graph:', e); }
+  } catch (e) {
+    console.warn('Network graph unavailable:', e.message || e);
+    const container = document.getElementById('overview-agent-graph');
+    if (container) container.innerHTML = '<p class="text-center text-slate-600 py-20 text-xs">Network graph unavailable</p>';
+  }
 }
 
 

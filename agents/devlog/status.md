@@ -1,5 +1,14 @@
 # Agent Status — 2026-03-15
 
+## Cycle 25: Reliability & Error Handling — IN PROGRESS (Gamma, 2026-03-15)
+
+**Gamma**: Adding API error handling, empty states, loading skeletons, WebSocket status improvements
+- Branch: `feat/gamma-reliability`
+- Status: In progress
+- Touching: `flowlens/server/static/dashboard.js`, `flowlens/server/static/websocket.js`
+
+---
+
 ## Cycle 24: Dashboard Data Richness — COMPLETE (Gamma, 2026-03-15)
 
 **Gamma**: Fixed charts, enriched terminal output, added model usage to agent cards

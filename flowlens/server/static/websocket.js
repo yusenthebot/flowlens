@@ -73,6 +73,7 @@ function scheduleWsReconnect() {
 function updateWsStatus(state) {
   const dot = document.getElementById('ws-dot');
   const label = document.getElementById('ws-label');
+  if (!dot || !label) return; // elements may not be in DOM yet
   if (state === 'connected') {
     dot.className = 'w-2 h-2 rounded-full bg-emerald-500 pulse-dot';
     label.textContent = 'Live';
