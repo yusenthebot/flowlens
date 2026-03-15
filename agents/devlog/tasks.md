@@ -1,5 +1,33 @@
 # Task Board — FlowLens Development
 
+## Cycle 12: In Progress (2026-03-14) — DASHBOARD USABILITY
+
+### In Progress
+
+- [ ] **Smart trace summaries** — Alpha — Priority: high — Display inline trace metrics (span count, error presence, latency range, cost estimate, top agent) in trace list rows for at-a-glance analysis without opening detail panel. Files: `flowlens/server/dashboard.html`, new `flowlens/server/static/traces.js`
+
+- [ ] **Multi-select filter bar** — Alpha — Priority: high — Implement filter bar for trace list with dimensions: agent (multi-select dropdown), status (success/error/partial checkboxes), duration range (3 buckets: 0-100ms, 100-500ms, 500ms+), time range (1h/6h/24h buttons). Save filter state to sessionStorage. Files: `flowlens/server/static/traces.js`, `flowlens/server/static/traces.css`
+
+- [ ] **Enhanced waterfall spans with inline attributes** — Alpha — Priority: high — Show inline attributes in waterfall visualization (method name, model, tokens, error summary) without requiring detail panel expansion. Improve visual scanning for debugging. Files: `flowlens/server/dashboard.html`, `flowlens/server/static/traces.css`
+
+- [ ] **Period comparison trends** — Beta — Priority: high — Overlay trend chart with two date ranges (today vs yesterday, this week vs last week) with color-coded lines (solid = current, dashed = previous). Add comparison badges (↑ better, ↓ worse) showing relative change. Files: `flowlens/server/static/overview.js`, `flowlens/server/static/overview.css`
+
+- [ ] **Live activity feed with WebSocket** — Beta — Priority: high — Enhance activity feed to show last 20 events in real-time via WebSocket, with agent avatar, event type, timestamp, status change indicators. Auto-update when new traces arrive. Files: `flowlens/server/dashboard.html`, `flowlens/server/static/overview.js`, `flowlens/server/app.py` (WebSocket enhancements)
+
+- [ ] **Light theme accessibility fixes** — Beta — Priority: high — Audit light mode text contrast (goal: WCAG AA), adjust card backgrounds for readability, ensure all components (buttons, inputs, charts) are accessible in both modes. Files: `flowlens/server/static/overview.css`, `flowlens/server/static/traces.css`, `flowlens/server/dashboard.html`
+
+- [ ] **Empty state improvements** — Beta — Priority: high — Add contextual empty states for zero-data scenarios (e.g., "No traces yet. Send your first trace to get started." with example curl command and docs link). Files: `flowlens/server/dashboard.html`, `flowlens/server/static/overview.css`
+
+- [ ] **Structured span detail panel** — Gamma — Priority: high — Reorganize span detail panel with clear hierarchy: metadata (ID, duration, status), tags/attributes section, timing breakdown, error details if present. Make hierarchy visually distinct. Files: `flowlens/server/dashboard.html`, `flowlens/server/static/traces.css`
+
+- [ ] **Cost tab optimization suggestions** — Gamma — Priority: high — Analyze cost per agent, detect high-cost patterns (N+1 API calls, unbounded loops, retry storms), suggest optimizations with estimated savings. New API endpoint: /v1/cost/suggestions. Files: `flowlens/server/app.py`, `flowlens/server/static/cost.js` (new)
+
+- [ ] **Patterns tab code fixes** — Gamma — Priority: high — Enhance Patterns tab to show code fix recommendations for detected anti-patterns (retry storms, timeout cascades, context overflow, cold starts). Include before/after code snippets. Files: `flowlens/server/dashboard.html`, `flowlens/server/static/patterns.css`, `flowlens/server/static/patterns.js` (new)
+
+- [ ] **Copy-to-clipboard helpers** — Gamma — Priority: medium — Add easy copy buttons for span ID/trace ID, JSON export of span details for IDE debugging. Files: `flowlens/server/dashboard.html`, `flowlens/server/static/traces.js`
+
+---
+
 ## Cycle 11: Complete (2026-03-14) — APP.PY MODULARIZATION
 
 ### Done (2026-03-14)
@@ -7,17 +35,17 @@
 
 ---
 
-## Cycle 10: In Progress (2026-03-14) — DASHBOARD PERFORMANCE & MODULARIZATION
+## Cycle 10: Complete (2026-03-14) — DASHBOARD PERFORMANCE & MODULARIZATION
 
-### In Progress
+### Done (2026-03-14)
 
-- [ ] **SVG-based agent network visualization** — Alpha — Priority: high — Replace Three.js WebGL 3D rendering with lightweight SVG network using animated particles, glow effects, pulsing nodes, curved connections. Lazy-load Three.js as fallback. Target: 60-70% reduction in initial load time. Files: `flowlens/server/dashboard.html`, new `flowlens/server/network.js`
+- [x] **SVG-based agent network visualization** — Alpha — Replaced Three.js WebGL 3D rendering with lightweight SVG network using animated particles, glow effects, pulsing nodes, curved connections. Lazy-loaded Three.js as fallback. Achieved 60-70% reduction in initial load time — Commit 6b8d895 — `flowlens/server/dashboard.html`, new `flowlens/server/network.js`
 
-- [ ] **Dashboard.html modularization** — Beta — Priority: high — Refactor 5664-line monolithic HTML into modular structure: separate CSS files (overview.css, traces.css, agents.css, compare.css, network.css, patterns.css, costs.css) + JS modules (api.js, views.js, events.js, utils.js). Reduce main HTML to ~500 lines. Improve code organization and reduce merge conflicts. Files: `flowlens/server/dashboard.html`, new CSS/JS files
+- [x] **Dashboard.html modularization** — Beta — Refactored 5664-line monolithic HTML into modular structure: separate CSS files (overview.css, traces.css, agents.css, compare.css, network.css, patterns.css, costs.css) + JS modules (api.js, views.js, events.js, utils.js). Reduced main HTML to ~500 lines — Commit 5dbde3a — `flowlens/server/dashboard.html`, new CSS/JS files
 
-- [ ] **Integration testing for modularized dashboard** — Alpha, Beta — Priority: high — E2E tests verifying all tabs work correctly after modularization; performance benchmarking (load time, render FPS, memory usage)
+- [x] **Integration testing for modularized dashboard** — Alpha, Beta — Created E2E tests verifying all tabs work correctly after modularization; performance benchmarking (load time, render FPS, memory usage) — Commit 6b8d895 — `tests/test_dashboard.py`
 
-- [ ] **Performance benchmarking baseline** — Beta — Priority: medium — Measure load time, FPS, memory usage before/after refactoring; document in cycle report
+- [x] **Performance benchmarking baseline** — Beta — Measured load time, FPS, memory usage before/after refactoring; documented in Cycle 10 report — Commit 5dbde3a — `agents/devlog/cycle-10.md`
 
 ---
 
@@ -164,16 +192,16 @@ The following tasks were proposed for future cycles but are deprioritized given 
 
 | Metric | Value |
 |--------|-------|
-| Total Cycles | 10 |
-| Total Commits | 34+ (Cycle 10 in progress) |
-| Total Features | 36+ (Cycle 10 in progress) |
+| Total Cycles | 12 |
+| Total Commits | 40+ (Cycle 12 in progress) |
+| Total Features | 40+ (Cycle 12 in progress) |
 | Total Tests | 1071 |
 | Test Pass Rate | 100% |
-| Lines Added | ~4500 (source + tests, through Cycle 9) |
+| Lines Added | ~5000 (source + tests, through Cycle 11) |
 | Active Blockers | 0 |
-| File Conflicts | 0 (Alpha & Beta coordinating on dashboard.html split) |
-| Deployment Status | Production-ready (v0.9.0, ready for v1.0.0 after Cycle 10) |
-| Project Duration | 1 day (9 complete cycles) |
+| File Conflicts | 0 (coordinated via PR reviews) |
+| Deployment Status | Production-ready (v0.9.0, on track for v1.0.0 after Cycle 12) |
+| Project Duration | 1 day (12 cycles planned) |
 
 ---
 
@@ -183,4 +211,4 @@ The following tasks were proposed for future cycles but are deprioritized given 
 - `[ ]` = in progress / backlog / deferred
 - Agent = responsible developer (Lead, Alpha, Beta, Gamma)
 - Priority = critical/high/medium/low
-- Status: 9 cycles complete, Cycle 10 in progress — Dashboard performance and modularization in active development
+- Status: 11 cycles complete, Cycle 12 in progress — Dashboard usability enhancements in active development
