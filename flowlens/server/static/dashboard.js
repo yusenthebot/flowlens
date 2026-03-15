@@ -1606,7 +1606,7 @@ function _durationDotClass(ms) {
   return 'duration-dot-fast';
 }
 
-function renderTraceRow(trace, compact = false) {
+function renderTraceRow(trace, compact = false, searchQuery = null) {
   const hasErrors = trace.has_errors === true || trace.has_errors === 1;
   const isEmpty = (trace.span_count || 0) === 0 && !(trace.spans && trace.spans.length > 0);
   const statusDot = hasErrors
@@ -1681,9 +1681,9 @@ function renderTraceRow(trace, compact = false) {
       ${statusDot}
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2 flex-wrap">
-          <span class="text-sm font-medium text-slate-200 group-hover:text-white transition">${escHtml(displayName)}</span>
+          <span class="text-sm font-medium text-slate-200 group-hover:text-white transition">${highlightText(displayName, searchQuery)}</span>
           ${agentBadgeHtml}
-          ${!agentName && trace.service_name ? `<span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">${escHtml(trace.service_name)}</span>` : ''}
+          ${!agentName && trace.service_name ? `<span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">${highlightText(trace.service_name, searchQuery)}</span>` : ''}
           ${errorBadgeHtml}
           ${isEmpty ? '<span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-slate-700/40 text-slate-500 border border-slate-600/30">empty</span>' : ''}
           ${_feedbackRatedTraces.has(trace.trace_id) ? `<span class="trace-feedback-badge" title="Has feedback">&#9733; ${_tracesFeedbackRatings.has(trace.trace_id) ? _tracesFeedbackRatings.get(trace.trace_id).toFixed(1) : ''}</span>` : ''}
@@ -2108,6 +2108,44 @@ function clearFilters() {
   traceOffset = 0;
   renderQuickFilterBar();
   loadTraces();
+}
+
+/** Clear only the search text input and re-run traces. */
+function clearSearch() {
+  const el = document.getElementById('filter-service');
+  if (!el) return;
+  el.value = '';
+  saveSearchQuery();
+  const clearBtn = document.getElementById('search-clear-btn');
+  if (clearBtn) clearBtn.classList.add('hidden');
+  traceOffset = 0;
+  if (currentView === 'traces') loadTraces();
+  el.focus();
+}
+
+/**
+ * Highlight occurrences of `query` in `rawText`.
+ * Splits on the match boundaries, escapes each part, and wraps matches in a <mark>.
+ * Safe: no raw HTML injection — escHtml is applied to every text segment.
+ */
+function highlightText(rawText, query) {
+  if (!rawText) return '';
+  const str = String(rawText);
+  if (!query) return escHtml(str);
+  // Strip search syntax tokens (agent:X, status:Y) from the highlight term
+  const plainQuery = query.replace(/\b\w+:\S+/g, '').trim();
+  if (!plainQuery) return escHtml(str);
+  try {
+    const escaped = plainQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(`(${escaped})`, 'gi');
+    const parts = str.split(re);
+    return parts.map((p, i) => {
+      // Even-indexed parts are non-matches (or leading/trailing), odd-indexed are captures
+      return (i % 2 === 1) ? `<mark class="search-highlight">${escHtml(p)}</mark>` : escHtml(p);
+    }).join('');
+  } catch (_) {
+    return escHtml(str);
+  }
 }
 
 function paginateTraces(dir) {
@@ -4407,9 +4445,12 @@ function renderVirtualizedTraces(traces, containerId) {
     return;
   }
 
+  // Capture current search query for text highlighting
+  const searchQuery = (document.getElementById('filter-service')?.value || '').trim() || null;
+
   // For small lists, render normally
   if (traces.length <= 50) {
-    container.innerHTML = traces.map(t => renderTraceRow(t)).join('');
+    container.innerHTML = traces.map(t => renderTraceRow(t, false, searchQuery)).join('');
     return;
   }
 
@@ -4431,7 +4472,7 @@ function renderVirtualizedTraces(traces, containerId) {
     let html = '';
     for (let i = startIdx; i < endIdx; i++) {
       const top = i * rowHeight;
-      html += `<div style="position:absolute;top:${top}px;left:0;right:0;height:${rowHeight}px">${renderTraceRow(traces[i])}</div>`;
+      html += `<div style="position:absolute;top:${top}px;left:0;right:0;height:${rowHeight}px">${renderTraceRow(traces[i], false, searchQuery)}</div>`;
     }
     spacer.innerHTML = html;
   }
@@ -4550,7 +4591,11 @@ function restoreState() {
     const savedSearch = sessionStorage.getItem('flowlens-search');
     if (savedSearch) {
       const el = document.getElementById('filter-service');
-      if (el) el.value = savedSearch;
+      if (el) {
+        el.value = savedSearch;
+        const clearBtn = document.getElementById('search-clear-btn');
+        if (clearBtn) clearBtn.classList.toggle('hidden', !savedSearch);
+      }
     }
     // Restore scroll position (deferred to after render)
     const savedScroll = sessionStorage.getItem('flowlens-scroll');
@@ -5001,10 +5046,37 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Connect WebSocket for real-time updates
   connectWebSocket();
 
-  // Bind filter events
-  document.getElementById('filter-service').addEventListener('keyup', (e) => {
+  // Bind filter events — debounced live search (300ms)
+  let _searchDebounceTimer = null;
+  const filterServiceEl = document.getElementById('filter-service');
+  const searchClearBtn = document.getElementById('search-clear-btn');
+
+  function _updateSearchClearBtn() {
+    if (searchClearBtn) {
+      searchClearBtn.classList.toggle('hidden', !filterServiceEl.value);
+    }
+  }
+
+  filterServiceEl.addEventListener('input', () => {
     saveSearchQuery();
-    if (e.key === 'Enter') { traceOffset = 0; loadTraces(); }
+    _updateSearchClearBtn();
+    // Debounced live search
+    clearTimeout(_searchDebounceTimer);
+    _searchDebounceTimer = setTimeout(() => {
+      if (currentView === 'traces') { traceOffset = 0; loadTraces(); }
+    }, 300);
+  });
+
+  filterServiceEl.addEventListener('keyup', (e) => {
+    if (e.key === 'Enter') {
+      clearTimeout(_searchDebounceTimer);
+      traceOffset = 0;
+      loadTraces();
+    }
+    // Escape in search: blur input (the global keydown will handle panel/modal close)
+    if (e.key === 'Escape') {
+      filterServiceEl.blur();
+    }
   });
   document.getElementById('filter-errors').addEventListener('change', () => { traceOffset = 0; loadTraces(); });
   const fbHasFeedback = document.getElementById('filter-has-feedback');

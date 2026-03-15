@@ -1,5 +1,27 @@
 # Agent Status — 2026-03-15
 
+## Cycle 25: Search & Keyboard UX — COMPLETE (Alpha/UX, 2026-03-15)
+
+**Alpha/UX**: Enhanced search and keyboard navigation
+- Branch: `worktree-agent-a4dbbcc1`
+- Commit: 097beb5
+- Tests: 1208 passing (unchanged)
+- Delivered:
+  - Debounced live search (300ms `input` event) — results update as you type
+  - Clear (X) button (`#search-clear-btn`, `.search-clear-btn`) that appears when search has text
+  - Updated placeholder to `Search traces... (agent:alpha status:error)`
+  - `highlightText(rawText, query)` — safe HTML highlight via `String.split()` with capturing regex; strips `key:value` syntax tokens before highlighting
+  - `renderTraceRow(trace, compact, searchQuery)` — uses `highlightText` for display name and service name
+  - `renderVirtualizedTraces()` reads current `filter-service` value and passes it as `searchQuery` to every row
+  - `clearSearch()` — clears input, hides clear btn, reloads traces, restores focus
+  - `restoreState()` syncs clear-button visibility on page load
+  - Keyboard shortcuts verified: `j/k`, `Enter`, `Escape`, `/`, `r`, `?`, `1-6`, `a`, `t`, `n` — all working
+  - Shortcuts modal enhanced: added "Search Syntax" section with 4 syntax hint examples
+  - CSS: `.search-clear-btn`, `.search-highlight`, `.shortcuts-syntax-tag`, shortcuts modal widened to 520px
+- Files: `flowlens/server/static/dashboard.js`, `flowlens/server/static/dashboard.css`, `flowlens/server/dashboard.html`
+
+---
+
 ## Cycle 24: Dashboard Data Richness — COMPLETE (Gamma, 2026-03-15)
 
 **Gamma**: Fixed charts, enriched terminal output, added model usage to agent cards
