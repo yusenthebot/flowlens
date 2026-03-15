@@ -1,5 +1,13 @@
 # Task Board — FlowLens Development
 
+## Cycle 13: Complete (2026-03-14) — ACTIONABLE INTELLIGENCE
+
+### Done (2026-03-14)
+- [x] **Cost forecasting and budget alerts** — Gamma — Enhanced `/v1/cost/forecast` to return `daily_costs` (last 7 days actual) + `forecast` (next 7 days dashed, with CI bands) + `daily_avg_usd` + `monthly_projection_usd`; new `forecast_days` query param; Cost tab Forecast widget with monthly projection card, daily avg card, confidence range card, trend badge, Chart.js dual-line chart (solid=actual, dashed=forecast); persistent budget alert bar below header on all tabs (green/yellow/red progress bar, localStorage budget storage, Set Budget modal, clearBudget); 9 new API tests — Commit 991ae2a — `flowlens/server/routes/cost.py`, `flowlens/server/static/charts.js`, `flowlens/server/static/dashboard.js`, `flowlens/server/static/dashboard.css`, `flowlens/server/dashboard.html`, `tests/test_cost_intelligence.py`
+
+---
+
+
 ## Cycle 12: Complete (2026-03-14) — DASHBOARD USABILITY
 
 ### Done (2026-03-14)
