@@ -1,5 +1,12 @@
 # Agent Status — 2026-03-15
 
+## Cycle 26: DB Optimization — IN PROGRESS (Beta, 2026-03-15)
+
+**Beta**: Fixing N+1 queries in activity stream + agent summary; adding batch SQL queries + TTL cache wiring
+- Files: `flowlens/server/storage.py`, `flowlens/server/routes/system.py`, `flowlens/server/routes/agents.py`
+
+---
+
 ## Cycle 25: Reliability & Error Handling — COMPLETE (Gamma, 2026-03-15)
 
 **Gamma**: Graceful error handling, empty states, loading skeletons, WebSocket null-guards

@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import threading
 import time
 from typing import Any
 
@@ -26,10 +27,33 @@ from ..utils import _AGENT_PROFILES, _extract_agents_from_trace, _parse_tags
 
 logger = logging.getLogger(__name__)
 
+# TTL for the route-level summary cache (seconds)
+_AGENTS_CACHE_TTL = 30.0
+
 
 def create_agents_router(store: TraceStore) -> APIRouter:
     """Create and return the agents router."""
     router = APIRouter()
+
+    # Per-router-instance TTL cache (dict + timestamp, no external deps).
+    # Instance-scoped so each test/server gets isolated cache state.
+    _cache: dict[str, tuple[float, Any]] = {}
+    _cache_lock = threading.Lock()
+
+    def _cache_get(key: str) -> Any:
+        with _cache_lock:
+            entry = _cache.get(key)
+            if entry is None:
+                return None
+            ts, value = entry
+            if time.time() - ts > _AGENTS_CACHE_TTL:
+                del _cache[key]
+                return None
+            return value
+
+    def _cache_set(key: str, value: Any) -> None:
+        with _cache_lock:
+            _cache[key] = (time.time(), value)
 
     def _make_agent_bucket(agent_name: str) -> dict[str, Any]:
         """Create a fresh per-agent stats accumulator."""
@@ -89,12 +113,29 @@ def create_agents_router(store: TraceStore) -> APIRouter:
         Extracts agent info from trace tags (tags.agent) or span attributes.
         Returns a list of agent summaries with trace count, error rate,
         avg latency, total cost, span count, per-model usage, and top tools.
+
+        Uses batch SQL queries (2 total) instead of N per-trace calls,
+        and a 30-second TTL cache to reduce repeated aggregation work.
         """
+        cached = _cache_get("agents_summary")
+        if cached is not None:
+            return JSONResponse(cached)
+
+        t0 = time.perf_counter()
+
         try:
             traces = store.list_traces(limit=10_000)
         except Exception:
             logger.exception("Failed to list traces for agents summary")
             raise HTTPException(500, "Failed to retrieve traces")
+
+        trace_ids = [t["trace_id"] for t in traces]
+
+        # Single batch query for ALL spans (eliminates N get_trace() calls)
+        spans_by_trace = store.get_spans_for_traces(trace_ids)
+
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        logger.debug("agents_summary batch fetch: %d traces in %.1f ms", len(trace_ids), elapsed_ms)
 
         # Group metrics by agent name from tags or span attributes
         agent_stats: dict[str, dict[str, Any]] = {}
@@ -103,9 +144,7 @@ def create_agents_router(store: TraceStore) -> APIRouter:
             tags = _parse_tags(trace.get("tags") or {})
             agent_name: str = tags.get("agent") or "unknown"
 
-            # Fetch full trace once to get spans (needed for model/tool aggregation)
-            full = store.get_trace(trace["trace_id"])
-            spans: list[dict[str, Any]] = (full or {}).get("spans") or []
+            spans: list[dict[str, Any]] = spans_by_trace.get(trace["trace_id"]) or []
 
             # If still unknown, check span attributes for agent.name
             if agent_name == "unknown" and spans:
@@ -146,7 +185,9 @@ def create_agents_router(store: TraceStore) -> APIRouter:
             )
 
         result.sort(key=lambda x: x["trace_count"], reverse=True)
-        return JSONResponse({"agents": result})
+        payload = {"agents": result}
+        _cache_set("agents_summary", payload)
+        return JSONResponse(payload)
 
     @router.get("/v1/agents/activity")
     async def agents_activity() -> JSONResponse:

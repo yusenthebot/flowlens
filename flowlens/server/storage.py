@@ -1265,6 +1265,107 @@ class TraceStore:
         self._pool.close_all()
 
     # ------------------------------------------------------------------
+    # Batch span fetching (eliminates N+1 query patterns)
+    # ------------------------------------------------------------------
+
+    def get_spans_for_traces(
+        self,
+        trace_ids: list[str],
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Fetch all spans for a list of traces in a single SQL query.
+
+        Eliminates the N+1 pattern where callers would call ``get_trace()``
+        once per trace to retrieve spans.
+
+        Args:
+            trace_ids: List of trace IDs whose spans to fetch.
+
+        Returns:
+            Dict mapping trace_id -> list of span dicts (ordered by start_time).
+        """
+        if not trace_ids:
+            return {}
+
+        conn = self._pool.primary
+        _CHUNK = 900  # Stay within SQLite's variable limit
+        all_rows: list[sqlite3.Row] = []
+        for i in range(0, len(trace_ids), _CHUNK):
+            chunk = trace_ids[i : i + _CHUNK]
+            placeholders = ",".join("?" for _ in chunk)
+            rows = conn.execute(
+                f"""SELECT * FROM spans
+                    WHERE trace_id IN ({placeholders})
+                    ORDER BY trace_id, start_time""",
+                chunk,
+            ).fetchall()
+            all_rows.extend(rows)
+
+        result: dict[str, list[dict[str, Any]]] = {tid: [] for tid in trace_ids}
+        for row in all_rows:
+            span = self._deserialise_span(row)
+            tid = span.get("trace_id") or row["trace_id"]
+            if tid in result:
+                result[tid].append(span)
+        return result
+
+    def get_agent_names_from_spans(
+        self,
+        trace_ids: list[str],
+    ) -> dict[str, set[str]]:
+        """Extract agent names from span attributes for a batch of traces.
+
+        Queries ``attributes_json`` for the ``agent.name`` attribute and span
+        name prefixes (``<agent>/Tool`` convention) in a single SQL call.
+        Used to resolve ``unknown`` agent tags without fetching full span data.
+
+        Args:
+            trace_ids: List of trace IDs to inspect.
+
+        Returns:
+            Dict mapping trace_id -> set of agent name strings found.
+        """
+        if not trace_ids:
+            return {}
+
+        conn = self._pool.primary
+        _CHUNK = 900
+        all_rows: list[sqlite3.Row] = []
+        for i in range(0, len(trace_ids), _CHUNK):
+            chunk = trace_ids[i : i + _CHUNK]
+            placeholders = ",".join("?" for _ in chunk)
+            rows = conn.execute(
+                f"""SELECT
+                        trace_id,
+                        name,
+                        json_extract(attributes_json, '$."agent.name"') AS agent_attr
+                    FROM spans
+                    WHERE trace_id IN ({placeholders})""",
+                chunk,
+            ).fetchall()
+            all_rows.extend(rows)
+
+        result: dict[str, set[str]] = {tid: set() for tid in trace_ids}
+        for row in all_rows:
+            tid = row[0] if isinstance(row, tuple) else row["trace_id"]
+            span_name = (row[1] if isinstance(row, tuple) else row["name"]) or ""
+            agent_attr = row[2] if isinstance(row, tuple) else row["agent_attr"]
+
+            if tid not in result:
+                continue
+
+            # Strategy 1: explicit agent.name attribute
+            if agent_attr:
+                result[tid].add(agent_attr)
+
+            # Strategy 2: "agent/Tool" naming convention in span name
+            if "/" in span_name:
+                prefix = span_name.split("/", 1)[0]
+                if prefix and prefix != "unknown":
+                    result[tid].add(prefix)
+
+        return result
+
+    # ------------------------------------------------------------------
     # Span tool summaries (lightweight, for trace list enrichment)
     # ------------------------------------------------------------------
 
