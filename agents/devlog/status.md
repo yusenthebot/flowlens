@@ -6,6 +6,11 @@ All 10 development cycles complete. Dashboard fully modularized, performance opt
 
 ---
 
+## Current Work
+| Agent | Task | Status |
+|-------|------|--------|
+| Beta | Cycle 14 Visual Polish — trace rows, agent cards, badges, buttons, toasts | in_progress |
+
 ## Final Status Summary
 
 | Cycle | Focus | Duration | Status | Tests |

@@ -1072,3 +1072,557 @@
     html:not(.dark) .recent-feedback-card:hover {
       background: rgba(0,0,0,0.02);
     }
+
+    /* =====================================================================
+       Cycle 14: Visual Polish — Claude Aesthetic Design System
+       ===================================================================== */
+
+    /* ---- Design tokens ---- */
+    :root {
+      --color-coral: #e07a5f;
+      --color-indigo-warm: #6b5ce7;
+      --color-sage: #81b29a;
+      --color-amber-warm: #e6a65d;
+      --color-indigo-bg: rgba(107, 92, 231, 0.10);
+      --color-indigo-border: rgba(107, 92, 231, 0.22);
+      --color-coral-bg: rgba(224, 122, 95, 0.12);
+      --color-coral-border: rgba(224, 122, 95, 0.28);
+      --color-sage-bg: rgba(129, 178, 154, 0.12);
+      --color-sage-border: rgba(129, 178, 154, 0.28);
+    }
+
+    /* ======================================================
+       1. Trace rows — refined layout and interaction
+       ====================================================== */
+
+    /* Base row: generous padding, smooth hover */
+    .trace-row {
+      padding-top: 14px !important;
+      padding-bottom: 14px !important;
+      border-left: 3px solid transparent;
+      position: relative;
+      transition: background-color 0.2s ease, padding-left 0.2s ease, border-color 0.15s ease !important;
+    }
+
+    /* Hover state: subtle background + slight left-indent */
+    .trace-row:hover {
+      padding-left: 22px !important;
+    }
+    .dark .trace-row:hover {
+      background: rgba(255, 255, 255, 0.025) !important;
+    }
+    html:not(.dark) .trace-row:hover {
+      background: rgba(0, 0, 0, 0.025) !important;
+    }
+
+    /* Selected state: warm indigo left border + very light background */
+    .trace-row-selected {
+      background: rgba(107, 92, 231, 0.07) !important;
+      border-left: 3px solid var(--color-indigo-warm) !important;
+    }
+    html:not(.dark) .trace-row-selected {
+      background: rgba(107, 92, 231, 0.06) !important;
+      border-left: 3px solid var(--color-indigo-warm) !important;
+    }
+
+    /* Empty trace rows: dimmed + dashed border effect */
+    .trace-row.trace-empty-row {
+      opacity: 0.62;
+      border-left-style: dashed !important;
+    }
+    .trace-row.trace-empty-row::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      border-left: 2px dashed rgba(148, 163, 184, 0.35);
+    }
+
+    /* Duration mini-bar: thin elegant line under the row */
+    .trace-mini-duration {
+      position: absolute !important;
+      bottom: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      height: 2px !important;
+      min-width: unset !important;
+      max-width: unset !important;
+      border-radius: 0 !important;
+      background: transparent !important;
+    }
+    .dark .trace-mini-duration {
+      background: transparent !important;
+    }
+    html:not(.dark) .trace-mini-duration {
+      background: transparent !important;
+    }
+    .trace-mini-duration-fill {
+      height: 100% !important;
+      border-radius: 0 !important;
+      opacity: 0.55;
+      transition: width 0.4s ease, opacity 0.2s ease !important;
+    }
+    .trace-row:hover .trace-mini-duration-fill {
+      opacity: 0.85;
+    }
+
+    /* Agent badge in trace rows: warm pill style */
+    .trace-agent-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.01em;
+    }
+
+    /* Error count badge: coral */
+    .trace-error-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 1px 7px;
+      border-radius: 9999px;
+      font-size: 10px;
+      font-weight: 600;
+      background: var(--color-coral-bg);
+      color: var(--color-coral);
+      border: 1px solid var(--color-coral-border);
+    }
+    html:not(.dark) .trace-error-badge {
+      background: rgba(224, 122, 95, 0.09);
+      color: #c05a3e;
+      border-color: rgba(224, 122, 95, 0.22);
+    }
+
+    /* ======================================================
+       2. Agent cards — polished look with lift & glow
+       ====================================================== */
+
+    /* Agent card hover: lift + border glow in agent color */
+    .agent-card-polished {
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease !important;
+    }
+    .agent-card-polished:hover {
+      transform: translateY(-3px) scale(1.01) !important;
+    }
+
+    /* Avatar ring + shadow */
+    .agent-avatar-lg {
+      width: 56px !important;
+      height: 56px !important;
+      border-radius: 16px !important;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22) !important;
+      flex-shrink: 0;
+    }
+
+    /* Stats horizontal layout: cleaner than 4-col grid */
+    .agent-stats-row {
+      display: flex;
+      gap: 0;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .agent-stat-cell {
+      flex: 1;
+      padding: 8px 10px;
+      text-align: center;
+      border-right: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .agent-stat-cell:last-child {
+      border-right: none;
+    }
+    .dark .agent-stats-row {
+      background: rgba(255, 255, 255, 0.04);
+    }
+    html:not(.dark) .agent-stats-row {
+      background: rgba(0, 0, 0, 0.04);
+    }
+    html:not(.dark) .agent-stat-cell {
+      border-right-color: rgba(0, 0, 0, 0.06);
+    }
+
+    /* Activity bar dots: taller + fully rounded */
+    .activity-dot-v14 {
+      display: inline-block;
+      width: 6px;
+      height: 18px;
+      border-radius: 9999px;
+      margin-right: 2px;
+      transition: opacity 0.2s ease;
+    }
+    .agent-card-polished:hover .activity-dot-v14 {
+      opacity: 0.9;
+    }
+
+    /* Live feed: cleaner separator */
+    .agent-live-feed-v14 {
+      border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+      padding-top: 10px !important;
+      margin-top: 10px !important;
+    }
+    html:not(.dark) .agent-live-feed-v14 {
+      border-top-color: rgba(0, 0, 0, 0.07) !important;
+    }
+    .agent-live-feed-v14 .text-slate-300 { font-size: 11.5px !important; }
+
+    /* ======================================================
+       3. Badges and pills — standardized warm design
+       ====================================================== */
+
+    /* Status dot badges */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 9px;
+      border-radius: 9999px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .status-badge-active {
+      background: var(--color-sage-bg);
+      color: var(--color-sage);
+      border: 1px solid var(--color-sage-border);
+    }
+    .status-badge-idle {
+      background: rgba(148, 163, 184, 0.10);
+      color: #94a3b8;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+    }
+    .status-badge-error {
+      background: var(--color-coral-bg);
+      color: var(--color-coral);
+      border: 1px solid var(--color-coral-border);
+    }
+    html:not(.dark) .status-badge-active {
+      background: rgba(129, 178, 154, 0.09);
+      color: #4d8a6b;
+      border-color: rgba(129, 178, 154, 0.22);
+    }
+    html:not(.dark) .status-badge-idle {
+      background: rgba(148, 163, 184, 0.07);
+      color: #6b7280;
+      border-color: rgba(148, 163, 184, 0.18);
+    }
+    html:not(.dark) .status-badge-error {
+      background: rgba(224, 122, 95, 0.08);
+      color: #c05a3e;
+      border-color: rgba(224, 122, 95, 0.2);
+    }
+
+    /* Tool badges: monospace, subtle */
+    .tool-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 7px;
+      border-radius: 5px;
+      font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+    }
+    .dark .tool-badge {
+      background: rgba(107, 92, 231, 0.10);
+      color: #a89cf5;
+      border: 1px solid rgba(107, 92, 231, 0.18);
+    }
+    html:not(.dark) .tool-badge {
+      background: rgba(107, 92, 231, 0.07);
+      color: #5b4cc7;
+      border: 1px solid rgba(107, 92, 231, 0.15);
+    }
+
+    /* Filter active badge: small indigo dot + count */
+    .filter-active-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 1px 7px;
+      border-radius: 9999px;
+      font-size: 10px;
+      font-weight: 600;
+      background: var(--color-indigo-bg);
+      color: var(--color-indigo-warm);
+      border: 1px solid var(--color-indigo-border);
+    }
+    .filter-active-badge::before {
+      content: '';
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--color-indigo-warm);
+      flex-shrink: 0;
+    }
+    html:not(.dark) .filter-active-badge {
+      background: rgba(107, 92, 231, 0.07);
+      color: #5344b8;
+      border-color: rgba(107, 92, 231, 0.18);
+    }
+
+    /* ======================================================
+       4. Buttons and inputs — warm styled
+       ====================================================== */
+
+    /* Primary button: warm indigo */
+    .btn-primary-v14 {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 18px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      background: var(--color-indigo-warm);
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      transition: background-color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .btn-primary-v14:hover {
+      background: #5a4bd6;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(107, 92, 231, 0.35);
+    }
+    .btn-primary-v14:active {
+      transform: translateY(0);
+    }
+
+    /* Secondary button: border + transparent */
+    .btn-secondary-v14 {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 7px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    }
+    .dark .btn-secondary-v14 {
+      background: transparent;
+      color: #cbd5e1;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+    .dark .btn-secondary-v14:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.2);
+      color: #fff;
+    }
+    html:not(.dark) .btn-secondary-v14 {
+      background: transparent;
+      color: #555553;
+      border: 1px solid #dddbd5;
+    }
+    html:not(.dark) .btn-secondary-v14:hover {
+      background: rgba(0, 0, 0, 0.04);
+      border-color: #c5c3bc;
+      color: #2c2c2a;
+    }
+
+    /* Search input: rounded-full with inner shadow */
+    .search-input-v14 {
+      border-radius: 9999px !important;
+      padding-left: 36px !important;
+    }
+    .dark .search-input-v14 {
+      box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.25) !important;
+    }
+    html:not(.dark) .search-input-v14 {
+      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+    }
+    .search-input-v14:focus {
+      box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.15),
+                  0 0 0 3px rgba(107, 92, 231, 0.15) !important;
+      border-color: rgba(107, 92, 231, 0.45) !important;
+    }
+
+    /* Filter dropdowns: clean with soft appearance */
+    .filter-select-v14 {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a8a86' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      padding-right: 28px !important;
+    }
+    .filter-select-v14:focus {
+      outline: none;
+      border-color: rgba(107, 92, 231, 0.45) !important;
+      box-shadow: 0 0 0 3px rgba(107, 92, 231, 0.12) !important;
+    }
+
+    /* Toggle switches: warm style */
+    .toggle-v14 {
+      appearance: none;
+      width: 40px;
+      height: 22px;
+      background: rgba(148, 163, 184, 0.25);
+      border-radius: 11px;
+      cursor: pointer;
+      position: relative;
+      transition: background 0.25s ease;
+    }
+    .toggle-v14::before {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #fff;
+      top: 3px;
+      left: 3px;
+      transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    }
+    .toggle-v14:checked {
+      background: var(--color-indigo-warm);
+    }
+    .toggle-v14:checked::before {
+      transform: translateX(18px);
+    }
+
+    /* General focus ring using warm indigo */
+    .filter-input:focus,
+    .filter-select-v14:focus {
+      outline: none;
+      border-color: rgba(107, 92, 231, 0.5) !important;
+      box-shadow: 0 0 0 3px rgba(107, 92, 231, 0.1) !important;
+    }
+
+    /* ======================================================
+       5. Toast notifications — upgraded design
+       ====================================================== */
+
+    /* Slide in from right with subtle bounce */
+    @keyframes toastSlideIn {
+      from { transform: translateX(110%); opacity: 0; }
+      60%  { transform: translateX(-6px); opacity: 1; }
+      to   { transform: translateX(0);    opacity: 1; }
+    }
+    @keyframes toastSlideOut {
+      from { transform: translateX(0);    opacity: 1; }
+      to   { transform: translateX(110%); opacity: 0; }
+    }
+
+    /* Toast wrapper */
+    .toast-v14 {
+      position: relative;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 13px 16px 16px;
+      border-radius: 14px;
+      border: 1px solid transparent;
+      backdrop-filter: blur(14px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1);
+      max-width: 340px;
+      font-size: 13px;
+      overflow: hidden;
+      animation: toastSlideIn 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    /* Left color bar by type */
+    .toast-v14::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      border-radius: 14px 0 0 14px;
+    }
+    .toast-v14.toast-success::before { background: var(--color-sage); }
+    .toast-v14.toast-error::before   { background: var(--color-coral); }
+    .toast-v14.toast-warning::before { background: var(--color-amber-warm); }
+    .toast-v14.toast-info::before    { background: var(--color-indigo-warm); }
+
+    /* Toast type colors */
+    .dark .toast-v14.toast-success {
+      background: rgba(15, 23, 42, 0.88);
+      border-color: rgba(129, 178, 154, 0.2);
+      color: #c8e6d8;
+    }
+    .dark .toast-v14.toast-error {
+      background: rgba(15, 23, 42, 0.88);
+      border-color: rgba(224, 122, 95, 0.22);
+      color: #f0c4b5;
+    }
+    .dark .toast-v14.toast-warning {
+      background: rgba(15, 23, 42, 0.88);
+      border-color: rgba(230, 166, 93, 0.22);
+      color: #f5dbb8;
+    }
+    .dark .toast-v14.toast-info {
+      background: rgba(15, 23, 42, 0.88);
+      border-color: rgba(107, 92, 231, 0.22);
+      color: #c6c0f8;
+    }
+    html:not(.dark) .toast-v14.toast-success {
+      background: rgba(255, 255, 255, 0.94);
+      border-color: rgba(129, 178, 154, 0.25);
+      color: #2d6b4e;
+    }
+    html:not(.dark) .toast-v14.toast-error {
+      background: rgba(255, 255, 255, 0.94);
+      border-color: rgba(224, 122, 95, 0.25);
+      color: #8a3520;
+    }
+    html:not(.dark) .toast-v14.toast-warning {
+      background: rgba(255, 255, 255, 0.94);
+      border-color: rgba(230, 166, 93, 0.25);
+      color: #7a4d12;
+    }
+    html:not(.dark) .toast-v14.toast-info {
+      background: rgba(255, 255, 255, 0.94);
+      border-color: rgba(107, 92, 231, 0.22);
+      color: #3d2ea8;
+    }
+
+    /* Progress bar at bottom */
+    .toast-v14 .toast-progress {
+      position: absolute;
+      bottom: 0;
+      left: 4px; /* align after left bar */
+      right: 0;
+      height: 2px;
+      border-radius: 0 0 14px 14px;
+      background: rgba(255, 255, 255, 0.12);
+      overflow: hidden;
+    }
+    html:not(.dark) .toast-v14 .toast-progress {
+      background: rgba(0, 0, 0, 0.08);
+    }
+    .toast-v14 .toast-progress-fill {
+      height: 100%;
+      width: 100%;
+      transform-origin: left;
+      border-radius: 0 0 14px 0;
+      transition: transform linear;
+    }
+    .toast-v14.toast-success .toast-progress-fill { background: var(--color-sage); }
+    .toast-v14.toast-error   .toast-progress-fill { background: var(--color-coral); }
+    .toast-v14.toast-warning .toast-progress-fill { background: var(--color-amber-warm); }
+    .toast-v14.toast-info    .toast-progress-fill { background: var(--color-indigo-warm); }
+
+    /* Icon wrapper */
+    .toast-v14 .toast-icon {
+      flex-shrink: 0;
+      width: 18px;
+      height: 18px;
+      margin-top: 1px;
+    }
+
+    /* Exit animation */
+    .toast-v14.toast-exit {
+      animation: toastSlideOut 0.28s ease-in forwards;
+    }
