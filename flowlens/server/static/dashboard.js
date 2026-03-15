@@ -2,10 +2,12 @@
 'use strict';
 
 // ==================================================================// State
-// ==================================================================const API_BASE = window.location.origin;
+// ==================================================================
+const API_BASE = window.location.origin;
 
 // ==================================================================// Agent Profile System
-// ==================================================================const AGENT_PROFILES = {
+// ==================================================================
+const AGENT_PROFILES = {
   'vr-alpha': {
     name: 'Alpha', role: 'Core Developer', color: '#3b82f6', bgClass: 'from-blue-500/20 to-blue-600/10',
     badgeClass: 'bg-blue-500/15 text-blue-400 border-blue-500/25',
@@ -84,7 +86,8 @@ let _liveFeedEvents = [];
 const _LIVE_FEED_MAX = 15;
 
 // ==================================================================// Notification System
-// ==================================================================let notifications = [];
+// ==================================================================
+let notifications = [];
 
 function toggleNotificationPanel() {
   const panel = document.getElementById('notification-panel');
@@ -159,7 +162,8 @@ function renderNotifications() {
 }
 
 // ==================================================================// Live Activity Feed
-// ==================================================================function addToLiveFeed(event) {
+// ==================================================================
+function addToLiveFeed(event) {
   // event: { agent, action, status, timestamp }
   _liveFeedEvents.unshift({
     agent: event.agent || 'unknown',
@@ -199,7 +203,8 @@ function renderLiveFeed() {
 }
 
 // ==================================================================// API Helpers
-// ==================================================================async function apiFetch(path, opts = {}) {
+// ==================================================================
+async function apiFetch(path, opts = {}) {
   try {
     const res = await fetch(`${API_BASE}${path}`, opts);
     if (!res.ok) {
@@ -219,7 +224,8 @@ function updateRefreshTime() {
 }
 
 // ==================================================================// Utilities
-// ==================================================================function escHtml(str) {
+// ==================================================================
+function escHtml(str) {
   if (!str) return '';
   const div = document.createElement('div');
   div.textContent = String(str);
@@ -233,7 +239,8 @@ function formatDuration(ms) {
 }
 
 // ==================================================================// Toast Notifications
-// ==================================================================function showToast(message, type = 'info', duration = 4000) {
+// ==================================================================
+function showToast(message, type = 'info', duration = 4000) {
   const container = document.getElementById('toast-container');
   const toast = document.createElement('div');
 
@@ -267,7 +274,8 @@ function formatDuration(ms) {
   }, duration);
 }
 // ==================================================================// View Switching (with smooth transitions)
-// ==================================================================function switchView(view) {
+// ==================================================================
+function switchView(view) {
   currentView = view;
   selectedTraceIndex = -1;
 
@@ -325,7 +333,8 @@ function formatDuration(ms) {
 }
 
 // ==================================================================// Agent Activity (Overview panel — real-time compact cards)
-// ==================================================================async function loadAgentActivity() {
+// ==================================================================
+async function loadAgentActivity() {
   try {
     const data = await apiFetch('/v1/agents/activity');
     const bar = document.getElementById('agent-team-bar');
@@ -371,7 +380,8 @@ function formatDuration(ms) {
 }
 
 // ==================================================================// Live Agent Monitor
-// ==================================================================let _monitorAgents = [];
+// ==================================================================
+let _monitorAgents = [];
 let _termPanes = [];  // [{id, agent}]
 let _termMinimized = false;
 let _termPaneIdCounter = 0;
@@ -834,7 +844,8 @@ function _termMakeResizable(el) {
 }
 
 // ==================================================================// Agent Overview
-// ==================================================================async function loadAgentData() {
+// ==================================================================
+async function loadAgentData() {
   const grid = document.getElementById('agents-grid');
   if (!grid) return;
   grid.innerHTML = '<p class="text-xs text-slate-500 col-span-full">Loading...</p>';
@@ -1030,7 +1041,8 @@ function filterTracesByAgent(agentName) {
   switchView('traces');
 }
 // ==================================================================// Agent Detail Modal
-// ==================================================================async function openAgentDetailModal(agentName, _encodedData) {
+// ==================================================================
+async function openAgentDetailModal(agentName, _encodedData) {
   const modal = document.getElementById('agent-detail-modal');
   const titleEl = document.getElementById('agent-modal-title');
   const bodyEl = document.getElementById('agent-modal-body');
@@ -1196,7 +1208,8 @@ function backToTraces() {
 }
 
 // ==================================================================// Counter Animation
-// ==================================================================function animateCounter(element, targetValue, duration = 800, prefix = '', suffix = '') {
+// ==================================================================
+function animateCounter(element, targetValue, duration = 800, prefix = '', suffix = '') {
   const startValue = 0;
   const startTime = performance.now();
   const isFloat = String(targetValue).includes('.');
@@ -1393,7 +1406,8 @@ async function loadStats() {
 }
 
 // ==================================================================// Trace Row Rendering
-// ==================================================================function formatTimeAgo(timestamp) {
+// ==================================================================
+function formatTimeAgo(timestamp) {
   if (!timestamp) return '--';
   const seconds = Math.floor(Date.now() / 1000 - timestamp);
   if (seconds < 60) return 'just now';
@@ -1568,7 +1582,8 @@ function renderTraceRow(trace, compact = false) {
 }
 
 // ==================================================================// Empty State
-// ==================================================================function renderEmptyState(message, subMessage, showGettingStarted) {
+// ==================================================================
+function renderEmptyState(message, subMessage, showGettingStarted) {
   const gettingStarted = showGettingStarted ? `
     <div class="mt-6 w-full max-w-xl text-left empty-state-card rounded-xl p-5">
       <div class="flex items-center gap-2 mb-4">
@@ -1650,7 +1665,8 @@ with tracer.start_trace("my-agent"):
 }
 
 // ==================================================================// Traces — List + Filtering
-// ==================================================================async function loadRecentTraces() {
+// ==================================================================
+async function loadRecentTraces() {
   try {
     const data = await apiFetch('/v1/traces?limit=8');
     const container = document.getElementById('recent-traces-list');
@@ -2184,7 +2200,8 @@ async function loadRecentFeedback() {
 }
 
 // ==================================================================// Trace Detail
-// ==================================================================async function openTrace(traceId) {
+// ==================================================================
+async function openTrace(traceId) {
   currentTraceId = traceId;
   try { sessionStorage.setItem('flowlens-trace-id', traceId || ''); } catch (_) {}
   // Hide current view, show detail
@@ -2362,7 +2379,8 @@ function renderTraceDetail(data) {
 }
 
 // ==================================================================// Timeline — Waterfall Chart
-// ==================================================================const SPAN_KIND_COLORS = {
+// ==================================================================
+const SPAN_KIND_COLORS = {
   llm:       { bg: 'bg-[#9b8ec4]/20', bar: '#9b8ec4', text: 'text-[#9b8ec4]', label: 'LLM' },
   tool:      { bg: 'bg-[#7ab5a0]/20', bar: '#7ab5a0', text: 'text-[#7ab5a0]', label: 'Tool' },
   agent:     { bg: 'bg-[#a88ec4]/20', bar: '#a88ec4', text: 'text-[#a88ec4]', label: 'Agent' },
@@ -2713,7 +2731,8 @@ function hideWaterfallTooltip() {
 }
 
 // ==================================================================// Span Detail Panel
-// ==================================================================function openSpanDetail(spanId) {
+// ==================================================================
+function openSpanDetail(spanId) {
   if (!currentTraceData || !currentTraceData.spans) return;
   const span = currentTraceData.spans.find(s => s.span_id === spanId);
   if (!span) return;
@@ -2979,7 +2998,8 @@ function closeSpanDetail() {
 }
 
 // ==================================================================// Causal DAG — with dagre layout, animated edges, zoom controls, legend
-// ==================================================================async function loadDAG(traceId) {
+// ==================================================================
+async function loadDAG(traceId) {
   // Show skeleton loading state
   const cyContainer = document.getElementById('cy-container');
   cyContainer.innerHTML = `
@@ -3608,7 +3628,8 @@ function copyTraceId() {
 }
 
 // ==================================================================// Connection Status
-// ==================================================================async function healthCheck() {
+// ==================================================================
+async function healthCheck() {
   try {
     await apiFetch('/health');
     return true;
@@ -3619,7 +3640,8 @@ function copyTraceId() {
 }
 
 // ==================================================================// Keyboard Navigation
-// ==================================================================function setupKeyboardNavigation() {
+// ==================================================================
+function setupKeyboardNavigation() {
   document.addEventListener('keydown', (e) => {
     // Close notification panel on Escape
     const notifPanel = document.getElementById('notification-panel');
@@ -3741,7 +3763,8 @@ function refreshCurrentView() {
 }
 
 // ==================================================================// Theme Toggle
-// ==================================================================function toggleTheme() {
+// ==================================================================
+function toggleTheme() {
   isDarkTheme = !isDarkTheme;
   if (isDarkTheme) {
     document.documentElement.classList.add('dark');
@@ -3776,7 +3799,8 @@ function updateChartTheme() {
 }
 
 // ==================================================================// Shortcuts Modal
-// ==================================================================function openShortcutsModal() {
+// ==================================================================
+function openShortcutsModal() {
   document.getElementById('shortcuts-modal').classList.remove('hidden');
 }
 function closeShortcutsModal() {
@@ -3799,7 +3823,8 @@ function highlightTraceRow(rows) {
 }
 
 // ==================================================================// Auto-refresh
-// ==================================================================function startAutoRefresh() {
+// ==================================================================
+function startAutoRefresh() {
   if (autoRefreshTimer) clearInterval(autoRefreshTimer);
   autoRefreshTimer = setInterval(async () => {
     const ok = await healthCheck();
@@ -3811,7 +3836,8 @@ function highlightTraceRow(rows) {
 }
 
 // ==================================================================// Collapsible Sections Helper
-// ==================================================================function renderCollapsibleSection(title, content, startOpen = true, titleColor = 'text-slate-400') {
+// ==================================================================
+function renderCollapsibleSection(title, content, startOpen = true, titleColor = 'text-slate-400') {
   const id = 'section-' + title.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase() + '-' + Math.random().toString(36).substr(2, 4);
   return `<div class="mb-3">
     <div class="collapsible-header flex items-center gap-1.5 mb-2" onclick="toggleCollapsible('${id}', this)">
@@ -3839,7 +3865,8 @@ function toggleCollapsible(id, headerEl) {
 }
 
 // ==================================================================// Span Tree Collapse/Expand
-// ==================================================================function toggleSpanChildren(spanId, btn) {
+// ==================================================================
+function toggleSpanChildren(spanId, btn) {
   const rows = document.querySelectorAll('.waterfall-row');
   const isCollapsing = btn.classList.contains('rotated');
 
@@ -3870,7 +3897,8 @@ function toggleCollapsible(id, headerEl) {
 }
 
 // ==================================================================// Trace Comparison
-// ==================================================================function toggleCompare(traceId, checkbox) {
+// ==================================================================
+function toggleCompare(traceId, checkbox) {
   const idx = compareSelection.indexOf(traceId);
   if (idx >= 0) {
     compareSelection.splice(idx, 1);
@@ -4124,7 +4152,8 @@ async function renderCompareView() {
 }
 
 // ==================================================================// Virtualized Trace List
-// ==================================================================function renderVirtualizedTraces(traces, containerId) {
+// ==================================================================
+function renderVirtualizedTraces(traces, containerId) {
   const container = document.getElementById(containerId);
   if (!traces || traces.length === 0) {
     container.innerHTML = renderEmptyState('No traces found', 'Try adjusting your filters.');
@@ -4165,7 +4194,8 @@ async function renderCompareView() {
 }
 
 // ==================================================================// Trace Row Hover Preview
-// ==================================================================let _tracePreviewTimer = null;
+// ==================================================================
+let _tracePreviewTimer = null;
 let _tracePreviewEl = null;
 
 function showTracePreview(traceId, event) {
@@ -4252,7 +4282,8 @@ function _positionTracePreview(event) {
 }
 
 // ==================================================================// Session State Persistence
-// ==================================================================function saveScrollState() {
+// ==================================================================
+function saveScrollState() {
   try {
     const mainEl = document.querySelector('main');
     if (mainEl) sessionStorage.setItem('flowlens-scroll', mainEl.scrollTop);
@@ -4420,7 +4451,8 @@ async function _refreshBudgetBar() {
 }
 
 // ==================================================================// Cost Forecast Chart
-// ==================================================================async function loadCostForecast() {
+// ==================================================================
+async function loadCostForecast() {
   try {
     const data = await apiFetch('/v1/cost/forecast?days=30&forecast_days=7');
 
@@ -4666,7 +4698,8 @@ function _addTraceRowPressListeners(container) {
 }
 
 // ==================================================================// Init
-// ==================================================================document.addEventListener('DOMContentLoaded', async () => {
+// ==================================================================
+document.addEventListener('DOMContentLoaded', async () => {
   // Apply saved theme — default to light
   const savedTheme = localStorage.getItem('flowlens-theme');
   if (savedTheme === 'dark') {

@@ -123,30 +123,38 @@ stats = collector.stats()
 ## Dashboard
 
 <p align="center">
-  <img src="examples/screenshot_overview.png" alt="Trace Overview" width="820">
+  <img src="examples/screenshot_overview.png" alt="Overview — stat cards, agent strip, live monitor" width="820">
 </p>
 
 <p align="center">
-  <img src="examples/screenshot_dag.png" alt="Causal Error DAG" width="820">
+  <img src="examples/screenshot_sessions.png" alt="Sessions — session timeline grouped by session_id" width="820">
 </p>
 
 <p align="center">
-  <img src="examples/screenshot_cost.png" alt="Cost Analysis" width="820">
+  <img src="examples/screenshot_agents.png" alt="Agents — real-time agent team monitoring with tool breakdowns" width="820">
 </p>
 
 <p align="center">
-  <img src="examples/screenshot_patterns.png" alt="Pattern Detection" width="820">
+  <img src="examples/screenshot_dag.png" alt="Causal Error DAG — root cause and cascade visualization" width="820">
+</p>
+
+<p align="center">
+  <img src="examples/screenshot_cost.png" alt="Cost Analysis — forecasting, trends, breakdown by model" width="820">
+</p>
+
+<p align="center">
+  <img src="examples/screenshot_patterns.png" alt="Pattern Detection — anti-pattern alerts with severity" width="820">
 </p>
 
 **Key views:**
-- **Overview** — stat cards with trend indicators and sparklines, trace volume charts, live activity feed, agent details with per-agent activity feeds, live monitor terminal, cost forecasting
-- **Sessions** — group traces by session_id, vertical timeline of related traces, interaction flow visualization
-- **Agents** — real-time agent team status with SVG avatars, error rates, activity timelines, relationship graph
-- **Traces** — smart trace summaries with quick filter bar (agent/status/duration/time window), hover previews, trace feedback/rating badges
-- **Trace detail** — agent-colored waterfall timeline with inline paths/commands, structured span detail panel, error highlights, and root cause identification
-- **Causal DAG** — interactive graph showing error propagation and root causes
-- **Cost analysis** — cost breakdown by model, service, and agent with trend charts and forecasting
-- **Pattern alerts** — detected anti-patterns with severity levels and click-to-filter
+- **Overview** — stat cards (traces, error rate, avg latency, cost, active agents) with trend indicators and SVG sparklines; scrollable agent strip; agent detail cards with per-agent stats, tool breakdowns, and sparklines; live monitor terminal (click agent to open tmux-style activity pane); live activity feed; cost forecasting chart
+- **Sessions** — session timeline grouped by `session_id`; each session row shows trace count, span count, cost, and duration; click to drill into individual traces
+- **Agents** — agent dashboard with total/active/cost/trace summary; per-agent cards with trace count, error rate, cost, avg latency, activity sparkline, recent tool calls; avatar with SVG icon per agent role
+- **Traces** — smart trace summaries ("3 Read, 2 Bash, 1 LLM") with quick filter bar (agent/status/duration/time window); star badge for rated traces; hover preview tooltip
+- **Trace detail** — agent-colored waterfall timeline with adaptive time ruler and inline file paths/commands; structured span detail panel; error highlights and root cause identification
+- **Causal DAG** — interactive Cytoscape graph showing error propagation; legend with span types (LLM/Tool/Agent/Chain/Retrieval), root cause vs cascaded error coloring
+- **Cost analysis** — cost summary (total cost, tokens, avg cost/trace); monthly forecast with confidence interval; cost-over-time chart (hourly/daily); budget alerts
+- **Pattern alerts** — detected anti-patterns (retry storm, context overflow, slow tool, etc.) with severity; click-to-filter; configurable thresholds via env vars
 - **Compare** — side-by-side trace comparison with verdict badge and diff progress bars
 - **Feedback** — recent trace annotations with star ratings and comments
 

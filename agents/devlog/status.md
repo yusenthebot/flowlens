@@ -1,31 +1,20 @@
 # Agent Status — 2026-03-15
 
-## Cycle 19: Interactive Dashboard Rebuild — COMPLETE (Beta, 2026-03-15)
+## Cycle 20: Screenshot Update — COMPLETE (Gamma, 2026-03-15)
 
-**Beta**: Rebuilt demo_dashboard.html + updated GitHub Pages index.html
-- Branch: `feat/beta-demo-rebuild`
-- Files: `examples/demo_dashboard.html`, `.github/workflows/pages.yml`
-- Tests: 1156 passing (unchanged — frontend-only change)
+**Gamma**: New screenshots of current dashboard + README update
+- Branch: `main` (direct)
+- Tests: 1156 passing (unchanged)
 - Delivered:
-  - **demo_dashboard.html**: Complete rebuild matching Cycles 14-17 visual design
-    - Header: 60px height, gradient logo mark, "FlowLens" / "Agent Observability" subtitle, live sage dot, theme toggle
-    - Navigation: 4 pill-style tabs — Overview, Traces, Cost, Agents
-    - Overview: 5 stat cards with warm gradient accent bars + 28px values, Agent Team Bar (5 agents), Activity Timeline (10 events), Recent Traces with column headers
-    - Traces: Column headers (Name/Tools/Duration/Cost/Time), tool pills (pill-read/bash/edit/write/grep/glob/llm), duration color dots, click → trace detail with waterfall
-    - Waterfall: adaptive time ruler, gridlines, span bars color-coded by kind (agent/tool/llm), error spans coral-colored, error message shown below bar
-    - Cost: 3 summary stat cards, Chart.js doughnut (cost by agent) + line chart (7-day trend), top-5 most expensive traces
-    - Agents: Agent cards (56px avatar, 3D hover, stats row, activity dots, status badge), SVG network graph (pentagon layout, animated dash edges, glow nodes, lead at top)
-    - Design system: #6b5ce7 indigo, #e07a5f coral, #81b29a sage, #e6a65d amber; CSS vars throughout; JetBrains Mono for code
-    - Both themes: light default (warm off-white), dark (charcoal glass cards)
-    - Responsive: stat-grid 2-col at 768px, 1-col at 480px; agents-grid 1-col on mobile
-    - Keyboard: Esc closes trace detail, T toggles theme
-  - **pages.yml index.html**: Complete redesign
-    - Hero with 72px logo mark, gradient h1, tagline
-    - Stats strip (1156 tests, 5 agents, 16+ models, 25+ endpoints)
-    - Demo cards with proper icon SVGs, feature descriptions, arrow hover
-    - Feature grid (9 chips with colored dots)
-    - Screenshot section with graceful img fallback
-    - Footer with Changelog link; updated version to v1.0.0
+  - Fixed critical `dashboard.js` bug: 32 section divider lines had `// ==================================================================<code>` format that commented out `const`, `let`, `function`, etc. declarations. Fixed by splitting each into two lines.
+  - Fixed `document.addEventListener('DOMContentLoaded', ...)` which was also commented out — this was why the dashboard JS never executed API calls.
+  - Fixed `dashboard.html` tailwind.config guard: `tailwind.config = {...}` replaced with conditional assignment to handle CDN 302 redirect race condition.
+  - Updated `flowlens/server/app.py` CSP header to allow CDN origins (tailwindcss, cloudflare, jsdelivr, unpkg, fonts.googleapis, fonts.gstatic, WebSocket localhost).
+  - Rewrote `examples/take_screenshots.py` to target live server at `http://localhost:8585` with `bypass_csp=True`, dark-mode injection, proper tab navigation via `data-tab` selectors, 7 screenshots total.
+  - New screenshots: `screenshot_sessions.png`, `screenshot_agents.png` added to `examples/`.
+  - Updated all 5 original screenshots with fresh captures from the current dashboard (Cycles 10-17 visual redesign).
+  - Updated `README.md` Dashboard section: 6 screenshots now displayed (added sessions + agents), alt text updated, bullet descriptions reflect current UI features.
+- Files: `examples/take_screenshots.py`, `examples/*.png` (7 files), `README.md`, `flowlens/server/app.py`, `flowlens/server/dashboard.html`, `flowlens/server/static/dashboard.js`
 
 ---
 

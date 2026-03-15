@@ -11,6 +11,13 @@
     if (typeof tailwind === 'undefined') {
       var s = document.createElement('script');
       s.src = '/static/tailwind.min.js';
+      s.onload = function() {
+        // Apply deferred config after fallback script loads
+        if (window.__twConfigPending && typeof tailwind !== 'undefined') {
+          tailwind.config = window.__twConfigPending;
+          delete window.__twConfigPending;
+        }
+      };
       document.head.appendChild(s);
     }
   </script>
@@ -23,7 +30,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <script>
-    tailwind.config = {
+    // Guard tailwind config — CDN may redirect (302) and load async;
+    // set config now if already available, otherwise queue for when it arrives.
+    var _twConfig = {
       darkMode: 'class',
       theme: {
         extend: {
@@ -34,6 +43,12 @@
           }
         }
       }
+    };
+    if (typeof tailwind !== 'undefined') {
+      tailwind.config = _twConfig;
+    } else {
+      // Will be applied by the fallback loader once tailwind is available
+      window.__twConfigPending = _twConfig;
     }
     // Apply saved theme preference immediately to prevent flash
     if (localStorage.getItem('flowlens-theme') === 'dark') {
