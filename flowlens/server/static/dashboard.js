@@ -3873,14 +3873,30 @@ function exportTraceJSON() {
 }
 
 /** Export DAG as PNG using Cytoscape's png() method */
-function exportDAGPng() {
+async function exportDAGPng() {
   if (!cyInstance) {
     showToast('No DAG to export', 'warning');
     return;
   }
   try {
-    const pngData = cyInstance.png({ output: 'blob', bg: isDarkTheme ? '#2a2a28' : '#fafaf8', scale: 2, full: true });
-    const url = URL.createObjectURL(pngData);
+    const bg = isDarkTheme ? '#2a2a28' : '#fafaf8';
+    const opts = { bg, scale: 2, full: true };
+    let blob;
+    // Cytoscape 3.x: prefer blob-promise, fall back to base64uri->Blob conversion
+    try {
+      blob = await cyInstance.png({ ...opts, output: 'blob-promise' });
+    } catch (_blobErr) {
+      // Fallback: use base64uri and convert manually
+      const dataUri = cyInstance.png({ ...opts, output: 'base64uri' });
+      const base64 = dataUri.split(',')[1];
+      const byteChars = atob(base64);
+      const byteNums = new Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) {
+        byteNums[i] = byteChars.charCodeAt(i);
+      }
+      blob = new Blob([new Uint8Array(byteNums)], { type: 'image/png' });
+    }
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `dag-${currentTraceId || 'unknown'}.png`;
@@ -4235,9 +4251,11 @@ async function renderCompareView() {
   content.innerHTML = '<div class="text-center text-sm text-slate-500 py-8">Loading traces for comparison...</div>';
 
   try {
-    const [trace1, trace2] = await Promise.all([
+    // Fetch both trace details AND the server-side diff in parallel
+    const [trace1, trace2, diffResult] = await Promise.all([
       apiFetch(`/v1/traces/${compareSelection[0]}`),
       apiFetch(`/v1/traces/${compareSelection[1]}`),
+      apiFetch(`/v1/traces/diff?a=${encodeURIComponent(compareSelection[0])}&b=${encodeURIComponent(compareSelection[1])}`).catch(() => null),
     ]);
 
     // ---- Compute metrics for diff ----
@@ -4332,12 +4350,12 @@ async function renderCompareView() {
 
     let html = '';
 
-    // ---- Verdict banner ----
-    html += `<div class="glass rounded-xl p-4 mb-4 flex items-center gap-4">
+    // ---- Verdict banner with diff summary ----
+    html += `<div class="glass rounded-xl p-4 mb-4 flex items-center gap-4 flex-wrap">
       <span class="compare-verdict-badge ${verdictConfig.cls}">
         <span>${verdictConfig.icon}</span> ${verdictConfig.label}
       </span>
-      <span class="text-xs text-slate-400">Trace B compared to Trace A</span>
+      <span class="text-xs text-slate-400 flex-1">${diffResult && diffResult.summary ? escHtml(diffResult.summary) : 'Trace B compared to Trace A'}</span>
     </div>`;
 
     // ---- Side-by-side summary cards ----
@@ -4347,7 +4365,7 @@ async function renderCompareView() {
     </div>`;
 
     // ---- Diff metrics section ----
-    html += `<div class="glass rounded-xl p-4">
+    html += `<div class="glass rounded-xl p-4 mb-4">
       <h3 class="text-sm font-semibold text-white mb-3">Metric Differences  <span class="text-[10px] font-normal text-slate-500">(B vs A)</span></h3>
       <div class="space-y-3">`;
 
@@ -4430,10 +4448,166 @@ async function renderCompareView() {
 
     html += `</div></div>`;
 
+    // ---- Span-level diff from /v1/traces/diff ----
+    if (diffResult) {
+      const spanDiffs = diffResult.span_diffs || [];
+      const onlyInA = diffResult.only_in_a || [];
+      const onlyInB = diffResult.only_in_b || [];
+      const patternDiffs = diffResult.pattern_diffs || {};
+      const resolvedPatterns = patternDiffs.resolved_in_b || [];
+      const newPatterns = patternDiffs.new_in_b || [];
+
+      html += `<div class="glass rounded-xl p-4 mb-4">
+        <h3 class="text-sm font-semibold text-white mb-3">Span-Level Diff  <span class="text-[10px] font-normal text-slate-500">from server analysis</span></h3>`;
+
+      // Shared spans with timing comparison
+      if (spanDiffs.length > 0) {
+        html += `<div class="mb-3">
+          <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Shared Spans (A vs B timing)</div>
+          <div class="space-y-1">`;
+        // Find max duration across all spans for proportional bars
+        const maxDur = Math.max(...spanDiffs.map(sd => Math.max(sd.a_duration_ms || 0, sd.b_duration_ms || 0)), 1);
+        for (const sd of spanDiffs) {
+          const aDur = sd.a_duration_ms || 0;
+          const bDur = sd.b_duration_ms || 0;
+          const diff = bDur - aDur;
+          const diffPctNum = aDur > 0 ? (diff / aDur * 100) : null;
+          const diffPctLabel = diffPctNum !== null
+            ? `${diff > 0 ? '+' : ''}${diffPctNum.toFixed(0)}%`
+            : (bDur > 0 ? 'new' : '—');
+          const faster = diff < 0;
+          const rowCls = diff === 0 ? '' : (faster ? 'compare-diff-better' : 'compare-diff-worse');
+          const aStatusColor = sd.a_status === 'error' ? 'var(--color-coral,#e07a5f)' : 'var(--color-sage,#81b29a)';
+          const bStatusColor = sd.b_status === 'error' ? 'var(--color-coral,#e07a5f)' : 'var(--color-sage,#81b29a)';
+          const aBarW = Math.round((aDur / maxDur) * 100);
+          const bBarW = Math.round((bDur / maxDur) * 100);
+          html += `<div class="p-2 rounded-lg ${rowCls}">
+            <div class="flex items-center justify-between text-xs mb-1.5">
+              <span class="text-slate-300 font-mono text-[11px] truncate max-w-[40%]" title="${escHtml(sd.name)}">${escHtml(sd.name)}</span>
+              <div class="flex items-center gap-2 text-[10px]">
+                <span style="color:${aStatusColor}">${formatDuration(aDur)}</span>
+                <span class="text-slate-600">→</span>
+                <span class="font-semibold" style="color:${bStatusColor}">${formatDuration(bDur)}</span>
+                <span class="text-slate-500">(${diffPctLabel})</span>
+              </div>
+            </div>
+            <div class="flex flex-col gap-0.5">
+              <div class="flex items-center gap-1">
+                <span class="text-[9px] text-slate-600 w-3">A</span>
+                <div class="flex-1 h-1.5 rounded-full" style="background:rgba(255,255,255,0.06)">
+                  <div class="h-full rounded-full" style="width:${aBarW}%;background:var(--color-indigo-warm,#6b5ce7);opacity:0.7"></div>
+                </div>
+              </div>
+              <div class="flex items-center gap-1">
+                <span class="text-[9px] text-slate-600 w-3">B</span>
+                <div class="flex-1 h-1.5 rounded-full" style="background:rgba(255,255,255,0.06)">
+                  <div class="h-full rounded-full" style="width:${bBarW}%;background:${faster ? 'var(--color-sage,#81b29a)' : diff > 0 ? 'var(--color-coral,#e07a5f)' : 'var(--color-indigo-warm,#6b5ce7)'}"></div>
+                </div>
+              </div>
+            </div>
+          </div>`;
+        }
+        html += `</div></div>`;
+      }
+
+      // Spans only in A or only in B
+      if (onlyInA.length > 0 || onlyInB.length > 0) {
+        html += `<div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">`;
+        if (onlyInA.length > 0) {
+          html += `<div>
+            <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Only in Trace A (removed)</div>
+            <div class="space-y-1">`;
+          for (const name of onlyInA) {
+            html += `<div class="flex items-center gap-2 px-2 py-1.5 rounded" style="background:rgba(224,122,95,0.07)">
+              <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" style="background:var(--color-coral,#e07a5f)"></span>
+              <span class="text-xs font-mono text-slate-300 truncate">${escHtml(name)}</span>
+            </div>`;
+          }
+          html += `</div></div>`;
+        }
+        if (onlyInB.length > 0) {
+          html += `<div>
+            <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Only in Trace B (added)</div>
+            <div class="space-y-1">`;
+          for (const name of onlyInB) {
+            html += `<div class="flex items-center gap-2 px-2 py-1.5 rounded" style="background:rgba(129,178,154,0.07)">
+              <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" style="background:var(--color-sage,#81b29a)"></span>
+              <span class="text-xs font-mono text-slate-300 truncate">${escHtml(name)}</span>
+            </div>`;
+          }
+          html += `</div></div>`;
+        }
+        html += `</div>`;
+      }
+
+      // Pattern diffs
+      if (resolvedPatterns.length > 0 || newPatterns.length > 0) {
+        html += `<div>
+          <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Pattern Changes</div>
+          <div class="flex flex-wrap gap-2">`;
+        for (const p of resolvedPatterns) {
+          html += `<span class="px-2 py-1 rounded text-[10px] font-medium" style="background:rgba(129,178,154,0.12);color:var(--color-sage,#81b29a);border:1px solid rgba(129,178,154,0.25)">Fixed: ${escHtml(p)}</span>`;
+        }
+        for (const p of newPatterns) {
+          html += `<span class="px-2 py-1 rounded text-[10px] font-medium" style="background:rgba(224,122,95,0.12);color:var(--color-coral,#e07a5f);border:1px solid rgba(224,122,95,0.25)">New: ${escHtml(p)}</span>`;
+        }
+        html += `</div></div>`;
+      }
+
+      html += `</div>`;
+    }
+
+    // ---- Side-by-side waterfall ----
+    const spansA = (trace1.spans || []).filter(s => s && s.name);
+    const spansB = (trace2.spans || []).filter(s => s && s.name);
+    if (spansA.length > 0 || spansB.length > 0) {
+      html += _renderCompareWaterfall(trace1, trace2, spansA, spansB);
+    }
+
     content.innerHTML = html;
   } catch (err) {
     content.innerHTML = `<div class="glass rounded-xl p-8 text-center text-red-400/60 text-sm">Failed to load traces: ${escHtml(err.message)}</div>`;
   }
+}
+
+/** Render side-by-side waterfall timelines for two traces */
+function _renderCompareWaterfall(trace1, trace2, spansA, spansB) {
+  function buildWaterfallRows(trace, spans) {
+    if (!spans.length) return '<div class="text-xs text-slate-600 py-4 text-center">No spans</div>';
+    const traceStart = spans.reduce((mn, s) => Math.min(mn, s.start_time || Infinity), Infinity);
+    const traceEnd = spans.reduce((mx, s) => Math.max(mx, (s.start_time || 0) + (s.duration_ms || 0) / 1000), 0);
+    const totalDur = Math.max((traceEnd - traceStart) * 1000, 1);
+
+    return spans.slice(0, 20).map(s => {
+      const offset = Math.max(0, ((s.start_time || traceStart) - traceStart) * 1000);
+      const dur = s.duration_ms || 0;
+      const leftPct = Math.min((offset / totalDur) * 100, 95);
+      const widthPct = Math.max((dur / totalDur) * 100, 1);
+      const isError = s.status === 'error';
+      const barColor = isError ? 'var(--color-coral,#e07a5f)' : 'var(--color-indigo-warm,#6b5ce7)';
+      return `<div class="flex items-center gap-2 py-0.5">
+        <span class="text-[10px] text-slate-400 font-mono truncate" style="width:90px;flex-shrink:0" title="${escHtml(s.name)}">${escHtml(s.name)}</span>
+        <div class="flex-1 relative h-4 rounded" style="background:rgba(255,255,255,0.04)">
+          <div class="absolute top-0.5 h-3 rounded" style="left:${leftPct.toFixed(1)}%;width:${Math.min(widthPct, 100 - leftPct).toFixed(1)}%;background:${barColor};opacity:0.75"></div>
+          <span class="absolute right-1 top-0 text-[9px] leading-4 text-slate-500">${formatDuration(dur)}</span>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  return `<div class="glass rounded-xl p-4">
+    <h3 class="text-sm font-semibold text-white mb-3">Side-by-Side Waterfall  <span class="text-[10px] font-normal text-slate-500">(first 20 spans each)</span></h3>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div>
+        <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Trace A — ${formatDuration(trace1.duration_ms || 0)}</div>
+        <div class="space-y-0.5">${buildWaterfallRows(trace1, spansA)}</div>
+      </div>
+      <div>
+        <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Trace B — ${formatDuration(trace2.duration_ms || 0)}</div>
+        <div class="space-y-0.5">${buildWaterfallRows(trace2, spansB)}</div>
+      </div>
+    </div>
+  </div>`;
 }
 
 // ==================================================================// Virtualized Trace List

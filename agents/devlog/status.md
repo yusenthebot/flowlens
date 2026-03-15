@@ -1,24 +1,22 @@
 # Agent Status — 2026-03-15
 
-## Cycle 25: Search & Keyboard UX — COMPLETE (Alpha/UX, 2026-03-15)
+## Cycle 25: Compare & Export Features — COMPLETE (Beta, 2026-03-15)
 
-**Alpha/UX**: Enhanced search and keyboard navigation
-- Branch: `worktree-agent-a4dbbcc1`
-- Commit: 097beb5
+**Beta**: Fixed Compare view end-to-end and Export functionality
+- Commit: e176d37
+- Branch: `worktree-agent-a324c55b`
 - Tests: 1208 passing (unchanged)
 - Delivered:
-  - Debounced live search (300ms `input` event) — results update as you type
-  - Clear (X) button (`#search-clear-btn`, `.search-clear-btn`) that appears when search has text
-  - Updated placeholder to `Search traces... (agent:alpha status:error)`
-  - `highlightText(rawText, query)` — safe HTML highlight via `String.split()` with capturing regex; strips `key:value` syntax tokens before highlighting
-  - `renderTraceRow(trace, compact, searchQuery)` — uses `highlightText` for display name and service name
-  - `renderVirtualizedTraces()` reads current `filter-service` value and passes it as `searchQuery` to every row
-  - `clearSearch()` — clears input, hides clear btn, reloads traces, restores focus
-  - `restoreState()` syncs clear-button visibility on page load
-  - Keyboard shortcuts verified: `j/k`, `Enter`, `Escape`, `/`, `r`, `?`, `1-6`, `a`, `t`, `n` — all working
-  - Shortcuts modal enhanced: added "Search Syntax" section with 4 syntax hint examples
-  - CSS: `.search-clear-btn`, `.search-highlight`, `.shortcuts-syntax-tag`, shortcuts modal widened to 520px
-- Files: `flowlens/server/static/dashboard.js`, `flowlens/server/static/dashboard.css`, `flowlens/server/dashboard.html`
+  - Compare view now calls `/v1/traces/diff?a=&b=` in parallel with trace fetches
+  - Server diff summary rendered in verdict banner (real text not just "Trace B vs A")
+  - Span-level diff table: shared spans with A/B timing bars, faster=sage, slower=coral, error status
+  - only_in_a (removed spans) and only_in_b (added spans) shown as colored pill lists
+  - pattern_diffs: resolved patterns (sage "Fixed:") and new patterns (coral "New:")
+  - Side-by-side waterfall: proportional span bars rendered for both traces (up to 20 each)
+  - Fixed `exportDAGPng()`: `cyInstance.png({output:'blob'})` is invalid — now uses `blob-promise`
+    with graceful fallback to `base64uri` → manual Blob conversion
+  - `exportTraceJSON()` and `copyTraceId()` verified correct (no changes needed)
+- Files: `flowlens/server/static/dashboard.js`, `agents/devlog/status.md`
 
 ---
 
