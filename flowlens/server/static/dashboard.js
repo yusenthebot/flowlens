@@ -1375,6 +1375,8 @@ function backToTraces() {
   document.getElementById('view-trace-detail').classList.add('hidden');
   closeSpanDetail();
   try { sessionStorage.removeItem('flowlens-trace-id'); } catch (_) {}
+  // Clear the trace deep-link hash without a page reload
+  try { history.replaceState(null, '', window.location.pathname + window.location.search); } catch (_) {}
   if (currentView === 'overview') {
     document.getElementById('view-overview').classList.remove('hidden');
   } else {
@@ -2617,6 +2619,8 @@ async function loadRecentFeedback() {
 async function openTrace(traceId) {
   currentTraceId = traceId;
   try { sessionStorage.setItem('flowlens-trace-id', traceId || ''); } catch (_) {}
+  // Update URL hash for shareable deep links (no page reload)
+  try { history.replaceState(null, '', `#trace/${encodeURIComponent(traceId)}`); } catch (_) {}
   // Hide current view, show detail
   document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
   const detailPanel = document.getElementById('view-trace-detail');
@@ -4170,6 +4174,197 @@ async function exportDAGPng() {
   }
 }
 
+/** Copy trace JSON to clipboard */
+function copyTraceAsJSON() {
+  if (!currentTraceData) {
+    showToast('No trace data to copy', 'warning');
+    return;
+  }
+  const json = JSON.stringify(currentTraceData, null, 2);
+  navigator.clipboard.writeText(json).then(() => {
+    showToast('Trace JSON copied to clipboard', 'success');
+  }).catch(() => {
+    // Fallback for older browsers
+    const textarea = document.createElement('textarea');
+    textarea.value = json;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    showToast('Trace JSON copied to clipboard', 'success');
+  });
+}
+
+/** Copy trace as a Markdown report to clipboard */
+function copyTraceAsMarkdown() {
+  if (!currentTraceData) {
+    showToast('No trace data to copy', 'warning');
+    return;
+  }
+  const d = currentTraceData;
+  const spans = d.spans || [];
+  const tags = typeof d.tags === 'string' ? (() => { try { return JSON.parse(d.tags); } catch (_) { return {}; } })() : (d.tags || {});
+  const meta = d.metadata || {};
+
+  const agent = tags.agent || meta.agent || 'unknown';
+  const project = tags.project || meta.project || '';
+  const durationMs = d.duration_ms != null ? `${d.duration_ms.toFixed(0)} ms` : 'n/a';
+  const cost = d.total_cost_usd != null ? `$${d.total_cost_usd.toFixed(6)}` : 'n/a';
+  const hasErrors = d.has_errors ? 'Yes' : 'No';
+  const startTime = d.start_time ? new Date(d.start_time * 1000).toISOString() : 'n/a';
+
+  const llmSpans = spans.filter(s => (s.kind || '').toLowerCase() === 'llm' || (s.span_kind || '').toLowerCase() === 'llm');
+  const toolSpans = spans.filter(s => (s.kind || '').toLowerCase() === 'tool' || (s.span_kind || '').toLowerCase() === 'tool');
+
+  let md = `# Trace Report\n\n`;
+  md += `**Trace ID:** \`${d.trace_id || currentTraceId}\`  \n`;
+  md += `**Generated:** ${new Date().toISOString()}  \n\n`;
+  md += `## Summary\n\n`;
+  md += `| Field | Value |\n|---|---|\n`;
+  md += `| Agent | ${agent} |\n`;
+  if (project) md += `| Project | ${project} |\n`;
+  md += `| Start Time | ${startTime} |\n`;
+  md += `| Duration | ${durationMs} |\n`;
+  md += `| Spans | ${spans.length} |\n`;
+  md += `| LLM Calls | ${llmSpans.length} |\n`;
+  md += `| Tool Calls | ${toolSpans.length} |\n`;
+  md += `| Cost | ${cost} |\n`;
+  md += `| Has Errors | ${hasErrors} |\n\n`;
+
+  if (spans.length > 0) {
+    md += `## Spans\n\n`;
+    md += `| # | Name | Kind | Duration (ms) | Status |\n|---|---|---|---|---|\n`;
+    spans.slice(0, 50).forEach((s, i) => {
+      const name = (s.name || '').replace(/\|/g, '\\|');
+      const kind = s.kind || s.span_kind || '';
+      const dur = s.duration_ms != null ? s.duration_ms.toFixed(0) : 'n/a';
+      const status = s.status || '';
+      md += `| ${i + 1} | ${name} | ${kind} | ${dur} | ${status} |\n`;
+    });
+    if (spans.length > 50) md += `\n_...and ${spans.length - 50} more spans._\n`;
+    md += '\n';
+  }
+
+  navigator.clipboard.writeText(md).then(() => {
+    showToast('Trace Markdown report copied to clipboard', 'success');
+  }).catch(() => {
+    const textarea = document.createElement('textarea');
+    textarea.value = md;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    showToast('Trace Markdown report copied to clipboard', 'success');
+  });
+}
+
+/** Download trace JSON as a file */
+function downloadTraceJSON() {
+  if (!currentTraceData) {
+    showToast('No trace data to download', 'warning');
+    return;
+  }
+  const json = JSON.stringify(currentTraceData, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `trace-${currentTraceId || 'unknown'}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Trace downloaded as JSON', 'success');
+}
+
+/** Copy a shareable deep-link to the current trace */
+function copyTraceLink() {
+  if (!currentTraceId) {
+    showToast('No trace open', 'warning');
+    return;
+  }
+  const link = `${window.location.origin}${window.location.pathname}#trace/${currentTraceId}`;
+  navigator.clipboard.writeText(link).then(() => {
+    showToast('Trace link copied to clipboard', 'success');
+  }).catch(() => {
+    const textarea = document.createElement('textarea');
+    textarea.value = link;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    showToast('Trace link copied to clipboard', 'success');
+  });
+}
+
+/** Export dashboard summary report as Markdown (via /v1/export/report) */
+async function exportDashboardReport() {
+  showToast('Generating report...', 'info', 2000);
+  try {
+    const data = await apiFetch('/v1/export/report?hours=24');
+    const r = data.report || data;
+    const summary = r.summary || {};
+    const agents = r.agents || {};
+    const generatedAt = r.generated_at ? new Date(r.generated_at * 1000).toISOString() : new Date().toISOString();
+    const periodHours = r.period_hours || 24;
+
+    let md = `# FlowLens Dashboard Report\n\n`;
+    md += `**Generated:** ${generatedAt}  \n`;
+    md += `**Period:** Last ${periodHours} hours\n\n`;
+
+    md += `## Summary\n\n`;
+    md += `| Metric | Value |\n|---|---|\n`;
+    md += `| Total Traces | ${summary.total_traces ?? 'n/a'} |\n`;
+    md += `| Total Errors | ${summary.total_errors ?? 'n/a'} |\n`;
+    md += `| Error Rate | ${summary.error_rate != null ? (summary.error_rate * 100).toFixed(1) + '%' : 'n/a'} |\n`;
+    md += `| Total Cost | $${summary.total_cost_usd != null ? summary.total_cost_usd.toFixed(4) : 'n/a'} |\n`;
+    md += `| Total Spans | ${summary.total_spans ?? 'n/a'} |\n\n`;
+
+    const agentEntries = Object.entries(agents).sort((a, b) => b[1].traces - a[1].traces);
+    if (agentEntries.length > 0) {
+      md += `## Top Agents\n\n`;
+      md += `| Agent | Traces | Errors | Cost | Avg Duration (ms) |\n|---|---|---|---|---|\n`;
+      agentEntries.forEach(([name, s]) => {
+        md += `| ${name} | ${s.traces} | ${s.errors} | $${(s.cost || 0).toFixed(4)} | ${s.avg_duration_ms ?? 'n/a'} |\n`;
+      });
+      md += '\n';
+    }
+
+    // Copy to clipboard and also download
+    navigator.clipboard.writeText(md).then(() => {
+      showToast('Report copied to clipboard as Markdown', 'success');
+    }).catch(() => {
+      // Fallback: download as file
+      const blob = new Blob([md], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `flowlens-report-${new Date().toISOString().replace(/[:.]/g, '-')}.md`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('Report downloaded as Markdown', 'success');
+    });
+  } catch (err) {
+    console.error('Export report error:', err);
+    showToast('Failed to generate report', 'error');
+  }
+}
+
+/** Handle URL hash on page load to auto-open a trace (e.g. #trace/{id}) */
+function handleUrlHashTrace() {
+  const hash = window.location.hash;
+  const match = hash.match(/^#trace\/(.+)$/);
+  if (match) {
+    const traceId = decodeURIComponent(match[1]);
+    // Switch to traces view first so back navigation works, then open trace
+    switchView('traces');
+    // Small delay to let the view render before opening the detail panel
+    setTimeout(() => openTrace(traceId), 200);
+  }
+}
+
 /** Copy current trace ID to clipboard */
 function copyTraceId() {
   if (!currentTraceId) return;
@@ -5608,6 +5803,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Connect WebSocket for real-time updates
   connectWebSocket();
+
+  // Handle URL hash to auto-open a trace deep link (e.g. #trace/{id})
+  handleUrlHashTrace();
 
   // Bind filter events — debounced live search (300ms)
   let _searchDebounceTimer = null;
