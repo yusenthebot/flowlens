@@ -1,5 +1,14 @@
 # Agent Status — 2026-03-15
 
+## Cycle 25: Compare & Export Features — IN PROGRESS (Beta, 2026-03-15)
+
+**Beta**: Fixing Compare view end-to-end + Export functionality
+- Branch: `feat/beta-compare-export`
+- Status: in_progress
+- Files: `flowlens/server/static/dashboard.js`
+
+---
+
 ## Cycle 24: Dashboard Data Richness — COMPLETE (Gamma, 2026-03-15)
 
 **Gamma**: Fixed charts, enriched terminal output, added model usage to agent cards
