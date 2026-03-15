@@ -1,6 +1,6 @@
 # Task Board — FlowLens Development
 
-**Project Status: Cycle 25 complete — Reliability & Error Handling delivered (Gamma)**
+**Project Status: Cycle 26 complete — DB Optimization delivered (Beta)**
 
 ---
 
