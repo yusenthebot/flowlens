@@ -708,7 +708,7 @@ class TestAPI:
         assert r.status_code == 200
         data = r.json()
         assert data["status"] == "healthy"
-        assert data["version"] == "0.5.0"
+        assert data["version"] == "1.0.0"
         assert "uptime_seconds" in data
         assert "trace_count" in data
         assert "db_size_bytes" in data
@@ -1712,3 +1712,285 @@ class TestAPI:
         ids1 = {s["session_id"] for s in r1.json()["sessions"]}
         ids2 = {s["session_id"] for s in r2.json()["sessions"]}
         assert ids1.isdisjoint(ids2)
+
+    # ------------------------------------------------------------------
+    # Cycle 24: /health version field
+    # ------------------------------------------------------------------
+
+    def test_health_version_is_1_0_0(self, client):
+        """Health endpoint must report version 1.0.0."""
+        r = client.get("/health")
+        assert r.status_code == 200
+        assert r.json()["version"] == "1.0.0"
+
+    # ------------------------------------------------------------------
+    # Cycle 24: /v1/agents/summary — models_used + top_tools
+    # ------------------------------------------------------------------
+
+    def test_agents_summary_includes_models_used_and_top_tools(self, client):
+        """agents/summary includes models_used dict and top_tools list."""
+        client.post("/v1/traces/ingest", json=_make_trace_data("ms-t1", tags={"agent": "vr-alpha"}))
+        r = client.get("/v1/agents/summary")
+        assert r.status_code == 200
+        agents = r.json()["agents"]
+        alpha = next((a for a in agents if a["agent"] == "vr-alpha"), None)
+        assert alpha is not None
+        assert "models_used" in alpha
+        assert "top_tools" in alpha
+        assert isinstance(alpha["models_used"], dict)
+        assert isinstance(alpha["top_tools"], list)
+
+    def test_agents_summary_top_tools_sorted_by_count(self, client):
+        """top_tools list is sorted descending by count."""
+        # Build a trace with spans that have distinct tool names
+        trace = _make_trace_data("tt-t1", tags={"agent": "tool-bot"})
+        # Add extra spans with explicit tool names
+        trace["spans"] += [
+            {
+                "span_id": "tt-s3",
+                "trace_id": "tt-t1",
+                "parent_span_id": None,
+                "name": "Read",
+                "kind": "tool",
+                "status": "ok",
+                "start_time": 1002.0,
+                "end_time": 1002.1,
+                "duration_ms": 100.0,
+                "attributes": {},
+                "events": [],
+            },
+            {
+                "span_id": "tt-s4",
+                "trace_id": "tt-t1",
+                "parent_span_id": None,
+                "name": "Read",
+                "kind": "tool",
+                "status": "ok",
+                "start_time": 1003.0,
+                "end_time": 1003.1,
+                "duration_ms": 100.0,
+                "attributes": {},
+                "events": [],
+            },
+        ]
+        trace["span_count"] = len(trace["spans"])
+        client.post("/v1/traces/ingest", json=trace)
+
+        r = client.get("/v1/agents/summary")
+        assert r.status_code == 200
+        agents = r.json()["agents"]
+        bot = next((a for a in agents if a["agent"] == "tool-bot"), None)
+        assert bot is not None
+        tools = bot["top_tools"]
+        # Should include Read (count=2) and be sorted desc
+        if len(tools) >= 2:
+            assert tools[0]["count"] >= tools[1]["count"]
+        # Read should appear with count >= 2
+        read_entry = next((t for t in tools if t["name"] == "Read"), None)
+        assert read_entry is not None
+        assert read_entry["count"] >= 2
+
+    def test_agents_summary_models_used_aggregated(self, client):
+        """models_used correctly aggregates model calls and costs from spans."""
+        trace = _make_trace_data("mu-t1", tags={"agent": "model-bot"})
+        # Add a span with gen_ai.request.model attribute
+        trace["spans"].append(
+            {
+                "span_id": "mu-s3",
+                "trace_id": "mu-t1",
+                "parent_span_id": None,
+                "name": "LLM",
+                "kind": "llm",
+                "status": "ok",
+                "start_time": 1002.0,
+                "end_time": 1002.5,
+                "duration_ms": 500.0,
+                "attributes": {"gen_ai.request.model": "claude-sonnet-4"},
+                "events": [],
+                "token_usage": {"input_tokens": 100, "output_tokens": 50, "total_cost_usd": 0.01},
+            }
+        )
+        trace["span_count"] = len(trace["spans"])
+        client.post("/v1/traces/ingest", json=trace)
+
+        r = client.get("/v1/agents/summary")
+        assert r.status_code == 200
+        agents = r.json()["agents"]
+        bot = next((a for a in agents if a["agent"] == "model-bot"), None)
+        assert bot is not None
+        models = bot["models_used"]
+        assert "claude-sonnet-4" in models
+        assert models["claude-sonnet-4"]["calls"] >= 1
+        assert models["claude-sonnet-4"]["cost"] >= 0.0
+
+    # ------------------------------------------------------------------
+    # Cycle 24: /v1/activity/stream — file_path, command, model fields
+    # ------------------------------------------------------------------
+
+    def test_activity_stream_includes_file_path(self, client):
+        """activity/stream includes file_path when span has tool.input with file_path key."""
+        trace = _make_trace_data("as-fp-t1", tags={"agent": "vr-alpha"})
+        trace["spans"][0]["attributes"] = {"tool.input": '{"file_path": "/src/main.py"}'}
+        client.post("/v1/traces/ingest", json=trace)
+
+        r = client.get("/v1/activity/stream?limit=50")
+        assert r.status_code == 200
+        events = r.json()["events"]
+        # Find the event with file_path
+        fp_events = [e for e in events if e.get("file_path") == "/src/main.py"]
+        assert len(fp_events) >= 1
+
+    def test_activity_stream_includes_command(self, client):
+        """activity/stream includes command for Bash spans."""
+        trace = _make_trace_data("as-cmd-t1", tags={"agent": "vr-beta"})
+        trace["spans"][0]["name"] = "Bash"
+        trace["spans"][0]["attributes"] = {"tool.input": '{"command": "ls -la /tmp"}'}
+        client.post("/v1/traces/ingest", json=trace)
+
+        r = client.get("/v1/activity/stream?limit=50")
+        assert r.status_code == 200
+        events = r.json()["events"]
+        cmd_events = [e for e in events if e.get("command") == "ls -la /tmp"]
+        assert len(cmd_events) >= 1
+
+    def test_activity_stream_includes_model(self, client):
+        """activity/stream includes model for LLM spans."""
+        trace = _make_trace_data("as-model-t1", tags={"agent": "vr-gamma"})
+        trace["spans"][0]["name"] = "LLM"
+        trace["spans"][0]["attributes"] = {"gen_ai.request.model": "claude-haiku-4"}
+        client.post("/v1/traces/ingest", json=trace)
+
+        r = client.get("/v1/activity/stream?limit=50")
+        assert r.status_code == 200
+        events = r.json()["events"]
+        model_events = [e for e in events if e.get("model") == "claude-haiku-4"]
+        assert len(model_events) >= 1
+
+    def test_activity_stream_no_extra_fields_without_data(self, client):
+        """Events without enriched fields do not include null file_path/command/model keys."""
+        client.post("/v1/traces/ingest", json=_make_trace_data("as-plain-t1"))
+        r = client.get("/v1/activity/stream?limit=10")
+        assert r.status_code == 200
+        # Events without file path / command / model should simply omit those keys
+        # (they should not have those keys set to None)
+        for event in r.json()["events"]:
+            if "file_path" in event:
+                assert event["file_path"] is not None
+            if "command" in event:
+                assert event["command"] is not None
+            if "model" in event:
+                assert event["model"] is not None
+
+    # ------------------------------------------------------------------
+    # Cycle 24: GET /v1/agents/{agent_name}/timeline
+    # ------------------------------------------------------------------
+
+    def test_agent_timeline_empty(self, client):
+        """Timeline returns empty events list for unknown agent."""
+        r = client.get("/v1/agents/vr-unknown-xyz/timeline")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["agent"] == "vr-unknown-xyz"
+        assert data["events"] == []
+        assert data["total"] == 0
+
+    def test_agent_timeline_returns_events_for_agent(self, client):
+        """Timeline returns chronological span events for the specified agent."""
+        now = time.time()
+        trace = _make_trace_data("tl-t1", tags={"agent": "vr-alpha"}, start_time=now - 60)
+        trace["spans"][0]["name"] = "vr-alpha/Read"
+        trace["spans"][1]["name"] = "vr-alpha/Edit"
+        client.post("/v1/traces/ingest", json=trace)
+
+        r = client.get("/v1/agents/vr-alpha/timeline")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["agent"] == "vr-alpha"
+        assert data["total"] >= 1
+        events = data["events"]
+        assert len(events) >= 1
+        # Verify required fields
+        for ev in events:
+            assert "timestamp" in ev
+            assert "tool" in ev
+            assert "duration_ms" in ev
+            assert "status" in ev
+
+    def test_agent_timeline_chronological_order(self, client):
+        """Events are returned in ascending timestamp order."""
+        now = time.time()
+        trace = _make_trace_data("tl-ord-t1", tags={"agent": "vr-beta"}, start_time=now - 120)
+        # Give spans distinct start times
+        trace["spans"][0]["start_time"] = now - 120
+        trace["spans"][1]["start_time"] = now - 60
+        trace["spans"][0]["name"] = "vr-beta/Read"
+        trace["spans"][1]["name"] = "vr-beta/Edit"
+        client.post("/v1/traces/ingest", json=trace)
+
+        r = client.get("/v1/agents/vr-beta/timeline")
+        assert r.status_code == 200
+        events = r.json()["events"]
+        if len(events) >= 2:
+            timestamps = [e["timestamp"] for e in events]
+            assert timestamps == sorted(timestamps), "Events are not in chronological order"
+
+    def test_agent_timeline_file_path_extraction(self, client):
+        """Timeline extracts file_path from tool.input for file-based tools."""
+        now = time.time()
+        trace = _make_trace_data("tl-fp-t1", tags={"agent": "vr-gamma"}, start_time=now - 30)
+        trace["spans"][0]["name"] = "vr-gamma/Read"
+        trace["spans"][0]["attributes"] = {"tool.input": '{"file_path": "/src/utils.py"}'}
+        client.post("/v1/traces/ingest", json=trace)
+
+        r = client.get("/v1/agents/vr-gamma/timeline")
+        assert r.status_code == 200
+        events = r.json()["events"]
+        fp_events = [e for e in events if e.get("file_path") == "/src/utils.py"]
+        assert len(fp_events) >= 1
+
+    def test_agent_timeline_limit_parameter(self, client):
+        """limit query parameter caps the number of returned events."""
+        now = time.time()
+        trace = _make_trace_data("tl-lim-t1", tags={"agent": "vr-lead"}, start_time=now - 50)
+        # Add extra spans so we have more than 1
+        for i in range(4):
+            trace["spans"].append(
+                {
+                    "span_id": f"tl-lim-s{i}",
+                    "trace_id": "tl-lim-t1",
+                    "parent_span_id": None,
+                    "name": "vr-lead/Read",
+                    "kind": "tool",
+                    "status": "ok",
+                    "start_time": now - 50 + i,
+                    "end_time": now - 49 + i,
+                    "duration_ms": 1000.0,
+                    "attributes": {},
+                    "events": [],
+                }
+            )
+        trace["span_count"] = len(trace["spans"])
+        client.post("/v1/traces/ingest", json=trace)
+
+        r = client.get("/v1/agents/vr-lead/timeline?limit=2")
+        assert r.status_code == 200
+        events = r.json()["events"]
+        assert len(events) <= 2
+
+    def test_agent_timeline_isolates_to_agent(self, client):
+        """Timeline only returns events for the requested agent, not others."""
+        now = time.time()
+        # Ingest traces for two different agents
+        t_alpha = _make_trace_data("tl-iso-a", tags={"agent": "vr-alpha"}, start_time=now - 60)
+        t_alpha["spans"][0]["name"] = "vr-alpha/Grep"
+        t_beta = _make_trace_data("tl-iso-b", tags={"agent": "vr-beta"}, start_time=now - 60)
+        t_beta["spans"][0]["name"] = "vr-beta/Write"
+        client.post("/v1/traces/ingest", json=t_alpha)
+        client.post("/v1/traces/ingest", json=t_beta)
+
+        r = client.get("/v1/agents/vr-alpha/timeline")
+        assert r.status_code == 200
+        events = r.json()["events"]
+        # All returned events should correspond to vr-alpha spans
+        for ev in events:
+            assert ev["tool"] != "Write" or ev.get("agent") == "vr-alpha"

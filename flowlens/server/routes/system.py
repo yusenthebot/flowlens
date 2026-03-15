@@ -12,6 +12,7 @@ Endpoints:
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import time
@@ -52,7 +53,7 @@ def create_system_router(store: TraceStore, server_start_time: float) -> APIRout
 
         return {
             "status": "healthy",
-            "version": "0.5.0",
+            "version": "1.0.0",
             "uptime_seconds": uptime_seconds,
             "trace_count": stats.get("total_traces") or 0,
             "db_size_bytes": db_size_bytes,
@@ -164,18 +165,49 @@ def create_system_router(store: TraceStore, server_start_time: float) -> APIRout
                 if "/" in tool_name:
                     tool_name = tool_name.split("/", 1)[1]
 
-                events.append(
-                    {
-                        "agent": span_agent,
-                        "tool": tool_name,
-                        "status": span.get("status", "ok"),
-                        "timestamp": span.get("start_time", 0),
-                        "duration_ms": span.get("duration_ms", 0),
-                        "trace_id": trace_id,
-                        "error": span.get("error_message")
-                        or (span.get("error", {}) or {}).get("message"),
-                    }
+                # Extract enriched fields from span attributes
+                file_path: str | None = None
+                command: str | None = None
+                model: str | None = (
+                    span_attrs.get("gen_ai.request.model") or span_attrs.get("llm.model") or None
                 )
+
+                tool_input = span_attrs.get("tool.input") or span_attrs.get("input") or ""
+                if isinstance(tool_input, str) and tool_input:
+                    try:
+                        tool_input = json.loads(tool_input)
+                    except (ValueError, TypeError):
+                        pass
+
+                if isinstance(tool_input, dict):
+                    file_path = (
+                        tool_input.get("file_path")
+                        or tool_input.get("path")
+                        or tool_input.get("pattern")
+                        or None
+                    )
+                    command = tool_input.get("command") or None
+                elif isinstance(tool_input, str) and tool_input:
+                    file_path = tool_input if "\n" not in tool_input else None
+
+                event: dict[str, Any] = {
+                    "agent": span_agent,
+                    "tool": tool_name,
+                    "status": span.get("status", "ok"),
+                    "timestamp": span.get("start_time", 0),
+                    "duration_ms": span.get("duration_ms", 0),
+                    "trace_id": trace_id,
+                    "error": span.get("error_message")
+                    or (span.get("error", {}) or {}).get("message"),
+                }
+                if file_path:
+                    event["file_path"] = file_path
+                if command:
+                    event["command"] = command
+                if model:
+                    event["model"] = model
+
+                events.append(event)
 
         # Sort by timestamp descending and limit
         events.sort(key=lambda e: e["timestamp"], reverse=True)
