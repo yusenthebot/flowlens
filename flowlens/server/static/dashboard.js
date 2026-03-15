@@ -369,8 +369,7 @@ async function loadAgentActivity() {
 // Live Agent Monitor
 // =========================================================================
 let _monitorAgents = [];
-let _termPanes = [];  // [{id, agent, el}]
-let _termLayout = 'single'; // 'single' | 'vsplit' | 'hsplit' | 'grid'
+let _termPanes = [];  // [{id, agent}]
 let _termMinimized = false;
 let _termPaneIdCounter = 0;
 
@@ -413,11 +412,7 @@ async function openAgentTerminal(agentName) {
     return;
   }
 
-  // Auto layout: 1 pane=single, 2=vsplit, 3+=grid
   _termPanes.push({ id: ++_termPaneIdCounter, agent: agentName });
-  if (_termPanes.length === 1) _termLayout = 'single';
-  else if (_termPanes.length === 2) _termLayout = 'vsplit';
-  else _termLayout = 'grid';
 
   if (_termMinimized) _termMinimized = false;
   _termRender();
@@ -549,23 +544,8 @@ async function _termOpenWithLayout(agentName, layout) {
   await _termLoadPane(agentName);
 }
 
-/** Split current layout — toggle between vsplit/hsplit/grid */
-function _termCycleLayout() {
-  if (_termPanes.length < 2) return;
-  const layouts = ['vsplit', 'hsplit', 'grid'];
-  const idx = layouts.indexOf(_termLayout);
-  _termLayout = layouts[(idx + 1) % layouts.length];
-  // Just update layout class — no pane reload needed
-  const w = document.getElementById('tmux-terminal');
-  if (!w) return;
-  const pc = w.querySelector('.tmux-panes');
-  if (pc) {
-    const layoutCls = _termLayout === 'vsplit' ? 'tmux-vsplit' : _termLayout === 'hsplit' ? 'tmux-hsplit' : 'tmux-grid';
-    pc.className = `tmux-panes ${layoutCls}`;
-  }
-  // Update statusbar and layout button
-  _termRender();
-}
+/** @deprecated — layout is now automatic grid */
+function _termCycleLayout() { _termRender(); }
 
 function _termRender() {
   let w = document.getElementById('tmux-terminal');
@@ -590,10 +570,9 @@ function _termRender() {
     return;
   }
 
-  const layoutCls = _termPanes.length <= 1 ? '' :
-    _termLayout === 'vsplit' ? 'tmux-vsplit' :
-    _termLayout === 'hsplit' ? 'tmux-hsplit' : 'tmux-grid';
-  const layoutIcon = _termLayout === 'vsplit' ? '▐' : _termLayout === 'hsplit' ? '▄' : '⊞';
+  // Auto grid: cols = ceil(sqrt(n))
+  const n = _termPanes.length;
+  const cols = Math.ceil(Math.sqrt(n));
 
   w.className = 'tmux-widget';
 
@@ -606,9 +585,8 @@ function _termRender() {
     w.prepend(titlebar);
   }
   titlebar.innerHTML = `
-    <span style="font-size:10px;color:#94a3b8;padding:0 8px;font-family:monospace;">agent-terminal</span>
+    <span style="font-size:10px;color:#94a3b8;padding:0 8px;font-family:monospace;">agent-terminal · ${n} pane${n>1?'s':''}</span>
     <div style="display:flex;gap:2px;align-items:center;">
-      <button onclick="_termCycleLayout()" class="tmux-btn" title="Layout: ${_termLayout}" style="font-size:14px;">${layoutIcon}</button>
       <button onclick="_termToggleMinimize()" class="tmux-btn" title="Minimize">─</button>
       <button onclick="_termCloseAll()" class="tmux-btn tmux-btn-close">✕</button>
     </div>`;
@@ -617,10 +595,11 @@ function _termRender() {
   let panesContainer = w.querySelector('.tmux-panes');
   if (!panesContainer) {
     panesContainer = document.createElement('div');
-    panesContainer.className = `tmux-panes ${layoutCls}`;
+    panesContainer.className = 'tmux-panes';
     w.insertBefore(panesContainer, w.querySelector('.tmux-statusbar'));
   }
-  panesContainer.className = `tmux-panes ${layoutCls}`;
+  panesContainer.className = 'tmux-panes';
+  panesContainer.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
 
   // Add only NEW panes — don't rebuild existing ones
   _termPanes.forEach(p => {
@@ -663,7 +642,7 @@ function _termRender() {
     w.appendChild(statusbar);
   }
   statusbar.innerHTML = `
-    <span>${_termPanes.length} pane${_termPanes.length > 1 ? 's' : ''} · ${_termLayout}</span>
+    <span>${n} pane${n > 1 ? 's' : ''} · ${cols}×${Math.ceil(n/cols)}</span>
     <span style="color:#475569;">click agent to add pane</span>`;
 
   // Resize edge handles (all 8 edges/corners)
@@ -758,12 +737,13 @@ function _termFormatLine(ev, spanDetails) {
 
 function _termClosePane(paneId) {
   _termPanes = _termPanes.filter(p => p.id !== paneId);
-  // Remove the DOM element directly
   const el = document.getElementById(`tmux-pane-${paneId}`);
   if (el) el.remove();
   if (_termPanes.length === 0) { _termCloseAll(); return; }
-  if (_termPanes.length === 1) _termLayout = 'single';
-  _termRender(); // lightweight — only updates layout class & statusbar
+  // Recalculate grid columns
+  const pc = document.querySelector('.tmux-panes');
+  if (pc) pc.style.gridTemplateColumns = `repeat(${Math.ceil(Math.sqrt(_termPanes.length))}, 1fr)`;
+  _termRender();
 }
 
 function _termCloseAll() {

@@ -242,22 +242,19 @@
       font-size: 10px; color: #64748b;
     }
 
-    /* Pane container layouts */
-    .tmux-panes { flex: 1; display: flex; overflow: hidden; }
-    .tmux-panes.tmux-vsplit { flex-direction: row; }
-    .tmux-panes.tmux-hsplit { flex-direction: column; }
-    .tmux-panes.tmux-grid { flex-wrap: wrap; }
-    .tmux-panes.tmux-grid .tmux-pane { flex: 1 1 48%; min-width: 200px; }
+    /* Pane container — auto grid */
+    .tmux-panes {
+      flex: 1; display: grid; overflow: hidden;
+      grid-template-columns: 1fr;
+      grid-auto-rows: 1fr;
+    }
 
     /* Individual pane */
     .tmux-pane {
-      flex: 1; display: flex; flex-direction: column;
+      display: flex; flex-direction: column;
       border-right: 1px solid #1e1e2e; border-bottom: 1px solid #1e1e2e;
       min-width: 0; min-height: 0; overflow: hidden;
     }
-    .tmux-pane:last-child { border-right: none; }
-    .tmux-hsplit .tmux-pane { border-right: none; }
-    .tmux-hsplit .tmux-pane:last-child { border-bottom: none; }
     .tmux-pane-header {
       display: flex; align-items: center; gap: 6px;
       padding: 4px 10px; background: #111118;
