@@ -4037,12 +4037,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Initialize budget bar from localStorage
   _budgetUSD = _getBudgetFromStorage();
-  // Show budget set bar if no budget set yet
-  if (_budgetUSD === null) {
-    const setBar = document.getElementById('budget-set-bar');
-    if (setBar) setBar.classList.remove('hidden');
-  } else {
-    // Budget is set — refresh bar (will fetch spend)
+  // Refresh budget bar if budget is configured
+  if (_budgetUSD !== null) {
     _refreshBudgetBar();
   }
 

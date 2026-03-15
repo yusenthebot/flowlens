@@ -107,15 +107,7 @@
     </div>
   </div>
 
-  <!-- Set Budget Button (shown when no budget is set) -->
-  <div id="budget-set-bar" class="hidden w-full">
-    <div class="max-w-[1600px] mx-auto px-6 py-1.5 flex items-center gap-2">
-      <button onclick="openBudgetModal()" class="text-[10px] text-slate-600 hover:text-indigo-400 transition flex items-center gap-1.5">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-        Set monthly budget
-      </button>
-    </div>
-  </div>
+  <!-- Budget set bar removed — budget can be set via Cost tab -->
 
   <!-- Navigation Tabs -->
   <nav class="max-w-[1600px] mx-auto px-6 pt-4">
@@ -924,30 +916,7 @@
   </div>
 
   <!-- Budget Modal -->
-  <div id="budget-modal-overlay" class="hidden" onclick="if(event.target===this)closeBudgetModal()">
-    <div id="budget-modal-box" class="glass fade-in">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="text-sm font-semibold text-white">Set Monthly Budget</h3>
-        <button onclick="closeBudgetModal()" class="text-slate-500 hover:text-slate-300 transition">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-        </button>
-      </div>
-      <p class="text-xs text-slate-500 mb-4">Enter your monthly cost budget in USD. A progress bar will appear across all tabs showing your spend against this limit.</p>
-      <div class="mb-4">
-        <label class="text-xs font-medium text-slate-400 block mb-1.5">Monthly Budget (USD)</label>
-        <div class="flex items-center gap-2">
-          <span class="text-slate-500 text-sm">$</span>
-          <input id="budget-input" type="number" min="0.01" step="0.01" placeholder="50.00"
-            class="filter-input flex-1 rounded-lg px-3 py-2 text-sm border border-white/10 bg-surface-100 text-white focus:outline-none focus:border-indigo-500/50 transition"
-            onkeydown="if(event.key==='Enter')saveBudget()">
-        </div>
-      </div>
-      <div class="flex gap-2">
-        <button onclick="saveBudget()" class="flex-1 py-2 text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition">Save Budget</button>
-        <button onclick="closeBudgetModal()" class="py-2 px-4 text-sm text-slate-400 hover:text-slate-200 transition">Cancel</button>
-      </div>
-    </div>
-  </div>
+  <!-- Budget modal removed -->
 
   <!-- Notification slide-out panel -->
   <div id="notification-panel" class="hidden fixed right-0 top-0 h-full w-80 glass border-l border-white/10 z-50 overflow-y-auto shadow-2xl fade-in">
