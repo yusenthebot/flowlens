@@ -177,8 +177,12 @@ class CostForecaster:
         projected_daily = max(0.0, slope * last_x + intercept)
         projected_monthly = projected_daily * 30
 
-        # Confidence interval (±1.96 × SE of residuals)
+        # Confidence interval (±1.96 × SE of residuals).
+        # With fewer than 3 data points the residual SE is 0 (perfect fit), so
+        # fall back to ±10 % of the projected value as a minimum spread.
         se = _residual_std(x, y, slope, intercept)
+        if se == 0.0 and projected_daily > 0:
+            se = projected_daily * 0.10 / 1.96  # gives ±10 % margin
         margin = 1.96 * se
         ci = (max(0.0, projected_daily - margin), projected_daily + margin)
 

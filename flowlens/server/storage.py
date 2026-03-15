@@ -1296,7 +1296,7 @@ class TraceStore:
                    MAX(has_errors)                   AS has_errors,
                    SUM(error_count)                  AS error_count,
                    GROUP_CONCAT(DISTINCT service_name) AS services,
-                   GROUP_CONCAT(DISTINCT tags_json)    AS all_tags_json
+                   GROUP_CONCAT(tags_json, '|||')      AS all_tags_json
                FROM traces
                WHERE session_id IS NOT NULL AND session_id != ''
                GROUP BY session_id
@@ -1308,15 +1308,17 @@ class TraceStore:
         result = []
         for row in rows:
             d = dict(row)
-            # Parse agents from concatenated tags JSON strings
+            # Parse agents from concatenated tags JSON strings.
+            # Use '|||' as separator so commas inside JSON objects are preserved.
             agents: list[str] = []
             project: str = ""
             all_tags_raw = d.pop("all_tags_json", None) or ""
-            # GROUP_CONCAT joins multiple JSON strings with comma — split and parse
-            for tags_chunk in all_tags_raw.split(","):
+            seen_tags: set[str] = set()
+            for tags_chunk in all_tags_raw.split("|||"):
                 tags_chunk = tags_chunk.strip()
-                if not tags_chunk:
+                if not tags_chunk or tags_chunk in seen_tags:
                     continue
+                seen_tags.add(tags_chunk)
                 try:
                     tags = json.loads(tags_chunk)
                     agent = tags.get("agent", "")

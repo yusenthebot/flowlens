@@ -2,12 +2,14 @@
 """Seed 50 traces spread across the last 24 hours for realistic trend chart data."""
 
 import json
+import os
 import random
 import time
 import urllib.request
 import uuid
 
-ENDPOINT = "http://localhost:8585/v1/traces/ingest"
+_PORT = os.environ.get("FLOWLENS_PORT", "8585")
+ENDPOINT = f"http://localhost:{_PORT}/v1/traces/ingest"
 AGENTS = ["vr-alpha", "vr-beta", "vr-gamma", "vr-lead", "vr-scribe"]
 TOOLS = ["Read", "Write", "Edit", "Bash", "Grep", "Glob"]
 
