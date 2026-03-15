@@ -1,10 +1,8 @@
 /* FlowLens Dashboard — Chart.js wrapper and helper functions */
 'use strict';
 
-// =========================================================================
-// Chart.js Global Defaults — warm, clean aesthetic (Cycle 14)
-// =========================================================================
-(function applyChartDefaults() {
+// ==================================================================// Chart.js Global Defaults — warm, clean aesthetic (Cycle 14)
+// ==================================================================(function applyChartDefaults() {
   if (typeof Chart === 'undefined') return;
 
   // Warm palette (used as default color cycle)
@@ -125,10 +123,8 @@ function _chartTooltipConfig() {
   };
 }
 
-// =========================================================================
-// Doughnut center label helper
-// =========================================================================
-function _addDoughnutCenterLabel(canvasId, valueText, subText) {
+// ==================================================================// Doughnut center label helper
+// ==================================================================function _addDoughnutCenterLabel(canvasId, valueText, subText) {
   const canvas = document.getElementById(canvasId);
   if (!canvas) return;
   const wrapper = canvas.parentElement;
@@ -152,8 +148,7 @@ function _addDoughnutCenterLabel(canvasId, valueText, subText) {
   wrapper.appendChild(label);
 }
 
-// =========================================================================
-async function loadOverviewCharts() {
+// ==================================================================async function loadOverviewCharts() {
   try {
     const summary = await apiFetch('/v1/agents/summary');
     console.log('[FlowLens] loadOverviewCharts: got', summary?.agents?.length, 'agents');
@@ -224,11 +219,27 @@ async function loadOverviewCharts() {
           responsive: true, maintainAspectRatio: false,
           plugins: {
             legend: { display: false },
-            tooltip: { ..._chartTooltipConfig(), callbacks: { label: ctx => ` ${ctx.parsed.x} traces` } },
+            tooltip: {
+              ..._chartTooltipConfig(),
+              callbacks: {
+                title: ctx => labels[ctx[0].dataIndex] || ctx[0].label,
+                label: ctx => ` ${ctx.parsed.x} traces`,
+              },
+            },
           },
           scales: {
             x: { ticks: { color: tc, font: { size: 10 } }, grid: { color: gc }, border: { display: false }, beginAtZero: true },
-            y: { type: 'category', ticks: { color: tc, font: { size: 10 }, autoSkip: false }, grid: { display: false }, border: { display: false } }
+            y: {
+              type: 'category',
+              labels: labels,
+              ticks: {
+                color: tc,
+                font: { size: 10 },
+                callback: (val, index) => labels[index] ?? val,
+              },
+              grid: { display: false },
+              border: { display: false },
+            },
           },
           animation: { duration: 600, easing: 'easeOutQuart' },
         }
@@ -286,10 +297,8 @@ async function loadOverviewCharts() {
 
 
 
-// =========================================================================
-// Sparkline Helper
-// =========================================================================
-// v17 Premium Feel: thin line (2px), no fill, smooth curve, no points
+// ==================================================================// Sparkline Helper
+// ==================================================================// v17 Premium Feel: thin line (2px), no fill, smooth curve, no points
 function renderSparkline(canvasId, data, color) {
   const canvas = document.getElementById(canvasId);
   if (!canvas || !data || !data.length) return;
@@ -408,8 +417,7 @@ async function loadSparklines() {
 
 
 // Activity Timeline
-// =========================================================================
-async function loadActivityTimeline() {
+// ==================================================================async function loadActivityTimeline() {
   const container = document.getElementById('activity-timeline');
   // Show skeleton rows while loading (only when container is empty to avoid flash on refresh)
   if (container && !container.children.length) {
@@ -491,10 +499,8 @@ async function loadActivityTimeline() {
 }
 
 
-// =========================================================================
-// Trace Volume Trend Chart
-// =========================================================================
-let _trendHours = 24; // Currently active window
+// ==================================================================// Trace Volume Trend Chart
+// ==================================================================let _trendHours = 24; // Currently active window
 
 async function loadTrendChart(hours) {
   _trendHours = hours;
@@ -678,12 +684,9 @@ async function loadTrendChart(hours) {
   }
 }
 
-// =========================================================================
-
-// =========================================================================
-// Cost Analysis
-// =========================================================================
-async function loadCostData() {
+// ==================================================================
+// ==================================================================// Cost Analysis
+// ==================================================================async function loadCostData() {
   // Show skeleton loading state in summary cards area before data arrives
   const summaryCardsEl = document.getElementById('cost-summary-cards');
   if (summaryCardsEl) {
