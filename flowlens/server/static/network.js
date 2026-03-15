@@ -373,22 +373,20 @@ async function loadOverviewAgents() {
 
 async function loadOverviewGraph() {
   try {
-    const [relData, netData] = await Promise.all([
-      apiFetch('/v1/agents/relationships'),
-      apiFetch('/v1/agents/network'),
-    ]);
+    const data = await apiFetch('/v1/agents/relationships');
 
     const container = document.getElementById('overview-agent-graph');
     if (!container) return;
 
     container.innerHTML = '';
 
-    const nodes = (netData?.nodes || []).filter(n => n.id !== 'Agent');
-    const edges = relData?.edges || [];
-    if (nodes.length === 0) { container.innerHTML = '<p class="text-center text-slate-500 py-20">No agent data</p>'; return; }
+    if (!data.nodes || data.nodes.length === 0) {
+      container.innerHTML = '<p class="text-center text-slate-500 py-20">No agent data</p>';
+      return;
+    }
 
-    // Reuse the same SVG builder
-    _buildSVGNetwork(container, { nodes, edges });
+    // Use the same SVG network as the Agents tab
+    _buildSVGNetwork(container, data);
 
   } catch (e) { console.warn('Network graph:', e); }
 }
