@@ -115,13 +115,28 @@
         <div class="gradient-orb" style="width:400px;height:400px;top:-100px;right:-100px;background:radial-gradient(circle,rgba(99,102,241,0.15),transparent 70%);animation:orbFloat 20s ease-in-out infinite;"></div>
         <div class="gradient-orb" style="width:300px;height:300px;bottom:-50px;left:-50px;background:radial-gradient(circle,rgba(139,92,246,0.12),transparent 70%);animation:orbFloat 25s ease-in-out infinite reverse;"></div>
         <div class="gradient-orb" style="width:250px;height:250px;top:50%;right:30%;background:radial-gradient(circle,rgba(99,102,241,0.08),transparent 70%);animation:orbFloat 30s ease-in-out infinite 5s;"></div>
+      <!-- Stats time-window selector -->
+      <div class="flex items-center justify-between mb-3 relative z-10">
+        <div class="flex items-center gap-1.5">
+          <span class="text-[10px] text-slate-500 uppercase tracking-wider font-medium" id="stats-window-label">All Time</span>
+        </div>
+        <div class="flex gap-1">
+          <button id="stats-window-hour" onclick="setStatsWindow('hour')" class="trend-btn tab-inactive px-2 py-1 text-[10px] rounded bg-surface-100 text-slate-400 hover:text-white transition">1h</button>
+          <button id="stats-window-day" onclick="setStatsWindow('day')" class="trend-btn tab-inactive px-2 py-1 text-[10px] rounded bg-surface-100 text-slate-400 hover:text-white transition">24h</button>
+          <button id="stats-window-all" onclick="setStatsWindow('all')" class="trend-btn active px-2 py-1 text-[10px] rounded">All</button>
+        </div>
+      </div>
+
       <!-- Stats Cards -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6 stat-grid relative z-10">
         <div class="glass rounded-xl p-5 stat-glow stat-card-enter stat-card-traces">
           <div class="flex items-center justify-between mb-3">
-            <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Traces</span>
-            <div class="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center">
-              <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7"/></svg>
+            <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Traces</span>
+            <div class="flex items-center gap-1.5">
+              <span id="stat-traces-trend"></span>
+              <div class="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center">
+                <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7"/></svg>
+              </div>
             </div>
           </div>
           <div id="stat-traces" class="text-2xl font-bold text-white">
@@ -162,9 +177,12 @@
         </div>
         <div id="stat-card-cost" class="glass rounded-xl p-5 stat-glow transition-colors duration-500 stat-card-enter stat-card-cost">
           <div class="flex items-center justify-between mb-3">
-            <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Cost</span>
-            <div class="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Cost</span>
+            <div class="flex items-center gap-1.5">
+              <span id="stat-cost-trend"></span>
+              <div class="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              </div>
             </div>
           </div>
           <div id="stat-cost" class="text-2xl font-bold text-white">
@@ -256,14 +274,31 @@
       </div>
 
 
-      <!-- Live Agent Monitor -->
-      <div class="glass rounded-xl p-4 mb-6">
-        <div class="flex items-center gap-2 mb-3">
-          <span class="w-2 h-2 rounded-full bg-emerald-500 pulse-dot"></span>
-          <h2 class="text-sm font-semibold text-white">Live Monitor</h2>
-          <span class="text-[10px] text-slate-500 ml-auto" id="monitor-update-time">--</span>
+      <!-- Live Agent Monitor + Live Activity Feed (side by side) -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        <!-- Live Agent Monitor -->
+        <div class="glass rounded-xl p-4">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 pulse-dot"></span>
+            <h2 class="text-sm font-semibold text-white">Live Monitor</h2>
+            <span class="text-[10px] text-slate-500 ml-auto" id="monitor-update-time">--</span>
+          </div>
+          <div id="live-monitor" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2"></div>
         </div>
-        <div id="live-monitor" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-2"></div>
+
+        <!-- Live Activity Feed -->
+        <div class="glass rounded-xl overflow-hidden">
+          <div class="flex items-center justify-between p-4 border-b border-white/5">
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-indigo-500 pulse-dot"></span>
+              <h2 class="text-sm font-semibold text-white">Live Activity</h2>
+            </div>
+            <span class="text-[10px] text-slate-500">Real-time events</span>
+          </div>
+          <div id="live-activity-feed" class="max-h-[220px] overflow-y-auto divide-y divide-white/5">
+            <div class="px-4 py-6 text-center text-xs live-feed-empty">Waiting for activity...</div>
+          </div>
+        </div>
       </div>
 
       <!-- Activity Timeline + Recent Traces (side by side) -->

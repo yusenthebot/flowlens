@@ -81,6 +81,12 @@ let dagLoaded = false; // Lazy load flag for DAG
 let knownAgents = new Set(); // For new-agent detection in notifications
 let virtualScrollState = { traces: [], renderedStart: 0, renderedEnd: 0, rowHeight: 56, containerHeight: 600 };
 
+// Stat card time window: 'hour', 'day', 'all'
+let _statsWindow = 'all';
+// Live activity feed buffer (max 15 entries)
+let _liveFeedEvents = [];
+const _LIVE_FEED_MAX = 15;
+
 // =========================================================================
 // Notification System
 // =========================================================================
@@ -147,15 +153,57 @@ function renderNotifications() {
     const timeAgo = formatTimeAgo(n.timestamp);
     const clickAttr = n.traceId ? `onclick="openTrace('${escHtml(n.traceId)}');toggleNotificationPanel();" style="cursor:pointer"` : '';
     return `
-      <div class="flex gap-3 p-3 hover:bg-white/5 transition" ${clickAttr}>
+      <div class="flex gap-3 p-3 notif-row transition" ${clickAttr}>
         <div class="flex-shrink-0 w-2 h-2 rounded-full ${cfg.dot} mt-1.5"></div>
         <div class="min-w-0 flex-1">
-          <div class="text-xs font-semibold text-white">${escHtml(n.title)}</div>
-          <div class="text-[11px] text-slate-400 mt-0.5 break-words">${escHtml(n.message)}</div>
-          <div class="text-[10px] text-slate-600 mt-1">${timeAgo}</div>
+          <div class="text-xs font-semibold notif-title">${escHtml(n.title)}</div>
+          <div class="text-[11px] notif-msg mt-0.5 break-words">${escHtml(n.message)}</div>
+          <div class="text-[10px] notif-time mt-1">${timeAgo}</div>
         </div>
       </div>`;
   }).join('');
+}
+
+// =========================================================================
+// Live Activity Feed
+// =========================================================================
+function addToLiveFeed(event) {
+  // event: { agent, action, status, timestamp }
+  _liveFeedEvents.unshift({
+    agent: event.agent || 'unknown',
+    action: event.action || 'Event',
+    status: event.status || 'ok', // 'ok', 'error'
+    timestamp: event.timestamp || Date.now() / 1000,
+  });
+  if (_liveFeedEvents.length > _LIVE_FEED_MAX) {
+    _liveFeedEvents = _liveFeedEvents.slice(0, _LIVE_FEED_MAX);
+  }
+  renderLiveFeed();
+}
+
+function renderLiveFeed() {
+  const container = document.getElementById('live-activity-feed');
+  if (!container) return;
+  if (_liveFeedEvents.length === 0) {
+    container.innerHTML = '<div class="px-4 py-6 text-center text-xs live-feed-empty">Waiting for activity...</div>';
+    return;
+  }
+  container.innerHTML = _liveFeedEvents.map(ev => {
+    const p = getAgentProfile(ev.agent);
+    const timeAgo = formatTimeAgo(ev.timestamp);
+    const isError = ev.status === 'error';
+    const dotColor = isError ? 'bg-red-500' : 'bg-emerald-500';
+    const rowClass = isError ? 'live-feed-row-error' : '';
+    return `<div class="live-feed-row flex items-center gap-3 px-4 py-2.5 ${rowClass}">
+      <span class="flex-shrink-0 text-[9px] live-feed-time w-12 text-right">${timeAgo}</span>
+      <div class="flex-shrink-0 w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-bold" style="background:${p.color}22;color:${p.color}">${(p.name||'?')[0]}</div>
+      <span class="flex-1 text-xs live-feed-action truncate">${escHtml(ev.action)}</span>
+      <span class="flex-shrink-0 w-1.5 h-1.5 rounded-full ${dotColor}"></span>
+    </div>`;
+  }).join('');
+
+  // Auto-scroll to top (newest first)
+  container.scrollTop = 0;
 }
 
 // =========================================================================
@@ -674,22 +722,108 @@ function animateCounter(element, targetValue, duration = 800, prefix = '', suffi
   requestAnimationFrame(update);
 }
 // =========================================================================
-// Stats
+// Stats — with time window selector and trend indicators
 // =========================================================================
+
+/** Switch stat card time window and reload stats */
+function setStatsWindow(window) {
+  _statsWindow = window;
+  // Update button active states
+  ['hour', 'day', 'all'].forEach(w => {
+    const btn = document.getElementById('stats-window-' + w);
+    if (!btn) return;
+    if (w === window) {
+      btn.classList.add('active');
+      btn.classList.remove('tab-inactive');
+    } else {
+      btn.classList.remove('active');
+      btn.classList.add('tab-inactive');
+    }
+  });
+  loadStats();
+}
+
+/** Render a trend arrow with color */
+function renderTrend(current, previous) {
+  if (!previous || previous === 0) return '';
+  const pct = ((current - previous) / previous) * 100;
+  const absPct = Math.abs(pct).toFixed(0);
+  if (Math.abs(pct) < 1) return '<span class="text-slate-500 text-[10px]">—</span>';
+  const up = pct > 0;
+  const color = up ? 'text-emerald-400' : 'text-red-400';
+  const arrow = up ? '↑' : '↓';
+  return `<span class="${color} text-[10px] font-medium">${arrow}${absPct}%</span>`;
+}
+
 async function loadStats() {
   try {
-    const stats = await apiFetch('/v1/stats');
+    // Determine time range params for windowed stats
+    const windowHours = _statsWindow === 'hour' ? 1 : _statsWindow === 'day' ? 24 : null;
+
+    // Fetch trends data for the window + previous window (for trend comparison)
+    let currentStats = null;
+    let previousStats = null;
+
+    if (windowHours) {
+      // Use trends endpoint to get windowed aggregate stats
+      const [currentTrend, previousTrend] = await Promise.all([
+        apiFetch(`/v1/stats/trends?hours=${windowHours}&bucket_minutes=${windowHours <= 1 ? 5 : 60}`),
+        apiFetch(`/v1/stats/trends?hours=${windowHours * 2}&bucket_minutes=${windowHours <= 1 ? 5 : 60}`),
+      ]);
+      // Aggregate current window buckets
+      const allBuckets = currentTrend.buckets || [];
+      const prevBuckets = (previousTrend.buckets || []).slice(0, Math.floor((previousTrend.buckets || []).length / 2));
+      const curBuckets = (previousTrend.buckets || []).slice(Math.floor((previousTrend.buckets || []).length / 2));
+      currentStats = {
+        total_traces: curBuckets.reduce((s, b) => s + (b.trace_count || 0), 0),
+        error_traces: curBuckets.reduce((s, b) => s + (b.error_count || 0), 0),
+        total_cost: curBuckets.reduce((s, b) => s + (b.total_cost || 0), 0),
+        total_tokens: curBuckets.reduce((s, b) => s + (b.total_tokens || 0), 0),
+        avg_duration_ms: curBuckets.length ? curBuckets.reduce((s, b) => s + (b.avg_duration_ms || 0), 0) / curBuckets.length : 0,
+        total_spans: allBuckets.reduce((s, b) => s + (b.span_count || 0), 0),
+      };
+      previousStats = {
+        total_traces: prevBuckets.reduce((s, b) => s + (b.trace_count || 0), 0),
+        error_traces: prevBuckets.reduce((s, b) => s + (b.error_count || 0), 0),
+        total_cost: prevBuckets.reduce((s, b) => s + (b.total_cost || 0), 0),
+      };
+    } else {
+      // All-time stats
+      currentStats = await apiFetch('/v1/stats');
+      // For all-time, compare against 24h window
+      try {
+        const trend24h = await apiFetch('/v1/stats/trends?hours=48&bucket_minutes=60');
+        const buckets = trend24h.buckets || [];
+        const half = Math.floor(buckets.length / 2);
+        previousStats = {
+          total_traces: buckets.slice(0, half).reduce((s, b) => s + (b.trace_count || 0), 0),
+          total_cost: buckets.slice(0, half).reduce((s, b) => s + (b.total_cost || 0), 0),
+        };
+        currentStats._window_traces = buckets.slice(half).reduce((s, b) => s + (b.trace_count || 0), 0);
+        currentStats._window_cost = buckets.slice(half).reduce((s, b) => s + (b.total_cost || 0), 0);
+      } catch (_) {}
+    }
+
+    const stats = currentStats;
+
     const tracesEl = document.getElementById('stat-traces');
     const spansEl = document.getElementById('stat-spans');
     animateCounter(tracesEl, stats.total_traces || 0);
     animateCounter(spansEl, stats.total_spans || 0, 800, '', ' spans');
+
+    // Trend: traces
+    const tracesTrendEl = document.getElementById('stat-traces-trend');
+    if (tracesTrendEl && previousStats) {
+      const cur = windowHours ? stats.total_traces : (stats._window_traces || 0);
+      tracesTrendEl.innerHTML = renderTrend(cur, previousStats.total_traces);
+    }
 
     const errorPct = stats.total_traces > 0
       ? (stats.error_traces / stats.total_traces) * 100
       : 0;
     const errorRate = parseFloat(errorPct.toFixed(1));
     animateCounter(document.getElementById('stat-error-rate'), errorRate, 800, '', '%');
-    document.getElementById('stat-error-count').textContent = `${stats.error_traces} error traces`;
+    document.getElementById('stat-error-count').textContent = `${stats.error_traces || 0} error traces`;
     const errorCard = document.getElementById('stat-card-error');
     if (errorCard) {
       errorCard.classList.toggle('bg-red-500/10', errorPct > 10);
@@ -716,13 +850,26 @@ async function loadStats() {
       costCard.classList.toggle('border-amber-500/30', totalCost > 1);
     }
 
+    // Trend: cost
+    const costTrendEl = document.getElementById('stat-cost-trend');
+    if (costTrendEl && previousStats) {
+      const cur = windowHours ? stats.total_cost : (stats._window_cost || 0);
+      costTrendEl.innerHTML = renderTrend(cur, previousStats.total_cost);
+    }
+
     // Update summary metrics — success rate
     const metricSuccessEl = document.getElementById('metric-success-rate');
     if (metricSuccessEl) {
       const successPct = stats.total_traces > 0
-        ? ((1 - stats.error_traces / stats.total_traces) * 100).toFixed(1)
+        ? ((1 - (stats.error_traces || 0) / stats.total_traces) * 100).toFixed(1)
         : '--';
       metricSuccessEl.textContent = successPct !== '--' ? successPct + '%' : '--';
+    }
+
+    // Update window label in stat cards
+    const windowLabel = document.getElementById('stats-window-label');
+    if (windowLabel) {
+      windowLabel.textContent = _statsWindow === 'hour' ? 'Last Hour' : _statsWindow === 'day' ? 'Last 24h' : 'All Time';
     }
 
     updateRefreshTime();
@@ -826,41 +973,56 @@ function renderTraceRow(trace, compact = false) {
 // =========================================================================
 function renderEmptyState(message, subMessage, showGettingStarted) {
   const gettingStarted = showGettingStarted ? `
-    <div class="mt-6 w-full max-w-lg text-left glass rounded-xl p-5 border border-indigo-500/10">
-      <h3 class="text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-3">Getting Started</h3>
-      <div class="space-y-3">
+    <div class="mt-6 w-full max-w-xl text-left empty-state-card rounded-xl p-5">
+      <div class="flex items-center gap-2 mb-4">
+        <div class="w-6 h-6 rounded-lg bg-indigo-500/15 flex items-center justify-center">
+          <svg class="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        </div>
+        <h3 class="text-xs font-semibold text-indigo-400 uppercase tracking-wider">Get Started in 3 Steps</h3>
+      </div>
+      <div class="space-y-4">
         <div class="flex gap-3">
           <span class="flex-shrink-0 w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-[10px] font-bold">1</span>
-          <div>
-            <p class="text-xs font-medium text-slate-300">Install FlowLens</p>
-            <code class="text-[11px] text-indigo-300 bg-surface-100 px-2 py-1 rounded mt-1 block font-mono">pip install flowlens</code>
+          <div class="min-w-0 flex-1">
+            <p class="text-xs font-medium empty-state-step-label mb-1">Install FlowLens</p>
+            <code class="text-[11px] text-indigo-400 empty-state-code px-3 py-1.5 rounded-lg block font-mono">pip install flowlens</code>
           </div>
         </div>
         <div class="flex gap-3">
           <span class="flex-shrink-0 w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-[10px] font-bold">2</span>
-          <div>
-            <p class="text-xs font-medium text-slate-300">Instrument your agent</p>
-            <code class="text-[11px] text-indigo-300 bg-surface-100 px-2 py-1 rounded mt-1 block font-mono">from flowlens import tracer</code>
+          <div class="min-w-0 flex-1">
+            <p class="text-xs font-medium empty-state-step-label mb-1">Wrap your agent with a trace</p>
+            <code class="text-[11px] text-indigo-400 empty-state-code px-3 py-1.5 rounded-lg block font-mono whitespace-pre">from flowlens import tracer
+with tracer.start_trace("my-agent"):
+    result = my_agent.run()</code>
           </div>
         </div>
         <div class="flex gap-3">
           <span class="flex-shrink-0 w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-[10px] font-bold">3</span>
-          <div>
-            <p class="text-xs font-medium text-slate-300">Run your agent — traces appear here automatically</p>
-            <p class="text-[11px] text-slate-500 mt-1">See the <a href="https://github.com/yusenthebot/flowlens#readme" target="_blank" class="text-indigo-400 hover:underline">docs</a> or <code class="font-mono text-indigo-300">examples/quickstart.py</code> to get started.</p>
+          <div class="min-w-0 flex-1">
+            <p class="text-xs font-medium empty-state-step-label mb-1">Or run the demo to see it in action</p>
+            <code class="text-[11px] text-emerald-400 empty-state-code px-3 py-1.5 rounded-lg block font-mono">flowlens demo --dashboard</code>
+            <p class="text-[10px] empty-state-hint mt-1.5">Generates sample traces and opens this dashboard automatically.</p>
           </div>
         </div>
+      </div>
+      <div class="mt-4 pt-3 empty-state-footer flex items-center gap-3">
+        <a href="https://github.com/yusenthebot/flowlens#readme" target="_blank" class="text-[11px] text-indigo-400 hover:text-indigo-300 transition hover:underline">Documentation</a>
+        <span class="empty-state-divider w-px h-3"></span>
+        <a href="https://github.com/yusenthebot/flowlens/tree/main/examples" target="_blank" class="text-[11px] text-indigo-400 hover:text-indigo-300 transition hover:underline">Examples</a>
       </div>
     </div>
   ` : '';
 
   return `
-    <div class="flex flex-col items-center justify-center py-16 px-8">
-      <svg class="w-20 h-20 text-slate-700 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-      </svg>
-      <p class="text-sm text-slate-500 mb-1">${escHtml(message)}</p>
-      <p class="text-xs text-slate-600">${escHtml(subMessage || '')}</p>
+    <div class="flex flex-col items-center justify-center py-12 px-8">
+      <div class="w-16 h-16 rounded-2xl bg-indigo-500/8 flex items-center justify-center mb-4">
+        <svg class="w-8 h-8 empty-state-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+      </div>
+      <p class="text-sm font-medium empty-state-title mb-1">${escHtml(message)}</p>
+      <p class="text-xs empty-state-sub">${escHtml(subMessage || '')}</p>
       ${gettingStarted}
     </div>
   `;

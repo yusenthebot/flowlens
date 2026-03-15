@@ -1,5 +1,15 @@
 # Task Board — FlowLens Development
 
+## Cycle 12: Complete (2026-03-14) — DASHBOARD USABILITY
+
+### Done (2026-03-14)
+- [x] **Overview stat cards with trend indicators + time window selector** — Beta — Added `setStatsWindow()` function with "1h / 24h / All" toggle buttons above stat cards; `renderTrend()` helper shows ↑/↓ percentage arrows (green=up, red=down) in Traces and Cost cards by comparing current vs previous equal window using `/v1/stats/trends`; `stats-window-label` updates to show active window name — `flowlens/server/static/dashboard.js`, `flowlens/server/dashboard.html`
+- [x] **Live activity feed on Overview** — Beta — `addToLiveFeed()` + `renderLiveFeed()` functions maintain a circular buffer of 15 events; each WebSocket `trace_ingested` event pushes an entry (agent avatar, action, status dot, relative timestamp); feed displays in a compact panel alongside Live Monitor; `live-activity-feed` container in dashboard.html — `flowlens/server/static/dashboard.js`, `flowlens/server/static/websocket.js`, `flowlens/server/dashboard.html`
+- [x] **Light theme comprehensive fixes** — Beta — Added 80+ CSS rules in dashboard.css covering: notification panel (`.notif-title`, `.notif-msg`, `.notif-time`), live feed (`.live-feed-time`, `.live-feed-action`), empty state (`.empty-state-*`), agents grid, agent detail modal, waterfall timeline, trace detail meta panel — `flowlens/server/static/dashboard.css`
+- [x] **Improved empty state with getting-started guide** — Beta — `renderEmptyState()` now shows a 3-step card: install (`pip install flowlens`), instrument (3-line code example), demo (`flowlens demo --dashboard`); theme-aware styling via CSS custom classes; docs and examples links — `flowlens/server/static/dashboard.js`
+
+---
+
 ## Cycle 11: Complete (2026-03-14) — APP.PY MODULARIZATION
 
 ### Done (2026-03-14)
