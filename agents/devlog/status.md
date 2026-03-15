@@ -1,5 +1,17 @@
 # Agent Status — 2026-03-15
 
+## Cycle 22: README Localization — COMPLETE (Alpha, 2026-03-15)
+
+**Alpha**: Split mixed EN/CN README into clean README.md (English) + README_CN.md (Chinese)
+- Branch: `feat/alpha-readme-localization`
+- Files: `README.md`, `README_CN.md`
+- Delivered:
+  - `README.md`: pure English, language switcher at top, all Chinese text removed, reads naturally
+  - `README_CN.md`: pure Chinese, same structure, all sections translated per spec, technical terms kept in English where natural
+  - Both files have identical section structure and identical language switcher as first element
+
+---
+
 ## Cycle 21: QA Screenshots + README — COMPLETE (Gamma, 2026-03-15)
 
 **Gamma**: Fresh screenshots with seeded data + README update with captions
