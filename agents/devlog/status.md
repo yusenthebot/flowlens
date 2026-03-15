@@ -1,15 +1,25 @@
 # Agent Status — 2026-03-15
 
-## Cycle 24: Dashboard Data Richness — IN PROGRESS (Gamma, 2026-03-15)
+## Cycle 24: Dashboard Data Richness — COMPLETE (Gamma, 2026-03-15)
 
-**Gamma**: Fixing charts, enriching terminal output, adding model usage to agent cards
-- Branch: `main` (direct)
-- Tasks:
-  1. Fix `loadStats` trend bucket field name mismatch (trace_count vs traces)
-  2. Fix `loadStats` all-time trend comparison same mismatch
-  3. Enhance `_termFormatLine` — full paths, bash preview 60 chars, model names, errors
-  4. Add "Models" section to Agent cards from activity stream span attributes
-  5. Verify `loadTrendChart` and `loadOverviewCharts` — both look correct already
+**Gamma**: Fixed charts, enriched terminal output, added model usage to agent cards
+- Branch: `worktree-agent-a92fa4b0`
+- Commit: e49f381
+- Tests: 1156 passing (unchanged)
+- Delivered:
+  - Fixed `loadStats()` bucket field name mismatch: `b.trace_count` → `b.traces||b.trace_count`,
+    `b.error_count` → `b.errors||b.error_count`, `b.total_cost` → `b.cost||b.total_cost`
+    Applied to both windowed and all-time modes — stat card trend indicators now show real ↑↓ %
+  - Fixed same mismatch in all-time `_window_traces` / `_window_cost` calculation
+  - Enhanced `_termFormatLine()`: full file paths (80-char max with ellipsis), bash preview
+    (60-char trimmed), model name pill (`.agent-term-model`, shortened aliases), error messages
+    for failed ops (70-char, overrides generic detail), added LLM/WebFetch/WebSearch icons
+  - Added `_loadAgentModels(agentNames)`: fetches activity stream, batch-loads up to 8 traces per
+    agent, extracts `gen_ai.request.model` from span attributes, renders model pills with call counts
+    in each agent card's new "Models" section
+  - Fixed `loadOverviewCharts()` early-exit when all agents tagged 'unknown'
+  - Added CSS: `.agent-term-model`, `.agent-model-pill`, `.model-count`
+- Files: `flowlens/server/static/dashboard.js`, `flowlens/server/static/charts.js`, `flowlens/server/static/dashboard.css`
 
 ---
 
