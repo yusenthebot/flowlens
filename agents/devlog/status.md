@@ -9,7 +9,7 @@
 | Lead  | sonnet 4.6| idle      | —                                                                     | main   | 4587523     |
 | Alpha | sonnet 4.6| done      | Session Timeline view: /v1/sessions API + Sessions tab + timeline UI  | worktree-agent-ae53ea2a | b256ed0     |
 | Beta  | sonnet 4.6| idle        | Refactored app.py into routes/ package (done, Cycle 11)                | feat/beta-route-modularization | 7af0433     |
-| Gamma | sonnet 4.6| idle        | Cycle 12 complete: span detail, cost insights, patterns grouping      | worktree-agent-affa5fa5 | 252d203 |
+| Gamma | sonnet 4.6| idle        | Cycle 13 complete: cost forecast widget, budget alert bar, enhanced /v1/cost/forecast endpoint, 9 new tests | worktree-agent-a3434533 | 991ae2a |
 
 ### Alpha — Session Timeline View (Cycle 13, DONE)
 

@@ -393,6 +393,16 @@ async function loadCostData() {
     // Render cost over time line chart
     _renderCostTrendsChart(costTrends, 'daily');
 
+    // Load forecast section (async, non-blocking)
+    if (typeof loadCostForecast === 'function') {
+      loadCostForecast().catch(e => console.warn('Forecast load error:', e));
+    }
+
+    // Refresh budget bar with latest spend data
+    if (typeof _refreshBudgetBar === 'function') {
+      _refreshBudgetBar().catch(() => {});
+    }
+
     renderCostChart('chart-cost-service', byService, 'doughnut');
     renderCostChart('chart-cost-kind', byKind, 'doughnut');
     renderCostChart('chart-cost-name', byName, 'bar');

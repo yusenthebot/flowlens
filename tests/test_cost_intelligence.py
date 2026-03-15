@@ -650,6 +650,57 @@ class TestCostForecastEndpoint:
         assert "upper" in ci
         assert ci["lower"] <= data["projected_daily_cost"] <= ci["upper"]
 
+    def test_forecast_returns_daily_costs_field(self, populated_client):
+        data = populated_client.get("/v1/cost/forecast").json()
+        assert "daily_costs" in data
+        assert isinstance(data["daily_costs"], list)
+
+    def test_forecast_daily_costs_have_date_and_cost(self, populated_client):
+        data = populated_client.get("/v1/cost/forecast").json()
+        for item in data["daily_costs"]:
+            assert "date" in item
+            assert "cost" in item
+            assert item["cost"] >= 0
+
+    def test_forecast_returns_forecast_field(self, populated_client):
+        data = populated_client.get("/v1/cost/forecast?forecast_days=3").json()
+        assert "forecast" in data
+        assert isinstance(data["forecast"], list)
+
+    def test_forecast_field_has_ci_bounds(self, populated_client):
+        data = populated_client.get("/v1/cost/forecast?forecast_days=3").json()
+        if data["forecast"]:
+            item = data["forecast"][0]
+            assert "date" in item
+            assert "cost" in item
+            assert "ci_lower" in item
+            assert "ci_upper" in item
+            assert item["ci_lower"] <= item["cost"] <= item["ci_upper"] + 1e-9
+
+    def test_forecast_forecast_days_count(self, populated_client):
+        data = populated_client.get("/v1/cost/forecast?forecast_days=5").json()
+        assert len(data["forecast"]) == 5
+
+    def test_forecast_has_daily_avg_and_monthly_projection(self, populated_client):
+        data = populated_client.get("/v1/cost/forecast").json()
+        assert "daily_avg_usd" in data
+        assert "monthly_projection_usd" in data
+        assert data["daily_avg_usd"] >= 0
+        assert data["monthly_projection_usd"] >= 0
+
+    def test_forecast_empty_db_returns_empty_arrays(self, client):
+        data = client.get("/v1/cost/forecast?forecast_days=3").json()
+        assert "daily_costs" in data
+        assert "forecast" in data
+
+    def test_forecast_invalid_forecast_days(self, client):
+        resp = client.get("/v1/cost/forecast?forecast_days=0")
+        assert resp.status_code == 422
+
+    def test_forecast_forecast_days_max(self, client):
+        resp = client.get("/v1/cost/forecast?forecast_days=30")
+        assert resp.status_code == 200
+
 
 class TestCostBudgetEndpoint:
     def test_budget_returns_200(self, client):
