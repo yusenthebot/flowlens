@@ -241,58 +241,6 @@
         <div id="overview-agents-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
       </div>
 
-      <!-- Agent Network Graph -->
-      <div class="glass rounded-xl p-4 mb-6">
-        <h3 class="text-xs font-medium text-slate-400 mb-2">Agent Network</h3>
-        <div id="overview-agent-graph" style="width:100%;height:400px;position:relative;border-radius:16px;overflow:hidden;" class="bg-[#fafaf8] dark:bg-[#0f172a] border border-slate-200 dark:border-white/5"></div>
-      </div>
-
-      <!-- Summary Metrics Row -->
-      <div class="grid grid-cols-3 gap-4 mb-4">
-        <div class="glass rounded-lg p-3 text-center">
-          <div class="text-lg font-bold text-white" id="metric-active-now">0</div>
-          <div class="text-[10px] text-slate-500">Active Now</div>
-        </div>
-        <div class="glass rounded-lg p-3 text-center">
-          <div class="text-lg font-bold text-white" id="metric-ops-1h">0</div>
-          <div class="text-[10px] text-slate-500">Ops Last Hour</div>
-        </div>
-        <div class="glass rounded-lg p-3 text-center">
-          <div class="text-lg font-bold text-emerald-400" id="metric-success-rate">--</div>
-          <div class="text-[10px] text-slate-500">Success Rate</div>
-        </div>
-      </div>
-
-      <!-- Overview Mini Charts -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div class="glass rounded-xl p-4">
-          <h3 class="text-xs font-medium text-slate-400 mb-2">Cost by Agent</h3>
-          <div style="height:160px;position:relative"><canvas id="overview-pie-agent"></canvas></div>
-        </div>
-        <div class="glass rounded-xl p-4">
-          <h3 class="text-xs font-medium text-slate-400 mb-2">Traces by Agent</h3>
-          <div style="height:160px;position:relative"><canvas id="overview-bar-agent"></canvas></div>
-        </div>
-        <div class="glass rounded-xl p-4">
-          <h3 class="text-xs font-medium text-slate-400 mb-2">Error Distribution</h3>
-          <div style="height:160px;position:relative"><canvas id="overview-pie-errors"></canvas></div>
-        </div>
-      </div>
-
-      <!-- Trace Volume Trend -->
-      <div class="glass rounded-xl p-4 mb-6">
-        <div class="flex items-center justify-between mb-3">
-          <h2 class="text-sm font-semibold text-white">Activity Trend</h2>
-          <div class="flex gap-2">
-            <button onclick="loadTrendChart(6)" class="trend-btn px-2 py-1 text-[10px] rounded bg-surface-100 text-slate-400 hover:text-white transition">6h</button>
-            <button onclick="loadTrendChart(24)" class="trend-btn px-2 py-1 text-[10px] rounded bg-indigo-500/20 text-indigo-300">24h</button>
-            <button onclick="loadTrendChart(168)" class="trend-btn px-2 py-1 text-[10px] rounded bg-surface-100 text-slate-400 hover:text-white transition">7d</button>
-          </div>
-        </div>
-        <div style="height:200px;position:relative"><canvas id="chart-trend"></canvas></div>
-      </div>
-
-
       <!-- Live Agent Monitor + Live Activity Feed (side by side) -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         <!-- Live Agent Monitor -->
@@ -347,6 +295,57 @@
           </div>
         </div>
       </div>
+      <!-- Agent Network Graph -->
+      <div class="glass rounded-xl p-4 mb-6">
+        <h3 class="text-xs font-medium text-slate-400 mb-2">Agent Network</h3>
+        <div id="overview-agent-graph" style="width:100%;height:400px;position:relative;border-radius:16px;overflow:hidden;" class="bg-[#fafaf8] dark:bg-[#0f172a] border border-slate-200 dark:border-white/5"></div>
+      </div>
+
+      <!-- Summary Metrics Row -->
+      <div class="grid grid-cols-3 gap-4 mb-4">
+        <div class="glass rounded-lg p-3 text-center">
+          <div class="text-lg font-bold text-white" id="metric-active-now">0</div>
+          <div class="text-[10px] text-slate-500">Active Now</div>
+        </div>
+        <div class="glass rounded-lg p-3 text-center">
+          <div class="text-lg font-bold text-white" id="metric-ops-1h">0</div>
+          <div class="text-[10px] text-slate-500">Ops Last Hour</div>
+        </div>
+        <div class="glass rounded-lg p-3 text-center">
+          <div class="text-lg font-bold text-emerald-400" id="metric-success-rate">--</div>
+          <div class="text-[10px] text-slate-500">Success Rate</div>
+        </div>
+      </div>
+
+      <!-- Overview Mini Charts -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="glass rounded-xl p-4">
+          <h3 class="text-xs font-medium text-slate-400 mb-2">Cost by Agent</h3>
+          <div style="height:160px;position:relative"><canvas id="overview-pie-agent"></canvas></div>
+        </div>
+        <div class="glass rounded-xl p-4">
+          <h3 class="text-xs font-medium text-slate-400 mb-2">Traces by Agent</h3>
+          <div style="height:160px;position:relative"><canvas id="overview-bar-agent"></canvas></div>
+        </div>
+        <div class="glass rounded-xl p-4">
+          <h3 class="text-xs font-medium text-slate-400 mb-2">Error Distribution</h3>
+          <div style="height:160px;position:relative"><canvas id="overview-pie-errors"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Trace Volume Trend -->
+      <div class="glass rounded-xl p-4 mb-6">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-sm font-semibold text-white">Activity Trend</h2>
+          <div class="flex gap-2">
+            <button onclick="loadTrendChart(6)" class="trend-btn px-2 py-1 text-[10px] rounded bg-surface-100 text-slate-400 hover:text-white transition">6h</button>
+            <button onclick="loadTrendChart(24)" class="trend-btn px-2 py-1 text-[10px] rounded bg-indigo-500/20 text-indigo-300">24h</button>
+            <button onclick="loadTrendChart(168)" class="trend-btn px-2 py-1 text-[10px] rounded bg-surface-100 text-slate-400 hover:text-white transition">7d</button>
+          </div>
+        </div>
+        <div style="height:200px;position:relative"><canvas id="chart-trend"></canvas></div>
+      </div>
+
       <!-- Recent Feedback -->
       <div class="glass rounded-xl overflow-hidden mb-6">
         <div class="flex items-center justify-between p-4 border-b border-white/5">
