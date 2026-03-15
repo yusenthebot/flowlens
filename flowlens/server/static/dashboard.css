@@ -1,6 +1,35 @@
     /* ========== Theme transitions ========== */
     *, *::before, *::after { transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease; }
 
+    /* ========== Design tokens (single source of truth) ========== */
+    :root {
+      /* Warm palette accents */
+      --color-coral: #e07a5f;
+      --color-indigo-warm: #6b5ce7;
+      --color-sage: #81b29a;
+      --color-amber-warm: #e6a65d;
+      /* Semantic color roles */
+      --color-indigo-bg: rgba(107, 92, 231, 0.10);
+      --color-indigo-border: rgba(107, 92, 231, 0.22);
+      --color-coral-bg: rgba(224, 122, 95, 0.12);
+      --color-coral-border: rgba(224, 122, 95, 0.28);
+      --color-sage-bg: rgba(129, 178, 154, 0.12);
+      --color-sage-border: rgba(129, 178, 154, 0.28);
+      /* Structural tokens */
+      --accent: #6b5ce7;
+      --accent-light: rgba(107, 92, 231, 0.12);
+      --accent-border: rgba(107, 92, 231, 0.3);
+      --warm-off-white: #faf9f6;
+      --warm-gray-100: #f0ede8;
+      --warm-gray-200: #e4e0da;
+      --warm-gray-400: #9a9690;
+      --radius-card: 12px;
+      --radius-pill: 999px;
+      --radius-btn: 8px;
+      --shadow-soft: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04);
+      --shadow-lift: 0 4px 20px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04);
+    }
+
     /* ========== Dark theme — warm dark gray ========== */
     .dark * { scrollbar-width: thin; scrollbar-color: #1e1b4b transparent; }
     .dark *::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -61,10 +90,9 @@
     .severity-info { background: rgba(122, 158, 181, 0.12); border-color: rgba(122, 158, 181, 0.3); color: #a0c4d9; }
     #cy-container { width: 100%; height: 500px; }
 
-    /* View transitions */
+    /* View transitions — viewEnter keyframe defined in Cycle 16 Interaction Polish section */
     .view-panel { animation: viewEnter 0.3s ease-out; }
     .view-enter { animation: viewEnter 0.3s ease-out forwards; }
-    @keyframes viewEnter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
     /* Stagger entry animation for stat cards */
     @keyframes cardSlideUp {
@@ -123,7 +151,7 @@
     .activity-event-row { transition: background-color 0.15s ease; }
     .activity-event-row.activity-error { background: rgba(239, 68, 68, 0.06); }
     html:not(.dark) .activity-event-row.activity-error { background: rgba(239, 68, 68, 0.04); }
-    .activity-pill { display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 9999px; font-size: 9px; font-weight: 600; letter-spacing: 0.03em; }
+    .activity-pill { display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 9999px; font-size: 10px; font-weight: 600; letter-spacing: 0.03em; }
     .activity-pill-llm { background: rgba(139, 92, 246, 0.15); color: #a78bfa; }
     .activity-pill-tool { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
     .activity-pill-agent { background: rgba(16, 185, 129, 0.15); color: #34d399; }
@@ -162,9 +190,7 @@
     }
     .new-trace-highlight { animation: newTraceHighlight 2s ease-out; }
 
-    /* Toast notification */
-    @keyframes toastSlideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-    @keyframes toastSlideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+    /* Toast notification — keyframes defined in Cycle 14 Visual Polish section below */
     .toast-enter { animation: toastSlideIn 0.3s ease-out; }
     .toast-exit { animation: toastSlideOut 0.3s ease-in forwards; }
 
@@ -271,7 +297,7 @@
     /* Title text */
     .tmux-titlebar-title {
       font-family: Inter, system-ui, sans-serif;
-      font-size: 11.5px; font-weight: 600;
+      font-size: 12px; font-weight: 600;
       color: rgba(226,232,240,0.7);
       letter-spacing: 0.01em;
       flex: 1; text-align: center; pointer-events: none;
@@ -303,7 +329,7 @@
       padding: 1px 7px; border-radius: 9999px;
       background: rgba(99,102,241,0.12);
       color: rgba(165,180,252,0.8);
-      font-size: 9.5px; font-weight: 600;
+      font-size: 10px; font-weight: 600;
     }
     .tmux-status-dot {
       width: 5px; height: 5px; border-radius: 50%;
@@ -340,7 +366,7 @@
       flex-shrink: 0; letter-spacing: 0;
     }
     .tmux-pane-name {
-      font-weight: 600; font-size: 11.5px;
+      font-weight: 600; font-size: 12px;
       letter-spacing: 0.01em;
     }
     .tmux-pane-role {
@@ -378,7 +404,7 @@
 
     /* Timestamp — dimmer, smaller, fixed width */
     .agent-term-time {
-      color: rgba(71,85,105,0.6); font-size: 9.5px;
+      color: rgba(71,85,105,0.6); font-size: 10px;
       flex-shrink: 0; min-width: 56px;
       font-variant-numeric: tabular-nums;
     }
@@ -388,18 +414,18 @@
     .agent-term-tool {
       color: #38bdf8; font-weight: 600;
       min-width: 54px; max-width: 54px;
-      text-align: right; flex-shrink: 0; font-size: 10.5px;
+      text-align: right; flex-shrink: 0; font-size: 11px;
       letter-spacing: -0.01em;
     }
     /* Duration — tabular nums, right-aligned, muted */
     .agent-term-dur {
-      color: rgba(100,116,139,0.65); font-size: 9.5px;
+      color: rgba(100,116,139,0.65); font-size: 10px;
       flex-shrink: 0; min-width: 36px; text-align: right;
       font-variant-numeric: tabular-nums;
     }
     /* Detail — truncated with ellipsis, lighter */
     .agent-term-detail {
-      color: rgba(148,163,184,0.75); font-size: 10.5px; flex: 1;
+      color: rgba(148,163,184,0.75); font-size: 11px; flex: 1;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       min-width: 0;
     }
@@ -424,7 +450,7 @@
       box-shadow: 0 4px 16px rgba(0,0,0,0.08), 0 16px 48px rgba(0,0,0,0.12);
     }
     .tmux-ctx-header {
-      padding: 7px 14px 4px; font-size: 9.5px; font-weight: 700;
+      padding: 7px 14px 4px; font-size: 10px; font-weight: 700;
       color: rgba(100,116,139,0.7); text-transform: uppercase; letter-spacing: 0.06em;
     }
     .tmux-ctx-item {
@@ -572,7 +598,7 @@
     .compare-diff-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
 
     /* Compare summary cards */
-    .compare-summary-card { border-radius: 12px; padding: 16px; }
+    .compare-summary-card { border-radius: 12px; padding: 20px; }
     .compare-summary-card .trace-label { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.7; margin-bottom: 4px; }
     .compare-metric-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 12px; }
     html:not(.dark) .compare-metric-row { border-bottom-color: rgba(0,0,0,0.05); }
@@ -629,7 +655,7 @@
     .dark .traces-summary-bar { background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(255,255,255,0.06); }
     html:not(.dark) .traces-summary-bar { background: rgba(255, 255, 255, 0.7); border: 1px solid #e8e6e1; }
     .traces-summary-stat { display: flex; align-items: center; gap: 5px; }
-    .traces-summary-stat .stat-value { font-weight: 700; font-size: 14px; }
+    .traces-summary-stat .stat-value { font-weight: 700; font-size: 13px; }
     .traces-summary-stat .stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.6; }
 
     /* Trace row — agent left border + error tint + duration bar */
@@ -655,10 +681,10 @@
 
     /* ========== Cost tab enhancements ========== */
     .cost-summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
-    .cost-summary-card { padding: 14px 16px; border-radius: 10px; text-align: center; }
+    .cost-summary-card { padding: 20px; border-radius: 12px; text-align: center; }
     .dark .cost-summary-card { background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(255,255,255,0.06); }
     html:not(.dark) .cost-summary-card { background: rgba(255, 255, 255, 0.7); border: 1px solid #e8e6e1; }
-    .cost-summary-card .card-value { font-size: 20px; font-weight: 700; }
+    .cost-summary-card .card-value { font-size: 28px; font-weight: 700; }
     .cost-summary-card .card-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.6; margin-top: 2px; }
 
     /* ========== Pattern card enhancements ========== */
@@ -689,7 +715,7 @@
     }
     .span-detail-code-block .code-label {
       padding: 3px 10px;
-      font-size: 9px;
+      font-size: 10px;
       text-transform: uppercase;
       letter-spacing: 0.06em;
       font-weight: 700;
@@ -1016,21 +1042,7 @@
 
     /* ========== Cycle 14: Visual Polish — Claude Aesthetic ========== */
 
-    /* ---------- Design tokens ---------- */
-    :root {
-      --accent: #6b5ce7;
-      --accent-light: rgba(107, 92, 231, 0.12);
-      --accent-border: rgba(107, 92, 231, 0.3);
-      --warm-off-white: #faf9f6;
-      --warm-gray-100: #f0ede8;
-      --warm-gray-200: #e4e0da;
-      --warm-gray-400: #9a9690;
-      --radius-card: 12px;
-      --radius-pill: 999px;
-      --radius-btn: 8px;
-      --shadow-soft: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04);
-      --shadow-lift: 0 4px 20px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04);
-    }
+    /* ---------- Design tokens: defined at top of file in :root block ---------- */
 
     /* ---------- Header glass redesign ---------- */
     header.sticky {
@@ -1264,7 +1276,7 @@
 
     /* H1: page titles */
     .typo-h1 {
-      font-size: 20px;
+      font-size: 16px;
       font-weight: 600;
       letter-spacing: -0.025em;
       line-height: 1.3;
@@ -1614,19 +1626,7 @@
     /* ==============================================================       Cycle 14: Visual Polish — Claude Aesthetic Design System
        ===================================================================== */
 
-    /* ---- Design tokens ---- */
-    :root {
-      --color-coral: #e07a5f;
-      --color-indigo-warm: #6b5ce7;
-      --color-sage: #81b29a;
-      --color-amber-warm: #e6a65d;
-      --color-indigo-bg: rgba(107, 92, 231, 0.10);
-      --color-indigo-border: rgba(107, 92, 231, 0.22);
-      --color-coral-bg: rgba(224, 122, 95, 0.12);
-      --color-coral-border: rgba(224, 122, 95, 0.28);
-      --color-sage-bg: rgba(129, 178, 154, 0.12);
-      --color-sage-border: rgba(129, 178, 154, 0.28);
-    }
+    /* ---- Design tokens: see :root at top of file ---- */
 
     /* ===============================================       1. Trace rows — refined layout and interaction
        ====================================================== */
@@ -1802,7 +1802,7 @@
     html:not(.dark) .agent-live-feed-v14 {
       border-top-color: rgba(0, 0, 0, 0.07) !important;
     }
-    .agent-live-feed-v14 .text-slate-300 { font-size: 11.5px !important; }
+    .agent-live-feed-v14 .text-slate-300 { font-size: 12px !important; }
 
     /* ===============================================       3. Badges and pills — standardized warm design
        ====================================================== */
@@ -2302,12 +2302,12 @@
       pointer-events: none;
     }
     .doughnut-center-value {
-      font-size: 15px;
+      font-size: 16px;
       font-weight: 700;
       line-height: 1.1;
     }
     .doughnut-center-sub {
-      font-size: 9px;
+      font-size: 10px;
       text-transform: uppercase;
       letter-spacing: 0.06em;
       opacity: 0.55;
@@ -2382,7 +2382,7 @@
 
     /* Session card stat columns */
     .session-card-stat-label {
-      font-size: 9px;
+      font-size: 10px;
       text-transform: uppercase;
       letter-spacing: 0.07em;
       font-weight: 600;
@@ -2391,7 +2391,7 @@
     html:not(.dark) .session-card-stat-label { color: rgba(0,0,0,0.32); }
 
     .session-card-stat-value {
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 700;
       letter-spacing: -0.02em;
       line-height: 1.2;
@@ -2498,7 +2498,7 @@
     .dark .cost-summary-card:nth-child(4) { background: linear-gradient(135deg, rgba(230,166,93,0.07), rgba(15,23,42,0.6)) !important; }
 
     .cost-summary-card .card-value {
-      font-size: 22px !important;
+      font-size: 28px !important;
       font-weight: 700 !important;
       letter-spacing: -0.03em !important;
       line-height: 1.15 !important;
@@ -2643,7 +2643,7 @@
 
     /* Patterns view header */
     #view-patterns h2 {
-      font-size: 20px;
+      font-size: 16px;
       font-weight: 600;
       letter-spacing: -0.025em;
     }
@@ -2725,7 +2725,7 @@
     #patterns-list .pattern-card-critical,
     #patterns-list .pattern-card-warning,
     #patterns-list .pattern-card-info {
-      padding: 14px 16px;
+      padding: 20px;
       margin-bottom: 10px;
       transition: box-shadow 0.18s ease, transform 0.15s ease;
     }
@@ -2906,22 +2906,9 @@
       background: rgba(107,92,231,0.12) !important;
     }
 
-    /* Error section: coral background */
-    #span-detail-content .mb-4.rounded-xl.p-3.border-2 {
-      background: rgba(224,122,95,0.1) !important;
-      border-color: rgba(224,122,95,0.4) !important;
-      border-radius: 12px !important;
-    }
-    html:not(.dark) #span-detail-content .mb-4.rounded-xl.p-3.border-2 {
-      background: rgba(224,122,95,0.07) !important;
-      border-color: rgba(224,122,95,0.3) !important;
-    }
-    #span-detail-content .mb-4.rounded-xl.p-3.border-2 .text-red-400 {
-      color: var(--color-coral) !important;
-    }
-    #span-detail-content .mb-4.rounded-xl.p-3.border-2 .text-red-300 {
-      color: var(--color-coral) !important;
-      opacity: 0.9;
+    /* Error section: coral background (uses .span-error-block class) */
+    .span-error-block {
+      border-radius: 12px;
     }
 
     /* Metadata table: alternating row backgrounds */
@@ -3068,7 +3055,7 @@
       font-size: 12px !important;
     }
     #agent-modal-body .text-lg.font-bold {
-      font-size: 18px !important;
+      font-size: 16px !important;
       letter-spacing: -0.03em !important;
     }
 
@@ -3092,7 +3079,10 @@
     }
     #view-patterns .glass.rounded-xl {
       margin-bottom: 10px;
-    /* =================================================================       Cycle 15: Visual Polish Phase 2 — Theme Consistency + Responsive Fixes
+    }
+
+    /* =================================================================
+       Cycle 15: Visual Polish Phase 2 — Theme Consistency + Responsive Fixes
        ======================================================================== */
 
     /* ---------- Light theme: hover:text-white overrides ---------- */
@@ -3358,6 +3348,74 @@
     }
 
     /* =========================================================================
+       Cycle 17 — Premium Feel: Consistency pass
+       ========================================================================= */
+
+    /* ---- Notification type dot colors (warm palette) ---- */
+    .notif-dot-error   { width: 8px; height: 8px; border-radius: 50%; background: var(--color-coral, #e07a5f); flex-shrink: 0; }
+    .notif-dot-warning { width: 8px; height: 8px; border-radius: 50%; background: var(--color-amber-warm, #e6a65d); flex-shrink: 0; }
+    .notif-dot-info    { width: 8px; height: 8px; border-radius: 50%; background: var(--color-indigo-warm, #6b5ce7); flex-shrink: 0; }
+    .notif-dot-success { width: 8px; height: 8px; border-radius: 50%; background: var(--color-sage, #81b29a); flex-shrink: 0; }
+
+    /* ---- Severity dot colors for patterns (warm palette) ---- */
+    .severity-dot-critical { width: 6px; height: 6px; border-radius: 50%; background: var(--color-coral, #e07a5f); flex-shrink: 0; }
+    .severity-dot-warning  { width: 6px; height: 6px; border-radius: 50%; background: var(--color-amber-warm, #e6a65d); flex-shrink: 0; }
+    .severity-dot-info     { width: 6px; height: 6px; border-radius: 50%; background: var(--color-indigo-warm, #6b5ce7); flex-shrink: 0; }
+
+    /* ---- Pattern severity badge pills (warm palette) ---- */
+    .pattern-severity-badge-critical {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 2px 9px; border-radius: 9999px; font-size: 10px; font-weight: 600;
+      background: var(--color-coral-bg, rgba(224,122,95,0.12));
+      color: var(--color-coral, #e07a5f);
+      border: 1px solid var(--color-coral-border, rgba(224,122,95,0.28));
+    }
+    .pattern-severity-badge-warning {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 2px 9px; border-radius: 9999px; font-size: 10px; font-weight: 600;
+      background: rgba(230,166,93,0.12);
+      color: var(--color-amber-warm, #e6a65d);
+      border: 1px solid rgba(230,166,93,0.28);
+    }
+    .pattern-severity-badge-info {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 2px 9px; border-radius: 9999px; font-size: 10px; font-weight: 600;
+      background: var(--color-indigo-bg, rgba(107,92,231,0.10));
+      color: var(--color-indigo-warm, #6b5ce7);
+      border: 1px solid var(--color-indigo-border, rgba(107,92,231,0.22));
+    }
+    html:not(.dark) .pattern-severity-badge-critical { background: rgba(224,122,95,0.08); color: #c0563a; }
+    html:not(.dark) .pattern-severity-badge-warning  { background: rgba(230,166,93,0.08); color: #9a6c1e; }
+    html:not(.dark) .pattern-severity-badge-info     { background: rgba(107,92,231,0.07); color: #4f46e5; }
+
+    /* ---- Agent status dots (warm palette) ---- */
+    .status-dot-active { width: 6px; height: 6px; border-radius: 50%; background: var(--color-sage, #81b29a); flex-shrink: 0; }
+    .status-dot-idle   { width: 6px; height: 6px; border-radius: 50%; background: #94a3b8; flex-shrink: 0; }
+
+    /* ---- Waterfall span error name ---- */
+    .wf-span-error-name { color: var(--color-coral, #e07a5f); opacity: 0.9; }
+    .group:hover .wf-span-error-name { color: var(--color-coral, #e07a5f); }
+
+    /* ---- Agent error trace hover row ---- */
+    .agent-error-trace-row:hover {
+      background: var(--color-coral-bg, rgba(224,122,95,0.08));
+    }
+
+    /* ---- Budget alert bar: map cold Tailwind classes to warm palette ---- */
+    #budget-alert-bar .text-red-400     { color: var(--color-coral, #e07a5f) !important; }
+    #budget-alert-bar .text-emerald-400 { color: var(--color-sage, #81b29a) !important; }
+
+    /* ---- Agent card live monitor: map cold Tailwind classes to warm palette ---- */
+    #live-monitor .bg-emerald-500,
+    #live-monitor .bg-emerald-400 { background: var(--color-sage, #81b29a) !important; }
+
+    /* ---- Token bar: override old blue/emerald CSS selectors ---- */
+    #span-detail-content .bg-blue-500\/60 { background: var(--color-indigo-warm, #6b5ce7) !important; opacity: 0.65; }
+    #span-detail-content .bg-emerald-500\/60 { background: var(--color-sage, #81b29a) !important; opacity: 0.7; }
+    #span-detail-content .w-2.h-2.rounded-sm.inline-block.bg-blue-500\/60 { background: var(--color-indigo-warm, #6b5ce7) !important; }
+    #span-detail-content .w-2.h-2.rounded-sm.inline-block.bg-emerald-500\/60 { background: var(--color-sage, #81b29a) !important; }
+
+    /* =========================================================================
        Cycle 16 — Interaction Polish
        ========================================================================= */
 
@@ -3416,7 +3474,7 @@
       align-items: center;
       padding: 1px 6px;
       border-radius: 9999px;
-      font-size: 9px;
+      font-size: 10px;
       font-weight: 600;
       white-space: nowrap;
       flex-shrink: 0;
@@ -3505,7 +3563,7 @@
     }
     html:not(.dark) .wf-ruler-tick-mark { background: rgba(0,0,0,0.15); }
     .wf-ruler-label {
-      font-size: 9px;
+      font-size: 10px;
       color: #475569;
       margin-top: 1px;
       white-space: nowrap;
