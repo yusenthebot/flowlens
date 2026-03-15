@@ -42,7 +42,7 @@
       document.documentElement.classList.remove('dark');
     }
   </script>
-  <link rel="stylesheet" href="/static/dashboard.css?v=16">
+  <link rel="stylesheet" href="/static/dashboard.css?v=17">
 </head>
 <body class="min-h-screen font-sans text-slate-200 antialiased">
 
@@ -165,87 +165,83 @@
       <!-- Stats Cards -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6 stat-grid relative z-10">
         <!-- Traces card -->
-        <div class="glass rounded-xl p-5 stat-glow stat-card-enter stat-card-traces glass-card-hover" style="padding:20px;">
-          <div class="flex items-center justify-between mb-3">
+        <div class="glass rounded-xl stat-glow stat-card-enter stat-card-traces glass-card-hover stat-card-v17" style="padding:20px;">
+          <div class="flex items-center justify-between mb-2">
             <span class="card-section-label">Traces</span>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-1.5">
               <span id="stat-traces-trend" class="stat-trend-up"></span>
-              <div class="w-8 h-8 rounded-lg stat-icon-traces flex items-center justify-center flex-shrink-0">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7"/></svg>
+              <div class="w-7 h-7 rounded-lg stat-icon-traces flex items-center justify-center flex-shrink-0">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7"/></svg>
               </div>
             </div>
           </div>
-          <div id="stat-traces" class="stat-number">
+          <div id="stat-traces" class="stat-number stat-number-v17">
             <div class="skeleton skeleton-text w-20"></div>
           </div>
-          <div id="stat-spans" class="stat-sublabel">
-            <div class="skeleton skeleton-text w-16 h-3"></div>
-          </div>
-          <div style="height:40px;position:relative;width:100%;margin-top:4px;"><canvas id="sparkline-traces"></canvas></div>
+          <div id="stat-spans" class="stat-card-label-v17">traces</div>
+          <div class="stat-sparkline-canvas-wrap"><canvas id="sparkline-traces"></canvas></div>
         </div>
 
         <!-- Errors card -->
-        <div id="stat-card-error" class="glass rounded-xl stat-glow transition-colors duration-500 stat-card-enter stat-card-errors glass-card-hover" style="padding:20px;">
-          <div class="flex items-center justify-between mb-3">
+        <div id="stat-card-error" class="glass rounded-xl stat-glow transition-colors duration-500 stat-card-enter stat-card-errors glass-card-hover stat-card-v17">
+          <div class="flex items-center justify-between mb-2" style="padding:20px 20px 0;">
             <span class="card-section-label">Error Rate</span>
-            <div class="w-8 h-8 rounded-lg stat-icon-errors flex items-center justify-center flex-shrink-0">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+            <div class="w-7 h-7 rounded-lg stat-icon-errors flex items-center justify-center flex-shrink-0">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
             </div>
           </div>
-          <div id="stat-error-rate" class="stat-number">
-            <div class="skeleton skeleton-text w-16"></div>
+          <div style="padding:0 20px 20px;">
+            <div id="stat-error-rate" class="stat-number stat-number-v17 stat-number-coral">
+              <div class="skeleton skeleton-text w-16"></div>
+            </div>
+            <div class="stat-card-label-v17">error rate</div>
+            <div class="stat-sparkline-canvas-wrap"><canvas id="sparkline-errors"></canvas></div>
           </div>
-          <div id="stat-error-count" class="stat-sublabel">
-            <div class="skeleton skeleton-text w-24 h-3"></div>
-          </div>
-          <div style="height:40px;position:relative;width:100%;margin-top:4px;"><canvas id="sparkline-errors"></canvas></div>
         </div>
 
         <!-- Latency card -->
-        <div id="stat-card-latency" class="glass rounded-xl stat-glow transition-colors duration-500 stat-card-enter stat-card-latency glass-card-hover" style="padding:20px;">
-          <div class="flex items-center justify-between mb-3">
+        <div id="stat-card-latency" class="glass rounded-xl stat-glow transition-colors duration-500 stat-card-enter stat-card-latency glass-card-hover stat-card-v17" style="padding:20px;">
+          <div class="flex items-center justify-between mb-2">
             <span class="card-section-label">Avg Latency</span>
-            <div class="w-8 h-8 rounded-lg stat-icon-latency flex items-center justify-center flex-shrink-0">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <div class="w-7 h-7 rounded-lg stat-icon-latency flex items-center justify-center flex-shrink-0">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             </div>
           </div>
-          <div id="stat-latency" class="stat-number">
+          <div id="stat-latency" class="stat-number stat-number-v17">
             <div class="skeleton skeleton-text w-14"></div>
           </div>
-          <div class="stat-sublabel">milliseconds</div>
-          <div style="height:40px;position:relative;width:100%;margin-top:4px;"><canvas id="sparkline-latency"></canvas></div>
+          <div class="stat-card-label-v17" id="stat-latency-unit">avg latency</div>
+          <div class="stat-sparkline-canvas-wrap"><canvas id="sparkline-latency"></canvas></div>
         </div>
 
         <!-- Cost card -->
-        <div id="stat-card-cost" class="glass rounded-xl stat-glow transition-colors duration-500 stat-card-enter stat-card-cost glass-card-hover" style="padding:20px;">
-          <div class="flex items-center justify-between mb-3">
+        <div id="stat-card-cost" class="glass rounded-xl stat-glow transition-colors duration-500 stat-card-enter stat-card-cost glass-card-hover stat-card-v17" style="padding:20px;">
+          <div class="flex items-center justify-between mb-2">
             <span class="card-section-label">Cost</span>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-1.5">
               <span id="stat-cost-trend" class="stat-trend-up"></span>
-              <div class="w-8 h-8 rounded-lg stat-icon-cost flex items-center justify-center flex-shrink-0">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <div class="w-7 h-7 rounded-lg stat-icon-cost flex items-center justify-center flex-shrink-0">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
               </div>
             </div>
           </div>
-          <div id="stat-cost" class="stat-number">
+          <div id="stat-cost" class="stat-number stat-number-v17 stat-number-emerald">
             <div class="skeleton skeleton-text w-20"></div>
           </div>
-          <div id="stat-tokens" class="stat-sublabel">
-            <div class="skeleton skeleton-text w-20 h-3"></div>
-          </div>
-          <div style="height:40px;position:relative;width:100%;margin-top:4px;"><canvas id="sparkline-cost"></canvas></div>
+          <div id="stat-tokens" class="stat-card-label-v17">total cost</div>
+          <div class="stat-sparkline-canvas-wrap"><canvas id="sparkline-cost"></canvas></div>
         </div>
 
         <!-- Agents card -->
-        <div class="glass stat-glow rounded-xl stat-card-enter stat-card-agents glass-card-hover" style="padding:20px;">
-          <div class="flex items-center justify-between mb-3">
+        <div class="glass stat-glow rounded-xl stat-card-enter stat-card-agents glass-card-hover stat-card-v17" style="padding:20px;">
+          <div class="flex items-center justify-between mb-2">
             <span class="card-section-label">Active Agents</span>
-            <div class="w-8 h-8 rounded-lg stat-icon-agents flex items-center justify-center flex-shrink-0">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            <div class="w-7 h-7 rounded-lg stat-icon-agents flex items-center justify-center flex-shrink-0">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
             </div>
           </div>
-          <div class="stat-number" id="stat-agents">--</div>
-          <div class="stat-sublabel mt-1" id="stat-agents-sub">--</div>
+          <div class="stat-number stat-number-v17" id="stat-agents">--</div>
+          <div class="stat-card-label-v17" id="stat-agents-sub">agents seen</div>
         </div>
       </div>
 
@@ -259,10 +255,7 @@
       </div>
 
       <!-- Agent Cards Grid (from Agents tab) -->
-      <div class="mb-6">
-        <div class="card-section-header mb-3">
-          <span class="card-section-label">Agent Details</span>
-        </div>
+      <div class="mb-5">
         <div id="overview-agents-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
       </div>
 

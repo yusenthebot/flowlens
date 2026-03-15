@@ -264,13 +264,14 @@ async function loadOverviewCharts() {
 // =========================================================================
 // Sparkline Helper
 // =========================================================================
+// v17 Premium Feel: thin line (2px), no fill, smooth curve, no points
 function renderSparkline(canvasId, data, color) {
   const canvas = document.getElementById(canvasId);
   if (!canvas || !data || !data.length) return;
   // Ensure parent has fixed dimensions to prevent Chart.js resize loops
   const parent = canvas.parentElement;
   if (parent) {
-    parent.style.height = '40px';
+    parent.style.height = '36px';
     parent.style.position = 'relative';
   }
   // Destroy previous chart on this canvas
@@ -282,11 +283,12 @@ function renderSparkline(canvasId, data, color) {
       datasets: [{
         data: data,
         borderColor: color,
-        backgroundColor: color + '30',
-        fill: true,
-        tension: 0.4,
+        backgroundColor: 'transparent',
+        fill: false,
+        tension: 0.45,
         pointRadius: 0,
-        borderWidth: 2,
+        pointHoverRadius: 0,
+        borderWidth: 1.5,
       }]
     },
     options: {
@@ -295,6 +297,7 @@ function renderSparkline(canvasId, data, color) {
       animation: false,
       plugins: { legend: { display: false }, tooltip: { enabled: false } },
       scales: { x: { display: false }, y: { display: false, beginAtZero: true } },
+      layout: { padding: { top: 2, bottom: 2 } },
     }
   });
 }
@@ -361,34 +364,20 @@ async function loadSparklines() {
     const latencies = buckets.map(b => b.avg_duration_ms || 0);
     const costs = buckets.map(b => b.cost || b.total_cost || 0);
 
-    // Canvas sparklines (original, inside each card's canvas element)
-    renderSparkline('sparkline-traces', traceCounts, '#6366f1');
-    renderSparkline('sparkline-errors', errorCounts, '#ef4444');
-    renderSparkline('sparkline-latency', latencies, '#f59e0b');
-    renderSparkline('sparkline-cost', costs, '#10b981');
+    // v17 Premium Feel: thin Chart.js sparklines — no fill, smooth, no secondary text injection
+    // Use card-specific accent colors (indigo, coral, amber, emerald)
+    renderSparkline('sparkline-traces', traceCounts, '#6b5ce7');
+    renderSparkline('sparkline-errors', errorCounts, '#e07a5f');
+    renderSparkline('sparkline-latency', latencies, '#e6a65d');
+    renderSparkline('sparkline-cost', costs, '#81b29a');
 
-    // Inline SVG sparklines in stat cards
+    // SVG sparklines still available for any containers that reference them
     renderSVGSparkline('stat-sparkline-traces', traceCounts);
     renderSVGSparkline('stat-sparkline-errors', errorCounts);
     renderSVGSparkline('stat-sparkline-latency', latencies);
     renderSVGSparkline('stat-sparkline-cost', costs);
 
-    // Secondary stats: "avg X/hr" labels
-    const totalHours = buckets.length || 24;
-    const totalTraces = traceCounts.reduce((a, b) => a + b, 0);
-    const avgTracesHr = totalHours > 0 ? (totalTraces / totalHours).toFixed(1) : '0';
-    const totalErrors = errorCounts.reduce((a, b) => a + b, 0);
-    const errorRate = totalTraces > 0 ? ((totalErrors / totalTraces) * 100).toFixed(1) : '0';
-    const nonZeroLat = latencies.filter(v => v > 0);
-    const avgLat = nonZeroLat.length > 0 ? nonZeroLat.reduce((a, b) => a + b, 0) / nonZeroLat.length : 0;
-    const avgLatStr = avgLat >= 1000 ? (avgLat / 1000).toFixed(2) + 's avg' : avgLat.toFixed(0) + 'ms avg';
-    const totalCost = costs.reduce((a, b) => a + b, 0);
-    const avgCostHr = totalHours > 0 ? (totalCost / totalHours) : 0;
-
-    _setStatSecondary('stat-secondary-traces', `avg ${avgTracesHr}/hr`);
-    _setStatSecondary('stat-secondary-errors', `${errorRate}% of traces`);
-    _setStatSecondary('stat-secondary-latency', avgLatStr);
-    _setStatSecondary('stat-secondary-cost', `$${avgCostHr.toFixed(4)}/hr avg`);
+    // v17: No secondary stat text injection — cards show only number + label + sparkline
   } catch (e) { /* sparklines are non-critical */ }
 }
 

@@ -1332,7 +1332,8 @@ async function loadStats() {
     const tracesEl = document.getElementById('stat-traces');
     const spansEl = document.getElementById('stat-spans');
     animateCounter(tracesEl, stats.total_traces || 0);
-    animateCounter(spansEl, stats.total_spans || 0, 800, '', ' spans');
+    // v17: stat-spans is now a static label "traces", clear any counter animation
+    if (spansEl) spansEl.textContent = 'traces';
 
     // Trend: traces
     const tracesTrendEl = document.getElementById('stat-traces-trend');
@@ -1344,28 +1345,34 @@ async function loadStats() {
     const errorPct = stats.total_traces > 0
       ? (stats.error_traces / stats.total_traces) * 100
       : 0;
-    const errorRate = parseFloat(errorPct.toFixed(1));
-    animateCounter(document.getElementById('stat-error-rate'), errorRate, 800, '', '%');
-    document.getElementById('stat-error-count').textContent = `${stats.error_traces || 0} error traces`;
-    const errorCard = document.getElementById('stat-card-error');
-    if (errorCard) {
-      errorCard.classList.toggle('bg-red-500/10', errorPct > 10);
-      errorCard.classList.toggle('border', errorPct > 10);
-      errorCard.classList.toggle('border-red-500/30', errorPct > 10);
-    }
+    const errorEl = document.getElementById('stat-error-rate');
+    if (errorEl) errorEl.textContent = errorPct.toFixed(1) + '%';
+    // Keep stat-error-count in DOM but hide visually (removed from HTML v17)
+    const errCountEl = document.getElementById('stat-error-count');
+    if (errCountEl) errCountEl.textContent = '';
 
     const latencyMs = stats.avg_duration_ms || 0;
-    animateCounter(document.getElementById('stat-latency'), latencyMs > 0 ? parseFloat(latencyMs.toFixed(0)) : 0);
-    const latencyCard = document.getElementById('stat-card-latency');
-    if (latencyCard) {
-      latencyCard.classList.toggle('bg-yellow-500/10', latencyMs > 10000);
-      latencyCard.classList.toggle('border', latencyMs > 10000);
-      latencyCard.classList.toggle('border-yellow-500/30', latencyMs > 10000);
+    // Display latency in human-readable format: ms under 1s, seconds above
+    const latencyEl = document.getElementById('stat-latency');
+    const latencyUnitEl = document.getElementById('stat-latency-unit');
+    if (latencyEl) {
+      if (latencyMs <= 0) {
+        latencyEl.textContent = '--';
+        if (latencyUnitEl) latencyUnitEl.textContent = 'avg latency';
+      } else if (latencyMs < 1000) {
+        latencyEl.textContent = Math.round(latencyMs) + 'ms';
+        if (latencyUnitEl) latencyUnitEl.textContent = 'avg latency';
+      } else {
+        latencyEl.textContent = (latencyMs / 1000).toFixed(1) + 's';
+        if (latencyUnitEl) latencyUnitEl.textContent = 'avg latency';
+      }
     }
 
     const totalCost = stats.total_cost || 0;
     animateCounter(document.getElementById('stat-cost'), totalCost, 800, '$', '');
-    animateCounter(document.getElementById('stat-tokens'), stats.total_tokens || 0, 800, '', ' tokens');
+    // Keep stat-tokens in DOM (v17 label is now "total cost" but tokens data still loads)
+    const tokensEl = document.getElementById('stat-tokens');
+    if (tokensEl) tokensEl.textContent = 'total cost';
     const costCard = document.getElementById('stat-card-cost');
     if (costCard) {
       costCard.classList.toggle('bg-amber-500/10', totalCost > 1);
@@ -1678,19 +1685,25 @@ async function loadRecentTraces() {
     }
     container.innerHTML = data.traces.map(t => renderTraceRow(t, true)).join('');
 
-    // Count unique agents from recent traces to populate Active Agents stat card
-    const agentSet = new Set();
-    for (const t of data.traces) {
-      const agentName = (t.tags || {}).agent;
-      if (agentName) agentSet.add(agentName);
-    }
-    const agentsEl = document.getElementById('stat-agents');
-    const agentsSubEl = document.getElementById('stat-agents-sub');
-    if (agentsEl) agentsEl.textContent = agentSet.size > 0 ? agentSet.size.toString() : '0';
-    if (agentsSubEl) {
-      agentsSubEl.textContent = agentSet.size > 0
-        ? Array.from(agentSet).slice(0, 3).join(', ') + (agentSet.size > 3 ? ` +${agentSet.size - 3} more` : '')
-        : 'no agent tags seen';
+    // Load agent count from summary API for accurate Active Agents card
+    try {
+      const agentSummary = await apiFetch('/v1/agents/summary');
+      const agents = (agentSummary.agents || []).filter(a => a.agent && a.agent !== 'unknown');
+      const agentsEl = document.getElementById('stat-agents');
+      const agentsSubEl = document.getElementById('stat-agents-sub');
+      if (agentsEl) agentsEl.textContent = agents.length > 0 ? agents.length.toString() : '0';
+      if (agentsSubEl) agentsSubEl.textContent = agents.length === 1 ? 'agent seen' : 'agents seen';
+    } catch (_) {
+      // fallback: count from trace tags
+      const agentSet = new Set();
+      for (const t of data.traces) {
+        const agentName = (t.tags || {}).agent;
+        if (agentName) agentSet.add(agentName);
+      }
+      const agentsEl = document.getElementById('stat-agents');
+      const agentsSubEl = document.getElementById('stat-agents-sub');
+      if (agentsEl) agentsEl.textContent = agentSet.size > 0 ? agentSet.size.toString() : '0';
+      if (agentsSubEl) agentsSubEl.textContent = agentSet.size === 1 ? 'agent seen' : 'agents seen';
     }
   } catch (err) {
     document.getElementById('recent-traces-list').innerHTML = '<div class="p-8 text-center text-red-400/60 text-sm">Failed to load traces. Is the server running?</div>';
@@ -2247,17 +2260,16 @@ function renderTraceDetail(data) {
   const agentName = tags.agent || null;
   const projectName = tags.project || meta.project || (meta.cwd ? meta.cwd.split('/').pop() : null);
 
-  // Update trace ID with agent avatar if available
+  // Update trace ID — monospace, dimmed, with copy button
   const traceIdEl = document.getElementById('detail-trace-id');
-  if (agentName) {
-    const profile = getAgentProfile(agentName);
+  if (traceIdEl) {
     traceIdEl.innerHTML = `
-      <span class="flex items-center gap-2">
-        ${renderAgentAvatar(agentName, 'md')}
-        <span class="font-mono text-sm text-slate-400">${escHtml(data.trace_id)}</span>
+      <span class="flex items-center gap-2 flex-wrap">
+        <span class="font-mono text-xs text-slate-500 tracking-tight select-all">${escHtml(data.trace_id)}</span>
+        <button onclick="navigator.clipboard.writeText('${escHtml(data.trace_id)}').then(()=>showToast('Trace ID copied','success'))" class="trace-id-copy-btn" title="Copy trace ID" aria-label="Copy trace ID">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+        </button>
       </span>`;
-  } else {
-    traceIdEl.textContent = data.trace_id;
   }
 
   // Token usage breakdown per span kind
@@ -2295,54 +2307,62 @@ function renderTraceDetail(data) {
   const costUsd = data.total_cost_usd || 0;
   const errorCount = data.error_count || 0;
 
+  // v17 Premium Feel: horizontal meta strip with prominent agent, monospace ID
   let agentHeaderHtml = '';
   if (agentName) {
     const profile = getAgentProfile(agentName);
     agentHeaderHtml = `
-      <div class="flex items-center gap-2 mb-2">
+      <div class="flex items-center gap-3 mb-3">
         ${renderAgentAvatar(agentName, 'lg')}
-        <div>
-          <div class="text-sm font-semibold" style="color:${profile.color}">${escHtml(profile.name)}</div>
-          <div class="text-[10px] text-slate-500">${escHtml(profile.role)}</div>
+        <div class="flex-1 min-w-0">
+          <div class="text-base font-bold leading-tight" style="color:${profile.color}">${escHtml(profile.name)}</div>
+          <div class="text-[11px] text-slate-500 mt-0.5">${escHtml(profile.role)}</div>
         </div>
-        ${projectName ? `<span class="ml-2 px-2 py-0.5 text-[10px] font-medium rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">${escHtml(projectName)}</span>` : ''}
+        ${projectName ? `<span class="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 flex-shrink-0">${escHtml(projectName)}</span>` : ''}
       </div>`;
   } else if (projectName) {
-    agentHeaderHtml = `<div class="mb-2"><span class="px-2 py-0.5 text-[10px] font-medium rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">${escHtml(projectName)}</span></div>`;
+    agentHeaderHtml = `<div class="mb-3"><span class="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">${escHtml(projectName)}</span></div>`;
   }
 
-  const metaItems = [
-    `<div class="flex flex-col items-center p-3 rounded-lg bg-surface-100/50 border border-white/5">
-      <span class="text-2xl font-bold text-white tabular-nums">${formatDuration(durationMs)}</span>
-      <span class="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wider">Duration</span>
-    </div>`,
-    `<div class="flex flex-col items-center p-3 rounded-lg bg-surface-100/50 border border-white/5">
-      <span class="text-2xl font-bold text-emerald-400 tabular-nums">$${costUsd.toFixed(4)}</span>
-      <span class="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wider">Cost</span>
-    </div>`,
-    `<div class="flex flex-col items-center p-3 rounded-lg bg-surface-100/50 border border-white/5">
-      <span class="text-2xl font-bold text-white tabular-nums">${data.span_count || (data.spans || []).length}</span>
-      <span class="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wider">Spans</span>
-    </div>`,
-    hasErrors ? `<div class="flex flex-col items-center p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-      <span class="text-2xl font-bold text-red-400 tabular-nums">${errorCount}</span>
-      <span class="text-[10px] text-red-400 mt-0.5 uppercase tracking-wider">Errors</span>
-    </div>` : `<div class="flex flex-col items-center p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-      <span class="text-2xl font-bold text-emerald-400 tabular-nums">OK</span>
-      <span class="text-[10px] text-emerald-400 mt-0.5 uppercase tracking-wider">Status</span>
-    </div>`,
-  ];
+  // Horizontal strip of 4 meta cards
+  const statusCard = hasErrors
+    ? `<div class="trace-meta-strip-card trace-meta-strip-error">
+        <span class="trace-meta-strip-value text-red-400">${errorCount}</span>
+        <span class="trace-meta-strip-label">Errors</span>
+       </div>`
+    : `<div class="trace-meta-strip-card trace-meta-strip-ok">
+        <span class="trace-meta-strip-value text-emerald-400">OK</span>
+        <span class="trace-meta-strip-label">Status</span>
+       </div>`;
 
-  const secondaryMeta = [
-    `<span class="text-xs text-slate-500">Service: <strong class="text-slate-300">${escHtml(data.service_name || 'unknown')}</strong></span>`,
-    `<span class="text-xs text-slate-500">Tokens: <strong class="text-slate-300">${(data.total_tokens || 0).toLocaleString()}</strong></span>`,
-    `<span class="text-xs text-slate-500">Time: <strong class="text-slate-300">${timeStr}</strong></span>`,
-  ];
+  const metaStrip = `
+    <div class="trace-meta-strip">
+      <div class="trace-meta-strip-card">
+        <span class="trace-meta-strip-value">${formatDuration(durationMs)}</span>
+        <span class="trace-meta-strip-label">Duration</span>
+      </div>
+      <div class="trace-meta-strip-card trace-meta-strip-cost">
+        <span class="trace-meta-strip-value text-emerald-400">$${costUsd.toFixed(4)}</span>
+        <span class="trace-meta-strip-label">Cost</span>
+      </div>
+      <div class="trace-meta-strip-card">
+        <span class="trace-meta-strip-value">${data.span_count || (data.spans || []).length}</span>
+        <span class="trace-meta-strip-label">Spans</span>
+      </div>
+      ${statusCard}
+    </div>`;
+
+  // Compact secondary row: tokens + time (service removed — agent name already shown)
+  const secondaryRow = `
+    <div class="flex flex-wrap items-center gap-4 mt-2">
+      <span class="text-xs text-slate-500">Tokens: <strong class="text-slate-300">${(data.total_tokens || 0).toLocaleString()}</strong></span>
+      <span class="text-xs text-slate-500">Time: <strong class="text-slate-300">${timeStr}</strong></span>
+    </div>`;
 
   document.getElementById('detail-trace-meta').innerHTML = `
     ${agentHeaderHtml}
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3 w-full">${metaItems.join('')}</div>
-    <div class="flex flex-wrap gap-4">${secondaryMeta.join('')}</div>
+    ${metaStrip}
+    ${secondaryRow}
     ${tokenBreakdownHtml}
   `;
 
