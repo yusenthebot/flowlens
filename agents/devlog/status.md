@@ -1,5 +1,34 @@
 # Agent Status — 2026-03-15
 
+## Cycle 19: Interactive Dashboard Rebuild — COMPLETE (Beta, 2026-03-15)
+
+**Beta**: Rebuilt demo_dashboard.html + updated GitHub Pages index.html
+- Branch: `feat/beta-demo-rebuild`
+- Files: `examples/demo_dashboard.html`, `.github/workflows/pages.yml`
+- Tests: 1156 passing (unchanged — frontend-only change)
+- Delivered:
+  - **demo_dashboard.html**: Complete rebuild matching Cycles 14-17 visual design
+    - Header: 60px height, gradient logo mark, "FlowLens" / "Agent Observability" subtitle, live sage dot, theme toggle
+    - Navigation: 4 pill-style tabs — Overview, Traces, Cost, Agents
+    - Overview: 5 stat cards with warm gradient accent bars + 28px values, Agent Team Bar (5 agents), Activity Timeline (10 events), Recent Traces with column headers
+    - Traces: Column headers (Name/Tools/Duration/Cost/Time), tool pills (pill-read/bash/edit/write/grep/glob/llm), duration color dots, click → trace detail with waterfall
+    - Waterfall: adaptive time ruler, gridlines, span bars color-coded by kind (agent/tool/llm), error spans coral-colored, error message shown below bar
+    - Cost: 3 summary stat cards, Chart.js doughnut (cost by agent) + line chart (7-day trend), top-5 most expensive traces
+    - Agents: Agent cards (56px avatar, 3D hover, stats row, activity dots, status badge), SVG network graph (pentagon layout, animated dash edges, glow nodes, lead at top)
+    - Design system: #6b5ce7 indigo, #e07a5f coral, #81b29a sage, #e6a65d amber; CSS vars throughout; JetBrains Mono for code
+    - Both themes: light default (warm off-white), dark (charcoal glass cards)
+    - Responsive: stat-grid 2-col at 768px, 1-col at 480px; agents-grid 1-col on mobile
+    - Keyboard: Esc closes trace detail, T toggles theme
+  - **pages.yml index.html**: Complete redesign
+    - Hero with 72px logo mark, gradient h1, tagline
+    - Stats strip (1156 tests, 5 agents, 16+ models, 25+ endpoints)
+    - Demo cards with proper icon SVGs, feature descriptions, arrow hover
+    - Feature grid (9 chips with colored dots)
+    - Screenshot section with graceful img fallback
+    - Footer with Changelog link; updated version to v1.0.0
+
+---
+
 ## Cycle 17: Premium Feel — COMPLETE (Beta, 2026-03-15)
 
 **Beta**: Consistency pass across ALL tabs — fix visual inconsistencies
