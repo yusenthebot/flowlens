@@ -46,117 +46,324 @@ jobs:
           <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>FlowLens — Live Demos</title>
-            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+            <title>FlowLens v1.0.0 — Agent Observability Platform</title>
+            <meta name="description" content="FlowLens — open-source agent observability. Trace AI agent runs, analyze cost, detect errors. Interactive demo included.">
+            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
             <style>
-              * { margin: 0; padding: 0; box-sizing: border-box; }
+              *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+              :root {
+                --indigo: #6b5ce7;
+                --coral:  #e07a5f;
+                --sage:   #81b29a;
+                --amber:  #e6a65d;
+                --purple: #9b8ec4;
+              }
               body {
                 font-family: 'Inter', system-ui, sans-serif;
                 background: linear-gradient(145deg, #fafaf8 0%, #f5f5f0 50%, #fafaf8 100%);
                 color: #2c2c2a;
                 min-height: 100vh;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                padding: 60px 20px;
               }
-              .logo {
-                width: 56px; height: 56px; border-radius: 14px;
-                background: linear-gradient(135deg, #7c7aef, #9b8ec4);
-                display: flex; align-items: center; justify-content: center;
-                box-shadow: 0 4px 20px rgba(124, 122, 239, 0.2);
-                margin-bottom: 20px;
-              }
-              .logo svg { width: 32px; height: 32px; }
-              h1 { font-size: 2rem; font-weight: 700; margin-bottom: 8px; }
-              .tagline { color: #8a8a86; font-size: 1.05rem; margin-bottom: 48px; }
-              .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; max-width: 800px; width: 100%; }
-              @media (max-width: 640px) { .cards { grid-template-columns: 1fr; } }
-              .card {
-                background: #fff;
-                border: 1px solid #e8e6e1;
-                border-radius: 16px;
-                padding: 32px;
-                text-decoration: none;
-                color: inherit;
-                transition: all 0.2s ease;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-              }
-              .card:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 8px 24px rgba(0,0,0,0.08);
-                border-color: #d0cec8;
-              }
-              .card-icon {
-                width: 44px; height: 44px; border-radius: 12px;
-                display: flex; align-items: center; justify-content: center;
-                margin-bottom: 16px; font-size: 22px;
-              }
-              .card-icon.dashboard { background: rgba(124,122,239,0.1); }
-              .card-icon.autoplay { background: rgba(107,158,122,0.1); }
-              .card h2 { font-size: 1.15rem; font-weight: 600; margin-bottom: 8px; }
-              .card p { color: #8a8a86; font-size: 0.9rem; line-height: 1.5; }
-              .badge {
-                display: inline-block;
-                margin-top: 12px;
-                padding: 4px 10px;
-                border-radius: 6px;
-                font-size: 0.75rem;
-                font-weight: 500;
-              }
-              .badge.interactive { background: rgba(124,122,239,0.1); color: #7c7aef; }
-              .badge.auto { background: rgba(107,158,122,0.1); color: #6b9e7a; }
-              .footer {
-                margin-top: 60px;
-                color: #b5b5b0;
-                font-size: 0.85rem;
+
+              /* Hero */
+              .hero {
+                max-width: 960px; margin: 0 auto;
+                padding: 72px 24px 48px;
                 text-align: center;
               }
-              .footer a { color: #8a8a86; text-decoration: none; }
-              .footer a:hover { color: #2c2c2a; }
+              .logo-mark {
+                width: 72px; height: 72px; border-radius: 20px;
+                background: linear-gradient(135deg, #6b5ce7, #9b8ec4);
+                display: inline-flex; align-items: center; justify-content: center;
+                box-shadow: 0 8px 32px rgba(107,92,231,0.28);
+                margin-bottom: 24px;
+              }
+              .logo-mark svg { width: 40px; height: 40px; }
+
+              .badge-version {
+                display: inline-flex; align-items: center; gap: 6px;
+                padding: 4px 12px; border-radius: 999px;
+                background: rgba(107,92,231,0.08); border: 1px solid rgba(107,92,231,0.2);
+                color: #6b5ce7; font-size: 12px; font-weight: 600;
+                margin-bottom: 16px;
+              }
+              .badge-version .dot { width: 6px; height: 6px; border-radius: 50%; background: #81b29a; }
+
+              h1 {
+                font-size: clamp(2rem, 5vw, 3.2rem);
+                font-weight: 800; letter-spacing: -0.03em;
+                color: #1a1a18; line-height: 1.15; margin-bottom: 16px;
+              }
+              h1 span { color: var(--indigo); }
+
+              .tagline {
+                font-size: 1.1rem; color: #6a6a68; max-width: 560px;
+                margin: 0 auto 40px; line-height: 1.7;
+              }
+
+              /* CTA buttons */
+              .cta-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 64px; }
+              .btn-primary {
+                display: inline-flex; align-items: center; gap: 8px;
+                padding: 12px 24px; border-radius: 12px;
+                background: linear-gradient(135deg, #6b5ce7, #9b8ec4);
+                color: white; font-size: 14px; font-weight: 600;
+                text-decoration: none;
+                box-shadow: 0 4px 16px rgba(107,92,231,0.3);
+                transition: transform 0.2s ease, box-shadow 0.2s ease;
+              }
+              .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(107,92,231,0.4); }
+              .btn-secondary {
+                display: inline-flex; align-items: center; gap: 8px;
+                padding: 12px 24px; border-radius: 12px;
+                background: white; border: 1px solid #e8e6e1;
+                color: #3a3a38; font-size: 14px; font-weight: 600;
+                text-decoration: none;
+                box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+                transition: all 0.2s ease;
+              }
+              .btn-secondary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.08); border-color: #d0cec8; }
+
+              /* Feature stats strip */
+              .stats-strip {
+                max-width: 960px; margin: 0 auto 48px;
+                display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+                padding: 0 24px;
+              }
+              @media (max-width: 640px) { .stats-strip { grid-template-columns: 1fr 1fr; } }
+              .stat-chip {
+                background: white; border: 1px solid #e8e6e1;
+                border-radius: 12px; padding: 16px 20px;
+                text-align: center;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+              }
+              .stat-chip .num { font-size: 1.6rem; font-weight: 800; color: #1a1a18; line-height: 1; margin-bottom: 4px; }
+              .stat-chip .lbl { font-size: 12px; color: #8a8a86; }
+              .stat-chip .num.indigo { color: var(--indigo); }
+              .stat-chip .num.sage   { color: var(--sage); }
+              .stat-chip .num.amber  { color: var(--amber); }
+              .stat-chip .num.coral  { color: var(--coral); }
+
+              /* Demo cards */
+              .cards-section {
+                max-width: 960px; margin: 0 auto 48px;
+                padding: 0 24px;
+              }
+              .section-label {
+                font-size: 11px; font-weight: 600; text-transform: uppercase;
+                letter-spacing: 0.08em; color: #8a8a86; margin-bottom: 20px;
+              }
+              .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+              @media (max-width: 640px) { .cards { grid-template-columns: 1fr; } }
+
+              .card {
+                background: white; border: 1px solid #e8e6e1;
+                border-radius: 16px; padding: 28px 28px 24px;
+                text-decoration: none; color: inherit;
+                transition: all 0.22s ease;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+                display: flex; flex-direction: column;
+              }
+              .card:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,0.09); border-color: #d0cec8; }
+
+              .card-header { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 16px; }
+              .card-icon {
+                width: 48px; height: 48px; border-radius: 14px;
+                display: flex; align-items: center; justify-content: center;
+                flex-shrink: 0;
+              }
+              .card-icon.dashboard { background: rgba(107,92,231,0.10); }
+              .card-icon.autoplay  { background: rgba(129,178,154,0.14); }
+              .card-icon svg { width: 24px; height: 24px; }
+
+              .card h2 { font-size: 1.05rem; font-weight: 700; margin-bottom: 4px; color: #1a1a18; }
+              .card .card-sub { font-size: 12px; color: #8a8a86; }
+              .card p { color: #6a6a68; font-size: 13.5px; line-height: 1.65; flex: 1; }
+
+              .card-footer { margin-top: 20px; display: flex; align-items: center; justify-content: space-between; }
+              .badge {
+                display: inline-flex; align-items: center; gap: 5px;
+                padding: 4px 10px; border-radius: 999px;
+                font-size: 11px; font-weight: 600;
+              }
+              .badge.interactive { background: rgba(107,92,231,0.1); color: #6b5ce7; border: 1px solid rgba(107,92,231,0.2); }
+              .badge.auto        { background: rgba(129,178,154,0.12); color: #5a9878; border: 1px solid rgba(129,178,154,0.25); }
+              .card-arrow { color: #c0c0bc; font-size: 18px; transition: color 0.2s, transform 0.2s; }
+              .card:hover .card-arrow { color: #6b5ce7; transform: translateX(3px); }
+
+              /* Feature pills */
+              .features-section {
+                max-width: 960px; margin: 0 auto 48px;
+                padding: 0 24px;
+              }
+              .feature-grid {
+                display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+              }
+              @media (max-width: 640px) { .feature-grid { grid-template-columns: 1fr 1fr; } }
+              .feature-chip {
+                display: flex; align-items: center; gap: 10px;
+                background: white; border: 1px solid #e8e6e1;
+                border-radius: 10px; padding: 12px 14px;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+              }
+              .feature-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+              .feature-chip span { font-size: 12.5px; color: #3a3a38; font-weight: 500; }
+
+              /* Screenshot */
+              .screenshot-section {
+                max-width: 960px; margin: 0 auto 64px;
+                padding: 0 24px;
+              }
               .screenshot {
-                margin-top: 48px;
-                max-width: 800px;
-                width: 100%;
-                border-radius: 12px;
-                overflow: hidden;
+                border-radius: 16px; overflow: hidden;
                 border: 1px solid #e8e6e1;
-                box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+                box-shadow: 0 8px 40px rgba(0,0,0,0.08);
               }
               .screenshot img { width: 100%; display: block; }
+              .screenshot-placeholder {
+                width: 100%; height: 320px;
+                background: linear-gradient(145deg, #f0ede8, #e8e5e0);
+                display: flex; align-items: center; justify-content: center;
+                flex-direction: column; gap: 12px; color: #9a9a96;
+              }
+              .screenshot-placeholder span { font-size: 13px; }
+
+              /* Footer */
+              footer {
+                border-top: 1px solid #e8e6e1;
+                padding: 24px;
+                text-align: center;
+              }
+              footer p { color: #9a9a96; font-size: 13px; }
+              footer a { color: #6a6a68; text-decoration: none; font-weight: 500; }
+              footer a:hover { color: #2c2c2a; }
+              footer .sep { margin: 0 8px; color: #d5d5d0; }
             </style>
           </head>
           <body>
-            <div class="logo">
-              <svg fill="none" stroke="white" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round">
-                <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-              </svg>
-            </div>
-            <h1>FlowLens</h1>
-            <p class="tagline">Agent Observability Platform — Live Demos</p>
 
-            <div class="cards">
-              <a href="demo_dashboard.html" class="card">
-                <div class="card-icon dashboard">📊</div>
-                <h2>Interactive Dashboard</h2>
-                <p>Explore 10 realistic AI agent traces. Full dashboard with DAG visualization, waterfall timeline, cost analysis, and pattern detection.</p>
-                <span class="badge interactive">Interactive</span>
-              </a>
-              <a href="demo_autoplay.html" class="card">
-                <div class="card-icon autoplay">▶️</div>
-                <h2>Product Tour</h2>
-                <p>Auto-playing 8-scene showcase. Watch code instrumentation, trace analysis, root cause detection, and cost optimization in action.</p>
-                <span class="badge auto">Auto-play</span>
-              </a>
+            <!-- Hero -->
+            <section class="hero">
+              <div class="logo-mark">
+                <svg fill="none" stroke="white" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                </svg>
+              </div>
+              <div class="badge-version">
+                <span class="dot"></span>
+                v1.0.0 — Production Ready
+              </div>
+              <h1>Observability for<br><span>AI Agent Teams</span></h1>
+              <p class="tagline">
+                FlowLens instruments multi-agent Claude workflows — trace every span, analyze cost by agent, detect errors, and visualize the agent communication graph.
+              </p>
+              <div class="cta-row">
+                <a href="demo_dashboard.html" class="btn-primary">
+                  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round">
+                    <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                  </svg>
+                  Try the Demo
+                </a>
+                <a href="https://github.com/yusenthebot/flowlens" class="btn-secondary" target="_blank" rel="noopener noreferrer">
+                  <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
+                    <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+                  </svg>
+                  View on GitHub
+                </a>
+              </div>
+            </section>
+
+            <!-- Stats strip -->
+            <div class="stats-strip">
+              <div class="stat-chip"><div class="num indigo">1156</div><div class="lbl">Tests Passing</div></div>
+              <div class="stat-chip"><div class="num sage">5</div><div class="lbl">Agent Roles</div></div>
+              <div class="stat-chip"><div class="num amber">16+</div><div class="lbl">LLM Models</div></div>
+              <div class="stat-chip"><div class="num coral">25+</div><div class="lbl">API Endpoints</div></div>
             </div>
 
-            <div class="screenshot">
-              <img src="dashboard_full.png" alt="FlowLens Dashboard Preview">
-            </div>
+            <!-- Demo cards -->
+            <section class="cards-section">
+              <div class="section-label">Live Demos</div>
+              <div class="cards">
+                <a href="demo_dashboard.html" class="card">
+                  <div class="card-header">
+                    <div class="card-icon dashboard">
+                      <svg fill="none" stroke="#6b5ce7" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                      </svg>
+                    </div>
+                    <div>
+                      <h2>Interactive Dashboard</h2>
+                      <div class="card-sub">4 tabs — Overview, Traces, Cost, Agents</div>
+                    </div>
+                  </div>
+                  <p>Explore 10 realistic AI agent traces from a 5-agent team. Full dashboard with span waterfall timeline, cost analysis by agent, and SVG network graph. All data embedded — no server needed.</p>
+                  <div class="card-footer">
+                    <span class="badge interactive">Interactive</span>
+                    <span class="card-arrow">&#8594;</span>
+                  </div>
+                </a>
 
-            <div class="footer">
-              <p>FlowLens v0.5.0 · <a href="https://github.com/yusenthebot/flowlens">GitHub</a> · <a href="https://github.com/yusenthebot/flowlens#-quick-start">Get Started</a></p>
-            </div>
+                <a href="demo_autoplay.html" class="card">
+                  <div class="card-header">
+                    <div class="card-icon autoplay">
+                      <svg fill="none" stroke="#81b29a" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polygon points="10 8 16 12 10 16 10 8" fill="#81b29a" stroke="none"/>
+                      </svg>
+                    </div>
+                    <div>
+                      <h2>Product Tour</h2>
+                      <div class="card-sub">8-scene auto-playing showcase</div>
+                    </div>
+                  </div>
+                  <p>Watch code instrumentation, trace analysis, root cause detection, and cost optimization in action. A guided walkthrough of FlowLens capabilities — hands-free.</p>
+                  <div class="card-footer">
+                    <span class="badge auto">Auto-play</span>
+                    <span class="card-arrow">&#8594;</span>
+                  </div>
+                </a>
+              </div>
+            </section>
+
+            <!-- Features -->
+            <section class="features-section">
+              <div class="section-label">What's included</div>
+              <div class="feature-grid">
+                <div class="feature-chip"><div class="feature-dot" style="background:#6b5ce7;"></div><span>Trace waterfall spans</span></div>
+                <div class="feature-chip"><div class="feature-dot" style="background:#81b29a;"></div><span>Cost by agent / model</span></div>
+                <div class="feature-chip"><div class="feature-dot" style="background:#e6a65d;"></div><span>Real-time WebSocket feed</span></div>
+                <div class="feature-chip"><div class="feature-dot" style="background:#e07a5f;"></div><span>Error detection &amp; alerts</span></div>
+                <div class="feature-chip"><div class="feature-dot" style="background:#9b8ec4;"></div><span>Agent network topology</span></div>
+                <div class="feature-chip"><div class="feature-dot" style="background:#a0b5c4;"></div><span>Pattern detection (15+)</span></div>
+                <div class="feature-chip"><div class="feature-dot" style="background:#6b5ce7;"></div><span>SQLite + FTS5 search</span></div>
+                <div class="feature-chip"><div class="feature-dot" style="background:#81b29a;"></div><span>Light / dark themes</span></div>
+                <div class="feature-chip"><div class="feature-dot" style="background:#e6a65d;"></div><span>Docker + FastAPI backend</span></div>
+              </div>
+            </section>
+
+            <!-- Screenshot -->
+            <section class="screenshot-section">
+              <div class="section-label">Dashboard Preview</div>
+              <div class="screenshot">
+                <img src="dashboard_full.png" alt="FlowLens Dashboard — Overview tab showing agent team, stat cards, and activity timeline"
+                  onerror="this.parentElement.innerHTML='<div class=screenshot-placeholder><svg width=48 height=48 fill=none stroke=%23c0c0bc viewBox=0 0 24 24 stroke-width=1.5><path d=M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z stroke-linecap=round/></svg><span>Dashboard screenshot</span></div>'">
+              </div>
+            </section>
+
+            <!-- Footer -->
+            <footer>
+              <p>
+                FlowLens v1.0.0
+                <span class="sep">·</span>
+                <a href="https://github.com/yusenthebot/flowlens" target="_blank" rel="noopener noreferrer">GitHub</a>
+                <span class="sep">·</span>
+                <a href="https://github.com/yusenthebot/flowlens#-quick-start" target="_blank" rel="noopener noreferrer">Quick Start</a>
+                <span class="sep">·</span>
+                <a href="https://github.com/yusenthebot/flowlens/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer">Changelog</a>
+              </p>
+            </footer>
+
           </body>
           </html>
           HEREDOC

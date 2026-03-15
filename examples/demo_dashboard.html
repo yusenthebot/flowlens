@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FlowLens v1.0.0 — Agent Team Dashboard (Demo)</title>
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%236366f1'/%3E%3Cstop offset='100%25' stop-color='%238b5cf6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='6' fill='url(%23g)'/%3E%3Cpath d='M8 22V14a2 2 0 014 0v8m4 0V10a2 2 0 014 0v12' stroke='white' stroke-width='2.5' stroke-linecap='round' fill='none'/%3E%3C/svg%3E">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%236b5ce7'/%3E%3Cstop offset='100%25' stop-color='%239b8ec4'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='6' fill='url(%23g)'/%3E%3Cpath d='M8 22V14a2 2 0 014 0v8m4 0V10a2 2 0 014 0v12' stroke='white' stroke-width='2.5' stroke-linecap='round' fill='none'/%3E%3C/svg%3E">
 
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -12,67 +12,85 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
   <script>
     tailwind.config = {
       darkMode: 'class',
       theme: {
         extend: {
-          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'Menlo', 'monospace']
+          },
           colors: {
             surface: { 50: '#f5f5f0', 100: '#edede8', 200: '#e8e6e1', 300: '#dddbd5', 400: '#fafaf8' },
-            brand: { 400: '#9b8ec4', 500: '#7c7aef', 600: '#6b68d9' },
+            brand:   { 400: '#9b8ec4', 500: '#7c7aef', 600: '#6b68d9' },
           }
         }
       }
     };
-    // Apply persisted theme before paint to avoid flash
-    if (localStorage.getItem('flowlens-theme') === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
+    // Apply persisted theme before paint to avoid flash — default: light
+    const _savedTheme = localStorage.getItem('flowlens-demo-theme');
+    if (_savedTheme === 'dark') document.documentElement.classList.add('dark');
+    else document.documentElement.classList.remove('dark');
   </script>
 
   <style>
+    /* ── Design tokens ───────────────────────────────────────────── */
+    :root {
+      --color-coral: #e07a5f;
+      --color-indigo-warm: #6b5ce7;
+      --color-sage: #81b29a;
+      --color-amber-warm: #e6a65d;
+      --color-indigo-bg: rgba(107,92,231,0.10);
+      --color-indigo-border: rgba(107,92,231,0.22);
+      --color-coral-bg: rgba(224,122,95,0.12);
+      --color-coral-border: rgba(224,122,95,0.28);
+      --color-sage-bg: rgba(129,178,154,0.12);
+      --color-sage-border: rgba(129,178,154,0.28);
+      --accent: #6b5ce7;
+      --accent-light: rgba(107,92,231,0.12);
+      --accent-border: rgba(107,92,231,0.3);
+      --warm-off-white: #faf9f6;
+      --warm-gray-100: #f0ede8;
+      --warm-gray-200: #e4e0da;
+      --warm-gray-400: #9a9690;
+      --radius-card: 12px;
+      --radius-pill: 999px;
+      --shadow-soft: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04);
+      --shadow-lift: 0 4px 20px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04);
+    }
+
     *, *::before, *::after {
       transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
     }
     html { scroll-behavior: smooth; }
 
-    /* ── Dark Theme ────────────────────────────────────────────────── */
+    /* ── Dark Theme ─────────────────────────────────────────────── */
     .dark * { scrollbar-width: thin; scrollbar-color: #3a3a36 transparent; }
     .dark *::-webkit-scrollbar { width: 6px; height: 6px; }
     .dark *::-webkit-scrollbar-track { background: transparent; }
     .dark *::-webkit-scrollbar-thumb { background: #3a3a36; border-radius: 3px; }
     .dark body { background: linear-gradient(145deg, #2a2a28 0%, #252523 50%, #2a2a28 100%); }
     .dark .glass {
-      background: rgba(50, 50, 46, 0.72);
+      background: rgba(50,50,46,0.72);
       backdrop-filter: blur(14px);
       border: 1px solid rgba(255,255,255,0.06);
     }
-    .dark .glass-hover:hover {
-      background: rgba(60, 60, 55, 0.88);
-      border-color: rgba(255,255,255,0.1);
-    }
-    .dark .stat-glow { box-shadow: 0 0 32px -10px rgba(124,122,239,0.14); }
+    .dark .glass-hover:hover { background: rgba(60,60,55,0.88); border-color: rgba(255,255,255,0.1); }
+    .dark .stat-glow { box-shadow: 0 0 32px -10px rgba(107,92,231,0.14); }
     .dark .waterfall-tooltip {
-      background: rgba(42,42,40,0.95);
-      border: 1px solid rgba(255,255,255,0.1);
-      color: #e2e0db;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+      background: rgba(42,42,40,0.95); border: 1px solid rgba(255,255,255,0.1);
+      color: #e2e0db; box-shadow: 0 8px 32px rgba(0,0,0,0.3);
     }
 
-    /* ── Light Theme ───────────────────────────────────────────────── */
+    /* ── Light Theme ────────────────────────────────────────────── */
     html:not(.dark) * { scrollbar-width: thin; scrollbar-color: #d5d5d0 transparent; }
     html:not(.dark) *::-webkit-scrollbar { width: 6px; height: 6px; }
     html:not(.dark) *::-webkit-scrollbar-track { background: transparent; }
     html:not(.dark) *::-webkit-scrollbar-thumb { background: #d5d5d0; border-radius: 3px; }
-    html:not(.dark) body {
-      background: linear-gradient(145deg, #fafaf8 0%, #f5f5f0 50%, #fafaf8 100%);
-      color: #2c2c2a;
-    }
+    html:not(.dark) body { background: linear-gradient(145deg, #fafaf8 0%, #f5f5f0 50%, #fafaf8 100%); color: #2c2c2a; }
     html:not(.dark) .glass {
       background: rgba(255,255,255,0.88);
       backdrop-filter: blur(14px);
@@ -80,12 +98,10 @@
       box-shadow: 0 1px 3px rgba(0,0,0,0.04);
     }
     html:not(.dark) .glass-hover:hover { background: rgba(255,255,255,0.97); border-color: #dddbd5; }
-    html:not(.dark) .stat-glow { box-shadow: 0 1px 10px -2px rgba(124,122,239,0.1); }
+    html:not(.dark) .stat-glow { box-shadow: 0 1px 10px -2px rgba(107,92,231,0.10); }
     html:not(.dark) .waterfall-tooltip {
-      background: rgba(255,255,255,0.97);
-      border: 1px solid #e8e6e1;
-      color: #2c2c2a;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+      background: rgba(255,255,255,0.97); border: 1px solid #e8e6e1;
+      color: #2c2c2a; box-shadow: 0 4px 16px rgba(0,0,0,0.08);
     }
     html:not(.dark) .text-white    { color: #2c2c2a !important; }
     html:not(.dark) .text-slate-200 { color: #3a3a38 !important; }
@@ -96,29 +112,28 @@
     html:not(.dark) .bg-surface-100, html:not(.dark) .bg-surface-200 { background-color: #f5f5f0 !important; }
     html:not(.dark) .border-white\/5, html:not(.dark) .border-white\/10 { border-color: #e8e6e1 !important; }
     html:not(.dark) .divide-white\/5 > :not([hidden]) ~ :not([hidden]) { border-color: #edede8 !important; }
-    html:not(.dark) .trace-row-selected { background: rgba(124,122,239,0.06) !important; border-left: 2px solid #7c7aef; }
-    html:not(.dark) .tab-active { border-color: #7c7aef; color: #6b68d9 !important; background: rgba(124,122,239,0.06); }
+    html:not(.dark) .trace-row-selected { background: rgba(107,92,231,0.06) !important; border-left: 2px solid #6b5ce7; }
+    html:not(.dark) .tab-active { border-color: #6b5ce7; color: #6b5ce7 !important; background: rgba(107,92,231,0.06); }
     html:not(.dark) .tab-inactive { border-color: transparent; color: #8a8a86 !important; }
-    html:not(.dark) .tab-inactive:hover { color: #555553 !important; border-color: rgba(124,122,239,0.3); }
+    html:not(.dark) .tab-inactive:hover { color: #555553 !important; border-color: rgba(107,92,231,0.3); }
     html:not(.dark) .filter-input { background-color: #fafaf8 !important; border-color: #e8e6e1 !important; color: #2c2c2a !important; }
-    html:not(.dark) kbd { background: #edede8 !important; border-color: #e8e6e1 !important; color: #8a8a86 !important; }
+    html:not(.dark) .header-nav { background: rgba(255,255,255,0.92) !important; border-color: #e8e6e1 !important; }
+    html:not(.dark) .live-dot { background: #81b29a !important; }
 
-    /* ── Shared Utilities ─────────────────────────────────────────── */
+    /* ── Shared Utilities ───────────────────────────────────────── */
     .fade-in { animation: fadeIn 0.3s ease-out; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-
     @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
     .pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
 
-    .tab-active { border-color: #7c7aef; color: #e0dff8; background: rgba(124,122,239,0.08); }
+    .tab-active { border-color: #6b5ce7; color: #e0dff8; background: rgba(107,92,231,0.08); }
     .tab-inactive { border-color: transparent; color: #8a8a86; }
-    .tab-inactive:hover { color: #b5b5b0; border-color: rgba(124,122,239,0.3); }
+    .tab-inactive:hover { color: #b5b5b0; border-color: rgba(107,92,231,0.3); }
 
-    /* ── Theme Toggle ─────────────────────────────────────────────── */
+    /* ── Theme Toggle ───────────────────────────────────────────── */
     .theme-toggle {
       position: relative; width: 44px; height: 24px;
       border-radius: 12px; cursor: pointer;
-      transition: background-color 0.3s ease;
     }
     .dark .theme-toggle { background: #3a3a36; border: 1px solid rgba(255,255,255,0.1); }
     html:not(.dark) .theme-toggle { background: #e8e6e1; border: 1px solid rgba(0,0,0,0.08); }
@@ -127,9 +142,9 @@
       border-radius: 50%; transition: left 0.3s ease, background-color 0.3s ease;
     }
     .dark .theme-toggle-knob { left: 2px; background: #edede8; }
-    html:not(.dark) .theme-toggle-knob { left: 22px; background: #c49a5c; }
+    html:not(.dark) .theme-toggle-knob { left: 22px; background: var(--color-amber-warm); }
 
-    /* ── Card Stagger Animation ───────────────────────────────────── */
+    /* ── Card Stagger Animation ─────────────────────────────────── */
     @keyframes cardSlideUp {
       from { opacity: 0; transform: translateY(20px); }
       to   { opacity: 1; transform: translateY(0); }
@@ -141,15 +156,14 @@
     .stat-card-enter:nth-child(4) { animation-delay: 240ms; }
     .stat-card-enter:nth-child(5) { animation-delay: 320ms; }
 
-    /* ── 3D Card Hover Tilt ───────────────────────────────────────── */
+    /* ── 3D Card Hover ──────────────────────────────────────────── */
     .card-3d-hover {
-      perspective: 800px;
-      transform-style: preserve-3d;
+      perspective: 800px; transform-style: preserve-3d;
       transition: transform 0.25s ease, box-shadow 0.25s ease !important;
     }
     .card-3d-hover:hover { transform: rotateX(-2deg) rotateY(2deg) scale(1.02); }
 
-    /* ── Gradient Orbs ────────────────────────────────────────────── */
+    /* ── Gradient Orbs ──────────────────────────────────────────── */
     .gradient-orb {
       position: absolute; border-radius: 50%;
       filter: blur(80px); pointer-events: none; z-index: 0;
@@ -160,33 +174,31 @@
       0%, 100% { transform: translateY(0px) scale(1); }
       50% { transform: translateY(-28px) scale(1.05); }
     }
-    .orb-1 { width: 420px; height: 420px; background: radial-gradient(circle, #7c7aef, transparent); top: -80px; left: -100px; animation: orbFloat 14s ease-in-out infinite; }
+    .orb-1 { width: 420px; height: 420px; background: radial-gradient(circle, #6b5ce7, transparent); top: -80px; left: -100px; animation: orbFloat 14s ease-in-out infinite; }
     .orb-2 { width: 320px; height: 320px; background: radial-gradient(circle, #9b8ec4, transparent); top: 60px; right: 80px; animation: orbFloat 18s ease-in-out infinite reverse; }
-    .orb-3 { width: 260px; height: 260px; background: radial-gradient(circle, #7ab5a0, transparent); bottom: -40px; left: 40%; animation: orbFloat 22s ease-in-out infinite; }
+    .orb-3 { width: 260px; height: 260px; background: radial-gradient(circle, #81b29a, transparent); bottom: -40px; left: 40%; animation: orbFloat 22s ease-in-out infinite; }
 
-    /* ── View Transition ──────────────────────────────────────────── */
+    /* ── View Transition ────────────────────────────────────────── */
     .view-panel { transition: opacity 0.25s ease, transform 0.25s ease; }
     .view-enter { animation: viewEnter 0.3s ease-out forwards; }
     @keyframes viewEnter { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 
-    /* ── Span Bar ─────────────────────────────────────────────────── */
+    /* ── Span Bar ───────────────────────────────────────────────── */
     .span-bar { transition: all 0.2s ease !important; cursor: pointer; }
     .span-bar:hover { filter: brightness(1.3); }
 
-    /* ── Waterfall ────────────────────────────────────────────────── */
+    /* ── Waterfall ──────────────────────────────────────────────── */
     .waterfall-tooltip {
       position: absolute; z-index: 100; backdrop-filter: blur(12px);
       border-radius: 8px; padding: 10px 14px; font-size: 12px;
       pointer-events: none; white-space: nowrap;
     }
 
-    /* ── Agent Team Bar ───────────────────────────────────────────── */
-    .agent-card-mini {
-      transition: transform 0.18s ease, box-shadow 0.18s ease;
-    }
+    /* ── Agent Team Mini Cards ──────────────────────────────────── */
+    .agent-card-mini { transition: transform 0.18s ease, box-shadow 0.18s ease; }
     .agent-card-mini:hover { transform: translateY(-3px); }
 
-    /* ── Ripple Button ────────────────────────────────────────────── */
+    /* ── Ripple ─────────────────────────────────────────────────── */
     .ripple-btn { position: relative; overflow: hidden; }
     .ripple-btn::after {
       content: ''; position: absolute; inset: 0; border-radius: inherit;
@@ -195,65 +207,99 @@
     }
     .ripple-btn:active::after { background-size: 400% 400%; opacity: 0; }
 
-    /* ── Focus Ring Accessibility ─────────────────────────────────── */
-    *:focus-visible {
-      outline: 2px solid rgba(99,102,241,0.5);
-      outline-offset: 2px;
-      border-radius: 4px;
-    }
+    /* ── Focus Ring ─────────────────────────────────────────────── */
+    *:focus-visible { outline: 2px solid rgba(107,92,231,0.5); outline-offset: 2px; border-radius: 4px; }
 
-    /* ── Activity Timeline ────────────────────────────────────────── */
-    .timeline-item { border-left: 2px solid transparent; }
-
-    /* ── Trace Row ────────────────────────────────────────────────── */
+    /* ── Trace Row ──────────────────────────────────────────────── */
     .trace-row { transition: background 0.15s ease; }
-    .trace-row:hover { background: rgba(124,122,239,0.04); }
-    .trace-row-selected { background: rgba(124,122,239,0.08) !important; border-left: 2px solid #7c7aef; }
+    .trace-row:hover { background: rgba(107,92,231,0.04); }
+    .trace-row-selected { background: rgba(107,92,231,0.08) !important; border-left: 2px solid #6b5ce7; }
+    .trace-row:nth-child(even) { background: rgba(0,0,0,0.015); }
+    .dark .trace-row:nth-child(even) { background: rgba(255,255,255,0.015); }
 
-    /* ── Responsive ───────────────────────────────────────────────── */
+    /* ── Tool Pill Colors ───────────────────────────────────────── */
+    .pill-read   { background: rgba(107,92,231,0.12); color: #8b78f0; border: 1px solid rgba(107,92,231,0.25); }
+    .pill-bash   { background: rgba(129,178,154,0.14); color: #6da688; border: 1px solid rgba(129,178,154,0.28); }
+    .pill-edit   { background: rgba(230,166,93,0.14); color: #c48d4a; border: 1px solid rgba(230,166,93,0.28); }
+    .pill-write  { background: rgba(224,122,95,0.14); color: #c06850; border: 1px solid rgba(224,122,95,0.28); }
+    .pill-grep   { background: rgba(160,181,196,0.14); color: #7a9eb5; border: 1px solid rgba(160,181,196,0.28); }
+    .pill-glob   { background: rgba(155,142,196,0.14); color: #9080c0; border: 1px solid rgba(155,142,196,0.28); }
+    .pill-llm    { background: rgba(107,92,231,0.18); color: #6b5ce7; border: 1px solid rgba(107,92,231,0.35); }
+    .pill-other  { background: rgba(100,100,100,0.08); color: #8a8a86; border: 1px solid rgba(100,100,100,0.18); }
+    .dark .pill-read   { color: #b0a4ff; }
+    .dark .pill-bash   { color: #81b29a; }
+    .dark .pill-edit   { color: #e6a65d; }
+    .dark .pill-write  { color: #e07a5f; }
+    .dark .pill-grep   { color: #a0b5c4; }
+    .dark .pill-glob   { color: #c4b4f0; }
+    .dark .pill-llm    { color: #a99ef7; }
+
+    /* ── Duration Dots ──────────────────────────────────────────── */
+    .dur-fast   { background: #81b29a; }
+    .dur-medium { background: #e6a65d; }
+    .dur-slow   { background: #e07a5f; }
+
+    /* ── Stat Card Accent Bars ──────────────────────────────────── */
+    .stat-bar-indigo { background: linear-gradient(90deg, #6b5ce7, #9b8ec4); }
+    .stat-bar-coral  { background: linear-gradient(90deg, #e07a5f, #e6a65d); }
+    .stat-bar-sage   { background: linear-gradient(90deg, #81b29a, #a0c5b5); }
+    .stat-bar-amber  { background: linear-gradient(90deg, #e6a65d, #e6c48d); }
+    .stat-bar-purple { background: linear-gradient(90deg, #9b8ec4, #b0a4d9); }
+
+    /* ── Agent Network SVG ──────────────────────────────────────── */
+    #agent-network-svg { width: 100%; height: 320px; }
+    .agent-node { cursor: pointer; transition: filter 0.2s; }
+    .agent-node:hover { filter: brightness(1.2) drop-shadow(0 0 8px rgba(107,92,231,0.5)); }
+    .agent-edge { stroke-width: 1.5; stroke-dasharray: 4 3; animation: dashFlow 2.5s linear infinite; }
+    @keyframes dashFlow { to { stroke-dashoffset: -14; } }
+
+    /* ── Responsive ─────────────────────────────────────────────── */
     @media (max-width: 768px) {
       .stat-grid { grid-template-columns: 1fr 1fr !important; }
       .span-label-col { width: 120px !important; min-width: 120px !important; }
+      .agents-grid { grid-template-columns: 1fr !important; }
     }
     @media (max-width: 480px) {
       .stat-grid { grid-template-columns: 1fr !important; }
+      header .logo-subtitle { display: none; }
     }
 
     .chart-container canvas { border-radius: 8px; }
+    .font-mono { font-family: 'JetBrains Mono', Menlo, monospace; }
   </style>
 </head>
 <body class="min-h-screen font-sans text-slate-200 antialiased">
 
-  <!-- ── Header ────────────────────────────────────────────────────── -->
-  <header class="sticky top-0 z-50 glass border-b border-white/5">
-    <div class="max-w-[1600px] mx-auto flex items-center justify-between px-6 py-3">
+  <!-- ── Header ─────────────────────────────────────────────────────── -->
+  <header class="sticky top-0 z-50 glass header-nav border-b border-white/5" style="height:60px;">
+    <div class="max-w-[1600px] mx-auto h-full flex items-center justify-between px-6">
       <!-- Logo -->
       <div class="flex items-center gap-3">
-        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-[#7c7aef] to-[#9b8ec4] flex items-center justify-center shadow-lg shadow-[#7c7aef]/20">
+        <div class="w-9 h-9 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0"
+          style="background: linear-gradient(135deg, #6b5ce7 0%, #9b8ec4 100%); box-shadow: 0 4px 14px rgba(107,92,231,0.25);">
           <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
           </svg>
         </div>
         <div>
-          <h1 class="text-lg font-semibold text-white tracking-tight">FlowLens</h1>
-          <p class="text-[10px] text-slate-500 -mt-0.5 tracking-wider uppercase">Agent Observability</p>
+          <h1 class="text-base font-semibold text-white tracking-tight leading-tight">FlowLens</h1>
+          <p class="logo-subtitle text-[10px] text-slate-500 tracking-wider uppercase leading-tight">Agent Observability</p>
         </div>
-        <!-- Version badge -->
         <span class="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold
-          bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 ml-1">v1.0.0</span>
+          ml-1" style="background: var(--color-indigo-bg); color: #9b8ec4; border: 1px solid var(--color-indigo-border);">v1.0.0</span>
       </div>
 
-      <!-- Live Demo Banner (center) -->
-      <div class="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full
-        bg-emerald-500/8 border border-emerald-500/20 text-xs text-emerald-400">
-        <span class="w-2 h-2 rounded-full bg-emerald-500 pulse-dot"></span>
+      <!-- Live indicator (center) -->
+      <div class="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs"
+        style="background: var(--color-sage-bg); border: 1px solid var(--color-sage-border); color: #81b29a;">
+        <span class="w-2 h-2 rounded-full pulse-dot live-dot" style="background: #81b29a;"></span>
         Live Interactive Demo
       </div>
 
       <!-- Controls -->
       <div class="flex items-center gap-4">
-        <button onclick="toggleTheme()" class="theme-toggle ripple-btn" title="Toggle theme (t)" aria-label="Toggle light/dark theme">
+        <button onclick="toggleTheme()" class="theme-toggle ripple-btn" title="Toggle theme" aria-label="Toggle light/dark theme">
           <div class="theme-toggle-knob"></div>
         </button>
         <a href="https://github.com/yusenthebot/flowlens" target="_blank" rel="noopener noreferrer"
@@ -268,20 +314,24 @@
     </div>
   </header>
 
-  <!-- ── Navigation ────────────────────────────────────────────────── -->
+  <!-- ── Navigation ─────────────────────────────────────────────────── -->
   <nav class="max-w-[1600px] mx-auto px-6 pt-4">
     <div class="flex gap-1 border-b border-white/5 overflow-x-auto">
       <button onclick="switchView('overview')" data-tab="overview"
         class="tab-btn tab-active ripple-btn px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg whitespace-nowrap">
         Overview
       </button>
-      <button onclick="switchView('agents')" data-tab="agents"
-        class="tab-btn tab-inactive ripple-btn px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg whitespace-nowrap">
-        Agents
-      </button>
       <button onclick="switchView('traces')" data-tab="traces"
         class="tab-btn tab-inactive ripple-btn px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg whitespace-nowrap">
         Traces
+      </button>
+      <button onclick="switchView('cost')" data-tab="cost"
+        class="tab-btn tab-inactive ripple-btn px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg whitespace-nowrap">
+        Cost
+      </button>
+      <button onclick="switchView('agents')" data-tab="agents"
+        class="tab-btn tab-inactive ripple-btn px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 rounded-t-lg whitespace-nowrap">
+        Agents
       </button>
     </div>
   </nav>
@@ -294,84 +344,89 @@
     ════════════════════════════════════════════════════════════════ -->
     <div id="view-overview" class="view-panel view-enter">
 
-      <!-- Floating Orbs Background -->
-      <div class="relative overflow-hidden">
+      <!-- Background Orbs -->
+      <div class="relative overflow-visible pointer-events-none" style="height:0;">
         <div class="gradient-orb orb-1"></div>
         <div class="gradient-orb orb-2"></div>
         <div class="gradient-orb orb-3"></div>
+      </div>
 
-        <!-- Stats Cards -->
-        <div class="relative z-10 grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6 stat-grid">
+      <!-- 5 Stat Cards -->
+      <div class="relative z-10 grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6 stat-grid">
 
-          <!-- Total Traces -->
-          <div class="glass rounded-xl p-5 stat-glow stat-card-enter card-3d-hover">
-            <div class="flex items-center justify-between mb-3">
-              <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Traces</span>
-              <div class="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center">
-                <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7"/>
-                </svg>
-              </div>
+        <!-- Total Traces -->
+        <div class="glass rounded-xl p-5 stat-glow stat-card-enter card-3d-hover">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Traces</span>
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: var(--color-indigo-bg);">
+              <svg class="w-4 h-4" style="color: var(--color-indigo-warm);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7"/>
+              </svg>
             </div>
-            <div id="stat-traces" class="text-2xl font-bold text-white">0</div>
-            <div id="stat-spans" class="text-xs text-slate-500 mt-1">0 spans</div>
           </div>
+          <div id="stat-traces" class="text-[28px] font-bold text-white leading-none">0</div>
+          <div id="stat-spans" class="text-[11px] text-slate-500 mt-1">0 spans total</div>
+          <div class="mt-3 h-1 rounded-full opacity-60 stat-bar-indigo"></div>
+        </div>
 
-          <!-- Error Rate -->
-          <div class="glass rounded-xl p-5 stat-glow stat-card-enter card-3d-hover">
-            <div class="flex items-center justify-between mb-3">
-              <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Error Rate</span>
-              <div class="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center">
-                <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
-                </svg>
-              </div>
+        <!-- Error Rate -->
+        <div class="glass rounded-xl p-5 stat-glow stat-card-enter card-3d-hover">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Error Rate</span>
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: var(--color-coral-bg);">
+              <svg class="w-4 h-4" style="color: var(--color-coral);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+              </svg>
             </div>
-            <div id="stat-error-rate" class="text-2xl font-bold text-white">0%</div>
-            <div id="stat-error-count" class="text-xs text-slate-500 mt-1">0 error traces</div>
           </div>
+          <div id="stat-error-rate" class="text-[28px] font-bold text-white leading-none">0%</div>
+          <div id="stat-error-count" class="text-[11px] text-slate-500 mt-1">0 error traces</div>
+          <div class="mt-3 h-1 rounded-full opacity-60 stat-bar-coral"></div>
+        </div>
 
-          <!-- Avg Latency -->
-          <div class="glass rounded-xl p-5 stat-glow stat-card-enter card-3d-hover">
-            <div class="flex items-center justify-between mb-3">
-              <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Avg Latency</span>
-              <div class="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
-              </div>
+        <!-- Avg Latency -->
+        <div class="glass rounded-xl p-5 stat-glow stat-card-enter card-3d-hover">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Avg Latency</span>
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: var(--color-sage-bg);">
+              <svg class="w-4 h-4" style="color: var(--color-sage);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
             </div>
-            <div id="stat-latency" class="text-2xl font-bold text-white">0ms</div>
-            <div class="text-xs text-slate-500 mt-1">milliseconds</div>
           </div>
+          <div id="stat-latency" class="text-[28px] font-bold text-white leading-none">0ms</div>
+          <div class="text-[11px] text-slate-500 mt-1">avg per trace</div>
+          <div class="mt-3 h-1 rounded-full opacity-60 stat-bar-sage"></div>
+        </div>
 
-          <!-- Total Cost -->
-          <div class="glass rounded-xl p-5 stat-glow stat-card-enter card-3d-hover">
-            <div class="flex items-center justify-between mb-3">
-              <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Cost</span>
-              <div class="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
-              </div>
+        <!-- Total Cost -->
+        <div class="glass rounded-xl p-5 stat-glow stat-card-enter card-3d-hover">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Cost</span>
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(230,166,93,0.12);">
+              <svg class="w-4 h-4" style="color: var(--color-amber-warm);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
             </div>
-            <div id="stat-cost" class="text-2xl font-bold text-white">$0.00</div>
-            <div id="stat-tokens" class="text-xs text-slate-500 mt-1">0 tokens</div>
           </div>
+          <div id="stat-cost" class="text-[28px] font-bold text-white leading-none">$0.00</div>
+          <div id="stat-tokens" class="text-[11px] text-slate-500 mt-1">0 tokens</div>
+          <div class="mt-3 h-1 rounded-full opacity-60 stat-bar-amber"></div>
+        </div>
 
-          <!-- Active Agents -->
-          <div class="glass rounded-xl p-5 stat-glow stat-card-enter card-3d-hover">
-            <div class="flex items-center justify-between mb-3">
-              <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Active Agents</span>
-              <div class="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center">
-                <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
-                </svg>
-              </div>
+        <!-- Active Agents -->
+        <div class="glass rounded-xl p-5 stat-glow stat-card-enter card-3d-hover">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Agents</span>
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(155,142,196,0.12);">
+              <svg class="w-4 h-4" style="color: #9b8ec4;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+              </svg>
             </div>
-            <div id="stat-agents" class="text-2xl font-bold text-white">5</div>
-            <div class="text-xs text-slate-500 mt-1">VR Agent Team</div>
           </div>
+          <div id="stat-agents" class="text-[28px] font-bold text-white leading-none">5</div>
+          <div class="text-[11px] text-slate-500 mt-1">VR Agent Team</div>
+          <div class="mt-3 h-1 rounded-full opacity-60 stat-bar-purple"></div>
         </div>
       </div>
 
@@ -379,15 +434,15 @@
       <div class="glass rounded-xl p-5 mb-6">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-sm font-semibold text-white">Agent Team — VR Robotics Core</h2>
-          <span class="text-xs text-slate-500">5 agents · claude-code-agents</span>
+          <span class="text-[11px] text-slate-500">5 agents · claude-code-agents</span>
         </div>
         <div id="agent-team-bar" class="grid grid-cols-2 sm:grid-cols-5 gap-3"></div>
       </div>
 
-      <!-- Overview Two-Column: Chart + Timeline -->
+      <!-- 2-col: Chart + Activity Timeline -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
 
-        <!-- Trace Volume Chart -->
+        <!-- Token Usage Chart -->
         <div class="glass rounded-xl p-5">
           <h3 class="text-sm font-semibold text-white mb-4">Token Usage by Agent</h3>
           <div class="h-56 chart-container"><canvas id="chart-tokens"></canvas></div>
@@ -403,33 +458,24 @@
         </div>
       </div>
 
-      <!-- Cost Distribution -->
-      <div class="glass rounded-xl p-5 mb-6">
-        <h3 class="text-sm font-semibold text-white mb-4">Cost by Agent</h3>
-        <div class="h-48 chart-container"><canvas id="chart-cost-agents"></canvas></div>
-      </div>
-
-      <!-- Recent Traces Quick View -->
+      <!-- Recent Traces -->
       <div class="glass rounded-xl overflow-hidden">
         <div class="flex items-center justify-between px-5 py-4 border-b border-white/5">
           <h2 class="text-sm font-semibold text-white">Recent Traces</h2>
-          <button onclick="switchView('traces')" class="text-xs text-indigo-400 hover:text-indigo-300 transition">
+          <button onclick="switchView('traces')" class="text-[12px] transition hover:underline" style="color: var(--color-indigo-warm);">
             View all &rarr;
           </button>
         </div>
+        <!-- Column headers -->
+        <div class="grid px-5 py-2 border-b border-white/5 text-[10px] font-medium text-slate-500 uppercase tracking-wider"
+          style="grid-template-columns: 1fr 80px 70px 80px;">
+          <span>Name / Agent</span>
+          <span class="text-right">Duration</span>
+          <span class="text-right">Cost</span>
+          <span class="text-right">Time</span>
+        </div>
         <div id="recent-traces-list" class="divide-y divide-white/5"></div>
       </div>
-    </div>
-
-    <!-- ════════════════════════════════════════════════════════════════
-         AGENTS VIEW
-    ════════════════════════════════════════════════════════════════ -->
-    <div id="view-agents" class="view-panel hidden">
-      <div class="mb-4 flex items-center justify-between">
-        <h2 class="text-sm font-semibold text-white">VR Agent Team Profiles</h2>
-        <span class="text-xs text-slate-500">All 5 agents instrumented with FlowLens v1.0.0</span>
-      </div>
-      <div id="agent-cards-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
     </div>
 
     <!-- ════════════════════════════════════════════════════════════════
@@ -446,7 +492,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
           </svg>
         </div>
-        <label class="flex items-center gap-1.5 text-xs text-red-300 cursor-pointer select-none hover:text-red-200">
+        <label class="flex items-center gap-1.5 text-xs cursor-pointer select-none transition" style="color: var(--color-coral);">
           <input type="checkbox" id="filter-errors-only" class="rounded" onchange="renderTraceList()" />
           Errors only
         </label>
@@ -461,8 +507,16 @@
         </select>
       </div>
 
-      <!-- Trace Table -->
-      <div class="glass rounded-xl overflow-hidden">
+      <!-- Column headers -->
+      <div class="glass rounded-t-xl overflow-hidden">
+        <div class="grid px-5 py-2.5 border-b border-white/5 text-[10px] font-semibold text-slate-500 uppercase tracking-wider"
+          style="grid-template-columns: 1fr 140px 90px 80px 90px;">
+          <span>Name / Agent</span>
+          <span>Tools</span>
+          <span class="text-right">Duration</span>
+          <span class="text-right">Cost</span>
+          <span class="text-right">Time</span>
+        </div>
         <div id="traces-list" class="divide-y divide-white/5"></div>
       </div>
     </div>
@@ -476,21 +530,102 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
         </svg>
         Back to traces
-        <kbd class="ml-2 px-1 py-0.5 text-[10px] rounded bg-surface-100 border border-white/10 font-mono text-slate-600">Esc</kbd>
+        <kbd class="ml-2 px-1 py-0.5 text-[10px] rounded font-mono" style="background: rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.12); color: #8a8a86;">Esc</kbd>
       </button>
 
       <!-- Trace Header -->
       <div class="glass rounded-xl p-5 mb-4">
-        <h2 id="detail-trace-id" class="text-base font-semibold text-white font-mono truncate mb-2">--</h2>
-        <div id="detail-trace-meta" class="flex flex-wrap gap-4 text-xs text-slate-400"></div>
+        <div class="flex items-start justify-between gap-4">
+          <div class="flex-1 min-w-0">
+            <h2 id="detail-trace-id" class="text-base font-semibold text-white font-mono truncate mb-2">--</h2>
+            <div id="detail-trace-meta" class="flex flex-wrap gap-4 text-[12px] text-slate-400"></div>
+          </div>
+          <div id="detail-trace-badges" class="flex gap-2 flex-shrink-0"></div>
+        </div>
       </div>
 
-      <!-- Waterfall Diagram -->
+      <!-- Waterfall -->
+      <div class="glass rounded-xl overflow-hidden">
+        <div class="px-5 py-4 border-b border-white/5 flex items-center justify-between">
+          <h3 class="text-sm font-semibold text-white">Span Waterfall</h3>
+          <span id="detail-span-count" class="text-[11px] text-slate-500"></span>
+        </div>
+        <div id="waterfall-container" class="p-4 overflow-x-auto relative"></div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         COST VIEW
+    ════════════════════════════════════════════════════════════════ -->
+    <div id="view-cost" class="view-panel hidden">
+      <!-- Cost Summary Row -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div class="glass rounded-xl p-5 stat-glow">
+          <div class="text-[11px] text-slate-500 uppercase tracking-wider mb-2">Total Spend</div>
+          <div id="cost-total" class="text-[28px] font-bold text-white">$0.00</div>
+          <div class="text-[11px] text-slate-500 mt-1">10 traces analyzed</div>
+        </div>
+        <div class="glass rounded-xl p-5 stat-glow">
+          <div class="text-[11px] text-slate-500 uppercase tracking-wider mb-2">Avg Per Trace</div>
+          <div id="cost-avg" class="text-[28px] font-bold text-white">$0.00</div>
+          <div class="text-[11px] text-slate-500 mt-1">across all agents</div>
+        </div>
+        <div class="glass rounded-xl p-5 stat-glow">
+          <div class="text-[11px] text-slate-500 uppercase tracking-wider mb-2">Most Expensive</div>
+          <div id="cost-max-agent" class="text-[16px] font-bold text-white">--</div>
+          <div id="cost-max-val" class="text-[11px] text-slate-500 mt-1"></div>
+        </div>
+      </div>
+
+      <!-- Charts row -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        <div class="glass rounded-xl p-5">
+          <h3 class="text-sm font-semibold text-white mb-4">Cost by Agent</h3>
+          <div class="h-64 flex items-center justify-center chart-container">
+            <canvas id="chart-cost-doughnut"></canvas>
+          </div>
+        </div>
+        <div class="glass rounded-xl p-5">
+          <h3 class="text-sm font-semibold text-white mb-4">Cost Trend (simulated 7 days)</h3>
+          <div class="h-64 chart-container"><canvas id="chart-cost-trend"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Top 5 most expensive traces -->
       <div class="glass rounded-xl overflow-hidden">
         <div class="px-5 py-4 border-b border-white/5">
-          <h3 class="text-sm font-semibold text-white">Span Waterfall</h3>
+          <h3 class="text-sm font-semibold text-white">Top Traces by Cost</h3>
         </div>
-        <div id="waterfall-container" class="p-4 overflow-x-auto"></div>
+        <div class="grid px-5 py-2 border-b border-white/5 text-[10px] font-semibold text-slate-500 uppercase tracking-wider"
+          style="grid-template-columns: 1fr 100px 80px 80px;">
+          <span>Trace</span>
+          <span>Agent</span>
+          <span class="text-right">Tokens</span>
+          <span class="text-right">Cost</span>
+        </div>
+        <div id="cost-top-traces" class="divide-y divide-white/5"></div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         AGENTS VIEW
+    ════════════════════════════════════════════════════════════════ -->
+    <div id="view-agents" class="view-panel hidden">
+      <div class="mb-4 flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-white">VR Agent Team Profiles</h2>
+        <span class="text-[11px] text-slate-500">5 agents · FlowLens v1.0.0</span>
+      </div>
+
+      <!-- Agent cards grid -->
+      <div id="agent-cards-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 agents-grid mb-6"></div>
+
+      <!-- SVG Network Graph -->
+      <div class="glass rounded-xl p-5">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-sm font-semibold text-white">Agent Communication Network</h3>
+          <span class="text-[11px] text-slate-500">Interaction topology</span>
+        </div>
+        <svg id="agent-network-svg" viewBox="0 0 700 320" xmlns="http://www.w3.org/2000/svg"></svg>
       </div>
     </div>
 
@@ -499,8 +634,9 @@
   <!-- ── Footer ─────────────────────────────────────────────────────── -->
   <footer class="mt-12 border-t border-white/5 glass">
     <div class="max-w-[1600px] mx-auto px-6 py-5 flex flex-col sm:flex-row items-center justify-between gap-3">
-      <div class="flex items-center gap-2 text-xs text-slate-500">
-        <div class="w-5 h-5 rounded bg-gradient-to-br from-[#7c7aef] to-[#9b8ec4] flex items-center justify-center flex-shrink-0">
+      <div class="flex items-center gap-2 text-[12px] text-slate-500">
+        <div class="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
+          style="background: linear-gradient(135deg, #6b5ce7, #9b8ec4);">
           <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
@@ -512,9 +648,9 @@
         <span class="text-slate-700">·</span>
         <span class="italic">Standalone demo — all data embedded</span>
       </div>
-      <div class="flex items-center gap-4 text-xs text-slate-500">
+      <div class="flex items-center gap-4 text-[12px] text-slate-500">
         <a href="https://github.com/yusenthebot/flowlens" target="_blank" rel="noopener noreferrer"
-          class="flex items-center gap-1.5 hover:text-slate-300 transition-colors duration-200">
+          class="flex items-center gap-1.5 hover:text-slate-300 transition-colors">
           <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
             <path fill-rule="evenodd" clip-rule="evenodd"
               d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
@@ -522,7 +658,7 @@
           GitHub
         </a>
         <a href="https://github.com/yusenthebot/flowlens#readme" target="_blank" rel="noopener noreferrer"
-          class="flex items-center gap-1.5 hover:text-slate-300 transition-colors duration-200">
+          class="flex items-center gap-1.5 hover:text-slate-300 transition-colors">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
@@ -544,311 +680,237 @@
 // ============================================================
 const AGENT_PROFILES = {
   'vr-alpha': {
-    label: 'Alpha',
-    role: 'Frontend / UI Engineer',
-    model: 'claude-sonnet-4-6',
-    color: '#7c7aef',
-    bgClass: 'bg-[#7c7aef]',
+    label: 'Alpha', role: 'Frontend / UI Engineer',
+    model: 'claude-sonnet-4-6', color: '#6b5ce7', initials: 'A',
     description: 'Dashboard UI, waterfall visualization, 3D graph, CSS animation system.',
     specialty: 'Full-stack robotics + UI',
-    initials: 'A',
+    status: 'active',
   },
   'vr-beta': {
-    label: 'Beta',
-    role: 'Backend / API Engineer',
-    model: 'claude-sonnet-4-6',
-    color: '#7ab5a0',
-    bgClass: 'bg-[#7ab5a0]',
-    description: 'REST APIs, /v1/agents/network, /v1/stats/*, agent relationship graph.',
-    specialty: 'ROS2, FastAPI, SQLite',
-    initials: 'B',
+    label: 'Beta', role: 'Backend / API Engineer',
+    model: 'claude-sonnet-4-6', color: '#81b29a', initials: 'B',
+    description: 'REST APIs, route modules, agent network graph, validation.',
+    specialty: 'FastAPI, SQLite, ROS2',
+    status: 'active',
   },
   'vr-gamma': {
-    label: 'Gamma',
-    role: 'DevOps / Micro-interactions',
-    model: 'claude-sonnet-4-6',
-    color: '#c49a5c',
-    bgClass: 'bg-[#c49a5c]',
-    description: 'CI/CD, dark mode polish, button ripple, hover previews, focus rings.',
+    label: 'Gamma', role: 'DevOps / Micro-interactions',
+    model: 'claude-sonnet-4-6', color: '#e6a65d', initials: 'G',
+    description: 'CI/CD, dark mode polish, button ripples, hover previews, accessibility.',
     specialty: 'Animation, accessibility',
-    initials: 'G',
+    status: 'idle',
   },
   'vr-lead': {
-    label: 'Lead',
-    role: 'Architecture / Design',
-    model: 'claude-opus-4-5',
-    color: '#9b8ec4',
-    bgClass: 'bg-[#9b8ec4]',
+    label: 'Lead', role: 'Architecture / Design',
+    model: 'claude-opus-4-5', color: '#9b8ec4', initials: 'L',
     description: 'System architecture, interface approval, cross-cutting decisions.',
     specialty: 'Opus — highest capability',
-    initials: 'L',
+    status: 'active',
   },
   'vr-scribe': {
-    label: 'Scribe',
-    role: 'Documentation / PM',
-    model: 'claude-haiku-4-5',
-    color: '#a0b5c4',
-    bgClass: 'bg-[#a0b5c4]',
+    label: 'Scribe', role: 'Documentation / PM',
+    model: 'claude-haiku-4-5', color: '#a0b5c4', initials: 'S',
     description: 'CHANGELOG, devlog, task board, status tracking, retrospectives.',
     specialty: 'Haiku — cost-optimized',
-    initials: 'S',
+    status: 'idle',
   },
 };
 
 // ============================================================
-// EMBEDDED DEMO TRACES — 10 Agent Team Traces
+// EMBEDDED DEMO TRACES — 10 realistic agent traces
 // ============================================================
 const NOW = Date.now() / 1000;
 
 const DEMO_TRACES = [
-  // 1. Alpha — Large dashboard rewrite
   {
     trace_id: 'demo-alpha-001',
     service_name: 'claude-code-agents',
-    tags: { agent: 'vr-alpha', project: 'flowlens', source: 'real-agent-work' },
-    start_time: NOW - 300,
-    duration_ms: 12000,
-    span_count: 7,
-    total_tokens: 11700,
-    total_cost_usd: 0.0735,
-    has_errors: false,
-    error_count: 0,
+    tags: { agent: 'vr-alpha', project: 'flowlens', cycle: '19' },
+    start_time: NOW - 300, duration_ms: 12000, span_count: 7,
+    total_tokens: 11700, total_cost_usd: 0.0735,
+    has_errors: false, error_count: 0,
     spans: [
-      { name: 'vr-alpha/Task', kind: 'agent', status: 'ok', duration_ms: 12000, start_offset_ms: 0 },
-      { name: 'vr-alpha/Read', kind: 'tool', status: 'ok', duration_ms: 45, start_offset_ms: 120 },
-      { name: 'vr-alpha/Read', kind: 'tool', status: 'ok', duration_ms: 38, start_offset_ms: 200 },
-      { name: 'vr-alpha/Bash', kind: 'tool', status: 'ok', duration_ms: 320, start_offset_ms: 280 },
-      { name: 'vr-alpha/Write', kind: 'tool', status: 'ok', duration_ms: 120, start_offset_ms: 640 },
-      { name: 'vr-alpha/LLM:claude-sonnet-4-6', kind: 'llm', status: 'ok', duration_ms: 8900, start_offset_ms: 800 },
-      { name: 'vr-alpha/Bash', kind: 'tool', status: 'ok', duration_ms: 210, start_offset_ms: 9800 },
+      { name: 'vr-alpha/Task',                 kind: 'agent', status: 'ok',    duration_ms: 12000, start_offset_ms: 0 },
+      { name: 'vr-alpha/Read',                 kind: 'tool',  status: 'ok',    duration_ms: 45,    start_offset_ms: 120 },
+      { name: 'vr-alpha/Read',                 kind: 'tool',  status: 'ok',    duration_ms: 38,    start_offset_ms: 200 },
+      { name: 'vr-alpha/Bash',                 kind: 'tool',  status: 'ok',    duration_ms: 320,   start_offset_ms: 280 },
+      { name: 'vr-alpha/Write',                kind: 'tool',  status: 'ok',    duration_ms: 120,   start_offset_ms: 640 },
+      { name: 'vr-alpha/LLM:claude-sonnet-4-6',kind: 'llm',   status: 'ok',    duration_ms: 8900,  start_offset_ms: 800 },
+      { name: 'vr-alpha/Bash',                 kind: 'tool',  status: 'ok',    duration_ms: 210,   start_offset_ms: 9800 },
     ],
   },
-
-  // 2. Beta — API endpoint implementation
   {
     trace_id: 'demo-beta-001',
     service_name: 'claude-code-agents',
-    tags: { agent: 'vr-beta', project: 'flowlens', source: 'real-agent-work' },
-    start_time: NOW - 240,
-    duration_ms: 9500,
-    span_count: 6,
-    total_tokens: 8400,
-    total_cost_usd: 0.0529,
-    has_errors: false,
-    error_count: 0,
+    tags: { agent: 'vr-beta', project: 'flowlens', cycle: '19' },
+    start_time: NOW - 240, duration_ms: 9500, span_count: 6,
+    total_tokens: 8400, total_cost_usd: 0.0529,
+    has_errors: false, error_count: 0,
     spans: [
-      { name: 'vr-beta/Task', kind: 'agent', status: 'ok', duration_ms: 9500, start_offset_ms: 0 },
-      { name: 'vr-beta/Read', kind: 'tool', status: 'ok', duration_ms: 55, start_offset_ms: 100 },
-      { name: 'vr-beta/LLM:claude-sonnet-4-6', kind: 'llm', status: 'ok', duration_ms: 6200, start_offset_ms: 200 },
-      { name: 'vr-beta/Edit', kind: 'tool', status: 'ok', duration_ms: 80, start_offset_ms: 6500 },
-      { name: 'vr-beta/Bash', kind: 'tool', status: 'ok', duration_ms: 1800, start_offset_ms: 6700 },
-      { name: 'vr-beta/Write', kind: 'tool', status: 'ok', duration_ms: 45, start_offset_ms: 8600 },
+      { name: 'vr-beta/Task',                  kind: 'agent', status: 'ok', duration_ms: 9500, start_offset_ms: 0 },
+      { name: 'vr-beta/Read',                  kind: 'tool',  status: 'ok', duration_ms: 55,   start_offset_ms: 100 },
+      { name: 'vr-beta/LLM:claude-sonnet-4-6', kind: 'llm',   status: 'ok', duration_ms: 6200, start_offset_ms: 200 },
+      { name: 'vr-beta/Edit',                  kind: 'tool',  status: 'ok', duration_ms: 80,   start_offset_ms: 6500 },
+      { name: 'vr-beta/Bash',                  kind: 'tool',  status: 'ok', duration_ms: 1800, start_offset_ms: 6700 },
+      { name: 'vr-beta/Write',                 kind: 'tool',  status: 'ok', duration_ms: 45,   start_offset_ms: 8600 },
     ],
   },
-
-  // 3. Beta — Test failure and retry (error trace)
   {
     trace_id: 'demo-beta-002',
     service_name: 'claude-code-agents',
-    tags: { agent: 'vr-beta', project: 'flowlens', source: 'real-agent-work', cycle: '7' },
-    start_time: NOW - 180,
-    duration_ms: 14200,
-    span_count: 8,
-    total_tokens: 13900,
-    total_cost_usd: 0.0874,
-    has_errors: true,
-    error_count: 1,
+    tags: { agent: 'vr-beta', project: 'flowlens', cycle: '17' },
+    start_time: NOW - 180, duration_ms: 14200, span_count: 8,
+    total_tokens: 13900, total_cost_usd: 0.0874,
+    has_errors: true, error_count: 1,
     spans: [
-      { name: 'vr-beta/Task', kind: 'agent', status: 'ok', duration_ms: 14200, start_offset_ms: 0 },
-      { name: 'vr-beta/Read', kind: 'tool', status: 'ok', duration_ms: 48, start_offset_ms: 80 },
-      { name: 'vr-beta/LLM:claude-sonnet-4-6', kind: 'llm', status: 'ok', duration_ms: 5400, start_offset_ms: 160 },
-      { name: 'vr-beta/Edit', kind: 'tool', status: 'ok', duration_ms: 62, start_offset_ms: 5700 },
-      { name: 'vr-beta/Bash', kind: 'tool', status: 'error', duration_ms: 2100, start_offset_ms: 5900, error: 'colcon test failed: 3 assertions failed in test_agents_network' },
-      { name: 'vr-beta/LLM:claude-sonnet-4-6', kind: 'llm', status: 'ok', duration_ms: 4200, start_offset_ms: 8100 },
-      { name: 'vr-beta/Edit', kind: 'tool', status: 'ok', duration_ms: 55, start_offset_ms: 12400 },
-      { name: 'vr-beta/Bash', kind: 'tool', status: 'ok', duration_ms: 1650, start_offset_ms: 12550 },
+      { name: 'vr-beta/Task',                  kind: 'agent', status: 'ok',    duration_ms: 14200, start_offset_ms: 0 },
+      { name: 'vr-beta/Read',                  kind: 'tool',  status: 'ok',    duration_ms: 48,    start_offset_ms: 80 },
+      { name: 'vr-beta/LLM:claude-sonnet-4-6', kind: 'llm',   status: 'ok',    duration_ms: 5400,  start_offset_ms: 160 },
+      { name: 'vr-beta/Edit',                  kind: 'tool',  status: 'ok',    duration_ms: 62,    start_offset_ms: 5700 },
+      { name: 'vr-beta/Bash',                  kind: 'tool',  status: 'error', duration_ms: 2100,  start_offset_ms: 5900, error: 'colcon test failed: 3 assertions failed in test_agents_network' },
+      { name: 'vr-beta/LLM:claude-sonnet-4-6', kind: 'llm',   status: 'ok',    duration_ms: 4200,  start_offset_ms: 8100 },
+      { name: 'vr-beta/Edit',                  kind: 'tool',  status: 'ok',    duration_ms: 55,    start_offset_ms: 12400 },
+      { name: 'vr-beta/Bash',                  kind: 'tool',  status: 'ok',    duration_ms: 1650,  start_offset_ms: 12550 },
     ],
   },
-
-  // 4. Gamma — CSS animation system
   {
     trace_id: 'demo-gamma-001',
     service_name: 'claude-code-agents',
-    tags: { agent: 'vr-gamma', project: 'flowlens', source: 'real-agent-work' },
-    start_time: NOW - 160,
-    duration_ms: 8800,
-    span_count: 6,
-    total_tokens: 7600,
-    total_cost_usd: 0.0478,
-    has_errors: false,
-    error_count: 0,
+    tags: { agent: 'vr-gamma', project: 'flowlens', cycle: '16' },
+    start_time: NOW - 160, duration_ms: 8800, span_count: 6,
+    total_tokens: 7600, total_cost_usd: 0.0478,
+    has_errors: false, error_count: 0,
     spans: [
-      { name: 'vr-gamma/Task', kind: 'agent', status: 'ok', duration_ms: 8800, start_offset_ms: 0 },
-      { name: 'vr-gamma/Read', kind: 'tool', status: 'ok', duration_ms: 42, start_offset_ms: 90 },
-      { name: 'vr-gamma/LLM:claude-sonnet-4-6', kind: 'llm', status: 'ok', duration_ms: 5700, start_offset_ms: 160 },
-      { name: 'vr-gamma/Edit', kind: 'tool', status: 'ok', duration_ms: 75, start_offset_ms: 5950 },
-      { name: 'vr-gamma/Edit', kind: 'tool', status: 'ok', duration_ms: 68, start_offset_ms: 6100 },
-      { name: 'vr-gamma/Bash', kind: 'tool', status: 'ok', duration_ms: 440, start_offset_ms: 6250 },
+      { name: 'vr-gamma/Task',                  kind: 'agent', status: 'ok', duration_ms: 8800, start_offset_ms: 0 },
+      { name: 'vr-gamma/Read',                  kind: 'tool',  status: 'ok', duration_ms: 42,   start_offset_ms: 90 },
+      { name: 'vr-gamma/LLM:claude-sonnet-4-6', kind: 'llm',   status: 'ok', duration_ms: 5700, start_offset_ms: 160 },
+      { name: 'vr-gamma/Edit',                  kind: 'tool',  status: 'ok', duration_ms: 75,   start_offset_ms: 5950 },
+      { name: 'vr-gamma/Edit',                  kind: 'tool',  status: 'ok', duration_ms: 68,   start_offset_ms: 6100 },
+      { name: 'vr-gamma/Bash',                  kind: 'tool',  status: 'ok', duration_ms: 440,  start_offset_ms: 6250 },
     ],
   },
-
-  // 5. Gamma — Dark mode polish cycle
   {
     trace_id: 'demo-gamma-002',
     service_name: 'claude-code-agents',
-    tags: { agent: 'vr-gamma', project: 'flowlens', source: 'real-agent-work', cycle: '8' },
-    start_time: NOW - 140,
-    duration_ms: 11400,
-    span_count: 9,
-    total_tokens: 10200,
-    total_cost_usd: 0.0641,
-    has_errors: false,
-    error_count: 0,
+    tags: { agent: 'vr-gamma', project: 'flowlens', cycle: '15' },
+    start_time: NOW - 140, duration_ms: 11400, span_count: 9,
+    total_tokens: 10200, total_cost_usd: 0.0641,
+    has_errors: false, error_count: 0,
     spans: [
-      { name: 'vr-gamma/Task', kind: 'agent', status: 'ok', duration_ms: 11400, start_offset_ms: 0 },
-      { name: 'vr-gamma/Read', kind: 'tool', status: 'ok', duration_ms: 51, start_offset_ms: 100 },
-      { name: 'vr-gamma/Read', kind: 'tool', status: 'ok', duration_ms: 44, start_offset_ms: 180 },
-      { name: 'vr-gamma/LLM:claude-sonnet-4-6', kind: 'llm', status: 'ok', duration_ms: 7200, start_offset_ms: 260 },
-      { name: 'vr-gamma/Edit', kind: 'tool', status: 'ok', duration_ms: 92, start_offset_ms: 7580 },
-      { name: 'vr-gamma/Edit', kind: 'tool', status: 'ok', duration_ms: 78, start_offset_ms: 7720 },
-      { name: 'vr-gamma/Edit', kind: 'tool', status: 'ok', duration_ms: 65, start_offset_ms: 7860 },
-      { name: 'vr-gamma/Bash', kind: 'tool', status: 'ok', duration_ms: 510, start_offset_ms: 8000 },
-      { name: 'vr-gamma/Write', kind: 'tool', status: 'ok', duration_ms: 60, start_offset_ms: 8600 },
+      { name: 'vr-gamma/Task',                  kind: 'agent', status: 'ok', duration_ms: 11400, start_offset_ms: 0 },
+      { name: 'vr-gamma/Read',                  kind: 'tool',  status: 'ok', duration_ms: 51,    start_offset_ms: 100 },
+      { name: 'vr-gamma/Read',                  kind: 'tool',  status: 'ok', duration_ms: 44,    start_offset_ms: 180 },
+      { name: 'vr-gamma/LLM:claude-sonnet-4-6', kind: 'llm',   status: 'ok', duration_ms: 7200,  start_offset_ms: 260 },
+      { name: 'vr-gamma/Edit',                  kind: 'tool',  status: 'ok', duration_ms: 92,    start_offset_ms: 7580 },
+      { name: 'vr-gamma/Edit',                  kind: 'tool',  status: 'ok', duration_ms: 78,    start_offset_ms: 7720 },
+      { name: 'vr-gamma/Edit',                  kind: 'tool',  status: 'ok', duration_ms: 65,    start_offset_ms: 7860 },
+      { name: 'vr-gamma/Bash',                  kind: 'tool',  status: 'ok', duration_ms: 510,   start_offset_ms: 8000 },
+      { name: 'vr-gamma/Write',                 kind: 'tool',  status: 'ok', duration_ms: 60,    start_offset_ms: 8600 },
     ],
   },
-
-  // 6. Lead — Architecture review (expensive Opus model)
   {
     trace_id: 'demo-lead-001',
     service_name: 'claude-code-agents',
-    tags: { agent: 'vr-lead', project: 'flowlens', source: 'real-agent-work', cycle: '6' },
-    start_time: NOW - 120,
-    duration_ms: 22000,
-    span_count: 5,
-    total_tokens: 28400,
-    total_cost_usd: 0.4260,
-    has_errors: false,
-    error_count: 0,
+    tags: { agent: 'vr-lead', project: 'flowlens', cycle: '14' },
+    start_time: NOW - 120, duration_ms: 22000, span_count: 5,
+    total_tokens: 28400, total_cost_usd: 0.4260,
+    has_errors: false, error_count: 0,
     spans: [
-      { name: 'vr-lead/Task', kind: 'agent', status: 'ok', duration_ms: 22000, start_offset_ms: 0 },
-      { name: 'vr-lead/Read', kind: 'tool', status: 'ok', duration_ms: 120, start_offset_ms: 200 },
-      { name: 'vr-lead/LLM:claude-opus-4-5', kind: 'llm', status: 'ok', duration_ms: 18200, start_offset_ms: 380, note: 'Opus model — deep architectural review' },
-      { name: 'vr-lead/Write', kind: 'tool', status: 'ok', duration_ms: 88, start_offset_ms: 18700 },
-      { name: 'vr-lead/Bash', kind: 'tool', status: 'ok', duration_ms: 240, start_offset_ms: 18900 },
+      { name: 'vr-lead/Task',                 kind: 'agent', status: 'ok', duration_ms: 22000, start_offset_ms: 0 },
+      { name: 'vr-lead/Read',                 kind: 'tool',  status: 'ok', duration_ms: 120,   start_offset_ms: 200 },
+      { name: 'vr-lead/LLM:claude-opus-4-5', kind: 'llm',   status: 'ok', duration_ms: 18200, start_offset_ms: 380, note: 'Opus — deep architectural review' },
+      { name: 'vr-lead/Write',                kind: 'tool',  status: 'ok', duration_ms: 88,    start_offset_ms: 18700 },
+      { name: 'vr-lead/Bash',                 kind: 'tool',  status: 'ok', duration_ms: 240,   start_offset_ms: 18900 },
     ],
   },
-
-  // 7. Scribe — Devlog and status update (cheap Haiku)
   {
     trace_id: 'demo-scribe-001',
     service_name: 'claude-code-agents',
-    tags: { agent: 'vr-scribe', project: 'flowlens', source: 'real-agent-work', cycle: '7' },
-    start_time: NOW - 100,
-    duration_ms: 4200,
-    span_count: 5,
-    total_tokens: 3800,
-    total_cost_usd: 0.0038,
-    has_errors: false,
-    error_count: 0,
+    tags: { agent: 'vr-scribe', project: 'flowlens', cycle: '14' },
+    start_time: NOW - 100, duration_ms: 4200, span_count: 5,
+    total_tokens: 3800, total_cost_usd: 0.0038,
+    has_errors: false, error_count: 0,
     spans: [
-      { name: 'vr-scribe/Task', kind: 'agent', status: 'ok', duration_ms: 4200, start_offset_ms: 0 },
-      { name: 'vr-scribe/Read', kind: 'tool', status: 'ok', duration_ms: 35, start_offset_ms: 80 },
-      { name: 'vr-scribe/LLM:claude-haiku-4-5', kind: 'llm', status: 'ok', duration_ms: 2800, start_offset_ms: 150, note: 'Haiku — fast, cheap documentation' },
-      { name: 'vr-scribe/Write', kind: 'tool', status: 'ok', duration_ms: 52, start_offset_ms: 3060 },
-      { name: 'vr-scribe/Write', kind: 'tool', status: 'ok', duration_ms: 48, start_offset_ms: 3180 },
+      { name: 'vr-scribe/Task',                  kind: 'agent', status: 'ok', duration_ms: 4200, start_offset_ms: 0 },
+      { name: 'vr-scribe/Read',                  kind: 'tool',  status: 'ok', duration_ms: 35,   start_offset_ms: 80 },
+      { name: 'vr-scribe/LLM:claude-haiku-4-5',  kind: 'llm',   status: 'ok', duration_ms: 2800, start_offset_ms: 150, note: 'Haiku — fast, cheap documentation' },
+      { name: 'vr-scribe/Write',                 kind: 'tool',  status: 'ok', duration_ms: 52,   start_offset_ms: 3060 },
+      { name: 'vr-scribe/Write',                 kind: 'tool',  status: 'ok', duration_ms: 48,   start_offset_ms: 3180 },
     ],
   },
-
-  // 8. Alpha — Three.js 3D visualization
   {
     trace_id: 'demo-alpha-002',
     service_name: 'claude-code-agents',
-    tags: { agent: 'vr-alpha', project: 'flowlens', source: 'real-agent-work', cycle: '7' },
-    start_time: NOW - 80,
-    duration_ms: 18500,
-    span_count: 10,
-    total_tokens: 19200,
-    total_cost_usd: 0.1207,
-    has_errors: false,
-    error_count: 0,
+    tags: { agent: 'vr-alpha', project: 'flowlens', cycle: '10' },
+    start_time: NOW - 80, duration_ms: 18500, span_count: 10,
+    total_tokens: 19200, total_cost_usd: 0.1207,
+    has_errors: false, error_count: 0,
     spans: [
-      { name: 'vr-alpha/Task', kind: 'agent', status: 'ok', duration_ms: 18500, start_offset_ms: 0 },
-      { name: 'vr-alpha/Read', kind: 'tool', status: 'ok', duration_ms: 62, start_offset_ms: 100 },
-      { name: 'vr-alpha/Grep', kind: 'tool', status: 'ok', duration_ms: 28, start_offset_ms: 200 },
-      { name: 'vr-alpha/LLM:claude-sonnet-4-6', kind: 'llm', status: 'ok', duration_ms: 9800, start_offset_ms: 280 },
-      { name: 'vr-alpha/Write', kind: 'tool', status: 'ok', duration_ms: 145, start_offset_ms: 10200 },
-      { name: 'vr-alpha/Bash', kind: 'tool', status: 'ok', duration_ms: 380, start_offset_ms: 10450 },
-      { name: 'vr-alpha/LLM:claude-sonnet-4-6', kind: 'llm', status: 'ok', duration_ms: 5400, start_offset_ms: 11000 },
-      { name: 'vr-alpha/Edit', kind: 'tool', status: 'ok', duration_ms: 95, start_offset_ms: 16500 },
-      { name: 'vr-alpha/Edit', kind: 'tool', status: 'ok', duration_ms: 88, start_offset_ms: 16700 },
-      { name: 'vr-alpha/Bash', kind: 'tool', status: 'ok', duration_ms: 290, start_offset_ms: 16900 },
+      { name: 'vr-alpha/Task',                  kind: 'agent', status: 'ok', duration_ms: 18500, start_offset_ms: 0 },
+      { name: 'vr-alpha/Read',                  kind: 'tool',  status: 'ok', duration_ms: 62,    start_offset_ms: 100 },
+      { name: 'vr-alpha/Grep',                  kind: 'tool',  status: 'ok', duration_ms: 28,    start_offset_ms: 200 },
+      { name: 'vr-alpha/LLM:claude-sonnet-4-6', kind: 'llm',   status: 'ok', duration_ms: 9800,  start_offset_ms: 280 },
+      { name: 'vr-alpha/Write',                 kind: 'tool',  status: 'ok', duration_ms: 145,   start_offset_ms: 10200 },
+      { name: 'vr-alpha/Bash',                  kind: 'tool',  status: 'ok', duration_ms: 380,   start_offset_ms: 10450 },
+      { name: 'vr-alpha/LLM:claude-sonnet-4-6', kind: 'llm',   status: 'ok', duration_ms: 5400,  start_offset_ms: 11000 },
+      { name: 'vr-alpha/Edit',                  kind: 'tool',  status: 'ok', duration_ms: 95,    start_offset_ms: 16500 },
+      { name: 'vr-alpha/Edit',                  kind: 'tool',  status: 'ok', duration_ms: 88,    start_offset_ms: 16700 },
+      { name: 'vr-alpha/Bash',                  kind: 'tool',  status: 'ok', duration_ms: 290,   start_offset_ms: 16900 },
     ],
   },
-
-  // 9. Scribe — CHANGELOG and cycle retrospective
   {
     trace_id: 'demo-scribe-002',
     service_name: 'claude-code-agents',
-    tags: { agent: 'vr-scribe', project: 'flowlens', source: 'real-agent-work', cycle: '8' },
-    start_time: NOW - 60,
-    duration_ms: 5800,
-    span_count: 7,
-    total_tokens: 5200,
-    total_cost_usd: 0.0052,
-    has_errors: false,
-    error_count: 0,
+    tags: { agent: 'vr-scribe', project: 'flowlens', cycle: '9' },
+    start_time: NOW - 60, duration_ms: 5800, span_count: 7,
+    total_tokens: 5200, total_cost_usd: 0.0052,
+    has_errors: false, error_count: 0,
     spans: [
-      { name: 'vr-scribe/Task', kind: 'agent', status: 'ok', duration_ms: 5800, start_offset_ms: 0 },
-      { name: 'vr-scribe/Read', kind: 'tool', status: 'ok', duration_ms: 40, start_offset_ms: 80 },
-      { name: 'vr-scribe/Read', kind: 'tool', status: 'ok', duration_ms: 38, start_offset_ms: 150 },
-      { name: 'vr-scribe/LLM:claude-haiku-4-5', kind: 'llm', status: 'ok', duration_ms: 3600, start_offset_ms: 220 },
-      { name: 'vr-scribe/Write', kind: 'tool', status: 'ok', duration_ms: 55, start_offset_ms: 3920 },
-      { name: 'vr-scribe/Edit', kind: 'tool', status: 'ok', duration_ms: 48, start_offset_ms: 4050 },
-      { name: 'vr-scribe/Write', kind: 'tool', status: 'ok', duration_ms: 42, start_offset_ms: 4200 },
+      { name: 'vr-scribe/Task',                 kind: 'agent', status: 'ok', duration_ms: 5800, start_offset_ms: 0 },
+      { name: 'vr-scribe/Read',                 kind: 'tool',  status: 'ok', duration_ms: 40,   start_offset_ms: 80 },
+      { name: 'vr-scribe/Read',                 kind: 'tool',  status: 'ok', duration_ms: 38,   start_offset_ms: 150 },
+      { name: 'vr-scribe/LLM:claude-haiku-4-5', kind: 'llm',   status: 'ok', duration_ms: 3600, start_offset_ms: 220 },
+      { name: 'vr-scribe/Write',                kind: 'tool',  status: 'ok', duration_ms: 55,   start_offset_ms: 3920 },
+      { name: 'vr-scribe/Edit',                 kind: 'tool',  status: 'ok', duration_ms: 48,   start_offset_ms: 4050 },
+      { name: 'vr-scribe/Write',                kind: 'tool',  status: 'ok', duration_ms: 42,   start_offset_ms: 4200 },
     ],
   },
-
-  // 10. Lead — Interface approval with escalation resolution
   {
     trace_id: 'demo-lead-002',
     service_name: 'claude-code-agents',
-    tags: { agent: 'vr-lead', project: 'flowlens', source: 'real-agent-work', cycle: '5' },
-    start_time: NOW - 40,
-    duration_ms: 16800,
-    span_count: 6,
-    total_tokens: 21600,
-    total_cost_usd: 0.3240,
-    has_errors: false,
-    error_count: 0,
+    tags: { agent: 'vr-lead', project: 'flowlens', cycle: '5' },
+    start_time: NOW - 40, duration_ms: 16800, span_count: 6,
+    total_tokens: 21600, total_cost_usd: 0.3240,
+    has_errors: false, error_count: 0,
     spans: [
-      { name: 'vr-lead/Task', kind: 'agent', status: 'ok', duration_ms: 16800, start_offset_ms: 0 },
-      { name: 'vr-lead/Read', kind: 'tool', status: 'ok', duration_ms: 105, start_offset_ms: 180 },
-      { name: 'vr-lead/Read', kind: 'tool', status: 'ok', duration_ms: 98, start_offset_ms: 320 },
-      { name: 'vr-lead/LLM:claude-opus-4-5', kind: 'llm', status: 'ok', duration_ms: 13900, start_offset_ms: 460, note: 'Opus — architecture review + approval' },
-      { name: 'vr-lead/Write', kind: 'tool', status: 'ok', duration_ms: 78, start_offset_ms: 14450 },
-      { name: 'vr-lead/Bash', kind: 'tool', status: 'ok', duration_ms: 220, start_offset_ms: 14600 },
+      { name: 'vr-lead/Task',                 kind: 'agent', status: 'ok', duration_ms: 16800, start_offset_ms: 0 },
+      { name: 'vr-lead/Read',                 kind: 'tool',  status: 'ok', duration_ms: 105,   start_offset_ms: 180 },
+      { name: 'vr-lead/Read',                 kind: 'tool',  status: 'ok', duration_ms: 98,    start_offset_ms: 320 },
+      { name: 'vr-lead/LLM:claude-opus-4-5', kind: 'llm',   status: 'ok', duration_ms: 13900, start_offset_ms: 460, note: 'Opus — architecture review + approval' },
+      { name: 'vr-lead/Write',                kind: 'tool',  status: 'ok', duration_ms: 78,    start_offset_ms: 14450 },
+      { name: 'vr-lead/Bash',                 kind: 'tool',  status: 'ok', duration_ms: 220,   start_offset_ms: 14600 },
     ],
   },
 ];
 
 // ============================================================
-// DEMO ACTIVITY EVENTS
+// DEMO ACTIVITY EVENTS — 10 events for the timeline
 // ============================================================
 const DEMO_EVENTS = [
-  { agent: 'vr-alpha',  event: 'Task complete',       detail: 'demo_dashboard.html rewritten for v1.0.0',         time: NOW - 30,  status: 'ok' },
-  { agent: 'vr-beta',   event: 'Test passed',          detail: 'colcon test: 1071/1071 passing',                   time: NOW - 50,  status: 'ok' },
-  { agent: 'vr-gamma',  event: 'Task complete',        detail: 'Dark mode + micro-interactions merged',            time: NOW - 75,  status: 'ok' },
-  { agent: 'vr-lead',   event: 'Interface approved',   detail: '/v1/agents/network schema approved for Cycle 7',   time: NOW - 110, status: 'ok' },
-  { agent: 'vr-scribe', event: 'Docs updated',         detail: 'CHANGELOG.md and cycle-8.md written',             time: NOW - 135, status: 'ok' },
-  { agent: 'vr-beta',   event: 'Error recovered',      detail: 'test_agents_network fixed after 2 attempts',      time: NOW - 160, status: 'warn' },
-  { agent: 'vr-alpha',  event: 'Task started',         detail: 'Three.js 3D agent network visualization',         time: NOW - 200, status: 'ok' },
-  { agent: 'vr-gamma',  event: 'Task started',         detail: 'Card stagger + gradient orbs animation system',   time: NOW - 230, status: 'ok' },
-  { agent: 'vr-lead',   event: 'Cycle 7 kicked off',   detail: 'Parallel 3D vis + CSS animation cycle started',   time: NOW - 270, status: 'ok' },
-  { agent: 'vr-scribe', event: 'Cycle plan written',   detail: 'cycle-7.md: goals, agents, schedule',             time: NOW - 300, status: 'ok' },
+  { agent: 'vr-alpha',  event: 'Task complete',      detail: 'demo_dashboard.html rebuilt for Cycle 19',       time: NOW - 30,  status: 'ok' },
+  { agent: 'vr-beta',   event: 'Test passed',         detail: 'colcon test: 1156/1156 passing',                time: NOW - 50,  status: 'ok' },
+  { agent: 'vr-gamma',  event: 'Task complete',       detail: 'Dark mode + micro-interactions merged',         time: NOW - 75,  status: 'ok' },
+  { agent: 'vr-lead',   event: 'Interface approved',  detail: '/v1/agents/network schema approved for Cycle 7', time: NOW - 110, status: 'ok' },
+  { agent: 'vr-scribe', event: 'Docs updated',        detail: 'CHANGELOG.md and cycle-17.md written',         time: NOW - 135, status: 'ok' },
+  { agent: 'vr-beta',   event: 'Error recovered',     detail: 'test_agents_network fixed after 2 attempts',   time: NOW - 160, status: 'warn' },
+  { agent: 'vr-alpha',  event: 'Task started',        detail: 'SVG agent network visualization',              time: NOW - 200, status: 'ok' },
+  { agent: 'vr-gamma',  event: 'Task started',        detail: 'Interaction Polish — stat sparklines + waterfall', time: NOW - 230, status: 'ok' },
+  { agent: 'vr-lead',   event: 'Cycle 19 kicked off', detail: 'Demo Dashboard Rebuild + GitHub Pages update',  time: NOW - 270, status: 'ok' },
+  { agent: 'vr-scribe', event: 'Cycle plan written',  detail: 'cycle-19.md: goals, agents, schedule',         time: NOW - 300, status: 'ok' },
 ];
 
 // ============================================================
-// Utilities
+// UTILITIES
 // ============================================================
 function escHtml(s) {
   if (!s) return '';
@@ -877,7 +939,8 @@ function fmtCost(usd) {
   return '$' + usd.toFixed(2);
 }
 
-function animateCounter(el, target, decimals = 0, prefix = '', suffix = '') {
+function animateCounter(el, target, decimals, prefix, suffix) {
+  prefix = prefix || ''; suffix = suffix || ''; decimals = decimals || 0;
   const start = performance.now();
   const duration = 900;
   function step(now) {
@@ -891,8 +954,46 @@ function animateCounter(el, target, decimals = 0, prefix = '', suffix = '') {
   requestAnimationFrame(step);
 }
 
+function getToolPillClass(spanName) {
+  const n = (spanName || '').toLowerCase();
+  if (n.includes('read'))  return 'pill-read';
+  if (n.includes('bash'))  return 'pill-bash';
+  if (n.includes('edit'))  return 'pill-edit';
+  if (n.includes('write')) return 'pill-write';
+  if (n.includes('grep'))  return 'pill-grep';
+  if (n.includes('glob'))  return 'pill-glob';
+  if (n.includes('llm'))   return 'pill-llm';
+  return 'pill-other';
+}
+
+function getToolLabel(spanName) {
+  const n = (spanName || '');
+  const parts = n.split('/');
+  const last = parts[parts.length - 1];
+  if (last.startsWith('LLM:')) return 'LLM';
+  return last;
+}
+
+function summarizeTools(spans) {
+  const counts = {};
+  spans.forEach(s => {
+    const label = getToolLabel(s.name);
+    counts[label] = (counts[label] || 0) + 1;
+  });
+  return Object.entries(counts)
+    .filter(([k]) => k !== 'Task')
+    .slice(0, 4)
+    .map(([k, v]) => ({ label: k, count: v }));
+}
+
+function durClass(ms) {
+  if (ms < 5000) return 'dur-fast';
+  if (ms < 12000) return 'dur-medium';
+  return 'dur-slow';
+}
+
 // ============================================================
-// Theme
+// THEME
 // ============================================================
 let isDark = document.documentElement.classList.contains('dark');
 
@@ -900,31 +1001,28 @@ function toggleTheme() {
   isDark = !isDark;
   if (isDark) {
     document.documentElement.classList.add('dark');
-    localStorage.setItem('flowlens-theme', 'dark');
+    localStorage.setItem('flowlens-demo-theme', 'dark');
   } else {
     document.documentElement.classList.remove('dark');
-    localStorage.setItem('flowlens-theme', 'light');
+    localStorage.setItem('flowlens-demo-theme', 'light');
   }
-  // Re-render charts with new theme
-  Object.values(chartInstances).forEach(c => {
-    if (c && typeof c.destroy === 'function') c.destroy();
-  });
+  // Destroy and re-render charts
+  Object.values(chartInstances).forEach(c => { if (c && c.destroy) c.destroy(); });
   chartInstances = {};
-  if (currentView === 'overview') renderCharts();
+  if (currentView === 'overview') { renderCharts(); }
+  if (currentView === 'cost')     { renderCostCharts(); }
 }
 
 // ============================================================
-// View Routing
+// VIEW ROUTING
 // ============================================================
 let currentView = 'overview';
 let chartInstances = {};
 
 function switchView(view) {
-  // Hide all panels
   document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
   document.querySelectorAll('.tab-btn').forEach(b => {
-    b.classList.remove('tab-active');
-    b.classList.add('tab-inactive');
+    b.classList.remove('tab-active'); b.classList.add('tab-inactive');
   });
 
   const panel = document.getElementById('view-' + view);
@@ -935,63 +1033,50 @@ function switchView(view) {
   }
 
   const tab = document.querySelector('[data-tab="' + view + '"]');
-  if (tab) {
-    tab.classList.add('tab-active');
-    tab.classList.remove('tab-inactive');
-  }
+  if (tab) { tab.classList.add('tab-active'); tab.classList.remove('tab-inactive'); }
 
   currentView = view;
 
   if (view === 'overview') renderCharts();
-  if (view === 'agents') renderAgentCards();
-  if (view === 'traces') renderTraceList();
+  if (view === 'traces')   renderTraceList();
+  if (view === 'cost')     { renderCostStats(); renderCostCharts(); renderCostTopTraces(); }
+  if (view === 'agents')   { renderAgentCards(); renderAgentNetwork(); }
 }
 
-function backToTraces() {
-  switchView('traces');
-}
+function backToTraces() { switchView('traces'); }
 
 // ============================================================
-// Stats
+// STATS
 // ============================================================
 function computeStats() {
-  const totalTraces = DEMO_TRACES.length;
-  const totalSpans = DEMO_TRACES.reduce((s, t) => s + t.span_count, 0);
-  const errorCount = DEMO_TRACES.filter(t => t.has_errors).length;
-  const errorRate = (errorCount / totalTraces * 100).toFixed(1);
-  const avgDuration = DEMO_TRACES.reduce((s, t) => s + t.duration_ms, 0) / totalTraces;
-  const totalCost = DEMO_TRACES.reduce((s, t) => s + t.total_cost_usd, 0);
-  const totalTokens = DEMO_TRACES.reduce((s, t) => s + t.total_tokens, 0);
+  const totalTraces  = DEMO_TRACES.length;
+  const totalSpans   = DEMO_TRACES.reduce((s, t) => s + t.span_count, 0);
+  const errorCount   = DEMO_TRACES.filter(t => t.has_errors).length;
+  const errorRate    = (errorCount / totalTraces * 100).toFixed(1);
+  const avgDuration  = DEMO_TRACES.reduce((s, t) => s + t.duration_ms, 0) / totalTraces;
+  const totalCost    = DEMO_TRACES.reduce((s, t) => s + t.total_cost_usd, 0);
+  const totalTokens  = DEMO_TRACES.reduce((s, t) => s + t.total_tokens, 0);
   return { totalTraces, totalSpans, errorCount, errorRate, avgDuration, totalCost, totalTokens };
 }
 
 function renderStats() {
   const s = computeStats();
-  const tracesEl = document.getElementById('stat-traces');
-  const spansEl = document.getElementById('stat-spans');
-  const errRateEl = document.getElementById('stat-error-rate');
-  const errCntEl = document.getElementById('stat-error-count');
-  const latEl = document.getElementById('stat-latency');
-  const costEl = document.getElementById('stat-cost');
-  const tokEl = document.getElementById('stat-tokens');
-
-  animateCounter(tracesEl, s.totalTraces, 0);
-  spansEl.textContent = s.totalSpans + ' spans';
-  animateCounter(errRateEl, parseFloat(s.errorRate), 1, '', '%');
-  errCntEl.textContent = s.errorCount + ' error traces';
-  animateCounter(latEl, s.avgDuration, 0, '', 'ms');
-  animateCounter(costEl, s.totalCost, 3, '$');
-  tokEl.textContent = s.totalTokens.toLocaleString() + ' tokens';
+  animateCounter(document.getElementById('stat-traces'),     s.totalTraces, 0);
+  document.getElementById('stat-spans').textContent         = s.totalSpans + ' spans total';
+  animateCounter(document.getElementById('stat-error-rate'), parseFloat(s.errorRate), 1, '', '%');
+  document.getElementById('stat-error-count').textContent   = s.errorCount + ' error traces';
+  animateCounter(document.getElementById('stat-latency'),    s.avgDuration, 0, '', 'ms');
+  animateCounter(document.getElementById('stat-cost'),       s.totalCost, 3, '$');
+  document.getElementById('stat-tokens').textContent        = s.totalTokens.toLocaleString() + ' tokens';
 }
 
 // ============================================================
-// Agent Team Bar
+// AGENT TEAM BAR
 // ============================================================
 function renderAgentTeamBar() {
   const container = document.getElementById('agent-team-bar');
   if (!container) return;
 
-  // Compute per-agent stats
   const agentStats = {};
   DEMO_TRACES.forEach(t => {
     const agent = t.tags && t.tags.agent;
@@ -1004,187 +1089,452 @@ function renderAgentTeamBar() {
 
   container.innerHTML = Object.entries(AGENT_PROFILES).map(([id, p]) => {
     const st = agentStats[id] || { traces: 0, cost: 0, errors: 0 };
-    const errorDot = st.errors > 0
-      ? `<span class="w-2 h-2 rounded-full bg-red-400 inline-block ml-1" title="${st.errors} error(s)"></span>`
-      : '';
+    const statusDot = p.status === 'active'
+      ? `<span class="w-2 h-2 rounded-full pulse-dot flex-shrink-0" style="background:#81b29a;"></span>`
+      : `<span class="w-2 h-2 rounded-full flex-shrink-0" style="background:#9a9690;"></span>`;
     return `
-      <div class="glass agent-card-mini rounded-xl p-4 cursor-pointer card-3d-hover"
-        onclick="switchView('agents')" title="View ${p.label} profile">
-        <!-- SVG Avatar -->
-        <div class="flex items-center gap-3 mb-3">
-          <div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
-            style="background: ${p.color}; box-shadow: 0 0 12px ${p.color}40;">
-            ${p.initials}
+      <div class="glass-hover rounded-xl p-3.5 cursor-pointer agent-card-mini"
+        onclick="switchView('agents')">
+        <div class="flex items-center gap-2.5 mb-2">
+          <div class="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
+            style="background: ${p.color}; box-shadow: 0 2px 10px ${p.color}40;">
+            ${escHtml(p.initials)}
           </div>
-          <div class="min-w-0">
-            <div class="text-sm font-semibold text-white truncate">${p.label}${errorDot}</div>
-            <div class="text-[10px] text-slate-500 truncate">${p.model.split('-').slice(1, 3).join('-')}</div>
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-1.5">
+              ${statusDot}
+              <span class="text-[13px] font-semibold text-white truncate">${escHtml(p.label)}</span>
+            </div>
+            <div class="text-[10px] text-slate-500 truncate">${escHtml(p.role)}</div>
           </div>
         </div>
-        <!-- Mini stats -->
-        <div class="flex items-center justify-between text-[10px] text-slate-500">
-          <span>${st.traces} trace${st.traces !== 1 ? 's' : ''}</span>
-          <span class="text-emerald-400 font-medium">${fmtCost(st.cost)}</span>
-        </div>
-        <!-- Usage bar -->
-        <div class="mt-2 h-1 rounded-full bg-white/5 overflow-hidden">
-          <div class="h-full rounded-full transition-all duration-700"
-            style="background: ${p.color}; width: ${Math.min(100, st.traces * 20)}%"></div>
+        <div class="flex justify-between text-[11px]">
+          <span class="text-slate-500">${st.traces} traces</span>
+          <span style="color: var(--color-amber-warm);">${fmtCost(st.cost)}</span>
         </div>
       </div>`;
   }).join('');
 }
 
 // ============================================================
-// Activity Timeline
+// OVERVIEW CHARTS
+// ============================================================
+function renderCharts() {
+  const isDarkMode = document.documentElement.classList.contains('dark');
+  const textColor  = isDarkMode ? '#9a9a96' : '#8a8a86';
+  const gridColor  = isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)';
+
+  // Token usage bar chart
+  const agents = Object.keys(AGENT_PROFILES);
+  const tokensByAgent = agents.map(id => {
+    return DEMO_TRACES.filter(t => t.tags.agent === id)
+      .reduce((s, t) => s + t.total_tokens, 0);
+  });
+  const agentColors = agents.map(id => AGENT_PROFILES[id].color);
+
+  if (chartInstances['tokens']) chartInstances['tokens'].destroy();
+  const ctxTokens = document.getElementById('chart-tokens');
+  if (ctxTokens) {
+    chartInstances['tokens'] = new Chart(ctxTokens, {
+      type: 'bar',
+      data: {
+        labels: agents.map(id => AGENT_PROFILES[id].label),
+        datasets: [{
+          label: 'Tokens',
+          data: tokensByAgent,
+          backgroundColor: agentColors.map(c => c + 'cc'),
+          borderColor: agentColors,
+          borderWidth: 1.5,
+          borderRadius: 6,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: textColor, font: { size: 11 } }, grid: { color: gridColor } },
+          y: { ticks: { color: textColor, font: { size: 11 } }, grid: { color: gridColor },
+            beginAtZero: true }
+        }
+      }
+    });
+  }
+}
+
+// ============================================================
+// ACTIVITY TIMELINE
 // ============================================================
 function renderTimeline() {
   const container = document.getElementById('activity-timeline');
   if (!container) return;
 
-  const iconMap = {
-    ok: `<svg class="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>`,
-    warn: `<svg class="w-3 h-3 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M12 3a9 9 0 100 18A9 9 0 0012 3z"/></svg>`,
-    error: `<svg class="w-3 h-3 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>`,
+  const statusStyles = {
+    'ok':   { dot: '#81b29a',  badge: 'rgba(129,178,154,0.14)', badgeText: '#81b29a',  label: 'ok' },
+    'warn': { dot: '#e6a65d',  badge: 'rgba(230,166,93,0.14)',  badgeText: '#c48d4a',  label: 'warn' },
+    'err':  { dot: '#e07a5f',  badge: 'rgba(224,122,95,0.14)',  badgeText: '#c06850',  label: 'error' },
   };
 
   container.innerHTML = DEMO_EVENTS.map(ev => {
     const p = AGENT_PROFILES[ev.agent] || {};
-    const icon = iconMap[ev.status] || iconMap.ok;
+    const ss = statusStyles[ev.status] || statusStyles['ok'];
     return `
-      <div class="flex items-start gap-3 px-2 py-2 rounded-lg hover:bg-white/3 transition-colors">
-        <div class="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
-          style="background: ${p.color}20; border: 1px solid ${p.color}40;">
-          ${icon}
+      <div class="flex items-start gap-3 py-2 border-l-2 pl-3"
+        style="border-color: ${p.color || '#6b5ce7'};">
+        <div class="w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0 mt-0.5"
+          style="background: ${p.color || '#6b5ce7'}; min-width: 28px;">
+          ${escHtml(p.initials || '?')}
         </div>
-        <div class="min-w-0 flex-1">
-          <div class="flex items-center justify-between gap-2">
-            <span class="text-xs font-medium text-slate-300 truncate">${ev.event}</span>
-            <span class="text-[10px] text-slate-600 flex-shrink-0">${timeAgo(ev.time)}</span>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <span class="text-[12px] font-medium text-white">${escHtml(ev.event)}</span>
+            <span class="px-1.5 py-0.5 rounded-full text-[10px] font-medium"
+              style="background: ${ss.badge}; color: ${ss.badgeText};">
+              ${ss.label}
+            </span>
           </div>
-          <div class="text-[10px] text-slate-500 truncate">${escHtml(ev.detail)}</div>
-          <div class="text-[10px] mt-0.5" style="color: ${p.color}">${p.label || ev.agent}</div>
+          <div class="text-[11px] text-slate-500 truncate">${escHtml(ev.detail)}</div>
         </div>
+        <span class="text-[10px] text-slate-600 whitespace-nowrap mt-1">${timeAgo(ev.time)}</span>
       </div>`;
   }).join('');
 }
 
 // ============================================================
-// Charts
+// RECENT TRACES (Overview)
 // ============================================================
-const CHART_COLORS_MAP = {
-  'vr-alpha': '#7c7aef',
-  'vr-beta':  '#7ab5a0',
-  'vr-gamma': '#c49a5c',
-  'vr-lead':  '#9b8ec4',
-  'vr-scribe':'#a0b5c4',
-};
+function renderRecentTraces() {
+  const container = document.getElementById('recent-traces-list');
+  if (!container) return;
 
-function chartDefaults() {
-  return {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        labels: { color: isDark ? '#9a9a96' : '#6b6b68', font: { size: 11 } }
-      }
-    }
+  const recent = [...DEMO_TRACES].sort((a, b) => b.start_time - a.start_time).slice(0, 5);
+
+  container.innerHTML = recent.map(t => {
+    const agent = t.tags.agent || 'unknown';
+    const p = AGENT_PROFILES[agent] || {};
+    const dc = durClass(t.duration_ms);
+    return `
+      <div class="grid items-center px-5 py-3 trace-row cursor-pointer glass-hover"
+        style="grid-template-columns: 1fr 80px 70px 80px;"
+        onclick="openTrace('${escHtml(t.trace_id)}')">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-1 h-8 rounded-full flex-shrink-0" style="background: ${p.color || '#6b5ce7'};"></div>
+          <div class="min-w-0">
+            <div class="text-[12px] font-medium text-white font-mono truncate">${escHtml(t.trace_id)}</div>
+            <div class="text-[11px] text-slate-500">${escHtml(p.label || agent)}</div>
+          </div>
+          ${t.has_errors ? `<span class="px-1.5 py-0.5 rounded-full text-[10px] font-medium flex-shrink-0" style="background: var(--color-coral-bg); color: var(--color-coral);">error</span>` : ''}
+        </div>
+        <div class="text-right flex items-center justify-end gap-2">
+          <span class="w-2 h-2 rounded-full flex-shrink-0 ${dc}"></span>
+          <span class="text-[12px] text-slate-300 font-mono">${fmtDuration(t.duration_ms)}</span>
+        </div>
+        <div class="text-right text-[12px] font-mono" style="color: var(--color-amber-warm);">${fmtCost(t.total_cost_usd)}</div>
+        <div class="text-right text-[11px] text-slate-500">${timeAgo(t.start_time)}</div>
+      </div>`;
+  }).join('');
+}
+
+// ============================================================
+// TRACES LIST (Traces tab)
+// ============================================================
+function renderTraceList() {
+  const container = document.getElementById('traces-list');
+  if (!container) return;
+
+  const query  = (document.getElementById('filter-search')?.value || '').toLowerCase();
+  const errOnly = document.getElementById('filter-errors-only')?.checked;
+  const agentF = document.getElementById('filter-agent')?.value || '';
+
+  let filtered = [...DEMO_TRACES].sort((a, b) => b.start_time - a.start_time);
+  if (query)   filtered = filtered.filter(t => t.trace_id.includes(query) || (t.tags.agent || '').includes(query));
+  if (errOnly) filtered = filtered.filter(t => t.has_errors);
+  if (agentF)  filtered = filtered.filter(t => t.tags.agent === agentF);
+
+  if (!filtered.length) {
+    container.innerHTML = `<div class="px-5 py-12 text-center text-slate-500 text-sm">No traces match your filters.</div>`;
+    return;
+  }
+
+  container.innerHTML = filtered.map(t => {
+    const agent = t.tags.agent || 'unknown';
+    const p     = AGENT_PROFILES[agent] || {};
+    const tools = summarizeTools(t.spans);
+    const dc    = durClass(t.duration_ms);
+
+    const toolPills = tools.map(({ label, count }) => {
+      const cls = getToolPillClass(label);
+      return `<span class="px-1.5 py-0.5 rounded-full text-[10px] font-medium ${cls}">${escHtml(label)}${count > 1 ? ' ×' + count : ''}</span>`;
+    }).join('');
+
+    return `
+      <div class="grid items-center px-5 py-3 trace-row cursor-pointer"
+        style="grid-template-columns: 1fr 140px 90px 80px 90px;"
+        onclick="openTrace('${escHtml(t.trace_id)}')">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-1 h-9 rounded-full flex-shrink-0" style="background: ${p.color || '#6b5ce7'};"></div>
+          <div class="min-w-0">
+            <div class="text-[12px] font-medium text-white font-mono truncate">${escHtml(t.trace_id)}</div>
+            <div class="text-[11px] text-slate-500">${escHtml(p.label || agent)} · ${t.span_count} spans</div>
+          </div>
+          ${t.has_errors ? `<span class="px-1.5 py-0.5 rounded-full text-[10px] font-medium flex-shrink-0" style="background: var(--color-coral-bg); color: var(--color-coral);">error</span>` : ''}
+        </div>
+        <div class="flex items-center gap-1 flex-wrap">${toolPills}</div>
+        <div class="text-right flex items-center justify-end gap-1.5">
+          <span class="w-2 h-2 rounded-full flex-shrink-0 ${dc}"></span>
+          <span class="text-[12px] text-slate-300 font-mono">${fmtDuration(t.duration_ms)}</span>
+        </div>
+        <div class="text-right text-[12px] font-mono" style="color: var(--color-amber-warm);">${fmtCost(t.total_cost_usd)}</div>
+        <div class="text-right text-[11px] text-slate-500">${timeAgo(t.start_time)}</div>
+      </div>`;
+  }).join('');
+}
+
+// ============================================================
+// TRACE DETAIL + WATERFALL
+// ============================================================
+function openTrace(traceId) {
+  const trace = DEMO_TRACES.find(t => t.trace_id === traceId);
+  if (!trace) return;
+
+  // Activate detail panel (without switching nav tab)
+  document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
+  const panel = document.getElementById('view-trace-detail');
+  panel.classList.remove('hidden');
+  panel.classList.add('view-enter');
+  setTimeout(() => panel.classList.remove('view-enter'), 400);
+
+  const agent = trace.tags.agent || 'unknown';
+  const p = AGENT_PROFILES[agent] || {};
+
+  // Header
+  document.getElementById('detail-trace-id').textContent = trace.trace_id;
+  document.getElementById('detail-span-count').textContent = trace.span_count + ' spans';
+
+  const metaEl = document.getElementById('detail-trace-meta');
+  metaEl.innerHTML = [
+    `<span>Agent: <strong class="text-slate-300">${escHtml(p.label || agent)}</strong></span>`,
+    `<span>Duration: <strong class="text-slate-300">${fmtDuration(trace.duration_ms)}</strong></span>`,
+    `<span>Cost: <strong style="color: var(--color-amber-warm);">${fmtCost(trace.total_cost_usd)}</strong></span>`,
+    `<span>Tokens: <strong class="text-slate-300">${trace.total_tokens.toLocaleString()}</strong></span>`,
+    `<span>Started: <strong class="text-slate-300">${timeAgo(trace.start_time)}</strong></span>`,
+  ].join('');
+
+  const badgesEl = document.getElementById('detail-trace-badges');
+  badgesEl.innerHTML = trace.has_errors
+    ? `<span class="px-2 py-1 rounded-lg text-[11px] font-medium" style="background: var(--color-coral-bg); color: var(--color-coral);">error</span>`
+    : `<span class="px-2 py-1 rounded-lg text-[11px] font-medium" style="background: var(--color-sage-bg); color: var(--color-sage);">success</span>`;
+
+  // Waterfall
+  renderWaterfall(trace, p.color || '#6b5ce7');
+}
+
+function renderWaterfall(trace, agentColor) {
+  const container = document.getElementById('waterfall-container');
+  if (!container) return;
+
+  const spans = trace.spans;
+  const totalDuration = trace.duration_ms;
+  const LABEL_W = 200;
+  const BAR_W   = 500;
+  const ROW_H   = 36;
+  const PADDING = 8;
+
+  const kindColors = {
+    agent: agentColor,
+    tool:  '#81b29a',
+    llm:   '#6b5ce7',
   };
-}
 
-function renderCharts() {
-  renderTokenChart();
-  renderCostChart();
-}
+  // Time ruler ticks
+  let tickInterval = 500;
+  if (totalDuration < 500)   tickInterval = 50;
+  else if (totalDuration < 2000)  tickInterval = 200;
+  else if (totalDuration < 5000)  tickInterval = 500;
+  else if (totalDuration < 15000) tickInterval = 1000;
+  else if (totalDuration < 30000) tickInterval = 5000;
+  else                            tickInterval = 10000;
 
-function renderTokenChart() {
-  const ctx = document.getElementById('chart-tokens');
-  if (!ctx) return;
-  if (chartInstances['tokens']) chartInstances['tokens'].destroy();
+  const ticks = [];
+  for (let t = 0; t <= totalDuration; t += tickInterval) ticks.push(t);
+  if (ticks[ticks.length - 1] < totalDuration) ticks.push(totalDuration);
 
-  // Per-agent token totals
-  const agents = Object.keys(AGENT_PROFILES);
-  const tokens = agents.map(a =>
-    DEMO_TRACES.filter(t => t.tags && t.tags.agent === a).reduce((s, t) => s + t.total_tokens, 0)
-  );
-  const labels = agents.map(a => AGENT_PROFILES[a].label);
-  const colors = agents.map(a => CHART_COLORS_MAP[a] || '#9b8ec4');
+  const rulerHTML = ticks.map(t => {
+    const pct = (t / totalDuration) * 100;
+    return `<div style="position:absolute;left:${pct}%;transform:translateX(-50%);color:#8a8a86;font-size:10px;white-space:nowrap;">${fmtDuration(t)}</div>`;
+  }).join('');
 
-  const gradient = ctx.getContext('2d');
-  chartInstances['tokens'] = new Chart(gradient, {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [{
-        label: 'Total Tokens',
-        data: tokens,
-        backgroundColor: colors.map(c => c + '60'),
-        borderColor: colors,
-        borderWidth: 2,
-        borderRadius: 6,
-      }]
-    },
-    options: {
-      ...chartDefaults(),
-      plugins: {
-        ...chartDefaults().plugins,
-        legend: { display: false },
-      },
-      scales: {
-        x: {
-          ticks: { color: isDark ? '#9a9a96' : '#6b6b68', font: { size: 11 } },
-          grid: { color: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' },
-        },
-        y: {
-          ticks: { color: isDark ? '#9a9a96' : '#6b6b68', font: { size: 11 } },
-          grid: { color: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' },
-        },
-      },
-    },
-  });
-}
+  const barsHTML = spans.map((span, i) => {
+    const left  = (span.start_offset_ms / totalDuration) * 100;
+    const width = Math.max((span.duration_ms / totalDuration) * 100, 0.5);
+    const color = span.status === 'error' ? '#e07a5f' : (kindColors[span.kind] || '#9b8ec4');
 
-function renderCostChart() {
-  const ctx = document.getElementById('chart-cost-agents');
-  if (!ctx) return;
-  if (chartInstances['cost']) chartInstances['cost'].destroy();
+    const toolPillCls = getToolPillClass(span.name);
+    const shortName   = getToolLabel(span.name);
 
-  const agents = Object.keys(AGENT_PROFILES);
-  const costs = agents.map(a =>
-    DEMO_TRACES.filter(t => t.tags && t.tags.agent === a).reduce((s, t) => s + t.total_cost_usd, 0)
-  );
-  const labels = agents.map(a => AGENT_PROFILES[a].label);
-  const colors = agents.map(a => CHART_COLORS_MAP[a] || '#9b8ec4');
+    const gridLines = ticks.map(t => {
+      const pct = (t / totalDuration) * 100;
+      return `<div style="position:absolute;left:${pct}%;top:0;bottom:0;width:1px;background:rgba(255,255,255,0.04);"></div>`;
+    }).join('');
 
-  chartInstances['cost'] = new Chart(ctx.getContext('2d'), {
-    type: 'doughnut',
-    data: {
-      labels,
-      datasets: [{
-        data: costs.map(c => parseFloat(c.toFixed(4))),
-        backgroundColor: colors.map(c => c + '80'),
-        borderColor: colors,
-        borderWidth: 2,
-        hoverOffset: 8,
-      }]
-    },
-    options: {
-      ...chartDefaults(),
-      cutout: '60%',
-      plugins: {
-        ...chartDefaults().plugins,
-        tooltip: {
-          callbacks: {
-            label: ctx => ` ${ctx.label}: ${fmtCost(ctx.raw)}`
-          }
-        }
-      },
-    },
-  });
+    return `
+      <div style="display:flex;align-items:center;padding:${PADDING}px 0;border-bottom:1px solid rgba(255,255,255,0.04);">
+        <div style="width:${LABEL_W}px;min-width:${LABEL_W}px;padding-right:12px;display:flex;align-items:center;gap:6px;" class="span-label-col">
+          <span class="px-1.5 py-0.5 rounded-full text-[10px] font-medium ${toolPillCls}">${escHtml(shortName)}</span>
+          ${span.status === 'error' ? `<span style="color: var(--color-coral); font-size:10px;">!</span>` : ''}
+        </div>
+        <div style="flex:1;position:relative;height:${ROW_H - PADDING * 2}px;">
+          ${gridLines}
+          <div class="span-bar" style="
+            position:absolute;
+            left:${left}%;width:${width}%;height:100%;
+            background:${color};border-radius:4px;opacity:0.85;
+            display:flex;align-items:center;overflow:hidden;
+            box-shadow: 0 1px 4px ${color}40;
+          " title="${escHtml(span.name)} — ${fmtDuration(span.duration_ms)}${span.error ? '\nError: ' + span.error : ''}">
+            <span style="padding:0 6px;font-size:10px;color:white;font-family:'JetBrains Mono',monospace;white-space:nowrap;overflow:hidden;">${fmtDuration(span.duration_ms)}</span>
+          </div>
+          ${span.error ? `<div style="position:absolute;left:${left}%;top:100%;font-size:10px;color:var(--color-coral);white-space:nowrap;padding-top:2px;">${escHtml(span.error.substring(0, 60))}...</div>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div style="display:flex;align-items:center;margin-bottom:4px;padding-bottom:4px;border-bottom:1px solid rgba(255,255,255,0.06);">
+      <div style="width:${LABEL_W}px;min-width:${LABEL_W}px;font-size:10px;color:#8a8a86;text-transform:uppercase;letter-spacing:0.05em;">Span</div>
+      <div style="flex:1;position:relative;height:20px;">${rulerHTML}</div>
+    </div>
+    ${barsHTML}`;
 }
 
 // ============================================================
-// Agent Cards (Agents View)
+// COST TAB
+// ============================================================
+function renderCostStats() {
+  const total   = DEMO_TRACES.reduce((s, t) => s + t.total_cost_usd, 0);
+  const avg     = total / DEMO_TRACES.length;
+
+  // Most expensive agent
+  const agentCost = {};
+  DEMO_TRACES.forEach(t => {
+    const a = t.tags.agent;
+    agentCost[a] = (agentCost[a] || 0) + t.total_cost_usd;
+  });
+  const maxAgent = Object.entries(agentCost).sort((a, b) => b[1] - a[1])[0];
+
+  animateCounter(document.getElementById('cost-total'), total, 3, '$');
+  animateCounter(document.getElementById('cost-avg'),   avg,   4, '$');
+  const maxAgentEl = document.getElementById('cost-max-agent');
+  const maxValEl   = document.getElementById('cost-max-val');
+  if (maxAgent) {
+    maxAgentEl.textContent = AGENT_PROFILES[maxAgent[0]]?.label || maxAgent[0];
+    maxValEl.textContent   = fmtCost(maxAgent[1]) + ' total';
+    maxAgentEl.style.color = AGENT_PROFILES[maxAgent[0]]?.color || '#6b5ce7';
+  }
+}
+
+function renderCostCharts() {
+  const isDarkMode = document.documentElement.classList.contains('dark');
+  const textColor  = isDarkMode ? '#9a9a96' : '#8a8a86';
+  const gridColor  = isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)';
+
+  // Doughnut — cost by agent
+  const agents      = Object.keys(AGENT_PROFILES);
+  const costByAgent = agents.map(id => DEMO_TRACES.filter(t => t.tags.agent === id).reduce((s, t) => s + t.total_cost_usd, 0));
+  const agentColors = agents.map(id => AGENT_PROFILES[id].color);
+
+  if (chartInstances['cost-doughnut']) chartInstances['cost-doughnut'].destroy();
+  const ctxD = document.getElementById('chart-cost-doughnut');
+  if (ctxD) {
+    chartInstances['cost-doughnut'] = new Chart(ctxD, {
+      type: 'doughnut',
+      data: {
+        labels: agents.map(id => AGENT_PROFILES[id].label),
+        datasets: [{
+          data: costByAgent,
+          backgroundColor: agentColors.map(c => c + 'cc'),
+          borderColor: agentColors,
+          borderWidth: 2,
+          hoverOffset: 8,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'right', labels: { color: textColor, font: { size: 11 }, padding: 12, boxWidth: 12, borderRadius: 4 } },
+          tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${fmtCost(ctx.parsed)}` } },
+        },
+        cutout: '65%',
+      }
+    });
+  }
+
+  // Line — cost trend (simulated 7 days)
+  const days  = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const costs = [0.28, 0.41, 0.35, 0.62, 0.89, 0.74, DEMO_TRACES.reduce((s, t) => s + t.total_cost_usd, 0)];
+
+  if (chartInstances['cost-trend']) chartInstances['cost-trend'].destroy();
+  const ctxL = document.getElementById('chart-cost-trend');
+  if (ctxL) {
+    chartInstances['cost-trend'] = new Chart(ctxL, {
+      type: 'line',
+      data: {
+        labels: days,
+        datasets: [{
+          label: 'Daily Cost ($)',
+          data: costs,
+          borderColor: '#6b5ce7',
+          backgroundColor: 'rgba(107,92,231,0.08)',
+          borderWidth: 2,
+          pointBackgroundColor: '#6b5ce7',
+          pointRadius: 4,
+          fill: true,
+          tension: 0.4,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: textColor, font: { size: 11 } }, grid: { color: gridColor } },
+          y: { ticks: { color: textColor, font: { size: 11 }, callback: v => '$' + v.toFixed(2) }, grid: { color: gridColor }, beginAtZero: true },
+        }
+      }
+    });
+  }
+}
+
+function renderCostTopTraces() {
+  const container = document.getElementById('cost-top-traces');
+  if (!container) return;
+
+  const sorted = [...DEMO_TRACES].sort((a, b) => b.total_cost_usd - a.total_cost_usd).slice(0, 5);
+
+  container.innerHTML = sorted.map(t => {
+    const agent = t.tags.agent || 'unknown';
+    const p = AGENT_PROFILES[agent] || {};
+    return `
+      <div class="grid items-center px-5 py-3 trace-row cursor-pointer"
+        style="grid-template-columns: 1fr 100px 80px 80px;"
+        onclick="openTrace('${escHtml(t.trace_id)}')">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-1 h-8 rounded-full flex-shrink-0" style="background: ${p.color || '#6b5ce7'};"></div>
+          <span class="text-[12px] font-medium text-white font-mono truncate">${escHtml(t.trace_id)}</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <div class="w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
+            style="background: ${p.color || '#6b5ce7'};">
+            ${escHtml(p.initials || '?')}
+          </div>
+          <span class="text-[12px] text-slate-300">${escHtml(p.label || agent)}</span>
+        </div>
+        <div class="text-right text-[12px] font-mono text-slate-400">${t.total_tokens.toLocaleString()}</div>
+        <div class="text-right text-[13px] font-semibold font-mono" style="color: var(--color-amber-warm);">${fmtCost(t.total_cost_usd)}</div>
+      </div>`;
+  }).join('');
+}
+
+// ============================================================
+// AGENT CARDS
 // ============================================================
 function renderAgentCards() {
   const container = document.getElementById('agent-cards-grid');
@@ -1192,330 +1542,151 @@ function renderAgentCards() {
 
   const agentStats = {};
   DEMO_TRACES.forEach(t => {
-    const agent = t.tags && t.tags.agent;
-    if (!agent) return;
-    if (!agentStats[agent]) agentStats[agent] = { traces: 0, cost: 0, tokens: 0, errors: 0, spans: 0 };
-    agentStats[agent].traces++;
-    agentStats[agent].cost += t.total_cost_usd;
-    agentStats[agent].tokens += t.total_tokens;
-    agentStats[agent].spans += t.span_count;
-    if (t.has_errors) agentStats[agent].errors++;
+    const a = t.tags.agent;
+    if (!agentStats[a]) agentStats[a] = { traces: 0, cost: 0, tokens: 0, errors: 0 };
+    agentStats[a].traces++;
+    agentStats[a].cost   += t.total_cost_usd;
+    agentStats[a].tokens += t.total_tokens;
+    if (t.has_errors) agentStats[a].errors++;
   });
 
   container.innerHTML = Object.entries(AGENT_PROFILES).map(([id, p]) => {
-    const st = agentStats[id] || { traces: 0, cost: 0, tokens: 0, errors: 0, spans: 0 };
+    const st = agentStats[id] || { traces: 0, cost: 0, tokens: 0, errors: 0 };
     const errorRate = st.traces > 0 ? ((st.errors / st.traces) * 100).toFixed(0) : '0';
-    const errorColor = parseInt(errorRate) > 20 ? 'text-red-400' : parseInt(errorRate) > 0 ? 'text-amber-400' : 'text-emerald-400';
+
+    // Activity dots (mock — last 10 activity indicators)
+    const dots = Array.from({ length: 10 }, (_, i) => {
+      const active = Math.random() > 0.35;
+      return `<div class="w-2.5 h-2.5 rounded-full" style="background: ${active ? p.color : 'rgba(100,100,100,0.2)'}; opacity: ${active ? 0.8 : 0.4};"></div>`;
+    }).join('');
+
+    const statusLabel = p.status === 'active'
+      ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-medium" style="background: var(--color-sage-bg); color: var(--color-sage);">active</span>`
+      : `<span class="px-2 py-0.5 rounded-full text-[10px] font-medium" style="background: rgba(100,100,100,0.1); color: #9a9690;">idle</span>`;
+
     return `
-      <div class="glass rounded-xl p-5 card-3d-hover cursor-pointer fade-in"
-        style="border-top: 3px solid ${p.color}20; border-top-color: ${p.color};">
-        <!-- Header -->
-        <div class="flex items-center gap-4 mb-4">
-          <!-- Avatar with SVG initials -->
-          <div class="w-14 h-14 rounded-xl flex items-center justify-center text-white font-bold text-xl flex-shrink-0 shadow-lg"
-            style="background: linear-gradient(135deg, ${p.color}, ${p.color}cc); box-shadow: 0 4px 16px ${p.color}30;">
-            <svg viewBox="0 0 40 40" class="w-14 h-14" xmlns="http://www.w3.org/2000/svg">
-              <rect width="40" height="40" rx="10" fill="${p.color}"/>
-              <text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle"
-                font-family="Inter, sans-serif" font-weight="700" font-size="18" fill="white">
-                ${p.initials}
-              </text>
-            </svg>
+      <div class="glass rounded-xl p-5 card-3d-hover cursor-pointer glass-hover"
+        style="border-left: 3px solid ${p.color};">
+        <!-- Avatar row -->
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-bold text-white flex-shrink-0"
+            style="background: ${p.color}; box-shadow: 0 4px 16px ${p.color}40;">
+            ${escHtml(p.initials)}
           </div>
-          <div class="min-w-0">
-            <div class="text-base font-semibold text-white">${p.label}</div>
-            <div class="text-xs text-slate-400">${p.role}</div>
-            <div class="text-[10px] text-slate-600 mt-0.5 font-mono">${p.model}</div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 mb-0.5">
+              <h3 class="text-base font-semibold text-white">${escHtml(p.label)}</h3>
+              ${statusLabel}
+            </div>
+            <div class="text-[11px] text-slate-500">${escHtml(p.role)}</div>
+            <div class="text-[10px] font-mono mt-0.5" style="color: ${p.color}; opacity: 0.8;">${escHtml(p.model)}</div>
           </div>
         </div>
 
         <!-- Description -->
-        <p class="text-xs text-slate-400 mb-4 leading-relaxed">${escHtml(p.description)}</p>
+        <p class="text-[12px] text-slate-400 mb-4 leading-relaxed">${escHtml(p.description)}</p>
 
-        <!-- Specialty badge -->
-        <div class="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-medium mb-4"
-          style="background: ${p.color}15; color: ${p.color}; border: 1px solid ${p.color}30;">
-          ${escHtml(p.specialty)}
+        <!-- Stats row -->
+        <div class="grid grid-cols-3 gap-3 mb-4">
+          <div class="text-center">
+            <div class="text-[16px] font-bold text-white">${st.traces}</div>
+            <div class="text-[10px] text-slate-500">Traces</div>
+          </div>
+          <div class="text-center">
+            <div class="text-[16px] font-bold" style="color: var(--color-amber-warm);">${fmtCost(st.cost)}</div>
+            <div class="text-[10px] text-slate-500">Cost</div>
+          </div>
+          <div class="text-center">
+            <div class="text-[16px] font-bold" style="color: ${parseInt(errorRate) > 0 ? 'var(--color-coral)' : 'var(--color-sage)'};">${errorRate}%</div>
+            <div class="text-[10px] text-slate-500">Errors</div>
+          </div>
         </div>
 
-        <!-- Stats Grid -->
-        <div class="grid grid-cols-2 gap-3 pt-4 border-t border-white/5">
-          <div>
-            <div class="text-[10px] text-slate-600 uppercase tracking-wider">Traces</div>
-            <div class="text-base font-bold text-white mt-0.5">${st.traces}</div>
-          </div>
-          <div>
-            <div class="text-[10px] text-slate-600 uppercase tracking-wider">Total Cost</div>
-            <div class="text-base font-bold text-emerald-400 mt-0.5">${fmtCost(st.cost)}</div>
-          </div>
-          <div>
-            <div class="text-[10px] text-slate-600 uppercase tracking-wider">Tokens</div>
-            <div class="text-sm font-semibold text-slate-300 mt-0.5">${st.tokens.toLocaleString()}</div>
-          </div>
-          <div>
-            <div class="text-[10px] text-slate-600 uppercase tracking-wider">Error Rate</div>
-            <div class="text-sm font-semibold mt-0.5 ${errorColor}">${errorRate}%</div>
-          </div>
+        <!-- Activity dots -->
+        <div class="flex items-center gap-1 mb-1">
+          ${dots}
+          <span class="text-[10px] text-slate-600 ml-1">recent activity</span>
         </div>
       </div>`;
   }).join('');
 }
 
 // ============================================================
-// Trace List
+// AGENT NETWORK SVG
 // ============================================================
-const KIND_COLORS = {
-  llm:       '#9b8ec4',
-  tool:      '#7ab5a0',
-  agent:     '#a88ec4',
-  chain:     '#c4b07a',
-  retrieval: '#7a9eb5',
-  custom:    '#a0a09a',
-};
+function renderAgentNetwork() {
+  const svg = document.getElementById('agent-network-svg');
+  if (!svg) return;
 
-function getFilteredTraces() {
-  const query = (document.getElementById('filter-search')?.value || '').toLowerCase();
-  const errorsOnly = document.getElementById('filter-errors-only')?.checked;
-  const agentFilter = document.getElementById('filter-agent')?.value || '';
+  const isDarkMode = document.documentElement.classList.contains('dark');
+  const textColor  = isDarkMode ? '#9a9a96' : '#6a6a68';
 
-  return DEMO_TRACES.filter(t => {
-    if (errorsOnly && !t.has_errors) return false;
-    if (agentFilter && t.tags?.agent !== agentFilter) return false;
-    if (query) {
-      const haystack = [t.trace_id, t.service_name, t.tags?.agent || ''].join(' ').toLowerCase();
-      if (!haystack.includes(query)) return false;
-    }
-    return true;
-  });
-}
+  // Agent positions in a pentagon layout
+  const positions = {
+    'vr-lead':   { x: 350, y: 100 },
+    'vr-alpha':  { x: 540, y: 210 },
+    'vr-beta':   { x: 480, y: 270 },
+    'vr-gamma':  { x: 220, y: 210 },
+    'vr-scribe': { x: 280, y: 270 },
+  };
 
-function renderTraceList() {
-  const container = document.getElementById('traces-list');
-  if (!container) return;
+  // Connections: lead coordinates all; alpha-beta, gamma-scribe share data
+  const edges = [
+    ['vr-lead', 'vr-alpha'],
+    ['vr-lead', 'vr-beta'],
+    ['vr-lead', 'vr-gamma'],
+    ['vr-lead', 'vr-scribe'],
+    ['vr-alpha', 'vr-beta'],
+    ['vr-gamma', 'vr-scribe'],
+    ['vr-beta',  'vr-scribe'],
+    ['vr-alpha', 'vr-gamma'],
+  ];
 
-  const traces = getFilteredTraces();
-  if (!traces.length) {
-    container.innerHTML = `<div class="px-5 py-10 text-center text-slate-500 text-sm">No traces match your filters</div>`;
-    return;
-  }
+  const edgesHTML = edges.map(([from, to]) => {
+    const f = positions[from], t = positions[to];
+    const p  = AGENT_PROFILES[from];
+    const color = (p && p.color) ? p.color : '#6b5ce7';
+    return `<line x1="${f.x}" y1="${f.y}" x2="${t.x}" y2="${t.y}"
+      class="agent-edge" stroke="${color}" opacity="0.35"/>`;
+  }).join('');
 
-  container.innerHTML = traces.map(t => {
-    const agent = t.tags?.agent || '';
-    const p = AGENT_PROFILES[agent] || {};
-    const agentColor = p.color || '#9b8ec4';
-    const errBadge = t.has_errors
-      ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-500/15 text-red-400 border border-red-500/20">${t.error_count || 1} error</span>`
-      : `<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-400">ok</span>`;
-
-    // Span kind pills
-    const kindCounts = {};
-    t.spans.forEach(s => { kindCounts[s.kind] = (kindCounts[s.kind] || 0) + 1; });
-    const kindPills = Object.entries(kindCounts).map(([k, n]) =>
-      `<span class="text-[9px] px-1 py-0.5 rounded" style="background:${KIND_COLORS[k] || '#9b8ec4'}15; color:${KIND_COLORS[k] || '#9b8ec4'}">${k}:${n}</span>`
-    ).join('');
-
+  const nodesHTML = Object.entries(AGENT_PROFILES).map(([id, p]) => {
+    const pos = positions[id] || { x: 350, y: 180 };
+    const r   = id === 'vr-lead' ? 30 : 24;
     return `
-      <div class="trace-row px-5 py-3.5 cursor-pointer flex flex-col sm:flex-row items-start sm:items-center gap-3"
-        onclick="openTrace('${escHtml(t.trace_id)}')">
-        <!-- Agent dot + trace ID -->
-        <div class="flex items-center gap-2 min-w-0 flex-1">
-          <div class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background: ${agentColor};"></div>
-          <span class="text-xs font-mono text-slate-300 truncate">${escHtml(t.trace_id)}</span>
-        </div>
-
-        <!-- Agent label -->
-        <div class="hidden sm:flex items-center gap-1.5 flex-shrink-0 w-28">
-          <span class="text-xs font-medium" style="color: ${agentColor}">${p.label || agent}</span>
-        </div>
-
-        <!-- Kind pills -->
-        <div class="flex gap-1 flex-wrap flex-shrink-0">${kindPills}</div>
-
-        <!-- Metrics -->
-        <div class="flex items-center gap-4 text-xs text-slate-500 flex-shrink-0">
-          <span>${fmtDuration(t.duration_ms)}</span>
-          <span class="text-emerald-400">${fmtCost(t.total_cost_usd)}</span>
-          <span>${t.total_tokens.toLocaleString()} tok</span>
-          ${errBadge}
-        </div>
-      </div>`;
+      <g class="agent-node" onclick="switchView('agents')" transform="translate(${pos.x},${pos.y})">
+        <circle r="${r}" fill="${p.color}" opacity="0.18"/>
+        <circle r="${r - 4}" fill="${p.color}" opacity="0.9"/>
+        <text text-anchor="middle" dominant-baseline="middle"
+          font-size="${id === 'vr-lead' ? 14 : 12}" font-weight="700" fill="white"
+          font-family="Inter,system-ui,sans-serif">${escHtml(p.initials)}</text>
+        <text y="${r + 16}" text-anchor="middle" font-size="11" fill="${textColor}"
+          font-family="Inter,system-ui,sans-serif">${escHtml(p.label)}</text>
+        ${p.status === 'active' ? `<circle r="5" cx="${r - 2}" cy="${-(r - 2)}" fill="#81b29a" class="pulse-dot"/>` : ''}
+      </g>`;
   }).join('');
+
+  svg.innerHTML = `
+    <defs>
+      <filter id="glow">
+        <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+        <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    ${edgesHTML}
+    ${nodesHTML}`;
 }
 
 // ============================================================
-// Trace Detail — Waterfall
-// ============================================================
-function openTrace(traceId) {
-  const trace = DEMO_TRACES.find(t => t.trace_id === traceId);
-  if (!trace) return;
-
-  // Switch view
-  document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
-  const panel = document.getElementById('view-trace-detail');
-  panel.classList.remove('hidden');
-  panel.classList.add('view-enter');
-  setTimeout(() => panel.classList.remove('view-enter'), 400);
-
-  // Deactivate tabs
-  document.querySelectorAll('.tab-btn').forEach(b => {
-    b.classList.remove('tab-active');
-    b.classList.add('tab-inactive');
-  });
-
-  currentView = 'trace-detail';
-
-  // Header
-  document.getElementById('detail-trace-id').textContent = trace.trace_id;
-
-  const agent = trace.tags?.agent || '';
-  const p = AGENT_PROFILES[agent] || {};
-  const metaEl = document.getElementById('detail-trace-meta');
-  metaEl.innerHTML = [
-    `<span>Agent: <strong style="color:${p.color || '#9b8ec4'}">${p.label || agent}</strong></span>`,
-    `<span>Duration: <strong>${fmtDuration(trace.duration_ms)}</strong></span>`,
-    `<span>Cost: <strong class="text-emerald-400">${fmtCost(trace.total_cost_usd)}</strong></span>`,
-    `<span>Tokens: <strong>${trace.total_tokens.toLocaleString()}</strong></span>`,
-    `<span>Spans: <strong>${trace.span_count}</strong></span>`,
-    trace.has_errors ? `<span class="text-red-400">Errors: <strong>${trace.error_count}</strong></span>` : `<span class="text-emerald-400">No errors</span>`,
-  ].join('');
-
-  renderWaterfall(trace);
-}
-
-function renderWaterfall(trace) {
-  const container = document.getElementById('waterfall-container');
-  if (!container || !trace.spans || !trace.spans.length) return;
-
-  const totalMs = trace.duration_ms;
-  const agent = trace.tags?.agent || '';
-  const p = AGENT_PROFILES[agent] || {};
-  const agentColor = p.color || '#9b8ec4';
-
-  // Label column width
-  const labelW = 220;
-  const barAreaW = Math.max(400, container.clientWidth - labelW - 120);
-
-  let html = `
-    <div class="text-[10px] text-slate-600 uppercase tracking-wider mb-3 flex gap-2 pl-${labelW / 4}">
-      <span style="width:${labelW}px" class="flex-shrink-0">Span Name</span>
-      <span class="flex-1">Timeline</span>
-      <span style="width:80px" class="text-right">Duration</span>
-    </div>
-    <div class="space-y-1">`;
-
-  trace.spans.forEach((span, i) => {
-    const kindColor = KIND_COLORS[span.kind] || agentColor;
-    const isError = span.status === 'error';
-    const barColor = isError ? '#c47070' : kindColor;
-    const offset = span.start_offset_ms || 0;
-    const dur = span.duration_ms || 1;
-    const leftPct = (offset / totalMs) * 100;
-    const widthPct = Math.max(0.5, (dur / totalMs) * 100);
-
-    html += `
-      <div class="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-white/3 transition-colors group" title="${escHtml(span.name)}">
-        <!-- Name -->
-        <div class="flex-shrink-0 flex items-center gap-1.5 overflow-hidden" style="width:${labelW}px">
-          <span class="w-2 h-2 rounded-full flex-shrink-0" style="background:${kindColor}"></span>
-          <span class="text-xs text-slate-300 truncate">${escHtml(span.name)}</span>
-          ${isError ? `<span class="text-[9px] text-red-400 flex-shrink-0">ERR</span>` : ''}
-        </div>
-        <!-- Bar -->
-        <div class="relative flex-1 h-5 bg-white/3 rounded overflow-hidden" style="min-width:${barAreaW}px">
-          <div class="absolute top-1 bottom-1 rounded span-bar"
-            style="left:${leftPct.toFixed(2)}%; width:${widthPct.toFixed(2)}%; background:${barColor}; min-width:3px;"
-            title="${escHtml(span.name)}: ${fmtDuration(dur)}">
-          </div>
-        </div>
-        <!-- Duration -->
-        <div class="flex-shrink-0 text-xs text-slate-500 text-right" style="width:70px">${fmtDuration(dur)}</div>
-      </div>`;
-
-    // Error detail row
-    if (isError && span.error) {
-      html += `
-        <div class="ml-${(labelW + 8) / 4} px-3 py-1.5 rounded-lg bg-red-500/8 border border-red-500/15 mb-1">
-          <span class="text-[10px] text-red-400">${escHtml(span.error)}</span>
-        </div>`;
-    }
-  });
-
-  html += '</div>';
-
-  // Legend
-  const kindsUsed = [...new Set(trace.spans.map(s => s.kind))];
-  html += `
-    <div class="mt-5 pt-4 border-t border-white/5 flex flex-wrap gap-3">
-      ${kindsUsed.map(k => `
-        <div class="flex items-center gap-1.5 text-[10px] text-slate-500">
-          <span class="w-2.5 h-2.5 rounded-sm" style="background:${KIND_COLORS[k] || '#9b8ec4'}"></span>
-          ${k.charAt(0).toUpperCase() + k.slice(1)}
-        </div>`).join('')}
-      ${trace.has_errors ? `
-        <div class="flex items-center gap-1.5 text-[10px] text-red-400">
-          <span class="w-2.5 h-2.5 rounded-sm" style="background:#c47070"></span>
-          Error
-        </div>` : ''}
-    </div>`;
-
-  container.innerHTML = html;
-}
-
-// ============================================================
-// Recent Traces (Overview panel)
-// ============================================================
-function renderRecentTraces() {
-  const container = document.getElementById('recent-traces-list');
-  if (!container) return;
-
-  const recent = [...DEMO_TRACES]
-    .sort((a, b) => b.start_time - a.start_time)
-    .slice(0, 5);
-
-  container.innerHTML = recent.map(t => {
-    const agent = t.tags?.agent || '';
-    const p = AGENT_PROFILES[agent] || {};
-    const agentColor = p.color || '#9b8ec4';
-    const errBadge = t.has_errors
-      ? `<span class="text-[10px] text-red-400">error</span>`
-      : `<span class="text-[10px] text-emerald-400">ok</span>`;
-    return `
-      <div class="trace-row px-5 py-3 flex items-center gap-4 cursor-pointer"
-        onclick="openTrace('${escHtml(t.trace_id)}')">
-        <div class="w-2 h-2 rounded-full flex-shrink-0" style="background:${agentColor}"></div>
-        <span class="text-xs font-mono text-slate-400 truncate flex-1">${escHtml(t.trace_id)}</span>
-        <span class="text-xs font-medium flex-shrink-0" style="color:${agentColor}">${p.label || agent}</span>
-        <span class="text-xs text-slate-500 flex-shrink-0">${fmtDuration(t.duration_ms)}</span>
-        <span class="text-xs text-emerald-400 flex-shrink-0">${fmtCost(t.total_cost_usd)}</span>
-        ${errBadge}
-        <span class="text-[10px] text-slate-600 flex-shrink-0">${timeAgo(t.start_time)}</span>
-      </div>`;
-  }).join('');
-}
-
-// ============================================================
-// Keyboard Shortcuts
+// KEYBOARD SHORTCUT
 // ============================================================
 document.addEventListener('keydown', e => {
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
-  switch (e.key) {
-    case '1': switchView('overview'); break;
-    case '2': switchView('agents'); break;
-    case '3': switchView('traces'); break;
-    case 't': toggleTheme(); break;
-    case 'Escape':
-      if (currentView === 'trace-detail') backToTraces();
-      break;
-    case '/':
-      e.preventDefault();
-      switchView('traces');
-      setTimeout(() => document.getElementById('filter-search')?.focus(), 100);
-      break;
-  }
+  if (e.key === 'Escape' && currentView === 'trace-detail') backToTraces();
+  if (e.key === 't' && !e.ctrlKey && !e.metaKey && document.activeElement.tagName !== 'INPUT') toggleTheme();
 });
 
 // ============================================================
-// Bootstrap
+// BOOT
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
   renderStats();
