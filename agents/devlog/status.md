@@ -1,9 +1,23 @@
 # Agent Status — 2026-03-15
 
-## Cycle 23: UI Animation Polish — IN PROGRESS (Gamma, 2026-03-15)
+## Cycle 23: UI Animation Polish — COMPLETE (Gamma, 2026-03-15)
 
 **Gamma**: Final polish pass — animations, transitions, micro-interactions
-- Branch: `feat/gamma-animation-polish`
+- Branch: `worktree-agent-a8a814ca`
+- Commit: 5d6efcb
+- Tests: 1156 passing (unchanged)
+- Delivered:
+  - Stat card stagger reduced from 80ms to 60ms per spec (snappier cascade)
+  - `chart-reveal` CSS keyframe (opacity+translateY) + helper `_revealChartContainer()` called after each chart renders (overview doughnuts, bar, trend line)
+  - Left-to-right line chart draw: Chart.js `animations.x` with 120ms dataset stagger on trend chart
+  - `animateRotate: true` globally for doughnut charts satisfying reveal
+  - Notification panel slide-down animation (`notifPanelSlide`, 0.2s spring)
+  - Activity timeline rows stagger: nth-child(1-10) CSS fade-in with 30ms steps
+  - Doughnut center label fade-in (0.5s delayed after chart animation)
+  - Agent card `agent-card-stagger` class with 60ms×index `animation-delay` — staggered fade-up in Agents tab
+  - Pill nav glider: resize listener (debounced 100ms) to re-position after window resize
+  - `will-change: opacity, transform` on `.view-panel` for GPU compositing
+  - Back-to-top button position guard: shifts up when tmux terminal is open
 - Files: `flowlens/server/static/dashboard.css`, `flowlens/server/static/dashboard.js`, `flowlens/server/static/charts.js`
 
 ---
