@@ -385,6 +385,7 @@ let _monitorAgents = [];
 let _termPanes = [];  // [{id, agent}]
 let _termMinimized = false;
 let _termPaneIdCounter = 0;
+let _termLayout = 'single'; // current layout: 'single' | 'vsplit' | 'hsplit' | 'grid'
 
 function renderLiveMonitor(agents) {
   const container = document.getElementById('live-monitor');
@@ -1330,14 +1331,12 @@ async function loadStats() {
     const errorPct = stats.total_traces > 0
       ? (stats.error_traces / stats.total_traces) * 100
       : 0;
-    const errorEl = document.getElementById('stat-error-rate');
-    if (errorEl) errorEl.textContent = errorPct.toFixed(1) + '%';
-    // Keep stat-error-count in DOM but hide visually (removed from HTML v17)
-    const errCountEl = document.getElementById('stat-error-count');
-    if (errCountEl) errCountEl.textContent = '';
     const errorRate = parseFloat(errorPct.toFixed(1));
-    animateCounter(document.getElementById('stat-error-rate'), errorRate, 800, '', '%');
-    document.getElementById('stat-error-count').textContent = `${stats.error_traces || 0} error traces`;
+    const errorRateEl = document.getElementById('stat-error-rate');
+    if (errorRateEl) animateCounter(errorRateEl, errorRate, 800, '', '%');
+    // stat-error-count was removed from HTML in v17; guard to avoid null error
+    const errCountEl = document.getElementById('stat-error-count');
+    if (errCountEl) errCountEl.textContent = `${stats.error_traces || 0} error traces`;
     const errorCard = document.getElementById('stat-card-error');
     if (errorCard) {
       // Use warm coral highlight instead of cold red when error rate is high

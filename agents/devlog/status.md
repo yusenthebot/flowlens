@@ -1,5 +1,17 @@
 # Agent Status — 2026-03-15
 
+## Cycle 23: Dashboard Quality Pass — COMPLETE (Alpha, 2026-03-15)
+
+**Alpha**: Comprehensive audit + bug fixes across all dashboard static files
+- CSS critical bug: unclosed `@media (max-width: 768px)` at line 468 of dashboard.css — this caused `.theme-toggle`, `.shortcuts-modal-overlay`, `.compare-checkbox`, `.filter-input:focus`, `.collapsible-*`, `.pattern-card-*`, `.trace-row-selected`, and 15+ other rules to ONLY apply at ≤768px width (desktop was broken)
+- JS null dereference bug: `document.getElementById('stat-error-count').textContent` in `loadStats()` — element was removed from HTML in v17 but the JS guard was missing on the second access, causing `TypeError` on every stats refresh
+- JS undeclared variable: `_termLayout` used in `_termSetLayout()`, `_termOpenWithLayout()`, `_termCloseAll()` but never declared — in strict mode (`'use strict'`) this is a `ReferenceError` crashing terminal pane layout changes
+- network.js cosmetic: redundant ternary `dark ? '#ffffff' : '#ffffff'` simplified to literal
+- Tests: 1156 passing (unchanged)
+- Files: `flowlens/server/static/dashboard.css`, `flowlens/server/static/dashboard.js`, `flowlens/server/static/network.js`
+
+---
+
 ## Cycle 22: README Localization — COMPLETE (Alpha, 2026-03-15)
 
 **Alpha**: Split mixed EN/CN README into clean README.md (English) + README_CN.md (Chinese)

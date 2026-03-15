@@ -222,7 +222,7 @@ function _buildSVGNetwork(container, data) {
 
     // Agent initial letter — centered, white/light
     const letterSize = isNarrow ? Math.max(10, r * 0.72) : Math.max(11, r * 0.70);
-    const letterColor = dark ? '#ffffff' : '#ffffff';
+    const letterColor = '#ffffff';
     const letter = (profile.name || node.id || '?').charAt(0).toUpperCase();
     body += `<text x="${x}" y="${(y + letterSize * 0.36).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" fill="${letterColor}" font-size="${letterSize.toFixed(0)}" font-weight="700" font-family="Inter,system-ui,sans-serif" pointer-events="none" opacity="0.95">${escHtml(letter)}</text>`;
 
