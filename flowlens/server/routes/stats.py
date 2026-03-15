@@ -7,6 +7,7 @@ Endpoints:
 - GET /v1/stats/summary
 - GET /v1/patterns/summary
 - GET /v1/feedback/summary
+- GET /v1/feedback/recent
 - GET /v1/metrics/users
 - GET /v1/metrics/experiments
 - GET /v1/analysis/fleet
@@ -159,6 +160,17 @@ def create_stats_router(store: TraceStore) -> APIRouter:
         except Exception:
             logger.exception("Failed to get feedback summary")
             raise HTTPException(500, "Failed to retrieve feedback summary")
+
+    @router.get("/v1/feedback/recent")
+    async def feedback_recent(
+        limit: int = Query(10, ge=1, le=100, description="Max number of feedback entries to return"),
+    ) -> list[dict[str, Any]]:
+        """Return the most recent feedback entries across all traces, newest first."""
+        try:
+            return store.get_recent_feedback(limit=limit)
+        except Exception:
+            logger.exception("Failed to get recent feedback")
+            raise HTTPException(500, "Failed to retrieve recent feedback")
 
     @router.get("/v1/metrics/users")
     async def user_metrics() -> list[dict[str, Any]]:

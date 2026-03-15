@@ -355,6 +355,20 @@
           </div>
         </div>
       </div>
+      <!-- Recent Feedback -->
+      <div class="glass rounded-xl overflow-hidden mb-6">
+        <div class="flex items-center justify-between p-4 border-b border-white/5">
+          <div class="flex items-center gap-2">
+            <span class="text-amber-400 text-sm">&#9733;</span>
+            <h2 class="text-sm font-semibold text-white">Recent Feedback</h2>
+            <span id="feedback-avg-stat" class="ml-2 text-xs text-slate-500"></span>
+          </div>
+          <button onclick="switchView('traces')" class="text-xs text-indigo-400 hover:text-indigo-300 transition">View traces</button>
+        </div>
+        <div id="recent-feedback-list" class="divide-y divide-white/5">
+          <div class="px-4 py-6 text-center text-xs text-slate-600">Loading feedback...</div>
+        </div>
+      </div>
       </div><!-- end relative orb wrapper -->
     </div>
 
@@ -417,6 +431,22 @@
           <input id="filter-errors" type="checkbox" class="rounded bg-surface-100 border-white/10 text-red-500 focus:ring-red-500/30" />
           <span class="text-xs">Errors only</span>
         </label>
+
+        <!-- Has Feedback -->
+        <label class="flex items-center gap-2 text-sm text-slate-400 cursor-pointer select-none">
+          <input id="filter-has-feedback" type="checkbox" class="rounded bg-surface-100 border-white/10 text-amber-500 focus:ring-amber-500/30" />
+          <span class="text-xs text-amber-400">&#9733; Has feedback</span>
+        </label>
+
+        <!-- Rating filter -->
+        <div class="flex items-center gap-1.5">
+          <span class="text-xs text-amber-400">&#9733;</span>
+          <select id="filter-rating" class="filter-input bg-surface-100 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-300 transition">
+            <option value="">All ratings</option>
+            <option value="bad">Bad (&#8804;2)</option>
+            <option value="good">Good (&#8805;4)</option>
+          </select>
+        </div>
       </div>
 
       <!-- Advanced Filters Row -->
@@ -554,6 +584,49 @@
           <div id="cy-container"></div>
         </div>
         <div id="dag-patterns" class="mt-4"></div>
+      </div>
+      <!-- Feedback Panel -->
+      <div id="trace-feedback-panel" class="glass rounded-xl p-5 mt-4">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-sm font-semibold text-white">Feedback</h3>
+          <span id="feedback-avg-badge" class="hidden text-xs text-amber-400 font-medium"></span>
+        </div>
+        <!-- Input section -->
+        <div id="feedback-input-section">
+          <div class="flex items-center gap-4 mb-3 flex-wrap">
+            <!-- Quick reactions -->
+            <div class="flex items-center gap-2">
+              <button class="reaction-btn thumb-up" id="fb-thumbup" onclick="submitQuickFeedback(5)" title="Good (rating 5)">
+                <span>👍</span><span class="text-[11px]">Good</span>
+              </button>
+              <button class="reaction-btn thumb-down" id="fb-thumbdown" onclick="submitQuickFeedback(1)" title="Bad (rating 1)">
+                <span>👎</span><span class="text-[11px]">Bad</span>
+              </button>
+            </div>
+            <!-- Divider -->
+            <span class="text-slate-700 text-xs">or rate</span>
+            <!-- Star rating -->
+            <div class="star-rating" id="star-rating" onmouseleave="starHoverReset()">
+              <button class="star-btn" data-value="1" onclick="selectStar(1)" onmouseenter="starHover(1)" aria-label="1 star">&#9733;</button>
+              <button class="star-btn" data-value="2" onclick="selectStar(2)" onmouseenter="starHover(2)" aria-label="2 stars">&#9733;</button>
+              <button class="star-btn" data-value="3" onclick="selectStar(3)" onmouseenter="starHover(3)" aria-label="3 stars">&#9733;</button>
+              <button class="star-btn" data-value="4" onclick="selectStar(4)" onmouseenter="starHover(4)" aria-label="4 stars">&#9733;</button>
+              <button class="star-btn" data-value="5" onclick="selectStar(5)" onmouseenter="starHover(5)" aria-label="5 stars">&#9733;</button>
+            </div>
+            <span id="star-label" class="text-xs text-slate-500 min-w-[70px]"></span>
+          </div>
+          <!-- Comment box -->
+          <textarea id="feedback-comment" class="feedback-comment" placeholder="Optional: add a note (e.g. 'This trace wasted tokens on retry')" rows="2"></textarea>
+          <!-- Submit -->
+          <div class="flex items-center gap-3 mt-2">
+            <button onclick="submitFeedback()" class="px-4 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition">Submit</button>
+            <span id="feedback-submit-status" class="text-xs text-slate-500 hidden"></span>
+          </div>
+        </div>
+        <!-- Existing feedback list -->
+        <div id="feedback-list" class="mt-4 space-y-2">
+          <!-- Populated by renderFeedbackList() -->
+        </div>
       </div>
       <!-- Span Detail Sidebar -->
       <div id="span-detail-panel" class="hidden fixed right-0 top-0 h-full w-96 glass border-l border-white/10 z-50 overflow-y-auto shadow-2xl shadow-black/50 fade-in">

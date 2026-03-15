@@ -756,4 +756,179 @@
     /* Last node — no trailing gap */
     .session-timeline-node.last .session-timeline-content {
       margin-bottom: 0;
+    /* ==================================================================       Feedback UI — Star Rating, Comment Form, Feedback Cards
+       ========================================================================= */
+
+    /* Feedback panel container */
+    .feedback-panel {
+      margin-top: 16px;
+      padding: 16px 20px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+    }
+    html:not(.dark) .feedback-panel {
+      background: rgba(0,0,0,0.02);
+      border-color: rgba(0,0,0,0.07);
+    }
+
+    /* Star rating row */
+    .star-rating {
+      display: inline-flex;
+      gap: 4px;
+      align-items: center;
+    }
+    .star-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 2px;
+      font-size: 22px;
+      line-height: 1;
+      color: #4a4a48;
+      transition: color 0.12s ease, transform 0.1s ease;
+      outline: none;
+    }
+    .star-btn:hover,
+    .star-btn.hovered,
+    .star-btn.selected {
+      color: #f59e0b;
+      transform: scale(1.15);
+    }
+    html:not(.dark) .star-btn {
+      color: #c8c4b8;
+    }
+    html:not(.dark) .star-btn:hover,
+    html:not(.dark) .star-btn.hovered,
+    html:not(.dark) .star-btn.selected {
+      color: #f59e0b;
+    }
+
+    /* Quick reaction buttons */
+    .reaction-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 5px 10px;
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.04);
+      font-size: 13px;
+      cursor: pointer;
+      color: #94a3b8;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+    .reaction-btn:hover {
+      background: rgba(255,255,255,0.08);
+      border-color: rgba(255,255,255,0.2);
+      color: #e2e8f0;
+    }
+    .reaction-btn.thumb-up:hover,
+    .reaction-btn.thumb-up.active {
+      background: rgba(16,185,129,0.12);
+      border-color: rgba(16,185,129,0.3);
+      color: #10b981;
+    }
+    .reaction-btn.thumb-down:hover,
+    .reaction-btn.thumb-down.active {
+      background: rgba(239,68,68,0.12);
+      border-color: rgba(239,68,68,0.3);
+      color: #ef4444;
+    }
+    html:not(.dark) .reaction-btn {
+      border-color: rgba(0,0,0,0.1);
+      background: rgba(0,0,0,0.03);
+      color: #64748b;
+    }
+    html:not(.dark) .reaction-btn:hover {
+      background: rgba(0,0,0,0.07);
+    }
+
+    /* Feedback comment textarea */
+    .feedback-comment {
+      width: 100%;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 12px;
+      color: #e2e8f0;
+      resize: vertical;
+      min-height: 64px;
+      transition: border-color 0.15s ease;
+      font-family: inherit;
+      outline: none;
+    }
+    .feedback-comment:focus {
+      border-color: rgba(99,102,241,0.5);
+    }
+    html:not(.dark) .feedback-comment {
+      background: rgba(0,0,0,0.02);
+      border-color: rgba(0,0,0,0.1);
+      color: #1e293b;
+    }
+    html:not(.dark) .feedback-comment:focus {
+      border-color: rgba(99,102,241,0.4);
+    }
+
+    /* Submitted feedback card */
+    .feedback-card {
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      margin-bottom: 8px;
+    }
+    html:not(.dark) .feedback-card {
+      background: rgba(0,0,0,0.02);
+      border-color: rgba(0,0,0,0.06);
+    }
+
+    /* Feedback star display (read-only) */
+    .feedback-stars {
+      color: #f59e0b;
+      letter-spacing: 1px;
+      font-size: 13px;
+    }
+    .feedback-stars .empty-star {
+      color: #4a4a48;
+    }
+    html:not(.dark) .feedback-stars .empty-star {
+      color: #c8c4b8;
+    }
+
+    /* Trace list feedback badge */
+    .trace-feedback-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      font-size: 10px;
+      color: #f59e0b;
+      background: rgba(245,158,11,0.1);
+      border: 1px solid rgba(245,158,11,0.2);
+      border-radius: 10px;
+      padding: 1px 5px;
+    }
+
+    /* Recent Feedback panel in Overview */
+    .recent-feedback-card {
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      cursor: pointer;
+      transition: background 0.12s ease;
+    }
+    .recent-feedback-card:last-child {
+      border-bottom: none;
+    }
+    .recent-feedback-card:hover {
+      background: rgba(255,255,255,0.02);
+    }
+    html:not(.dark) .recent-feedback-card {
+      border-bottom-color: rgba(0,0,0,0.05);
+    }
+    html:not(.dark) .recent-feedback-card:hover {
+      background: rgba(0,0,0,0.02);
     }

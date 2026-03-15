@@ -304,6 +304,7 @@ function switchView(view) {
     setTimeout(() => { loadAgentActivity(); loadOverviewAgents(); }, 300);
     setTimeout(() => { loadActivityTimeline(); loadTrendChart(_trendHours || 24); loadOverviewCharts(); }, 600);
     setTimeout(() => { loadOverviewGraph(); }, 1200);
+    setTimeout(() => { loadRecentFeedback(); }, 800);
   }
   else if (view === 'traces') { loadTraces(); }
   else if (view === 'sessions') { loadSessions(); }
@@ -978,6 +979,7 @@ function renderTraceRow(trace, compact = false) {
           ${!agentName && trace.service_name ? `<span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">${escHtml(trace.service_name)}</span>` : ''}
           ${hasErrors ? `<span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-red-500/10 text-red-300 border border-red-500/20">${trace.error_count || 1} error${(trace.error_count || 1) > 1 ? 's' : ''}</span>` : ''}
           ${isEmpty ? '<span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-slate-700/40 text-slate-500 border border-slate-600/30">empty</span>' : ''}
+          ${_feedbackRatedTraces.has(trace.trace_id) ? `<span class="trace-feedback-badge" title="Has feedback">&#9733; ${_tracesFeedbackRatings.has(trace.trace_id) ? _tracesFeedbackRatings.get(trace.trace_id).toFixed(1) : ''}</span>` : ''}
         </div>
         <div class="text-xs text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
           <span>${timeAgo}</span>
@@ -1098,6 +1100,11 @@ let _tracesDurationFilter = 'all'; // 'all' | '>1s' | '>5s' | '>10s'
 let _tracesTimeFilter = 'all';    // 'all' | '1h' | '6h' | '24h' | '7d'
 let _tracesHideEmpty = false;     // hide traces with span_count === 0
 
+// Feedback-related state
+let _feedbackRatedTraces = new Set();         // trace IDs that have feedback (for badge display)
+let _tracesFeedbackRatings = new Map();       // trace_id -> avg rating (for rating filter)
+let _selectedStarRating = 0;                  // currently selected star rating in the feedback form
+
 async function loadTraces() {
   renderQuickFilterBar();
   const service = document.getElementById('filter-service').value.trim() || null;
@@ -1198,6 +1205,10 @@ function applyClientFilters(traces) {
   const durationThresh = { '>1s': 1000, '>5s': 5000, '>10s': 10000 };
   const minDurationMs = _tracesDurationFilter !== 'all' ? (durationThresh[_tracesDurationFilter] || 0) : 0;
 
+  // Feedback filters
+  const hasFeedbackFilter = document.getElementById('filter-has-feedback')?.checked || false;
+  const ratingFilter = document.getElementById('filter-rating')?.value || '';
+
   return traces.filter(t => {
     // Hide empty traces toggle
     if (_tracesHideEmpty && (t.span_count || 0) === 0) return false;
@@ -1205,6 +1216,11 @@ function applyClientFilters(traces) {
     // Status filter
     if (_tracesStatusFilter === 'error' && !(t.has_errors === true || t.has_errors === 1)) return false;
     if (_tracesStatusFilter === 'success' && (t.has_errors === true || t.has_errors === 1)) return false;
+
+    // Feedback filters (client-side using cached set)
+    if (hasFeedbackFilter && !_feedbackRatedTraces.has(t.trace_id)) return false;
+    if (ratingFilter === 'bad' && (!_feedbackRatedTraces.has(t.trace_id) || (_tracesFeedbackRatings.get(t.trace_id) || 5) > 2)) return false;
+    if (ratingFilter === 'good' && (!_feedbackRatedTraces.has(t.trace_id) || (_tracesFeedbackRatings.get(t.trace_id) || 0) < 4)) return false;
 
     // Duration filter
     if (minDurationMs > 0 && (t.duration_ms || 0) < minDurationMs) return false;
@@ -1337,6 +1353,10 @@ function clearQuickFilters() {
 function clearFilters() {
   document.getElementById('filter-service').value = '';
   document.getElementById('filter-errors').checked = false;
+  const fbFilter = document.getElementById('filter-has-feedback');
+  if (fbFilter) fbFilter.checked = false;
+  const ratingFilter = document.getElementById('filter-rating');
+  if (ratingFilter) ratingFilter.value = '';
   document.getElementById('filter-date-from').value = '';
   document.getElementById('filter-date-to').value = '';
   document.getElementById('filter-tokens-min').value = '';
@@ -1360,6 +1380,221 @@ function paginateTraces(dir) {
 }
 
 // =========================================================================
+// Feedback UI
+// =========================================================================
+
+/** Star label text based on rating value */
+const STAR_LABELS = { 1: 'Poor', 2: 'Fair', 3: 'OK', 4: 'Good', 5: 'Excellent' };
+
+/** Highlight stars up to `n` on hover */
+function starHover(n) {
+  document.querySelectorAll('#star-rating .star-btn').forEach(btn => {
+    const val = parseInt(btn.dataset.value, 10);
+    btn.classList.toggle('hovered', val <= n);
+    btn.classList.remove('selected');
+  });
+  const label = document.getElementById('star-label');
+  if (label) label.textContent = STAR_LABELS[n] || '';
+}
+
+/** Reset star hover state, restore selected state */
+function starHoverReset() {
+  document.querySelectorAll('#star-rating .star-btn').forEach(btn => {
+    const val = parseInt(btn.dataset.value, 10);
+    btn.classList.remove('hovered');
+    btn.classList.toggle('selected', val <= _selectedStarRating);
+  });
+  const label = document.getElementById('star-label');
+  if (label) label.textContent = _selectedStarRating > 0 ? (STAR_LABELS[_selectedStarRating] || '') : '';
+}
+
+/** Select a star rating */
+function selectStar(n) {
+  _selectedStarRating = n;
+  starHoverReset();
+}
+
+/** Render star string for display (read-only) */
+function renderStars(rating, maxStars = 5) {
+  let html = '<span class="feedback-stars">';
+  for (let i = 1; i <= maxStars; i++) {
+    if (i <= rating) {
+      html += '&#9733;';
+    } else {
+      html += '<span class="empty-star">&#9733;</span>';
+    }
+  }
+  html += '</span>';
+  return html;
+}
+
+/** Submit quick feedback (thumbs up/down) */
+async function submitQuickFeedback(rating) {
+  if (!currentTraceId) return;
+  _selectedStarRating = rating;
+  await submitFeedback();
+}
+
+/** Submit feedback from the form */
+async function submitFeedback() {
+  if (!currentTraceId) return;
+  if (_selectedStarRating < 1 || _selectedStarRating > 5) {
+    const statusEl = document.getElementById('feedback-submit-status');
+    if (statusEl) {
+      statusEl.textContent = 'Please select a star rating first.';
+      statusEl.classList.remove('hidden');
+      statusEl.style.color = '#ef4444';
+    }
+    return;
+  }
+  const comment = (document.getElementById('feedback-comment')?.value || '').trim() || null;
+  const statusEl = document.getElementById('feedback-submit-status');
+
+  try {
+    await apiFetch(`/v1/traces/${currentTraceId}/feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rating: _selectedStarRating, comment }),
+    });
+
+    // Track in client state
+    _feedbackRatedTraces.add(currentTraceId);
+    const existingRating = _tracesFeedbackRatings.get(currentTraceId);
+    // Simple update: use new rating (average will be corrected on next page reload)
+    _tracesFeedbackRatings.set(currentTraceId, _selectedStarRating);
+
+    // Clear form
+    if (document.getElementById('feedback-comment')) document.getElementById('feedback-comment').value = '';
+    _selectedStarRating = 0;
+    starHoverReset();
+
+    // Highlight thumbs
+    if (comment !== null || true) {
+      // Just reload the feedback list
+      await loadTraceFeedback(currentTraceId);
+    }
+
+    if (statusEl) {
+      statusEl.textContent = 'Feedback submitted!';
+      statusEl.classList.remove('hidden');
+      statusEl.style.color = '#10b981';
+      setTimeout(() => statusEl.classList.add('hidden'), 3000);
+    }
+  } catch (err) {
+    if (statusEl) {
+      statusEl.textContent = 'Failed to submit feedback.';
+      statusEl.classList.remove('hidden');
+      statusEl.style.color = '#ef4444';
+    }
+  }
+}
+
+/** Load and render existing feedback for a trace */
+async function loadTraceFeedback(traceId) {
+  const listEl = document.getElementById('feedback-list');
+  if (!listEl) return;
+
+  try {
+    const feedbacks = await apiFetch(`/v1/traces/${traceId}/feedback`);
+    renderFeedbackList(feedbacks, listEl);
+
+    // Update average badge
+    const avgBadge = document.getElementById('feedback-avg-badge');
+    if (avgBadge && feedbacks.length > 0) {
+      const avg = feedbacks.reduce((s, f) => s + f.rating, 0) / feedbacks.length;
+      avgBadge.textContent = `Avg: ${avg.toFixed(1)} (${feedbacks.length})`;
+      avgBadge.classList.remove('hidden');
+      // Update client-side ratings
+      _feedbackRatedTraces.add(traceId);
+      _tracesFeedbackRatings.set(traceId, avg);
+    } else if (avgBadge) {
+      avgBadge.classList.add('hidden');
+    }
+  } catch (_) {
+    listEl.innerHTML = '<p class="text-xs text-slate-500">Could not load existing feedback.</p>';
+  }
+}
+
+/** Render the list of feedback entries */
+function renderFeedbackList(feedbacks, containerEl) {
+  if (!feedbacks || feedbacks.length === 0) {
+    containerEl.innerHTML = '<p class="text-xs text-slate-600 italic">No feedback yet — be the first to rate this trace.</p>';
+    return;
+  }
+
+  containerEl.innerHTML = feedbacks.map(fb => {
+    const timeStr = fb.created_at ? formatTimeAgo(fb.created_at) : '';
+    const commentHtml = fb.comment
+      ? `<p class="text-xs text-slate-400 mt-1">${escHtml(fb.comment)}</p>`
+      : '';
+    return `
+      <div class="feedback-card">
+        <div class="flex items-center justify-between">
+          ${renderStars(fb.rating)}
+          <span class="text-[10px] text-slate-600">${timeStr}</span>
+        </div>
+        ${commentHtml}
+      </div>`;
+  }).join('');
+}
+
+/** Load recent feedback for the Overview panel */
+async function loadRecentFeedback() {
+  const listEl = document.getElementById('recent-feedback-list');
+  const avgEl = document.getElementById('feedback-avg-stat');
+  if (!listEl) return;
+
+  try {
+    const [feedbacks, summary] = await Promise.all([
+      apiFetch('/v1/feedback/recent?limit=5'),
+      apiFetch('/v1/feedback/summary'),
+    ]);
+
+    // Update avg stat
+    if (avgEl && summary.total_count > 0 && summary.avg_rating !== null) {
+      avgEl.textContent = `Avg ${summary.avg_rating.toFixed(1)} across ${summary.total_count} rating${summary.total_count !== 1 ? 's' : ''}`;
+    } else if (avgEl) {
+      avgEl.textContent = '';
+    }
+
+    // Populate feedback rated traces set (for trace list badges)
+    if (summary.low_rating_traces) {
+      summary.low_rating_traces.forEach(r => {
+        _feedbackRatedTraces.add(r.trace_id);
+        _tracesFeedbackRatings.set(r.trace_id, r.avg_rating);
+      });
+    }
+
+    if (!feedbacks || feedbacks.length === 0) {
+      listEl.innerHTML = '<div class="px-4 py-6 text-center text-xs text-slate-600">No feedback yet. Rate a trace to see it here.</div>';
+      return;
+    }
+
+    listEl.innerHTML = feedbacks.map(fb => {
+      const timeStr = fb.created_at ? formatTimeAgo(fb.created_at) : '';
+      const shortId = (fb.trace_id || '').substring(0, 12);
+      const commentHtml = fb.comment
+        ? `<span class="text-xs text-slate-400 truncate max-w-xs">${escHtml(fb.comment.substring(0, 80))}${fb.comment.length > 80 ? '…' : ''}</span>`
+        : `<span class="text-xs text-slate-600 italic">No comment</span>`;
+
+      return `
+        <div class="recent-feedback-card" onclick="openTrace('${escHtml(fb.trace_id || '')}')" title="Open trace ${escHtml(fb.trace_id || '')}">
+          <div class="flex-shrink-0">${renderStars(fb.rating)}</div>
+          <div class="flex-1 min-w-0">
+            ${commentHtml}
+            <div class="flex items-center gap-2 mt-1">
+              <span class="text-[10px] text-indigo-400 font-mono">${escHtml(shortId)}…</span>
+              <span class="text-[10px] text-slate-600">${timeStr}</span>
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+  } catch (_) {
+    listEl.innerHTML = '<div class="px-4 py-6 text-center text-xs text-slate-600">Could not load feedback.</div>';
+  }
+}
+
+// =========================================================================
 // Trace Detail
 // =========================================================================
 async function openTrace(traceId) {
@@ -1376,6 +1611,17 @@ async function openTrace(traceId) {
   // Reset to timeline tab
   showDetailTab('timeline');
 
+  // Reset feedback form state
+  _selectedStarRating = 0;
+  const starRating = document.getElementById('star-rating');
+  if (starRating) starRating.querySelectorAll('.star-btn').forEach(b => b.classList.remove('selected', 'hovered'));
+  const commentEl = document.getElementById('feedback-comment');
+  if (commentEl) commentEl.value = '';
+  const statusEl = document.getElementById('feedback-submit-status');
+  if (statusEl) statusEl.classList.add('hidden');
+  const starLabel = document.getElementById('star-label');
+  if (starLabel) starLabel.textContent = '';
+
   try {
     const data = await apiFetch(`/v1/traces/${traceId}`);
     currentTraceData = data;
@@ -1383,6 +1629,9 @@ async function openTrace(traceId) {
   } catch (err) {
     document.getElementById('timeline-container').innerHTML = `<div class="text-center text-red-400/60 text-sm py-8">Failed to load trace: ${escHtml(err.message)}</div>`;
   }
+
+  // Load existing feedback (non-blocking)
+  loadTraceFeedback(traceId).catch(() => {});
 }
 
 function renderTraceDetail(data) {
@@ -2857,6 +3106,7 @@ function refreshCurrentView() {
     loadTrendChart(_trendHours || 24);
     loadOverviewCharts();
     loadOverviewGraph();
+    loadRecentFeedback();
   }
   else if (currentView === 'traces') { loadTraces(); }
   else if (currentView === 'cost') { loadCostData(); }
@@ -3766,6 +4016,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   setTimeout(() => {
     loadOverviewGraph();
   }, 3000);
+  // Load recent feedback after 2s
+  setTimeout(() => {
+    loadRecentFeedback();
+  }, 2000);
   startAutoRefresh();
 
   // Connect WebSocket for real-time updates
@@ -3777,6 +4031,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (e.key === 'Enter') { traceOffset = 0; loadTraces(); }
   });
   document.getElementById('filter-errors').addEventListener('change', () => { traceOffset = 0; loadTraces(); });
+  const fbHasFeedback = document.getElementById('filter-has-feedback');
+  if (fbHasFeedback) fbHasFeedback.addEventListener('change', () => { traceOffset = 0; loadTraces(); });
+  const fbRating = document.getElementById('filter-rating');
+  if (fbRating) fbRating.addEventListener('change', () => { traceOffset = 0; loadTraces(); });
 
   // Persist scroll position on scroll
   const mainEl = document.querySelector('main');
