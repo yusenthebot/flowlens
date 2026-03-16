@@ -1,11 +1,27 @@
 # Agent Status — 2026-03-16
 
-## Cycle 29: Evaluation Engine — IN PROGRESS (Beta, 2026-03-16)
+## Cycle 29: Evaluation Engine — COMPLETE (Beta, 2026-03-16)
 
 **Beta**: Storage + API layer for evaluations and datasets
-- Branch: `feat/beta-eval-api`
-- Task: Storage schema v8 migration, evaluation/dataset CRUD, API routes, CLI commands
-- Status: **in_progress**
+- Commit: b11eaf3
+- Branch: `worktree-agent-a760862d`
+- Tests: 1247 passing (39 new evaluation tests)
+- CI: ruff, black, mypy all clean
+- Delivered:
+  - `storage.py`: schema v8 migration (evaluations, datasets, dataset_items tables);
+    `UNIQUE (dataset_id, trace_id)` for idempotent `add_to_dataset`; 8 new methods:
+    `save_evaluation`, `get_evaluations_for_trace`, `list_evaluations`,
+    `create_dataset`, `add_to_dataset`, `get_dataset`, `list_datasets`, `get_dataset_traces`
+  - `routes/evaluations.py`: 8 endpoints — run evaluator, list results, per-trace evals,
+    dataset CRUD, batch dataset evaluation, list evaluators;
+    4 built-in evaluators: `cost_threshold`, `latency_threshold`, `no_errors`, `token_budget`
+  - `routes/__init__.py`: registered `create_evaluations_router`
+  - `cli.py`: `flowlens eval run` and `flowlens eval gate` subcommands
+  - `tests/test_evaluations.py`: 39 tests covering storage, all 8 routes, and CLI gate
+  - `tests/test_server.py`: updated `test_schema_version_is_set` to expect v8
+- Files: `flowlens/server/storage.py`, `flowlens/server/routes/evaluations.py`,
+  `flowlens/server/routes/__init__.py`, `flowlens/cli.py`,
+  `tests/test_evaluations.py`, `tests/test_server.py`
 
 ---
 
