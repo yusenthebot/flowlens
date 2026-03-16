@@ -105,6 +105,12 @@ DEMOS: list[tuple[str, str, str, bool]] = [
         False,
     ),
     (
+        "Evaluation Pipeline",
+        "examples/evaluation_pipeline.py",
+        "Comprehensive evaluation framework with tests and datasets",
+        False,
+    ),
+    (
         "Dashboard (server_demo)",
         "examples/server_demo.py",
         "Live dashboard with sample data — blocks until Ctrl-C",
