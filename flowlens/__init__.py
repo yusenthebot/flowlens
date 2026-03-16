@@ -22,6 +22,17 @@ Usage:
 
 __version__ = "1.0.0"
 
+from flowlens.evaluation import (
+    ContainsKeywords,
+    CostThreshold,
+    EvalResult,
+    EvaluationRunner,
+    Evaluator,
+    ExactMatch,
+    JsonSchemaValid,
+    LatencyThreshold,
+    LLMJudge,
+)
 from flowlens.plugins import BasePlugin, PluginRegistry, discover_plugins, load_plugin
 from flowlens.sdk.auto_instrument import auto_instrument
 from flowlens.sdk.context import (
@@ -74,4 +85,14 @@ __all__ = [
     "PluginRegistry",
     "discover_plugins",
     "load_plugin",
+    # Evaluation
+    "EvalResult",
+    "Evaluator",
+    "ExactMatch",
+    "ContainsKeywords",
+    "JsonSchemaValid",
+    "CostThreshold",
+    "LatencyThreshold",
+    "LLMJudge",
+    "EvaluationRunner",
 ]
