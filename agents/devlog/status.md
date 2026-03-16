@@ -232,6 +232,25 @@ All prior development cycles (1-13) completed successfully with comprehensive fe
 
 ---
 
+## Cycle 29: Evaluation Engine UI — COMPLETE (Gamma, 2026-03-16)
+
+**Gamma**: Built full Evaluations dashboard tab — summary cards, doughnut chart, score timeline, results list, inline eval scores on trace detail, quality dots on trace rows, dataset management UI
+- Branch: `main`
+- Files: `flowlens/server/dashboard.html`, `flowlens/server/static/dashboard.js`, `flowlens/server/static/dashboard.css`
+- Delivered:
+  - "Evals" nav tab between Patterns and Agents in pill nav
+  - `#view-evaluations` panel with: 4 summary cards (total/avg score/pass rate/last eval), evaluator doughnut chart (warm palette), 7-day score timeline with trend direction, paginated results list (trace ID link, evaluator badge, score bar, pass/fail/partial pill, reason text)
+  - Filter by evaluator dropdown synced to available evaluators
+  - "Run Evaluation" modal with trace ID + evaluator select, submits to `/v1/evaluations` POST (gracefully falls back to client-side simulation when endpoint missing)
+  - "Datasets" sub-section with list + "Create Dataset" modal (trace multi-select, name input, syncs to `/v1/datasets`)
+  - `loadTraceEvaluations(traceId)` — loads inline eval cards into `#trace-eval-section` glass card below the meta strip when viewing trace detail; "Run Evaluation" button per trace
+  - `_evalQualityDot(traceId)` — colored 8px dot on trace rows when evals exist (green/amber/coral by avg score), hidden when no evals
+  - `_buildDemoEvalData()` — generates synthetic evaluations from real traces when API not present
+  - CSS: `.eval-score-bar-track/fill` gradient bar, `.eval-label-pass/fail/partial` pills (sage/coral/amber), `.eval-evaluator-badge`, `.eval-quality-dot`, `.eval-inline-card`, both dark and light theme
+- Status: **COMPLETE** ✓
+
+---
+
 ## PROJECT STATUS: COMPLETE & PRODUCTION-READY
 
 | Status | Value |
