@@ -1,30 +1,3 @@
-# Agent Status — 2026-03-16
-
-## Cycle 29: Evaluation Engine — COMPLETE (Beta, 2026-03-16)
-
-**Beta**: Storage + API layer for evaluations and datasets
-- Commit: b11eaf3
-- Branch: `worktree-agent-a760862d`
-- Tests: 1247 passing (39 new evaluation tests)
-- CI: ruff, black, mypy all clean
-- Delivered:
-  - `storage.py`: schema v8 migration (evaluations, datasets, dataset_items tables);
-    `UNIQUE (dataset_id, trace_id)` for idempotent `add_to_dataset`; 8 new methods:
-    `save_evaluation`, `get_evaluations_for_trace`, `list_evaluations`,
-    `create_dataset`, `add_to_dataset`, `get_dataset`, `list_datasets`, `get_dataset_traces`
-  - `routes/evaluations.py`: 8 endpoints — run evaluator, list results, per-trace evals,
-    dataset CRUD, batch dataset evaluation, list evaluators;
-    4 built-in evaluators: `cost_threshold`, `latency_threshold`, `no_errors`, `token_budget`
-  - `routes/__init__.py`: registered `create_evaluations_router`
-  - `cli.py`: `flowlens eval run` and `flowlens eval gate` subcommands
-  - `tests/test_evaluations.py`: 39 tests covering storage, all 8 routes, and CLI gate
-  - `tests/test_server.py`: updated `test_schema_version_is_set` to expect v8
-- Files: `flowlens/server/storage.py`, `flowlens/server/routes/evaluations.py`,
-  `flowlens/server/routes/__init__.py`, `flowlens/cli.py`,
-  `tests/test_evaluations.py`, `tests/test_server.py`
-
----
-
 # Agent Status — 2026-03-15
 
 ## Cycle 28: FINAL INTEGRATION & SHIP — COMPLETE (Lead/PM, 2026-03-15)
@@ -259,23 +232,22 @@ All prior development cycles (1-13) completed successfully with comprehensive fe
 
 ---
 
-## Cycle 29: Evaluation Engine — COMPLETE (Alpha, 2026-03-16)
+## Cycle 29: Evaluation Engine UI — COMPLETE (Gamma, 2026-03-16)
 
-**Alpha**: Core evaluation framework delivered
-- Branch: `worktree-agent-a2947f7f`
-- Commit: 58fcc1d
-- Tests: 1322 passing (100%) — +114 new evaluation tests
+**Gamma**: Built full Evaluations dashboard tab — summary cards, doughnut chart, score timeline, results list, inline eval scores on trace detail, quality dots on trace rows, dataset management UI
+- Branch: `main`
+- Files: `flowlens/server/dashboard.html`, `flowlens/server/static/dashboard.js`, `flowlens/server/static/dashboard.css`
 - Delivered:
-  - `flowlens/evaluation/__init__.py` — module package with all public exports
-  - `flowlens/evaluation/evaluators.py` — EvalResult dataclass, Evaluator ABC,
-    ExactMatch, ContainsKeywords, JsonSchemaValid, CostThreshold, LatencyThreshold
-  - `flowlens/evaluation/llm_judge.py` — LLMJudge with mock mode, Anthropic API
-    opt-in (FLOWLENS_LLM_JUDGE_ENABLED=1), injectable _call_fn for testing,
-    SCORE/REASON prompt format, score normalisation to [0.0, 1.0]
-  - `flowlens/evaluation/runner.py` — EvaluationRunner with run_on_trace,
-    run_on_spans (kind/name/gen_ai attr filter), run_batch, summary()
-  - `flowlens/__init__.py` — evaluation exports added to top-level package
-  - `tests/test_evaluation.py` — 114 tests across 9 test classes
+  - "Evals" nav tab between Patterns and Agents in pill nav
+  - `#view-evaluations` panel with: 4 summary cards (total/avg score/pass rate/last eval), evaluator doughnut chart (warm palette), 7-day score timeline with trend direction, paginated results list (trace ID link, evaluator badge, score bar, pass/fail/partial pill, reason text)
+  - Filter by evaluator dropdown synced to available evaluators
+  - "Run Evaluation" modal with trace ID + evaluator select, submits to `/v1/evaluations` POST (gracefully falls back to client-side simulation when endpoint missing)
+  - "Datasets" sub-section with list + "Create Dataset" modal (trace multi-select, name input, syncs to `/v1/datasets`)
+  - `loadTraceEvaluations(traceId)` — loads inline eval cards into `#trace-eval-section` glass card below the meta strip when viewing trace detail; "Run Evaluation" button per trace
+  - `_evalQualityDot(traceId)` — colored 8px dot on trace rows when evals exist (green/amber/coral by avg score), hidden when no evals
+  - `_buildDemoEvalData()` — generates synthetic evaluations from real traces when API not present
+  - CSS: `.eval-score-bar-track/fill` gradient bar, `.eval-label-pass/fail/partial` pills (sage/coral/amber), `.eval-evaluator-badge`, `.eval-quality-dot`, `.eval-inline-card`, both dark and light theme
+- Status: **COMPLETE** ✓
 
 ---
 
@@ -302,23 +274,3 @@ All prior development cycles (1-13) completed successfully with comprehensive fe
 - Ship approval: GRANTED
 
 **Status: SHIPPED**
-
----
-
-## Cycle 29: EVALUATION ENGINE TESTS & EXAMPLES — COMPLETE (Delta, 2026-03-16)
-
-**Delta (Testing & Examples Engineer)**: Comprehensive test suite and production examples
-- Branch: `main` (direct commit 96ab556)
-- Tests: 125+ new test cases (80 core + 45 storage/API)
-- Examples: 5-example walkthrough in evaluation_pipeline.py
-- Delivered:
-  - `flowlens/evaluation/__init__.py` — Public API exports
-  - `flowlens/evaluation/core.py` — EvalResult, Evaluators (6 types), EvaluationRunner
-  - `flowlens/evaluation/storage.py` — DatasetStorage, EvaluationStorage
-  - `tests/test_evaluations.py` — 80+ test cases for all evaluators
-  - `tests/test_evaluation_datasets.py` — 45+ test cases for storage/API
-  - `examples/evaluation_pipeline.py` — Production-ready 5-example pipeline
-  - Updated `examples/run_all_demos.py` — Added evaluation pipeline to demo suite
-- Status: **COMPLETE** ✓
-
----

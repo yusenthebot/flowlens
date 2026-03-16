@@ -159,6 +159,10 @@
         Compare
         <span id="compare-badge" class="tab-count-badge hidden" aria-hidden="true">0</span>
       </button>
+      <button onclick="switchView('evaluations')" data-tab="evaluations" class="tab-btn pill-tab tab-inactive ripple-btn" aria-label="Evaluations">
+        Evals
+        <span id="tab-badge-evals" class="tab-count-badge" style="display:none;" aria-hidden="true"></span>
+      </button>
       <button onclick="switchView('agents')" data-tab="agents" class="tab-btn pill-tab tab-inactive ripple-btn" aria-label="Agents">
         Agents
         <span id="tab-badge-agents" class="tab-count-badge" style="display:none;" aria-hidden="true"></span>
@@ -624,6 +628,9 @@
           </div>
         </div>
       </div>
+      <!-- Inline Evaluations Section (populated by loadTraceEvaluations) -->
+      <div id="trace-eval-section" class="glass rounded-xl p-4 mb-4 hidden"></div>
+
       <!-- Timeline Panel -->
       <div id="detail-timeline" class="detail-panel">
         <div class="glass rounded-xl overflow-hidden">
@@ -857,6 +864,86 @@
       <div id="compare-content" class="hidden"></div>
     </div>
 
+    <!-- EVALUATIONS VIEW -->
+    <div id="view-evaluations" class="view-panel hidden">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="text-sm font-semibold text-white">Evaluations</h2>
+          <p class="text-[11px] text-slate-500 mt-0.5">Quality scores and automated evaluation results</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <select id="eval-evaluator-filter" class="filter-select-v14 text-xs" onchange="loadEvaluations()">
+            <option value="">All evaluators</option>
+          </select>
+          <button onclick="openRunEvalDialog()" class="ripple-btn px-3 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition">Run Evaluation</button>
+          <button onclick="loadEvaluations()" class="ripple-btn px-3 py-1.5 text-xs font-medium text-slate-400 bg-surface-100 rounded-lg border border-white/10 hover:border-white/20 hover:text-slate-200 transition">Refresh</button>
+        </div>
+      </div>
+
+      <!-- Summary Cards -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6" id="eval-summary-cards">
+        <div class="glass rounded-xl p-4 text-center">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Total Evals</div>
+          <div class="text-2xl font-bold text-white" id="eval-stat-total"><div class="skeleton skeleton-text w-12 mx-auto"></div></div>
+        </div>
+        <div class="glass rounded-xl p-4 text-center">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Avg Score</div>
+          <div class="text-2xl font-bold" id="eval-stat-avg-score"><div class="skeleton skeleton-text w-12 mx-auto"></div></div>
+        </div>
+        <div class="glass rounded-xl p-4 text-center">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Pass Rate</div>
+          <div class="text-2xl font-bold" id="eval-stat-pass-rate"><div class="skeleton skeleton-text w-12 mx-auto"></div></div>
+        </div>
+        <div class="glass rounded-xl p-4 text-center">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Last Eval</div>
+          <div class="text-sm font-medium text-slate-300" id="eval-stat-last-time"><div class="skeleton skeleton-text w-16 mx-auto"></div></div>
+        </div>
+      </div>
+
+      <!-- Charts Row -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        <!-- Evaluator Breakdown Doughnut -->
+        <div class="glass rounded-xl p-4">
+          <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Evaluator Breakdown</div>
+          <div class="flex items-center justify-center" style="height:200px">
+            <canvas id="eval-breakdown-chart"></canvas>
+          </div>
+        </div>
+        <!-- Score Timeline Line -->
+        <div class="glass rounded-xl p-4">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Score Trend (7 days)</span>
+            <span id="eval-trend-dir" class="text-[11px] font-medium text-slate-500"></span>
+          </div>
+          <div style="height:200px">
+            <canvas id="eval-timeline-chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Results List -->
+      <div class="glass rounded-xl overflow-hidden mb-6">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-white/5">
+          <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Evaluation Results</span>
+          <span class="text-[11px] text-slate-600" id="eval-results-count"></span>
+        </div>
+        <div id="eval-results-list">
+          <div class="p-8 text-center text-slate-600 text-sm">No evaluations yet. Run your first evaluation above.</div>
+        </div>
+      </div>
+
+      <!-- Datasets Section -->
+      <div class="glass rounded-xl p-4">
+        <div class="flex items-center justify-between mb-4">
+          <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Datasets</span>
+          <button onclick="openCreateDatasetModal()" class="ripple-btn px-2.5 py-1 text-[10px] font-medium text-slate-400 bg-surface-100 rounded border border-white/10 hover:border-white/20 hover:text-slate-200 transition">+ Create Dataset</button>
+        </div>
+        <div id="eval-datasets-list">
+          <div class="text-[11px] text-slate-600 text-center py-4">No datasets yet. Create a dataset to group traces for batch evaluation.</div>
+        </div>
+      </div>
+    </div>
+
     <!-- AGENTS VIEW -->
     <div id="view-agents" class="view-panel hidden">
       <div class="flex items-center justify-between mb-4">
@@ -914,6 +1001,67 @@
       <!-- Session Timeline Panel (expanded inline) -->
       <div id="session-timeline-panel" class="hidden mt-4"></div>
     </div>
+
+  <!-- Run Evaluation Modal -->
+  <div id="run-eval-modal" class="shortcuts-modal-overlay hidden" onclick="if(event.target===this)closeRunEvalDialog()">
+    <div class="shortcuts-modal glass rounded-2xl p-6 fade-in" style="max-width:480px">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-base font-semibold text-white">Run Evaluation</h3>
+        <button onclick="closeRunEvalDialog()" class="text-slate-500 hover:text-slate-300 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="text-[11px] text-slate-400 uppercase tracking-wider block mb-1.5">Trace ID</label>
+          <input id="run-eval-trace-id" type="text" class="search-input-v14 w-full text-sm" placeholder="Enter trace ID or leave blank for latest" />
+        </div>
+        <div>
+          <label class="text-[11px] text-slate-400 uppercase tracking-wider block mb-1.5">Evaluator</label>
+          <select id="run-eval-evaluator" class="filter-select-v14 w-full text-sm">
+            <option value="coherence">Coherence — logical flow and consistency</option>
+            <option value="helpfulness">Helpfulness — task completion quality</option>
+            <option value="safety">Safety — harmful content check</option>
+            <option value="accuracy">Accuracy — factual correctness</option>
+            <option value="conciseness">Conciseness — response brevity</option>
+          </select>
+        </div>
+        <div id="run-eval-status" class="hidden text-xs text-slate-500"></div>
+        <div class="flex gap-2 justify-end pt-2">
+          <button onclick="closeRunEvalDialog()" class="ripple-btn px-4 py-2 text-xs font-medium text-slate-400 bg-surface-100 rounded-lg border border-white/10 hover:border-white/20 hover:text-slate-200 transition">Cancel</button>
+          <button onclick="submitRunEval()" class="ripple-btn px-4 py-2 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition">Run Evaluation</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Dataset Modal -->
+  <div id="create-dataset-modal" class="shortcuts-modal-overlay hidden" onclick="if(event.target===this)closeCreateDatasetModal()">
+    <div class="shortcuts-modal glass rounded-2xl p-6 fade-in" style="max-width:480px">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-base font-semibold text-white">Create Dataset</h3>
+        <button onclick="closeCreateDatasetModal()" class="text-slate-500 hover:text-slate-300 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="text-[11px] text-slate-400 uppercase tracking-wider block mb-1.5">Dataset Name</label>
+          <input id="create-dataset-name" type="text" class="search-input-v14 w-full text-sm" placeholder="e.g. production-qa-aug-2026" />
+        </div>
+        <div>
+          <label class="text-[11px] text-slate-400 uppercase tracking-wider block mb-1.5">Select Traces</label>
+          <div id="create-dataset-traces" class="max-h-48 overflow-y-auto space-y-1 border border-white/10 rounded-lg p-2">
+            <div class="text-xs text-slate-500 p-2">Loading traces...</div>
+          </div>
+        </div>
+        <div class="flex gap-2 justify-end pt-2">
+          <button onclick="closeCreateDatasetModal()" class="ripple-btn px-4 py-2 text-xs font-medium text-slate-400 bg-surface-100 rounded-lg border border-white/10 hover:border-white/20 hover:text-slate-200 transition">Cancel</button>
+          <button onclick="submitCreateDataset()" class="ripple-btn px-4 py-2 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition">Create Dataset</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Agent Detail Modal -->
   <div id="agent-detail-modal" class="shortcuts-modal-overlay hidden" onclick="if(event.target===this)closeAgentDetailModal()">
