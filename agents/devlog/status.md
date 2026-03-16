@@ -232,12 +232,23 @@ All prior development cycles (1-13) completed successfully with comprehensive fe
 
 ---
 
-## Cycle 29: Evaluation Engine — IN PROGRESS (Alpha, 2026-03-16)
+## Cycle 29: Evaluation Engine — COMPLETE (Alpha, 2026-03-16)
 
-**Alpha**: Building core evaluation framework — `flowlens/evaluation/` module
-- Branch: `feat/alpha-evaluation-engine`
-- Status: In progress
-- Files: `flowlens/evaluation/__init__.py`, `flowlens/evaluation/evaluators.py`, `flowlens/evaluation/runner.py`, `flowlens/evaluation/llm_judge.py`, `tests/test_evaluation.py`
+**Alpha**: Core evaluation framework delivered
+- Branch: `worktree-agent-a2947f7f`
+- Commit: 58fcc1d
+- Tests: 1322 passing (100%) — +114 new evaluation tests
+- Delivered:
+  - `flowlens/evaluation/__init__.py` — module package with all public exports
+  - `flowlens/evaluation/evaluators.py` — EvalResult dataclass, Evaluator ABC,
+    ExactMatch, ContainsKeywords, JsonSchemaValid, CostThreshold, LatencyThreshold
+  - `flowlens/evaluation/llm_judge.py` — LLMJudge with mock mode, Anthropic API
+    opt-in (FLOWLENS_LLM_JUDGE_ENABLED=1), injectable _call_fn for testing,
+    SCORE/REASON prompt format, score normalisation to [0.0, 1.0]
+  - `flowlens/evaluation/runner.py` — EvaluationRunner with run_on_trace,
+    run_on_spans (kind/name/gen_ai attr filter), run_batch, summary()
+  - `flowlens/__init__.py` — evaluation exports added to top-level package
+  - `tests/test_evaluation.py` — 114 tests across 9 test classes
 
 ---
 
