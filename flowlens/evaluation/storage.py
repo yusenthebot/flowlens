@@ -16,18 +16,15 @@ class DatasetStorage:
     def _init_db(self) -> None:
         """Initialize database schema."""
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute(
-                """
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS datasets (
                     id TEXT PRIMARY KEY,
                     name TEXT UNIQUE,
                     description TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-                """
-            )
-            conn.execute(
-                """
+                """)
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS dataset_traces (
                     dataset_id TEXT,
                     trace_id TEXT,
@@ -35,8 +32,7 @@ class DatasetStorage:
                     PRIMARY KEY (dataset_id, trace_id),
                     FOREIGN KEY (dataset_id) REFERENCES datasets(id)
                 )
-                """
-            )
+                """)
             conn.commit()
 
     def create_dataset(self, name: str, description: str = "") -> str:
@@ -93,8 +89,7 @@ class EvaluationStorage:
     def _init_db(self) -> None:
         """Initialize database schema."""
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute(
-                """
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS evaluations (
                     id TEXT PRIMARY KEY,
                     trace_id TEXT,
@@ -104,19 +99,14 @@ class EvaluationStorage:
                     details TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-                """
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_trace_id ON evaluations(trace_id)"
-            )
+                """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_trace_id ON evaluations(trace_id)")
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_evaluator_name ON evaluations(evaluator_name)"
             )
             conn.commit()
 
-    def save_evaluation(
-        self, trace_id: str, eval_result: dict[str, Any]
-    ) -> str:
+    def save_evaluation(self, trace_id: str, eval_result: dict[str, Any]) -> str:
         """Save an evaluation result."""
         import uuid
 
@@ -162,9 +152,7 @@ class EvaluationStorage:
             for r in rows
         ]
 
-    def list_evaluations(
-        self, evaluator_name: str | None = None
-    ) -> list[dict[str, Any]]:
+    def list_evaluations(self, evaluator_name: str | None = None) -> list[dict[str, Any]]:
         """List all evaluations, optionally filtered by evaluator."""
         with sqlite3.connect(self.db_path) as conn:
             if evaluator_name:
@@ -176,12 +164,10 @@ class EvaluationStorage:
                     (evaluator_name,),
                 ).fetchall()
             else:
-                rows = conn.execute(
-                    """
+                rows = conn.execute("""
                     SELECT id, trace_id, evaluator_name, passed, score, details
                     FROM evaluations
-                    """
-                ).fetchall()
+                    """).fetchall()
 
         return [
             {

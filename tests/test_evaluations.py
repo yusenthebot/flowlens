@@ -71,6 +71,7 @@ def _ingest(client, **overrides) -> str:
 # ====================================================================# Storage-level tests
 # ====================================================================
 
+
 class TestEvaluationStorage:
     def _save_trace(self, store, **overrides) -> str:
         t = _make_trace(**overrides)
@@ -199,6 +200,7 @@ class TestDatasetStorage:
 
 # ====================================================================# API route tests
 # ====================================================================
+
 
 class TestEvaluationRunEndpoint:
     def test_run_cost_threshold_pass(self, client):
@@ -465,6 +467,7 @@ class TestListEvaluatorsEndpoint:
 
 # ====================================================================# CLI tests
 # ====================================================================
+
 
 class TestEvalCLI:
     def _populate_db(self, db_path: str) -> str:

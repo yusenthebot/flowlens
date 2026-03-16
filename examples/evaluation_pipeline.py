@@ -25,7 +25,6 @@ from flowlens.evaluation.core import (
 )
 from flowlens.evaluation.storage import DatasetStorage, EvaluationStorage
 
-
 # ---------------------------------------------------------------------------
 # 1. Define Helper Functions
 # ---------------------------------------------------------------------------
@@ -174,10 +173,12 @@ def example_3_create_dataset(db_path: str = "./eval_demo.db") -> str:
             agent_name="recommendation-engine",
             duration_ms=100.0 + i * 10,
             cost_usd=0.01 + i * 0.001,
-            output=json.dumps({
-                "recommendations": [f"item-{j}" for j in range(3)],
-                "confidence": 0.8 + (i % 20) * 0.01,
-            }),
+            output=json.dumps(
+                {
+                    "recommendations": [f"item-{j}" for j in range(3)],
+                    "confidence": 0.8 + (i % 20) * 0.01,
+                }
+            ),
         )
         for i in range(10)
     ]
@@ -198,9 +199,7 @@ def example_3_create_dataset(db_path: str = "./eval_demo.db") -> str:
 # ---------------------------------------------------------------------------
 
 
-def example_4_evaluate_dataset(
-    dataset_id: str, db_path: str = "./eval_demo.db"
-) -> None:
+def example_4_evaluate_dataset(dataset_id: str, db_path: str = "./eval_demo.db") -> None:
     """Example 4: Run evaluations across all traces in a dataset."""
     print("\n" + "=" * 70)
     print("EXAMPLE 4: Evaluating a Dataset")
@@ -215,9 +214,7 @@ def example_4_evaluate_dataset(
 
     # Create runner
     runner = EvaluationRunner()
-    runner.add_evaluator(
-        ContainsKeywords(keywords=["recommendations", "confidence"])
-    )
+    runner.add_evaluator(ContainsKeywords(keywords=["recommendations", "confidence"]))
     runner.add_evaluator(CostThreshold(max_cost_usd=0.05))
     runner.add_evaluator(LatencyThreshold(max_latency_ms=500.0))
 
@@ -227,13 +224,16 @@ def example_4_evaluate_dataset(
     # Save and display results
     for trace, results in zip(traces, all_results):
         for result in results:
-            eval_storage.save_evaluation(trace["trace_id"], {
-                "trace_id": result.trace_id,
-                "evaluator_name": result.evaluator_name,
-                "passed": result.passed,
-                "score": result.score,
-                "details": result.details,
-            })
+            eval_storage.save_evaluation(
+                trace["trace_id"],
+                {
+                    "trace_id": result.trace_id,
+                    "evaluator_name": result.evaluator_name,
+                    "passed": result.passed,
+                    "score": result.score,
+                    "details": result.details,
+                },
+            )
 
     # Summary statistics
     summary = runner.get_summary(all_results)

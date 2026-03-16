@@ -65,10 +65,7 @@ class ContainsKeywords(Evaluator):
 
         found = [kw.lower() in output for kw in self.keywords]
 
-        if self.require_all:
-            passed = all(found)
-        else:
-            passed = any(found) if self.keywords else True
+        passed = all(found) if self.require_all else any(found) if self.keywords else True
 
         score = sum(found) / len(self.keywords) if self.keywords else 1.0
 
@@ -94,7 +91,7 @@ class JsonSchemaValid(Evaluator):
         output = trace.get("spans", [{}])[0].get("output", "")
 
         try:
-            data = json.loads(output)
+            json.loads(output)
             # Simple validation — just check it's valid JSON
             # Full schema validation requires jsonschema library
             return EvalResult(
