@@ -1,491 +1,615 @@
-"""Comprehensive tests for the evaluation framework core."""
+"""
+Tests for the Evaluation Engine — storage, API routes, and CLI gate.
+"""
 
 from __future__ import annotations
 
-import json
-from typing import Any
+import time
+import uuid
 
 import pytest
+from click.testing import CliRunner
+from fastapi.testclient import TestClient
 
-from flowlens.evaluation.core import (
-    EvalResult,
-    ExactMatch,
-    ContainsKeywords,
-    JsonSchemaValid,
-    CostThreshold,
-    LatencyThreshold,
-    LLMJudge,
-    EvaluationRunner,
-)
+from flowlens.cli import cli
+from flowlens.server.app import create_app
+from flowlens.server.storage import TraceStore
+
+# ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
+
+_DUMMY_TRACE = {
+    "trace_id": "",  # filled per test
+    "service_name": "test-svc",
+    "start_time": time.time(),
+    "end_time": time.time() + 2,
+    "duration_ms": 2000.0,
+    "total_tokens": 5000,
+    "total_cost_usd": 0.05,
+    "has_errors": False,
+    "error_count": 0,
+    "span_count": 3,
+    "metadata": {},
+    "spans": [],
+}
+
+
+def _make_trace(**overrides):
+    t = dict(_DUMMY_TRACE)
+    t["trace_id"] = uuid.uuid4().hex
+    t.update(overrides)
+    return t
 
 
 # ---------------------------------------------------------------------------
-# Test Fixtures
+# Fixtures
 # ---------------------------------------------------------------------------
 
 
-def _make_trace_data(
-    trace_id: str = "t1",
-    duration_ms: float = 100.0,
-    cost_usd: float = 0.01,
-    spans: list[dict[str, Any]] | None = None,
-) -> dict[str, Any]:
-    """Build a test trace with common fields."""
-    if spans is None:
-        spans = [
-            {
-                "span_id": f"{trace_id}_s1",
-                "name": "agent",
-                "status": "ok",
-                "start_time": 1000.0,
-                "end_time": 1000.0 + duration_ms / 1000.0,
-                "duration_ms": duration_ms,
-                "attributes": {"agent.name": "test-agent"},
-                "output": "test output",
-            }
-        ]
-
-    return {
-        "trace_id": trace_id,
-        "duration_ms": duration_ms,
-        "total_cost_usd": cost_usd,
-        "spans": spans,
-    }
+@pytest.fixture()
+def store(tmp_path):
+    s = TraceStore(db_path=str(tmp_path / "test.db"))
+    yield s
+    s.close()
 
 
-@pytest.fixture
-def simple_trace() -> dict[str, Any]:
-    """A simple passing trace."""
-    return _make_trace_data(
-        trace_id="t1",
-        duration_ms=100.0,
-        cost_usd=0.01,
-        spans=[
-            {
-                "span_id": "t1_s1",
-                "name": "agent",
-                "status": "ok",
-                "start_time": 1000.0,
-                "end_time": 1000.1,
-                "duration_ms": 100.0,
-                "attributes": {"agent.name": "test-agent"},
-                "output": "Success: found the answer",
-            }
-        ],
-    )
+@pytest.fixture()
+def client(tmp_path):
+    app = create_app(db_path=str(tmp_path / "test.db"))
+    with TestClient(app, raise_server_exceptions=True) as c:
+        yield c
 
 
-@pytest.fixture
-def error_trace() -> dict[str, Any]:
-    """A trace with an error."""
-    return _make_trace_data(
-        trace_id="t2",
-        duration_ms=500.0,
-        cost_usd=0.05,
-        spans=[
-            {
-                "span_id": "t2_s1",
-                "name": "agent",
-                "status": "error",
-                "start_time": 1000.0,
-                "end_time": 1000.5,
-                "duration_ms": 500.0,
-                "attributes": {"agent.name": "test-agent"},
-                "error": {"message": "API timeout"},
-            }
-        ],
-    )
+def _ingest(client, **overrides) -> str:
+    payload = _make_trace(**overrides)
+    r = client.post("/v1/traces/ingest", json=payload)
+    assert r.status_code == 201, r.text
+    return payload["trace_id"]
 
 
-@pytest.fixture
-def expensive_trace() -> dict[str, Any]:
-    """A high-cost trace."""
-    return _make_trace_data(
-        trace_id="t3",
-        duration_ms=2000.0,
-        cost_usd=0.50,
-        spans=[
-            {
-                "span_id": "t3_s1",
-                "name": "agent",
-                "status": "ok",
-                "start_time": 1000.0,
-                "end_time": 1002.0,
-                "duration_ms": 2000.0,
-                "attributes": {"agent.name": "test-agent"},
-                "output": "Completed with multiple model calls",
-            }
-        ],
-    )
+# ====================================================================# Storage-level tests
+# ====================================================================
 
+class TestEvaluationStorage:
+    def _save_trace(self, store, **overrides) -> str:
+        t = _make_trace(**overrides)
+        store.save_trace(t)
+        return t["trace_id"]
 
-# ---------------------------------------------------------------------------
-# TestEvalResult
-# ---------------------------------------------------------------------------
-
-
-class TestEvalResult:
-    """Test EvalResult data class."""
-
-    def test_eval_result_creation(self):
-        """Test creating an EvalResult with valid data."""
-        result = EvalResult(
-            trace_id="t1",
-            evaluator_name="exact_match",
-            passed=True,
-            score=1.0,
-            details="Output matched expected value",
-        )
-        assert result.trace_id == "t1"
-        assert result.evaluator_name == "exact_match"
-        assert result.passed is True
-        assert result.score == 1.0
-        assert result.details == "Output matched expected value"
-
-    def test_eval_result_score_range(self):
-        """Test that score is clamped to [0, 1]."""
-        # Valid range
-        result = EvalResult(
-            trace_id="t1",
-            evaluator_name="test",
-            passed=True,
-            score=0.75,
-            details="",
-        )
-        assert result.score == 0.75
-
-    def test_eval_result_failure(self):
-        """Test creating a failed EvalResult."""
-        result = EvalResult(
-            trace_id="t1",
-            evaluator_name="schema_check",
-            passed=False,
-            score=0.0,
-            details="Output is not valid JSON",
-        )
-        assert result.passed is False
-
-
-# ---------------------------------------------------------------------------
-# TestExactMatch
-# ---------------------------------------------------------------------------
-
-
-class TestExactMatch:
-    """Test ExactMatch evaluator."""
-
-    def test_exact_match_pass(self, simple_trace):
-        """Test exact match when output matches expected."""
-        evaluator = ExactMatch(expected="Success: found the answer")
-        result = evaluator.evaluate(simple_trace)
-        assert result.passed is True
-        assert result.score == 1.0
-
-    def test_exact_match_fail(self, simple_trace):
-        """Test exact match when output does not match."""
-        evaluator = ExactMatch(expected="Different answer")
-        result = evaluator.evaluate(simple_trace)
-        assert result.passed is False
-        assert result.score == 0.0
-
-    def test_exact_match_empty_output(self, simple_trace):
-        """Test exact match with empty output."""
-        simple_trace["spans"][0]["output"] = ""
-        evaluator = ExactMatch(expected="Expected output")
-        result = evaluator.evaluate(simple_trace)
-        assert result.passed is False
-
-    def test_exact_match_case_sensitivity(self, simple_trace):
-        """Test that exact match is case-sensitive by default."""
-        evaluator = ExactMatch(expected="success: found the answer")
-        result = evaluator.evaluate(simple_trace)
-        assert result.passed is False
-
-    def test_exact_match_case_insensitive(self, simple_trace):
-        """Test case-insensitive matching option."""
-        evaluator = ExactMatch(
-            expected="SUCCESS: FOUND THE ANSWER", case_insensitive=True
-        )
-        result = evaluator.evaluate(simple_trace)
-        assert result.passed is True
-
-
-# ---------------------------------------------------------------------------
-# TestContainsKeywords
-# ---------------------------------------------------------------------------
-
-
-class TestContainsKeywords:
-    """Test ContainsKeywords evaluator."""
-
-    def test_all_keywords_present(self, simple_trace):
-        """Test when all keywords are in output."""
-        evaluator = ContainsKeywords(keywords=["Success", "answer"], require_all=True)
-        result = evaluator.evaluate(simple_trace)
-        assert result.passed is True
-
-    def test_partial_keywords(self, simple_trace):
-        """Test when only some keywords are present with require_all=False."""
-        evaluator = ContainsKeywords(
-            keywords=["Success", "missing"], require_all=False
-        )
-        result = evaluator.evaluate(simple_trace)
-        assert result.passed is True
-        assert result.score > 0
-
-    def test_require_all_false(self, simple_trace):
-        """Test require_all=False with partial match."""
-        evaluator = ContainsKeywords(keywords=["a", "b", "c"], require_all=False)
-        result = evaluator.evaluate(simple_trace)
-        # At least one keyword ("a") should be present
-        assert result.passed is True
-
-    def test_no_keywords_found(self, simple_trace):
-        """Test when no keywords match."""
-        evaluator = ContainsKeywords(
-            keywords=["Foo", "Bar", "Baz"], require_all=False
-        )
-        result = evaluator.evaluate(simple_trace)
-        assert result.passed is False
-
-    def test_empty_keywords_list(self, simple_trace):
-        """Test with empty keywords list."""
-        evaluator = ContainsKeywords(keywords=[])
-        result = evaluator.evaluate(simple_trace)
-        assert result.passed is True  # No keywords to match = pass
-
-
-# ---------------------------------------------------------------------------
-# TestJsonSchemaValid
-# ---------------------------------------------------------------------------
-
-
-class TestJsonSchemaValid:
-    """Test JsonSchemaValid evaluator."""
-
-    def test_valid_json_output(self, simple_trace):
-        """Test valid JSON in output."""
-        simple_trace["spans"][0]["output"] = '{"status": "ok", "value": 42}'
-        schema = {
-            "type": "object",
-            "properties": {"status": {"type": "string"}, "value": {"type": "number"}},
-            "required": ["status", "value"],
+    def test_save_and_retrieve_evaluation(self, store):
+        tid = self._save_trace(store)
+        eval_data = {
+            "eval_id": uuid.uuid4().hex,
+            "trace_id": tid,
+            "evaluator_name": "cost_threshold",
+            "score": 0.9,
+            "label": "pass",
+            "reason": "cost ok",
+            "metadata": {"config": {"max_cost_usd": 0.10}},
         }
-        evaluator = JsonSchemaValid(schema=schema)
-        result = evaluator.evaluate(simple_trace)
-        assert result.passed is True
+        returned_id = store.save_evaluation(eval_data)
+        assert returned_id == eval_data["eval_id"]
 
-    def test_invalid_json(self, simple_trace):
-        """Test malformed JSON."""
-        simple_trace["spans"][0]["output"] = "{ invalid json"
-        schema = {"type": "object"}
-        evaluator = JsonSchemaValid(schema=schema)
-        result = evaluator.evaluate(simple_trace)
-        assert result.passed is False
+        evals = store.get_evaluations_for_trace(tid)
+        assert len(evals) == 1
+        e = evals[0]
+        assert e["score"] == 0.9
+        assert e["label"] == "pass"
+        assert e["reason"] == "cost ok"
+        assert isinstance(e["metadata"], dict)
 
-    def test_schema_mismatch(self, simple_trace):
-        """Test JSON that doesn't match schema."""
-        simple_trace["spans"][0]["output"] = '{"name": "test"}'
-        schema = {
-            "type": "object",
-            "properties": {"age": {"type": "number"}},
-            "required": ["age"],
-        }
-        evaluator = JsonSchemaValid(schema=schema)
-        result = evaluator.evaluate(simple_trace)
-        assert result.passed is False
-
-    def test_non_json_output(self, simple_trace):
-        """Test non-JSON output."""
-        simple_trace["spans"][0]["output"] = "Not JSON at all"
-        schema = {"type": "object"}
-        evaluator = JsonSchemaValid(schema=schema)
-        result = evaluator.evaluate(simple_trace)
-        assert result.passed is False
-
-
-# ---------------------------------------------------------------------------
-# TestCostThreshold
-# ---------------------------------------------------------------------------
-
-
-class TestCostThreshold:
-    """Test CostThreshold evaluator."""
-
-    def test_within_budget(self, simple_trace):
-        """Test trace within cost budget."""
-        evaluator = CostThreshold(max_cost_usd=0.05)
-        result = evaluator.evaluate(simple_trace)
-        assert result.passed is True
-
-    def test_over_budget(self, expensive_trace):
-        """Test trace exceeding cost budget."""
-        evaluator = CostThreshold(max_cost_usd=0.10)
-        result = evaluator.evaluate(expensive_trace)
-        assert result.passed is False
-        assert result.details  # Should have explanation
-
-    def test_zero_cost(self, simple_trace):
-        """Test zero-cost trace."""
-        simple_trace["total_cost_usd"] = 0.0
-        evaluator = CostThreshold(max_cost_usd=0.01)
-        result = evaluator.evaluate(simple_trace)
-        assert result.passed is True
-
-    def test_exact_threshold(self, simple_trace):
-        """Test trace exactly at threshold."""
-        evaluator = CostThreshold(max_cost_usd=0.01)
-        result = evaluator.evaluate(simple_trace)
-        assert result.passed is True  # At threshold should pass
-
-
-# ---------------------------------------------------------------------------
-# TestLatencyThreshold
-# ---------------------------------------------------------------------------
-
-
-class TestLatencyThreshold:
-    """Test LatencyThreshold evaluator."""
-
-    def test_fast_trace(self, simple_trace):
-        """Test fast trace within latency threshold."""
-        evaluator = LatencyThreshold(max_latency_ms=500.0)
-        result = evaluator.evaluate(simple_trace)
-        assert result.passed is True
-
-    def test_slow_trace(self, expensive_trace):
-        """Test slow trace exceeding latency threshold."""
-        evaluator = LatencyThreshold(max_latency_ms=500.0)
-        result = evaluator.evaluate(expensive_trace)
-        assert result.passed is False
-
-    def test_exact_threshold(self, simple_trace):
-        """Test trace exactly at threshold."""
-        evaluator = LatencyThreshold(max_latency_ms=100.0)
-        result = evaluator.evaluate(simple_trace)
-        assert result.passed is True
-
-    def test_very_strict_threshold(self, simple_trace):
-        """Test very strict latency requirement."""
-        evaluator = LatencyThreshold(max_latency_ms=50.0)
-        result = evaluator.evaluate(simple_trace)
-        assert result.passed is False
-
-
-# ---------------------------------------------------------------------------
-# TestLLMJudge
-# ---------------------------------------------------------------------------
-
-
-class TestLLMJudge:
-    """Test LLMJudge evaluator (mocked)."""
-
-    def test_judge_returns_result(self, simple_trace, monkeypatch):
-        """Test that LLMJudge returns a valid EvalResult."""
-        # Mock the LLM call
-        def mock_judge(trace_dict, criteria):
-            return EvalResult(
-                trace_id=trace_dict["trace_id"],
-                evaluator_name="llm_judge",
-                passed=True,
-                score=0.95,
-                details="LLM evaluation: excellent output quality",
+    def test_list_evaluations_no_filter(self, store):
+        t1 = self._save_trace(store)
+        t2 = self._save_trace(store)
+        for tid, ev_name in [(t1, "cost_threshold"), (t2, "no_errors")]:
+            store.save_evaluation(
+                {
+                    "eval_id": uuid.uuid4().hex,
+                    "trace_id": tid,
+                    "evaluator_name": ev_name,
+                    "score": 1.0,
+                    "label": "pass",
+                }
             )
-
-        monkeypatch.setattr(
-            "flowlens.evaluation.core.LLMJudge.evaluate", mock_judge
-        )
-
-        evaluator = LLMJudge(
-            criteria="Output should be helpful and accurate",
-        )
-        result = evaluator.evaluate(simple_trace)
-
-        assert result.passed is True
-        assert result.score == 0.95
-
-    def test_judge_handles_empty_output(self, simple_trace, monkeypatch):
-        """Test LLMJudge with empty output."""
-        simple_trace["spans"][0]["output"] = ""
-
-        def mock_judge(trace_dict, criteria):
-            return EvalResult(
-                trace_id=trace_dict["trace_id"],
-                evaluator_name="llm_judge",
-                passed=False,
-                score=0.0,
-                details="No output to evaluate",
-            )
-
-        monkeypatch.setattr(
-            "flowlens.evaluation.core.LLMJudge.evaluate", mock_judge
-        )
-
-        evaluator = LLMJudge(criteria="Evaluate output")
-        result = evaluator.evaluate(simple_trace)
-
-        assert result.passed is False
-
-
-# ---------------------------------------------------------------------------
-# TestEvaluationRunner
-# ---------------------------------------------------------------------------
-
-
-class TestEvaluationRunner:
-    """Test EvaluationRunner orchestrator."""
-
-    def test_run_on_trace(self, simple_trace):
-        """Test running evaluations on a single trace."""
-        runner = EvaluationRunner()
-        runner.add_evaluator(ExactMatch(expected="Success: found the answer"))
-        runner.add_evaluator(ContainsKeywords(keywords=["Success"]))
-
-        results = runner.run(simple_trace)
-
+        results = store.list_evaluations(limit=10)
         assert len(results) == 2
-        assert all(r.passed for r in results)
 
-    def test_run_batch(self, simple_trace, error_trace, expensive_trace):
-        """Test running evaluations on multiple traces."""
-        runner = EvaluationRunner()
-        runner.add_evaluator(LatencyThreshold(max_latency_ms=1000.0))
-        runner.add_evaluator(CostThreshold(max_cost_usd=0.10))
+    def test_list_evaluations_filter_by_evaluator(self, store):
+        tid = self._save_trace(store)
+        for name in ["cost_threshold", "no_errors", "cost_threshold"]:
+            store.save_evaluation(
+                {
+                    "eval_id": uuid.uuid4().hex,
+                    "trace_id": tid,
+                    "evaluator_name": name,
+                    "score": 1.0,
+                    "label": "pass",
+                }
+            )
+        results = store.list_evaluations(evaluator_name="cost_threshold")
+        assert all(r["evaluator_name"] == "cost_threshold" for r in results)
+        assert len(results) == 2
 
-        traces = [simple_trace, error_trace, expensive_trace]
-        all_results = runner.run_batch(traces)
+    def test_evaluations_empty_for_unknown_trace(self, store):
+        assert store.get_evaluations_for_trace("nonexistent") == []
 
-        assert len(all_results) == 3
-        # First trace should pass all evaluations
-        assert all(r.passed for r in all_results[0])
 
-    def test_run_with_multiple_evaluators(self, simple_trace):
-        """Test runner with multiple diverse evaluators."""
-        runner = EvaluationRunner()
-        runner.add_evaluator(ExactMatch(expected="Success: found the answer"))
-        runner.add_evaluator(ContainsKeywords(keywords=["Success", "answer"]))
-        runner.add_evaluator(LatencyThreshold(max_latency_ms=1000.0))
-        runner.add_evaluator(CostThreshold(max_cost_usd=0.10))
+class TestDatasetStorage:
+    def _save_trace(self, store, **overrides) -> str:
+        t = _make_trace(**overrides)
+        store.save_trace(t)
+        return t["trace_id"]
 
-        results = runner.run(simple_trace)
+    def test_create_and_get_dataset(self, store):
+        ds_id = store.create_dataset("golden-v1", "Golden test set")
+        assert isinstance(ds_id, str)
 
-        assert len(results) == 4
-        # All should pass for this trace
-        assert all(r.passed for r in results)
+        ds = store.get_dataset(ds_id)
+        assert ds is not None
+        assert ds["name"] == "golden-v1"
+        assert ds["description"] == "Golden test set"
+        assert ds["item_count"] == 0
 
-    def test_runner_summary(self, simple_trace, error_trace):
-        """Test runner summary statistics."""
-        runner = EvaluationRunner()
-        runner.add_evaluator(ExactMatch(expected="Success: found the answer"))
-        runner.add_evaluator(LatencyThreshold(max_latency_ms=1000.0))
+    def test_duplicate_name_raises(self, store):
+        store.create_dataset("dup-set")
+        with pytest.raises(ValueError, match="already exists"):
+            store.create_dataset("dup-set")
 
-        traces = [simple_trace, error_trace]
-        all_results = runner.run_batch(traces)
+    def test_add_traces_to_dataset(self, store):
+        t1 = self._save_trace(store)
+        t2 = self._save_trace(store)
+        ds_id = store.create_dataset("my-ds")
+        store.add_to_dataset(ds_id, [t1, t2])
 
-        summary = runner.get_summary(all_results)
+        ds = store.get_dataset(ds_id)
+        assert ds["item_count"] == 2
 
-        assert summary["total_evals"] == 4  # 2 evaluators × 2 traces
-        assert summary["passed"] >= 0
-        assert summary["failed"] >= 0
-        assert summary["pass_rate"] == summary["passed"] / summary["total_evals"]
+    def test_add_duplicate_traces_idempotent(self, store):
+        tid = self._save_trace(store)
+        ds_id = store.create_dataset("idem-ds")
+        store.add_to_dataset(ds_id, [tid])
+        store.add_to_dataset(ds_id, [tid])  # second call should not raise or duplicate
+        ds = store.get_dataset(ds_id)
+        assert ds["item_count"] == 1
 
+    def test_list_datasets(self, store):
+        store.create_dataset("ds-a")
+        store.create_dataset("ds-b")
+        datasets = store.list_datasets()
+        names = [d["name"] for d in datasets]
+        assert "ds-a" in names
+        assert "ds-b" in names
+
+    def test_get_dataset_traces(self, store):
+        t1 = self._save_trace(store)
+        t2 = self._save_trace(store)
+        ds_id = store.create_dataset("trace-ds")
+        store.add_to_dataset(ds_id, [t1, t2])
+
+        traces = store.get_dataset_traces(ds_id)
+        assert len(traces) == 2
+        trace_ids = {t["trace_id"] for t in traces}
+        assert t1 in trace_ids
+        assert t2 in trace_ids
+
+    def test_get_nonexistent_dataset_returns_none(self, store):
+        assert store.get_dataset("nonexistent") is None
+
+
+# ====================================================================# API route tests
+# ====================================================================
+
+class TestEvaluationRunEndpoint:
+    def test_run_cost_threshold_pass(self, client):
+        tid = _ingest(client, total_cost_usd=0.02)
+        r = client.post(
+            "/v1/evaluations/run",
+            json={
+                "evaluator": "cost_threshold",
+                "config": {"max_cost_usd": 0.10},
+                "trace_ids": [tid],
+            },
+        )
+        assert r.status_code == 201
+        body = r.json()
+        results = body["results"]
+        assert len(results) == 1
+        assert results[0]["label"] == "pass"
+        assert results[0]["score"] == 1.0
+
+    def test_run_cost_threshold_fail(self, client):
+        tid = _ingest(client, total_cost_usd=0.50)
+        r = client.post(
+            "/v1/evaluations/run",
+            json={
+                "evaluator": "cost_threshold",
+                "config": {"max_cost_usd": 0.10},
+                "trace_ids": [tid],
+            },
+        )
+        assert r.status_code == 201
+        result = r.json()["results"][0]
+        assert result["label"] == "fail"
+        assert result["score"] < 1.0
+
+    def test_run_no_errors_pass(self, client):
+        tid = _ingest(client, has_errors=False, error_count=0)
+        r = client.post(
+            "/v1/evaluations/run",
+            json={"evaluator": "no_errors", "config": {}, "trace_ids": [tid]},
+        )
+        assert r.status_code == 201
+        assert r.json()["results"][0]["label"] == "pass"
+
+    def test_run_no_errors_fail(self, client):
+        tid = _ingest(client, has_errors=True, error_count=2)
+        r = client.post(
+            "/v1/evaluations/run",
+            json={"evaluator": "no_errors", "config": {}, "trace_ids": [tid]},
+        )
+        assert r.status_code == 201
+        assert r.json()["results"][0]["label"] == "fail"
+        assert r.json()["results"][0]["score"] == 0.0
+
+    def test_run_unknown_evaluator_returns_400(self, client):
+        tid = _ingest(client)
+        r = client.post(
+            "/v1/evaluations/run",
+            json={"evaluator": "does_not_exist", "config": {}, "trace_ids": [tid]},
+        )
+        assert r.status_code == 400
+
+    def test_run_missing_trace_returns_error_label(self, client):
+        r = client.post(
+            "/v1/evaluations/run",
+            json={
+                "evaluator": "no_errors",
+                "config": {},
+                "trace_ids": ["phantom-trace-id"],
+            },
+        )
+        assert r.status_code == 201
+        result = r.json()["results"][0]
+        assert result["label"] == "error"
+        assert result["score"] is None
+
+    def test_run_multiple_traces(self, client):
+        t1 = _ingest(client, total_cost_usd=0.01)
+        t2 = _ingest(client, total_cost_usd=0.20)
+        r = client.post(
+            "/v1/evaluations/run",
+            json={
+                "evaluator": "cost_threshold",
+                "config": {"max_cost_usd": 0.10},
+                "trace_ids": [t1, t2],
+            },
+        )
+        assert r.status_code == 201
+        results = r.json()["results"]
+        assert len(results) == 2
+        labels = {result["trace_id"]: result["label"] for result in results}
+        assert labels[t1] == "pass"
+        assert labels[t2] == "fail"
+
+    def test_results_persisted(self, client):
+        tid = _ingest(client)
+        client.post(
+            "/v1/evaluations/run",
+            json={"evaluator": "no_errors", "config": {}, "trace_ids": [tid]},
+        )
+        r = client.get(f"/v1/traces/{tid}/evaluations")
+        assert r.status_code == 200
+        assert len(r.json()) >= 1
+
+
+class TestEvaluationResultsEndpoint:
+    def test_list_all_results(self, client):
+        for _ in range(3):
+            tid = _ingest(client)
+            client.post(
+                "/v1/evaluations/run",
+                json={"evaluator": "no_errors", "config": {}, "trace_ids": [tid]},
+            )
+        r = client.get("/v1/evaluations/results")
+        assert r.status_code == 200
+        assert len(r.json()) >= 3
+
+    def test_list_filtered_by_evaluator(self, client):
+        tid1 = _ingest(client)
+        tid2 = _ingest(client)
+        client.post(
+            "/v1/evaluations/run",
+            json={"evaluator": "no_errors", "config": {}, "trace_ids": [tid1]},
+        )
+        client.post(
+            "/v1/evaluations/run",
+            json={
+                "evaluator": "cost_threshold",
+                "config": {"max_cost_usd": 0.10},
+                "trace_ids": [tid2],
+            },
+        )
+        r = client.get("/v1/evaluations/results?evaluator=no_errors")
+        assert r.status_code == 200
+        body = r.json()
+        assert all(e["evaluator_name"] == "no_errors" for e in body)
+
+    def test_limit_respected(self, client):
+        for _ in range(5):
+            tid = _ingest(client)
+            client.post(
+                "/v1/evaluations/run",
+                json={"evaluator": "no_errors", "config": {}, "trace_ids": [tid]},
+            )
+        r = client.get("/v1/evaluations/results?limit=3")
+        assert r.status_code == 200
+        assert len(r.json()) <= 3
+
+
+class TestTraceEvaluationsEndpoint:
+    def test_returns_empty_list_for_no_evals(self, client):
+        tid = _ingest(client)
+        r = client.get(f"/v1/traces/{tid}/evaluations")
+        assert r.status_code == 200
+        assert r.json() == []
+
+    def test_returns_evaluations_for_trace(self, client):
+        tid = _ingest(client)
+        client.post(
+            "/v1/evaluations/run",
+            json={"evaluator": "no_errors", "config": {}, "trace_ids": [tid]},
+        )
+        r = client.get(f"/v1/traces/{tid}/evaluations")
+        assert r.status_code == 200
+        evals = r.json()
+        assert len(evals) == 1
+        assert evals[0]["trace_id"] == tid
+
+
+class TestDatasetEndpoints:
+    def test_create_dataset(self, client):
+        r = client.post(
+            "/v1/datasets",
+            json={"name": "golden-v1", "description": "Golden set"},
+        )
+        assert r.status_code == 201
+        body = r.json()
+        assert body["name"] == "golden-v1"
+        assert "dataset_id" in body
+
+    def test_create_dataset_conflict(self, client):
+        client.post("/v1/datasets", json={"name": "dup"})
+        r = client.post("/v1/datasets", json={"name": "dup"})
+        assert r.status_code == 409
+
+    def test_create_dataset_with_traces(self, client):
+        t1 = _ingest(client)
+        t2 = _ingest(client)
+        r = client.post(
+            "/v1/datasets",
+            json={"name": "with-traces", "trace_ids": [t1, t2]},
+        )
+        assert r.status_code == 201
+        assert r.json()["item_count"] == 2
+
+    def test_list_datasets(self, client):
+        client.post("/v1/datasets", json={"name": "ds-list-1"})
+        client.post("/v1/datasets", json={"name": "ds-list-2"})
+        r = client.get("/v1/datasets")
+        assert r.status_code == 200
+        names = [d["name"] for d in r.json()]
+        assert "ds-list-1" in names
+        assert "ds-list-2" in names
+
+    def test_get_dataset_with_traces(self, client):
+        tid = _ingest(client)
+        cr = client.post(
+            "/v1/datasets",
+            json={"name": "get-with-traces", "trace_ids": [tid]},
+        )
+        ds_id = cr.json()["dataset_id"]
+        r = client.get(f"/v1/datasets/{ds_id}")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["dataset_id"] == ds_id
+        assert len(body["traces"]) == 1
+        assert body["traces"][0]["trace_id"] == tid
+
+    def test_get_nonexistent_dataset_404(self, client):
+        r = client.get("/v1/datasets/nonexistent-id")
+        assert r.status_code == 404
+
+    def test_evaluate_dataset(self, client):
+        t1 = _ingest(client, total_cost_usd=0.01)
+        t2 = _ingest(client, total_cost_usd=0.50)
+        cr = client.post(
+            "/v1/datasets",
+            json={"name": "eval-ds", "trace_ids": [t1, t2]},
+        )
+        ds_id = cr.json()["dataset_id"]
+
+        r = client.post(
+            f"/v1/datasets/{ds_id}/evaluate",
+            json={"evaluators": [{"name": "cost_threshold", "config": {"max_cost_usd": 0.10}}]},
+        )
+        assert r.status_code == 201
+        body = r.json()
+        assert body["dataset_id"] == ds_id
+        assert len(body["results"]) == 2
+        assert "cost_threshold" in body["summary"]
+        summary = body["summary"]["cost_threshold"]
+        assert summary["trace_count"] == 2
+        assert summary["pass_count"] == 1
+        assert summary["fail_count"] == 1
+
+    def test_evaluate_nonexistent_dataset_404(self, client):
+        r = client.post(
+            "/v1/datasets/nonexistent/evaluate",
+            json={"evaluators": [{"name": "no_errors", "config": {}}]},
+        )
+        assert r.status_code == 404
+
+
+class TestListEvaluatorsEndpoint:
+    def test_returns_list(self, client):
+        r = client.get("/v1/evaluators")
+        assert r.status_code == 200
+        evaluators = r.json()
+        assert isinstance(evaluators, list)
+        assert "cost_threshold" in evaluators
+        assert "no_errors" in evaluators
+        assert "latency_threshold" in evaluators
+        assert "token_budget" in evaluators
+
+
+# ====================================================================# CLI tests
+# ====================================================================
+
+class TestEvalCLI:
+    def _populate_db(self, db_path: str) -> str:
+        """Seed one trace and return its trace_id."""
+        store = TraceStore(db_path=db_path)
+        t = _make_trace(total_cost_usd=0.03)
+        store.save_trace(t)
+        store.close()
+        return t["trace_id"]
+
+    def test_eval_run_pass(self, tmp_path):
+        db = str(tmp_path / "test.db")
+        tid = self._populate_db(db)
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "eval",
+                "run",
+                "--evaluator",
+                "cost_threshold",
+                "--trace-id",
+                tid,
+                "--config",
+                '{"max_cost_usd": 0.10}',
+                "--db",
+                db,
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert "pass" in result.output
+
+    def test_eval_run_missing_trace_exits_1(self, tmp_path):
+        db = str(tmp_path / "test.db")
+        # Initialise DB without any traces
+        store = TraceStore(db_path=db)
+        store.close()
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            ["eval", "run", "--evaluator", "no_errors", "--trace-id", "fake", "--db", db],
+        )
+        assert result.exit_code == 1
+
+    def test_eval_run_unknown_evaluator_exits_1(self, tmp_path):
+        db = str(tmp_path / "test.db")
+        tid = self._populate_db(db)
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "eval",
+                "run",
+                "--evaluator",
+                "nonexistent_evaluator",
+                "--trace-id",
+                tid,
+                "--db",
+                db,
+            ],
+        )
+        assert result.exit_code == 1
+
+    def test_eval_gate_pass(self, tmp_path):
+        db = str(tmp_path / "test.db")
+        store = TraceStore(db_path=db)
+        # Create dataset with low-cost traces
+        t1 = _make_trace(total_cost_usd=0.01)
+        t2 = _make_trace(total_cost_usd=0.02)
+        store.save_trace(t1)
+        store.save_trace(t2)
+        ds_id = store.create_dataset("gate-pass-ds")
+        store.add_to_dataset(ds_id, [t1["trace_id"], t2["trace_id"]])
+        store.close()
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "eval",
+                "gate",
+                "--dataset",
+                "gate-pass-ds",
+                "--min-score",
+                "0.8",
+                "--evaluator",
+                "cost_threshold",
+                "--config",
+                '{"max_cost_usd": 0.10}',
+                "--db",
+                db,
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert "GATE PASSED" in result.output
+
+    def test_eval_gate_fail(self, tmp_path):
+        db = str(tmp_path / "test.db")
+        store = TraceStore(db_path=db)
+        # Create dataset with expensive traces that will fail
+        t1 = _make_trace(total_cost_usd=0.50)
+        t2 = _make_trace(total_cost_usd=0.80)
+        store.save_trace(t1)
+        store.save_trace(t2)
+        ds_id = store.create_dataset("gate-fail-ds")
+        store.add_to_dataset(ds_id, [t1["trace_id"], t2["trace_id"]])
+        store.close()
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "eval",
+                "gate",
+                "--dataset",
+                "gate-fail-ds",
+                "--min-score",
+                "0.9",
+                "--evaluator",
+                "cost_threshold",
+                "--config",
+                '{"max_cost_usd": 0.10}',
+                "--db",
+                db,
+            ],
+        )
+        assert result.exit_code == 1
+        assert "GATE FAILED" in result.output
+
+    def test_eval_gate_missing_dataset_exits_1(self, tmp_path):
+        db = str(tmp_path / "test.db")
+        store = TraceStore(db_path=db)
+        store.close()
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "eval",
+                "gate",
+                "--dataset",
+                "nonexistent",
+                "--min-score",
+                "0.8",
+                "--db",
+                db,
+            ],
+        )
+        assert result.exit_code == 1
