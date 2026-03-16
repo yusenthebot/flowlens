@@ -195,3 +195,16 @@ The following tasks are deprioritized and deferred to future major versions:
 | File Conflicts | 0 |
 | Deployment Status | Production-ready v1.0.0 |
 | Project Duration | 24 hours |
+
+---
+
+## Cycle 29: Complete (2026-03-16) — EVALUATION ENGINE: TESTS & EXAMPLES
+
+### Done (2026-03-16)
+- [x] **Comprehensive test suite** — Delta — 125+ test cases covering all evaluators and storage layer — `tests/test_evaluations.py` (80 cases), `tests/test_evaluation_datasets.py` (45 cases)
+- [x] **Core evaluation framework** — Delta — EvalResult, 6 evaluator classes (ExactMatch, ContainsKeywords, JsonSchemaValid, CostThreshold, LatencyThreshold, LLMJudge), EvaluationRunner with batch support — `flowlens/evaluation/core.py`
+- [x] **Dataset & result storage** — Delta — SQLite-backed DatasetStorage and EvaluationStorage with query filtering and indexing — `flowlens/evaluation/storage.py`
+- [x] **Production examples** — Delta — 5-example walkthrough (trace creation, evaluation, dataset management, batch evaluation, custom evaluator) — `examples/evaluation_pipeline.py`
+- [x] **Demo integration** — Delta — Added evaluation pipeline to demo runner — `examples/run_all_demos.py`
+
+---
