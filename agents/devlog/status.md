@@ -1,3 +1,14 @@
+# Agent Status — 2026-03-16
+
+## Cycle 29: Evaluation Engine — IN PROGRESS (Beta, 2026-03-16)
+
+**Beta**: Storage + API layer for evaluations and datasets
+- Branch: `feat/beta-eval-api`
+- Task: Storage schema v8 migration, evaluation/dataset CRUD, API routes, CLI commands
+- Status: **in_progress**
+
+---
+
 # Agent Status — 2026-03-15
 
 ## Cycle 28: FINAL INTEGRATION & SHIP — COMPLETE (Lead/PM, 2026-03-15)

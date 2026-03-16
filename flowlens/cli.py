@@ -10,6 +10,8 @@ Commands:
     flowlens health  [--db PATH]
     flowlens version
     flowlens demo    [--all] [--dashboard] [--quick]
+    flowlens eval run   --evaluator <name> --trace-id <id> [--db PATH]
+    flowlens eval gate  --dataset <name> --min-score <float> [--db PATH]
 """
 
 from __future__ import annotations
@@ -792,6 +794,221 @@ def demo(run_all: bool, run_dashboard: bool, quick: bool) -> None:
     click.echo(f"  {_CYAN}flowlens serve{_RESET}             — start the FlowLens API server")
     click.echo(f"  {_CYAN}flowlens analyze <file>{_RESET}    — analyze a JSONL trace file")
     click.echo("")
+
+
+# ---------------------------------------------------------------------------
+# `flowlens eval` — evaluation engine CLI
+# ---------------------------------------------------------------------------
+
+
+@cli.group("eval")
+def eval_group() -> None:
+    """Evaluation engine commands — run evaluators and CI gates."""
+
+
+@eval_group.command("run")
+@click.option(
+    "--evaluator",
+    required=True,
+    help="Evaluator name (e.g. cost_threshold, latency_threshold, no_errors, token_budget).",
+)
+@click.option(
+    "--trace-id",
+    "trace_id",
+    required=True,
+    help="Trace ID to evaluate.",
+)
+@click.option(
+    "--config",
+    "config_json",
+    default="{}",
+    show_default=True,
+    help="JSON-encoded evaluator config (e.g. '{\"max_cost_usd\": 0.05}').",
+)
+@click.option(
+    "--db",
+    "db_path",
+    default=None,
+    show_default="FLOWLENS_DB_PATH or ./flowlens.db",
+    help="Path to the SQLite database file.",
+)
+def eval_run(evaluator: str, trace_id: str, config_json: str, db_path: str | None) -> None:
+    """Run a single evaluator against one trace and print the result."""
+    from flowlens.server.routes.evaluations import _run_single_evaluation
+    from flowlens.server.storage import TraceStore
+
+    resolved_db = _resolve_db_path(db_path)
+    db_file = Path(resolved_db)
+    if not db_file.exists():
+        click.echo(f"Database not found: {resolved_db}", err=True)
+        sys.exit(1)
+
+    try:
+        config: dict[str, Any] = json.loads(config_json)
+    except json.JSONDecodeError as exc:
+        click.echo(f"Invalid --config JSON: {exc}", err=True)
+        sys.exit(1)
+
+    store = TraceStore(db_path=resolved_db)
+    trace = store.get_trace(trace_id)
+    if trace is None:
+        click.echo(f"Trace not found: {trace_id}", err=True)
+        sys.exit(1)
+
+    try:
+        result = _run_single_evaluation(trace, evaluator, config)
+    except ValueError as exc:
+        click.echo(f"Evaluator error: {exc}", err=True)
+        sys.exit(1)
+
+    try:
+        store.save_evaluation(result)
+    except Exception as exc:
+        click.echo(f"Warning: could not persist evaluation — {exc}", err=True)
+
+    click.echo(f"Evaluator : {result['evaluator_name']}")
+    click.echo(f"Trace     : {result['trace_id']}")
+    click.echo(f"Score     : {result['score']:.4f}")
+    click.echo(f"Label     : {result['label']}")
+    if result.get("reason"):
+        click.echo(f"Reason    : {result['reason']}")
+    click.echo(f"Eval ID   : {result['eval_id']}")
+
+
+@eval_group.command("gate")
+@click.option(
+    "--dataset",
+    "dataset_name",
+    required=True,
+    help="Dataset name to evaluate (must already exist in the database).",
+)
+@click.option(
+    "--min-score",
+    "min_score",
+    required=True,
+    type=float,
+    help="Minimum acceptable average score (0.0–1.0).  Exit 1 if below threshold.",
+)
+@click.option(
+    "--evaluator",
+    "evaluator_name",
+    default="no_errors",
+    show_default=True,
+    help="Evaluator to run against all traces in the dataset.",
+)
+@click.option(
+    "--config",
+    "config_json",
+    default="{}",
+    show_default=True,
+    help="JSON-encoded evaluator config.",
+)
+@click.option(
+    "--db",
+    "db_path",
+    default=None,
+    show_default="FLOWLENS_DB_PATH or ./flowlens.db",
+    help="Path to the SQLite database file.",
+)
+def eval_gate(
+    dataset_name: str,
+    min_score: float,
+    evaluator_name: str,
+    config_json: str,
+    db_path: str | None,
+) -> None:
+    """CI quality gate — exit 1 if dataset average score < --min-score.
+
+    Example:
+        flowlens eval gate --dataset golden-v1 --min-score 0.8 --evaluator cost_threshold \\
+            --config '{"max_cost_usd": 0.10}'
+    """
+    from flowlens.server.routes.evaluations import _run_single_evaluation
+    from flowlens.server.storage import TraceStore
+
+    resolved_db = _resolve_db_path(db_path)
+    db_file = Path(resolved_db)
+    if not db_file.exists():
+        click.echo(f"Database not found: {resolved_db}", err=True)
+        sys.exit(1)
+
+    try:
+        config: dict[str, Any] = json.loads(config_json)
+    except json.JSONDecodeError as exc:
+        click.echo(f"Invalid --config JSON: {exc}", err=True)
+        sys.exit(1)
+
+    store = TraceStore(db_path=resolved_db)
+
+    # Resolve dataset by name
+    datasets = store.list_datasets()
+    dataset = next((d for d in datasets if d["name"] == dataset_name), None)
+    if dataset is None:
+        click.echo(f"Dataset not found: {dataset_name!r}", err=True)
+        sys.exit(1)
+
+    traces = store.get_dataset_traces(dataset["dataset_id"])
+    if not traces:
+        click.echo(f"Dataset {dataset_name!r} is empty — no traces to evaluate.", err=True)
+        sys.exit(1)
+
+    click.echo(
+        f"Evaluating {len(traces)} trace(s) in dataset {dataset_name!r} "
+        f"with evaluator {evaluator_name!r} ..."
+    )
+
+    scores: list[float] = []
+    pass_count = 0
+    fail_count = 0
+    errors = 0
+
+    for trace in traces:
+        try:
+            result = _run_single_evaluation(trace, evaluator_name, config)
+        except ValueError as exc:
+            click.echo(f"Evaluator error: {exc}", err=True)
+            sys.exit(1)
+        except Exception as exc:
+            click.echo(f"Error on trace {trace['trace_id'][:12]}: {exc}", err=True)
+            errors += 1
+            continue
+
+        score = result["score"]
+        label = result["label"]
+        scores.append(score)
+        if label == "pass":
+            pass_count += 1
+        else:
+            fail_count += 1
+
+        click.echo(
+            f"  {trace['trace_id'][:16]}  score={score:.4f}  [{label}]"
+            + (f"  — {result['reason']}" if result.get("reason") else "")
+        )
+
+        try:
+            store.save_evaluation(result)
+        except Exception:
+            pass  # Non-critical
+
+    if not scores:
+        click.echo("No traces could be evaluated.", err=True)
+        sys.exit(1)
+
+    avg_score = sum(scores) / len(scores)
+    click.echo("")
+    click.echo(f"Results   : {pass_count} pass / {fail_count} fail / {errors} error")
+    click.echo(f"Avg score : {avg_score:.4f}  (threshold: {min_score:.4f})")
+
+    if avg_score >= min_score:
+        click.echo(f"GATE PASSED — avg score {avg_score:.4f} >= {min_score:.4f}")
+        sys.exit(0)
+    else:
+        click.echo(
+            f"GATE FAILED — avg score {avg_score:.4f} < {min_score:.4f}",
+            err=True,
+        )
+        sys.exit(1)
 
 
 # ---------------------------------------------------------------------------

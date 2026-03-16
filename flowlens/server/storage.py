@@ -10,6 +10,8 @@ Schema versioning:
 - Version 4: user/session/experiment context columns + feedback table
 - Version 5: alert_rules and alert_history tables
 - Version 6: FTS5 virtual table spans_fts for full-text search on span name/error_message
+- Version 7: (reserved for future use)
+- Version 8: evaluations, datasets, and dataset_items tables
 """
 
 from __future__ import annotations
@@ -26,7 +28,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 # Bump this whenever _migrate() gains a new migration step.
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 8
 
 # ---------------------------------------------------------------------------
 # Connection pool
@@ -394,6 +396,60 @@ class TraceStore:
             self._set_version(6)
             conn.commit()
             current = 6
+
+        if current < 7:
+            # v7 → reserved; bump version only so gap is explicit
+            logger.info("DB schema: migrating to version 7 (reserved)")
+            self._set_version(7)
+            conn.commit()
+            current = 7
+
+        if current < 8:
+            # v8 → evaluations, datasets, and dataset_items tables
+            logger.info("DB schema: migrating to version 8 (evaluation engine tables)")
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS evaluations (
+                    eval_id        TEXT PRIMARY KEY,
+                    trace_id       TEXT NOT NULL,
+                    span_id        TEXT,
+                    evaluator_name TEXT NOT NULL,
+                    score          REAL NOT NULL,
+                    label          TEXT NOT NULL,
+                    reason         TEXT,
+                    metadata_json  TEXT NOT NULL DEFAULT '{}',
+                    created_at     REAL NOT NULL,
+                    FOREIGN KEY (trace_id) REFERENCES traces(trace_id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_evaluations_trace
+                    ON evaluations(trace_id);
+                CREATE INDEX IF NOT EXISTS idx_evaluations_evaluator
+                    ON evaluations(evaluator_name);
+
+                CREATE TABLE IF NOT EXISTS datasets (
+                    dataset_id  TEXT PRIMARY KEY,
+                    name        TEXT NOT NULL UNIQUE,
+                    description TEXT NOT NULL DEFAULT '',
+                    created_at  REAL NOT NULL,
+                    updated_at  REAL NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS dataset_items (
+                    item_id    TEXT PRIMARY KEY,
+                    dataset_id TEXT NOT NULL,
+                    trace_id   TEXT NOT NULL,
+                    created_at REAL NOT NULL,
+                    FOREIGN KEY (dataset_id) REFERENCES datasets(dataset_id),
+                    FOREIGN KEY (trace_id)   REFERENCES traces(trace_id),
+                    UNIQUE (dataset_id, trace_id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_dataset_items_dataset
+                    ON dataset_items(dataset_id);
+                CREATE INDEX IF NOT EXISTS idx_dataset_items_trace
+                    ON dataset_items(trace_id);
+            """)
+            self._set_version(8)
+            conn.commit()
+            current = 8
 
         logger.debug("DB schema is at version %d", current)
 
@@ -1693,3 +1749,186 @@ class TraceStore:
             )
         self._cache.set(cache_key, result)
         return result
+
+    # ------------------------------------------------------------------
+    # Evaluation operations
+    # ------------------------------------------------------------------
+
+    def save_evaluation(self, eval_data: dict[str, Any]) -> str:
+        """Persist a single evaluation result.
+
+        ``eval_data`` must contain at minimum: ``eval_id``, ``trace_id``,
+        ``evaluator_name``, ``score``, and ``label``.  All other fields are
+        optional.
+
+        Returns the ``eval_id`` of the saved row.
+        """
+        conn = self._pool.primary
+        now = time.time()
+        conn.execute(
+            """INSERT OR REPLACE INTO evaluations
+               (eval_id, trace_id, span_id, evaluator_name, score, label,
+                reason, metadata_json, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                eval_data["eval_id"],
+                eval_data["trace_id"],
+                eval_data.get("span_id"),
+                eval_data["evaluator_name"],
+                eval_data["score"],
+                eval_data["label"],
+                eval_data.get("reason"),
+                json.dumps(eval_data.get("metadata") or {}),
+                eval_data.get("created_at", now),
+            ),
+        )
+        conn.commit()
+        logger.debug(
+            "Saved evaluation %s for trace %s",
+            eval_data["eval_id"],
+            eval_data["trace_id"],
+        )
+        return eval_data["eval_id"]
+
+    def get_evaluations_for_trace(self, trace_id: str) -> list[dict[str, Any]]:
+        """Return all evaluation rows for *trace_id*, newest first."""
+        conn = self._pool.primary
+        rows = conn.execute(
+            "SELECT * FROM evaluations WHERE trace_id = ? ORDER BY created_at DESC",
+            (trace_id,),
+        ).fetchall()
+        result = []
+        for row in rows:
+            d = dict(row)
+            d["metadata"] = json.loads(d.pop("metadata_json", "{}"))
+            result.append(d)
+        return result
+
+    def list_evaluations(
+        self,
+        limit: int = 50,
+        evaluator_name: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """List evaluation results, optionally filtered by *evaluator_name*.
+
+        Results are ordered newest-first.
+        """
+        conn = self._pool.primary
+        if evaluator_name is not None:
+            rows = conn.execute(
+                """SELECT * FROM evaluations
+                   WHERE evaluator_name = ?
+                   ORDER BY created_at DESC
+                   LIMIT ?""",
+                (evaluator_name, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM evaluations ORDER BY created_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        result = []
+        for row in rows:
+            d = dict(row)
+            d["metadata"] = json.loads(d.pop("metadata_json", "{}"))
+            result.append(d)
+        return result
+
+    # ------------------------------------------------------------------
+    # Dataset operations
+    # ------------------------------------------------------------------
+
+    def create_dataset(self, name: str, description: str = "") -> str:
+        """Create a new dataset with *name* and optional *description*.
+
+        Returns the newly created ``dataset_id`` (a UUID hex string).
+        Raises ``ValueError`` if a dataset with *name* already exists.
+        """
+        import uuid as _uuid
+
+        dataset_id = _uuid.uuid4().hex
+        now = time.time()
+        try:
+            conn = self._pool.primary
+            conn.execute(
+                """INSERT INTO datasets
+                   (dataset_id, name, description, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (dataset_id, name, description, now, now),
+            )
+            conn.commit()
+        except Exception as exc:
+            if "UNIQUE" in str(exc).upper():
+                raise ValueError(f"Dataset named {name!r} already exists") from exc
+            raise
+        logger.debug("Created dataset %s (%s)", dataset_id, name)
+        return dataset_id
+
+    def add_to_dataset(self, dataset_id: str, trace_ids: list[str]) -> None:
+        """Add *trace_ids* to an existing dataset.
+
+        Silently skips trace IDs already present (INSERT OR IGNORE) and
+        bumps ``datasets.updated_at``.
+        """
+        import uuid as _uuid
+
+        if not trace_ids:
+            return
+        conn = self._pool.primary
+        now = time.time()
+        params = [(_uuid.uuid4().hex, dataset_id, tid, now) for tid in trace_ids]
+        conn.executemany(
+            """INSERT OR IGNORE INTO dataset_items
+               (item_id, dataset_id, trace_id, created_at)
+               VALUES (?, ?, ?, ?)""",
+            params,
+        )
+        conn.execute(
+            "UPDATE datasets SET updated_at = ? WHERE dataset_id = ?",
+            (now, dataset_id),
+        )
+        conn.commit()
+
+    def get_dataset(self, dataset_id: str) -> dict[str, Any] | None:
+        """Return dataset metadata for *dataset_id*, or ``None`` if not found."""
+        conn = self._pool.primary
+        row = conn.execute(
+            "SELECT * FROM datasets WHERE dataset_id = ?",
+            (dataset_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        d = dict(row)
+        cnt_row = conn.execute(
+            "SELECT COUNT(*) AS cnt FROM dataset_items WHERE dataset_id = ?",
+            (dataset_id,),
+        ).fetchone()
+        d["item_count"] = cnt_row["cnt"] if cnt_row else 0
+        return d
+
+    def list_datasets(self) -> list[dict[str, Any]]:
+        """Return all datasets ordered by creation time descending."""
+        conn = self._pool.primary
+        rows = conn.execute("SELECT * FROM datasets ORDER BY created_at DESC").fetchall()
+        result = []
+        for row in rows:
+            d = dict(row)
+            cnt_row = conn.execute(
+                "SELECT COUNT(*) AS cnt FROM dataset_items WHERE dataset_id = ?",
+                (d["dataset_id"],),
+            ).fetchone()
+            d["item_count"] = cnt_row["cnt"] if cnt_row else 0
+            result.append(d)
+        return result
+
+    def get_dataset_traces(self, dataset_id: str) -> list[dict[str, Any]]:
+        """Return all traces belonging to *dataset_id*, newest start_time first."""
+        conn = self._pool.primary
+        rows = conn.execute(
+            """SELECT t.* FROM traces t
+               JOIN dataset_items di ON di.trace_id = t.trace_id
+               WHERE di.dataset_id = ?
+               ORDER BY t.start_time DESC""",
+            (dataset_id,),
+        ).fetchall()
+        return [self._deserialise_trace(r) for r in rows]

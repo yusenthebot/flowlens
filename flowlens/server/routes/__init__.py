@@ -14,6 +14,7 @@ from ..storage import TraceStore
 from .agents import create_agents_router
 from .alerts import create_alerts_router
 from .cost import create_cost_router
+from .evaluations import create_evaluations_router
 from .sessions import create_sessions_router
 from .stats import create_stats_router
 from .system import create_system_router
@@ -44,3 +45,4 @@ def register_routes(
     app.include_router(create_alerts_router(store, alert_engine))
     app.include_router(create_system_router(store, server_start_time))
     app.include_router(create_sessions_router(store))
+    app.include_router(create_evaluations_router(store))
