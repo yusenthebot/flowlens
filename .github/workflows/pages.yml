@@ -294,10 +294,10 @@ jobs:
                     </div>
                     <div>
                       <h2>Interactive Dashboard</h2>
-                      <div class="card-sub">4 tabs — Overview, Traces, Cost, Agents</div>
+                      <div class="card-sub">8 tabs — Overview, Traces, Sessions, Cost, Patterns, Evals, Permissions, Agents</div>
                     </div>
                   </div>
-                  <p>Explore 10 realistic AI agent traces from a 5-agent team. Full dashboard with span waterfall timeline, cost analysis by agent, and SVG network graph. All data embedded — no server needed.</p>
+                  <p>Explore 15 realistic AI agent traces from a 5-agent team. Full dashboard with span waterfall timeline, cost analysis by agent, evaluation results with score bars, permission rules browser, and SVG network graph. All data embedded — no server needed.</p>
                   <div class="card-footer">
                     <span class="badge interactive">Interactive</span>
                     <span class="card-arrow">&#8594;</span>
@@ -336,8 +336,8 @@ jobs:
                 <div class="feature-chip"><div class="feature-dot" style="background:#e07a5f;"></div><span>Error detection &amp; alerts</span></div>
                 <div class="feature-chip"><div class="feature-dot" style="background:#9b8ec4;"></div><span>Agent network topology</span></div>
                 <div class="feature-chip"><div class="feature-dot" style="background:#a0b5c4;"></div><span>Pattern detection (15+)</span></div>
-                <div class="feature-chip"><div class="feature-dot" style="background:#6b5ce7;"></div><span>SQLite + FTS5 search</span></div>
-                <div class="feature-chip"><div class="feature-dot" style="background:#81b29a;"></div><span>Light / dark themes</span></div>
+                <div class="feature-chip"><div class="feature-dot" style="background:#6b5ce7;"></div><span>Evaluation engine + gate</span></div>
+                <div class="feature-chip"><div class="feature-dot" style="background:#81b29a;"></div><span>Permissions browser</span></div>
                 <div class="feature-chip"><div class="feature-dot" style="background:#e6a65d;"></div><span>Docker + FastAPI backend</span></div>
               </div>
             </section>

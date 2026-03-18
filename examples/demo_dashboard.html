@@ -309,6 +309,58 @@ canvas { background: transparent !important; }
 #agent-team-bar .glass { padding: 10px 14px !important; }
 html:not(.dark) .bg-\[\#0f172a\] { background: #fafaf8 !important; }
 html:not(.dark) .border-white\/5 { border-color: #e8e6e1 !important; }
+
+/* ========== Eval tab ========== */
+.eval-summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.eval-summary-card { border-radius: 14px !important; padding: 18px 20px !important; border: 1px solid; }
+.dark .eval-summary-card { background: rgba(15,23,42,0.6) !important; border-color: rgba(255,255,255,0.07) !important; }
+html:not(.dark) .eval-summary-card { background: rgba(255,255,255,0.92) !important; border-color: #e8e6e1 !important; }
+.eval-summary-card .eval-card-value { font-size: 28px !important; font-weight: 700 !important; letter-spacing: -0.03em !important; }
+.eval-summary-card .eval-card-label { font-size: 10px !important; font-weight: 600 !important; text-transform: uppercase !important; letter-spacing: 0.07em !important; margin-top: 4px !important; }
+.dark .eval-summary-card .eval-card-label { color: rgba(255,255,255,0.3) !important; }
+html:not(.dark) .eval-summary-card .eval-card-label { color: rgba(0,0,0,0.35) !important; }
+.eval-score-bar-track { flex: 1; height: 6px; border-radius: 999px; overflow: hidden; }
+.dark .eval-score-bar-track { background: rgba(255,255,255,0.08); }
+html:not(.dark) .eval-score-bar-track { background: rgba(0,0,0,0.08); }
+.eval-score-bar-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #6b5ce7, #81b29a); transition: width 0.6s cubic-bezier(.4,0,.2,1); }
+.eval-label-pass { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 9999px; font-size: 10px; font-weight: 600; background: rgba(129,178,154,0.12); color: #81b29a; border: 1px solid rgba(129,178,154,0.25); }
+.eval-label-fail { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 9999px; font-size: 10px; font-weight: 600; background: rgba(224,122,95,0.12); color: #e07a5f; border: 1px solid rgba(224,122,95,0.25); }
+.eval-label-partial { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 9999px; font-size: 10px; font-weight: 600; background: rgba(230,166,93,0.12); color: #e6a65d; border: 1px solid rgba(230,166,93,0.25); }
+.eval-evaluator-badge { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 9999px; font-size: 10px; font-weight: 600; }
+.dark .eval-evaluator-badge { background: rgba(107,92,231,0.15); color: #c4b8ff; }
+html:not(.dark) .eval-evaluator-badge { background: rgba(107,92,231,0.08); color: #5046c8; }
+.eval-row { padding: 14px 20px; display: flex; align-items: center; gap: 12px; cursor: default; }
+.dark .eval-row:nth-child(even) { background: rgba(255,255,255,0.015); }
+html:not(.dark) .eval-row:nth-child(even) { background: rgba(0,0,0,0.015); }
+.eval-col-trace { flex: 1; min-width: 0; }
+.eval-col-evaluator { width: 140px; flex-shrink: 0; }
+.eval-col-score { width: 140px; flex-shrink: 0; }
+.eval-col-verdict { width: 72px; flex-shrink: 0; text-align: right; }
+.eval-col-reason { width: 200px; flex-shrink: 0; }
+@media (max-width: 900px) { .eval-col-reason { display: none; } }
+
+/* ========== Permissions tab ========== */
+.perm-category-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.15s ease; border: 1px solid transparent; }
+.dark .perm-category-chip { color: rgba(255,255,255,0.55); background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.07); }
+html:not(.dark) .perm-category-chip { color: rgba(0,0,0,0.5); background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.07); }
+.perm-category-chip.active { background: rgba(107,92,231,0.15) !important; color: #c4b8ff !important; border-color: rgba(107,92,231,0.28) !important; }
+html:not(.dark) .perm-category-chip.active { background: rgba(107,92,231,0.08) !important; color: #5046c8 !important; border-color: rgba(107,92,231,0.2) !important; }
+.perm-rule-row { padding: 12px 20px; display: flex; align-items: center; gap: 12px; }
+.dark .perm-rule-row:nth-child(even) { background: rgba(255,255,255,0.015); }
+html:not(.dark) .perm-rule-row:nth-child(even) { background: rgba(0,0,0,0.015); }
+.perm-allow-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 9999px; font-size: 10px; font-weight: 700; background: rgba(129,178,154,0.12); color: #81b29a; border: 1px solid rgba(129,178,154,0.25); }
+.perm-deny-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 9999px; font-size: 10px; font-weight: 700; background: rgba(224,122,95,0.12); color: #e07a5f; border: 1px solid rgba(224,122,95,0.25); }
+.perm-type-badge { display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 9999px; font-size: 10px; font-weight: 600; }
+.perm-type-bash { background: rgba(16,185,129,0.12); color: #34d399; }
+.perm-type-file { background: rgba(59,130,246,0.12); color: #60a5fa; }
+.perm-type-pip { background: rgba(245,158,11,0.12); color: #fbbf24; }
+.perm-type-git { background: rgba(139,92,246,0.12); color: #a78bfa; }
+.perm-type-web { background: rgba(236,72,153,0.12); color: #f472b6; }
+html:not(.dark) .perm-type-bash { background: rgba(16,185,129,0.09); color: #059669; }
+html:not(.dark) .perm-type-file { background: rgba(59,130,246,0.09); color: #2563eb; }
+html:not(.dark) .perm-type-pip { background: rgba(245,158,11,0.09); color: #d97706; }
+html:not(.dark) .perm-type-git { background: rgba(139,92,246,0.09); color: #7c3aed; }
+html:not(.dark) .perm-type-web { background: rgba(236,72,153,0.09); color: #be185d; }
 </style>
 </head>
 <body class="min-h-screen font-sans text-slate-200 antialiased">
@@ -353,6 +405,8 @@ html:not(.dark) .border-white\/5 { border-color: #e8e6e1 !important; }
       <button onclick="switchView('sessions')" data-tab="sessions" class="tab-btn pill-tab tab-inactive">Sessions</button>
       <button onclick="switchView('cost')" data-tab="cost" class="tab-btn pill-tab tab-inactive">Cost</button>
       <button onclick="switchView('patterns')" data-tab="patterns" class="tab-btn pill-tab tab-inactive">Patterns <span class="tab-count-badge">4</span></button>
+      <button onclick="switchView('evals')" data-tab="evals" class="tab-btn pill-tab tab-inactive">Evals <span class="tab-count-badge">47</span></button>
+      <button onclick="switchView('permissions')" data-tab="permissions" class="tab-btn pill-tab tab-inactive">Permissions <span class="tab-count-badge">32</span></button>
       <button onclick="switchView('agents')" data-tab="agents" class="tab-btn pill-tab tab-inactive">Agents <span class="tab-count-badge">5</span></button>
     </div>
   </nav>
@@ -612,6 +666,69 @@ html:not(.dark) .border-white\/5 { border-color: #e8e6e1 !important; }
         </div>
       </div>
       <div id="sessions-list" class="space-y-3"></div>
+    </div>
+
+    <!-- EVALS VIEW -->
+    <div id="view-evals" class="view-panel hidden">
+      <div id="eval-summary-cards" class="eval-summary-cards"></div>
+      <div class="glass rounded-xl overflow-hidden mb-4">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-white/5">
+          <span class="card-section-label">Evaluation Results</span>
+          <div class="flex items-center gap-2">
+            <select id="eval-filter-evaluator" class="bg-transparent border border-white/10 rounded-lg px-2 py-1 text-xs text-slate-400 cursor-pointer">
+              <option value="all">All evaluators</option>
+              <option value="ExactMatch">ExactMatch</option>
+              <option value="ContainsKeywords">ContainsKeywords</option>
+              <option value="LLMJudge">LLMJudge</option>
+              <option value="CostThreshold">CostThreshold</option>
+              <option value="LatencyThreshold">LatencyThreshold</option>
+            </select>
+          </div>
+        </div>
+        <div class="px-5 py-2 border-b border-white/5 flex items-center gap-4">
+          <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500 eval-col-trace">Trace / Agent</span>
+          <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500 eval-col-evaluator">Evaluator</span>
+          <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500 eval-col-score">Score</span>
+          <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500 eval-col-verdict text-right">Verdict</span>
+          <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500 eval-col-reason">Reason</span>
+        </div>
+        <div id="evals-list" class="divide-y divide-white/5"></div>
+      </div>
+    </div>
+
+    <!-- PERMISSIONS VIEW -->
+    <div id="view-permissions" class="view-panel hidden">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="text-sm font-semibold text-white">Permissions</h2>
+          <p class="text-[11px] text-slate-500 mt-0.5">Tool-use rules applied to all agent sessions</p>
+        </div>
+      </div>
+      <div id="perm-stats-bar" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <div class="glass rounded-xl p-4 text-center">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Allow Rules</div>
+          <div class="text-2xl font-bold text-emerald-400">32</div>
+        </div>
+        <div class="glass rounded-xl p-4 text-center">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Deny Rules</div>
+          <div class="text-2xl font-bold text-slate-400">0</div>
+        </div>
+        <div class="glass rounded-xl p-4 text-center">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Categories</div>
+          <div class="text-2xl font-bold text-indigo-400">5</div>
+        </div>
+        <div class="glass rounded-xl p-4 text-center">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Last Updated</div>
+          <div class="text-sm font-bold text-white">Just now</div>
+        </div>
+      </div>
+      <div class="glass rounded-xl overflow-hidden mb-4">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-white/5">
+          <span class="card-section-label">Permission Rules</span>
+          <div class="flex items-center gap-2 flex-wrap" id="perm-category-filters"></div>
+        </div>
+        <div id="perm-rules-list" class="divide-y divide-white/5"></div>
+      </div>
     </div>
 
     <!-- AGENTS VIEW -->
@@ -1115,6 +1232,160 @@ function initCharts() {
 }
 
 // ============================================================
+// EVALS DATA + RENDER
+// ============================================================
+const EVALUATORS = ['ExactMatch', 'ContainsKeywords', 'LLMJudge', 'CostThreshold', 'LatencyThreshold', 'JsonSchemaValid'];
+const EVAL_REASONS = {
+  ExactMatch: ['Output matches expected exactly', 'Minor formatting difference detected', 'Output diverged from reference'],
+  ContainsKeywords: ['All required keywords present', 'Missing keyword: "lifecycle"', 'Keywords found in correct context'],
+  LLMJudge: ['Response is accurate and complete', 'Partially addresses the task', 'Off-topic response detected'],
+  CostThreshold: ['Cost $0.012 within $0.05 limit', 'Cost $0.048 near threshold', 'Cost $0.062 exceeds $0.05 limit'],
+  LatencyThreshold: ['Latency 1.2s within 5s limit', 'Latency 4.8s near threshold', 'Latency 7.1s exceeds 5s limit'],
+  JsonSchemaValid: ['Output is valid JSON matching schema', 'Missing required field: "status"', 'Type mismatch in "cost" field'],
+};
+
+const MOCK_EVALS = MOCK_TRACES.slice(0, 8).flatMap((t, ti) => {
+  const count = 1 + (ti % 3);
+  return Array.from({length: count}, (_, ei) => {
+    const ev = EVALUATORS[(ti + ei) % EVALUATORS.length];
+    const score = parseFloat((0.45 + Math.random() * 0.55).toFixed(2));
+    const verdict = score >= 0.8 ? 'pass' : score >= 0.5 ? 'partial' : 'fail';
+    const reasons = EVAL_REASONS[ev];
+    const reason = verdict === 'pass' ? reasons[0] : verdict === 'partial' ? reasons[1] : reasons[2];
+    return { traceId: t.id, traceName: t.name, agent: t.agent, evaluator: ev, score, verdict, reason };
+  });
+});
+
+function renderEvalsView() {
+  // Summary cards
+  const cards = document.getElementById('eval-summary-cards');
+  const total = MOCK_EVALS.length;
+  const avgScore = (MOCK_EVALS.reduce((s, e) => s + e.score, 0) / total).toFixed(2);
+  const passRate = Math.round(MOCK_EVALS.filter(e => e.verdict === 'pass').length / total * 100);
+  const lastTime = ago(2);
+  cards.innerHTML = `
+    <div class="eval-summary-card"><div class="eval-card-value text-indigo-400">${total}</div><div class="eval-card-label">Evaluations</div></div>
+    <div class="eval-summary-card"><div class="eval-card-value text-white">${avgScore}</div><div class="eval-card-label">Avg Score</div></div>
+    <div class="eval-summary-card"><div class="eval-card-value text-emerald-400">${passRate}%</div><div class="eval-card-label">Pass Rate</div></div>
+    <div class="eval-summary-card"><div class="eval-card-value text-amber-400" style="font-size:18px;">${lastTime}</div><div class="eval-card-label">Last Eval</div></div>
+  `;
+
+  // Filter listener
+  const filterSel = document.getElementById('eval-filter-evaluator');
+  if (filterSel && !filterSel._bound) {
+    filterSel._bound = true;
+    filterSel.addEventListener('change', renderEvalsList);
+  }
+  renderEvalsList();
+}
+
+function renderEvalsList() {
+  const el = document.getElementById('evals-list');
+  const filterVal = (document.getElementById('eval-filter-evaluator') || {}).value || 'all';
+  const evalsToShow = filterVal === 'all' ? MOCK_EVALS : MOCK_EVALS.filter(e => e.evaluator === filterVal);
+  el.innerHTML = evalsToShow.map(e => {
+    const pct = Math.round(e.score * 100);
+    const verdictEl = e.verdict === 'pass' ? '<span class="eval-label-pass">pass</span>' : e.verdict === 'fail' ? '<span class="eval-label-fail">fail</span>' : '<span class="eval-label-partial">partial</span>';
+    return `<div class="eval-row">
+      <div class="eval-col-trace min-w-0">
+        <div class="text-xs font-medium text-white truncate">${e.traceName}</div>
+        <div class="text-[10px] text-slate-500 font-mono truncate">${e.traceId.slice(0,12)}... &middot; ${e.agent.name}</div>
+      </div>
+      <div class="eval-col-evaluator">
+        <span class="eval-evaluator-badge">${e.evaluator}</span>
+      </div>
+      <div class="eval-col-score">
+        <div class="flex items-center gap-2">
+          <div class="eval-score-bar-track"><div class="eval-score-bar-fill" style="width:${pct}%"></div></div>
+          <span class="text-xs font-semibold text-white" style="min-width:30px;text-align:right;">${e.score}</span>
+        </div>
+      </div>
+      <div class="eval-col-verdict">${verdictEl}</div>
+      <div class="eval-col-reason text-[10px] text-slate-500 truncate">${e.reason}</div>
+    </div>`;
+  }).join('');
+}
+
+// ============================================================
+// PERMISSIONS DATA + RENDER
+// ============================================================
+const MOCK_PERMISSIONS = [
+  { type: 'bash', action: 'allow', pattern: 'colcon build *', description: 'ROS2 build system commands' },
+  { type: 'bash', action: 'allow', pattern: 'colcon test *', description: 'ROS2 test runner' },
+  { type: 'bash', action: 'allow', pattern: 'ros2 *', description: 'ROS2 CLI tools' },
+  { type: 'bash', action: 'allow', pattern: 'python -m pytest *', description: 'Python test runner' },
+  { type: 'bash', action: 'allow', pattern: 'python -m mypy *', description: 'Type checker' },
+  { type: 'bash', action: 'allow', pattern: 'python -m black *', description: 'Code formatter' },
+  { type: 'bash', action: 'allow', pattern: 'python -m ruff *', description: 'Linter' },
+  { type: 'bash', action: 'allow', pattern: 'docker compose *', description: 'Docker Compose operations' },
+  { type: 'bash', action: 'allow', pattern: 'docker build *', description: 'Docker image builds' },
+  { type: 'bash', action: 'allow', pattern: 'git status', description: 'Git status check' },
+  { type: 'bash', action: 'allow', pattern: 'git diff *', description: 'Git diff view' },
+  { type: 'bash', action: 'allow', pattern: 'git log *', description: 'Git log view' },
+  { type: 'file', action: 'allow', pattern: 'src/**/*.py', description: 'Python source files' },
+  { type: 'file', action: 'allow', pattern: 'src/**/*.cpp', description: 'C++ source files' },
+  { type: 'file', action: 'allow', pattern: 'src/**/*.hpp', description: 'C++ header files' },
+  { type: 'file', action: 'allow', pattern: 'tests/**/*.py', description: 'Test files' },
+  { type: 'file', action: 'allow', pattern: 'flowlens/**/*.py', description: 'FlowLens source' },
+  { type: 'file', action: 'allow', pattern: 'docs/**/*.md', description: 'Documentation files' },
+  { type: 'file', action: 'allow', pattern: '*.toml', description: 'TOML config files' },
+  { type: 'file', action: 'allow', pattern: '*.yaml', description: 'YAML config files' },
+  { type: 'pip', action: 'allow', pattern: 'pip install flowlens*', description: 'FlowLens packages' },
+  { type: 'pip', action: 'allow', pattern: 'pip install -r requirements*.txt', description: 'Requirements files' },
+  { type: 'pip', action: 'allow', pattern: 'pip install pytest*', description: 'Testing packages' },
+  { type: 'git', action: 'allow', pattern: 'git commit *', description: 'Commit changes' },
+  { type: 'git', action: 'allow', pattern: 'git push origin feat/*', description: 'Push feature branches' },
+  { type: 'web', action: 'allow', pattern: 'https://pypi.org/*', description: 'PyPI package registry' },
+  { type: 'web', action: 'allow', pattern: 'https://docs.ros.org/*', description: 'ROS2 documentation' },
+  { type: 'web', action: 'allow', pattern: 'https://github.com/*', description: 'GitHub repositories' },
+];
+
+const PERM_CATEGORIES = [
+  { key: 'all', label: 'All', count: MOCK_PERMISSIONS.length },
+  { key: 'bash', label: 'Bash', count: MOCK_PERMISSIONS.filter(p=>p.type==='bash').length },
+  { key: 'file', label: 'File Ops', count: MOCK_PERMISSIONS.filter(p=>p.type==='file').length },
+  { key: 'pip', label: 'Pip', count: MOCK_PERMISSIONS.filter(p=>p.type==='pip').length },
+  { key: 'git', label: 'Git', count: MOCK_PERMISSIONS.filter(p=>p.type==='git').length },
+  { key: 'web', label: 'Web', count: MOCK_PERMISSIONS.filter(p=>p.type==='web').length },
+];
+
+let activePermCategory = 'all';
+
+function renderPermissionsView() {
+  const filters = document.getElementById('perm-category-filters');
+  if (filters && !filters._bound) {
+    filters._bound = true;
+    filters.innerHTML = PERM_CATEGORIES.map(c => `
+      <button class="perm-category-chip ${c.key === activePermCategory ? 'active' : ''}" data-cat="${c.key}" onclick="setPermCategory('${c.key}')">
+        ${c.label} <span class="text-[10px] opacity-60">${c.count}</span>
+      </button>
+    `).join('');
+  }
+  renderPermRules();
+}
+
+function setPermCategory(cat) {
+  activePermCategory = cat;
+  document.querySelectorAll('.perm-category-chip').forEach(el => {
+    el.classList.toggle('active', el.dataset.cat === cat);
+  });
+  renderPermRules();
+}
+
+function renderPermRules() {
+  const el = document.getElementById('perm-rules-list');
+  const toShow = activePermCategory === 'all' ? MOCK_PERMISSIONS : MOCK_PERMISSIONS.filter(p => p.type === activePermCategory);
+  el.innerHTML = toShow.map(p => `
+    <div class="perm-rule-row">
+      <span class="perm-allow-badge"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span> allow</span>
+      <span class="perm-type-badge perm-type-${p.type}">${p.type}</span>
+      <span class="text-xs text-white font-mono flex-1 truncate">${p.pattern}</span>
+      <span class="text-[10px] text-slate-500 flex-shrink-0 text-right" style="width:200px;">${p.description}</span>
+    </div>
+  `).join('');
+}
+
+// ============================================================
 // INIT
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
@@ -1128,6 +1399,8 @@ document.addEventListener('DOMContentLoaded', () => {
   renderPatterns();
   renderSessions();
   renderAgentsGrid();
+  renderEvalsView();
+  renderPermissionsView();
   renderAgentNetwork('overview-agent-graph');
   renderAgentNetwork('agent-graph');
   initCharts();
