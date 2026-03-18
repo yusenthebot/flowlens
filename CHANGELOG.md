@@ -7,6 +7,89 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.0] — 2026-03-18
+
+Evaluation Engine, Permissions tab, and dashboard quality improvements. Cycles 24-29 delivered comprehensive eval framework, dataset management, agent permission visibility, and reliability hardening. 1208 tests (all passing).
+
+### Added
+
+#### Cycle 29 — Evaluation Engine (2026-03-16)
+
+- **Evaluation Engine core framework**: `EvalResult`, 6 evaluator classes (`ExactMatch`, `ContainsKeywords`, `JsonSchemaValid`, `CostThreshold`, `LatencyThreshold`, `LLMJudge`), `EvaluationRunner` with batch support — `flowlens/evaluation/core.py`
+
+- **Dataset and result storage**: SQLite-backed `DatasetStorage` and `EvaluationStorage` with query filtering and indexing — `flowlens/evaluation/storage.py`
+
+- **Evaluations dashboard tab**: "Evals" nav tab with 4 summary cards (total/avg score/pass rate/last eval), evaluator doughnut chart, 7-day score timeline, paginated results list with score bars and pass/fail/partial pills. Filter by evaluator dropdown. "Run Evaluation" modal. Inline eval cards in trace detail view. Quality dots on trace rows — `flowlens/server/dashboard.html`, `flowlens/server/static/dashboard.js`, `flowlens/server/static/dashboard.css`
+
+- **Dataset management UI**: "Datasets" sub-section in Evals tab with list + "Create Dataset" modal (trace multi-select, name input, syncs to `/v1/datasets`)
+
+- **Production evaluation examples**: 5-example walkthrough (trace creation, evaluation, dataset management, batch evaluation, custom evaluator) — `examples/evaluation_pipeline.py`
+
+- **125+ evaluation tests**: Comprehensive test suite covering all evaluators and storage layer — `tests/test_evaluations.py`, `tests/test_evaluation_datasets.py`
+
+#### Permissions Tab (2026-03-18)
+
+- **Permissions dashboard tab**: New Permissions tab showing all Claude Code agent permission configurations. Reads from `.claude/settings.local.json`. Displays granted and denied permissions per agent — file reads, bash execution, network access, and more. Enables security review and compliance auditing at a glance
+
+#### Cycle 28 — Final Integration (2026-03-15)
+
+- **End-to-end product audit**: All 50+ API endpoints verified with valid data. Version 1.0.0 consistent across 4 locations (`flowlens/__init__.py`, `pyproject.toml`, `/health` endpoint, dashboard footer)
+
+- **Fixed "Traces by Agent" bar chart**: Added `type: 'category'` and `autoSkip: false` on y-axis; increased container to 220px for correct label rendering
+
+#### Cycle 27 — Smart Features (2026-03-15)
+
+- **Smart agent recommendations**: Contextual tips on agent cards — error rate >10% warning, cost >$0.05/trace optimization suggestion, latency >30s bottleneck alert. Computed client-side from existing agent summary data
+
+- **Trace comparison insights**: Automated insights panel in compare view — speed diff with root cause (skipped steps), cost ratio with model info, savings projections at 1000 traces/month, error resolution detection, token usage comparison
+
+- **Dashboard summary widget**: "Today's Summary" card on Overview — traces today vs yesterday with trend arrow, top agent by activity, most common error, cost this hour vs last hour
+
+- **Trace bookmarks**: Star icon on trace rows stored in `localStorage`. "Bookmarked" filter toggle in quick filter bar with count indicator; persists across sessions
+
+#### Cycle 26 — DB Optimization (2026-03-15)
+
+- **Batch SQL methods**: `storage.get_spans_for_traces(trace_ids)` fetches all spans for N traces in a single chunked SQL query. `storage.get_agent_names_from_spans(trace_ids)` batch-extracts agent names — replaces N individual `get_trace()` calls
+
+- **30-second TTL cache**: Instance-scoped cache on `activity_stream` and `agents_summary` — reduces both endpoints from 1+N queries to 2 queries total
+
+#### Cycle 25 — Reliability & Error Handling (2026-03-15)
+
+- **Network error handling**: `apiFetch()` wraps `TypeError` into friendly "Could not reach server. Is it running?" message
+
+- **Loading skeletons**: All tabs (Agents, Cost, Sessions, Patterns, Traces) show skeleton states while loading; graceful error messages instead of blank/broken views
+
+- **WebSocket null-guards**: `updateWsStatus()` null-guards `ws-dot` / `ws-label` elements to prevent crash if DOM not yet ready
+
+#### Cycle 24 — Dashboard Data Richness (2026-03-15)
+
+- **Fixed stat card trend indicators**: Resolved bucket field name mismatch (`b.trace_count` / `b.error_count` / `b.total_cost` aliases) — ↑↓ arrows now show real percentages
+
+- **Enhanced terminal output**: Full file paths (80-char max with ellipsis), bash preview (60-char), model name pills (shortened aliases), error messages for failed ops, LLM/WebFetch/WebSearch icons
+
+- **Agent model pills**: `_loadAgentModels()` fetches activity stream, batch-loads up to 8 traces per agent, extracts `gen_ai.request.model` from span attributes, renders model pills with call counts in each agent card
+
+### Changed
+
+- Version bumped to 1.1.0
+- Dashboard: new Evals tab between Patterns and Agents in pill nav
+- Dashboard: new Permissions tab for agent permission configuration visibility
+- CLI: `flowlens eval run` and `flowlens eval gate` commands added
+- API: 5 new endpoints for evaluations, evaluators, datasets, and permissions
+- DB optimization: N+1 queries eliminated in activity_stream and agents_summary
+
+### Technical Decisions
+
+- **LLM Judge evaluator**: Uses configurable LLM call to semantically assess agent output against expected criteria. Enables qualitative evaluation beyond keyword matching or schema validation
+
+- **SQLite-backed evaluation storage**: Consistent with trace storage. Enables offline evaluation workflows without external dependencies
+
+- **Permissions from settings.local.json**: Reads directly from Claude Code's local settings file — no additional SDK hooks needed. Zero-instrumentation approach to permission visibility
+
+- **30s cache scope**: Instance-scoped (not module-level) preserves test isolation — each test gets a fresh router instance with an empty cache
+
+---
+
 ## [1.0.0] — 2026-03-15
 
 Production-ready observability platform with comprehensive dashboard usability, advanced analytics, and actionable intelligence. Cycles 10-13 delivered modularized architecture, performance optimization, enhanced dashboard UI/UX, and intelligent cost/feedback systems. 1156 tests (all passing). Ready for production deployment.

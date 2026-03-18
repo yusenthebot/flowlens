@@ -25,6 +25,11 @@ Complete documentation of all public APIs: SDK, Analysis, and Server.
   - [Global Stats](#get-v1stats)
   - [WebSocket](#ws-wstraces)
   - [Health Check](#get-health)
+  - [Permissions](#get-v1permissions)
+  - [List Evaluation Results](#get-v1evaluationsresults)
+  - [Run Evaluation](#post-v1evaluationsrun)
+  - [List Evaluators](#get-v1evaluators)
+  - [Create Dataset](#post-v1datasets)
 
 ---
 
@@ -1114,6 +1119,276 @@ Server health check.
 
 ```bash
 curl http://localhost:8585/health
+```
+
+---
+
+### `GET /v1/permissions`
+
+Return all Claude Code agent permission configurations read from `.claude/settings.local.json`.
+
+**Response (200):**
+
+```json
+{
+  "permissions": [
+    {
+      "agent": "vr-alpha",
+      "allowed": ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
+      "denied": [],
+      "settings_file": ".claude/settings.local.json"
+    },
+    {
+      "agent": "vr-beta",
+      "allowed": ["Read", "Glob", "Grep"],
+      "denied": ["Bash", "Write"],
+      "settings_file": ".claude/settings.local.json"
+    }
+  ],
+  "source": ".claude/settings.local.json",
+  "loaded_at": "2026-03-18T10:00:00Z"
+}
+```
+
+**Error (404) — settings file not found:**
+
+```json
+{"detail": "Settings file not found: .claude/settings.local.json"}
+```
+
+```bash
+curl http://localhost:8585/v1/permissions | jq '.'
+```
+
+---
+
+### `GET /v1/evaluations/results`
+
+List stored evaluation results with optional filtering.
+
+**Query parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `limit` | int | 50 | Results per page (max 200) |
+| `offset` | int | 0 | Pagination offset |
+| `evaluator` | str | — | Filter by evaluator name |
+| `trace_id` | str | — | Filter by trace ID |
+| `passed` | bool | — | Filter by pass/fail status |
+
+**Response (200):**
+
+```json
+{
+  "results": [
+    {
+      "result_id": "r1a2b3c4",
+      "trace_id": "a1b2c3d4",
+      "evaluator": "exact_match",
+      "score": 1.0,
+      "passed": true,
+      "reason": "Output matches expected value exactly",
+      "evaluated_at": "2026-03-18T10:00:00Z"
+    },
+    {
+      "result_id": "r5e6f7g8",
+      "trace_id": "x9y8z7w6",
+      "evaluator": "llm_judge",
+      "score": 0.72,
+      "passed": false,
+      "reason": "Response addresses the task but lacks specific details on error handling",
+      "evaluated_at": "2026-03-18T10:01:00Z"
+    }
+  ],
+  "total": 84,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+```bash
+# All evaluation results
+curl "http://localhost:8585/v1/evaluations/results"
+
+# Filter by evaluator
+curl "http://localhost:8585/v1/evaluations/results?evaluator=llm_judge"
+
+# Results for a specific trace
+curl "http://localhost:8585/v1/evaluations/results?trace_id=a1b2c3d4"
+
+# Failed results only
+curl "http://localhost:8585/v1/evaluations/results?passed=false"
+```
+
+---
+
+### `POST /v1/evaluations/run`
+
+Run one or more evaluators against a trace and store the results.
+
+**Request body:**
+
+```json
+{
+  "trace_id": "a1b2c3d4",
+  "evaluators": ["exact_match", "cost_threshold"],
+  "expected_output": "The answer is 42",
+  "config": {
+    "cost_threshold": {"max_cost_usd": 0.05},
+    "latency_threshold": {"max_duration_ms": 5000}
+  }
+}
+```
+
+**Fields:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `trace_id` | str | yes | Trace to evaluate |
+| `evaluators` | list[str] | yes | Evaluator names to run. Use `"all"` to run every available evaluator |
+| `expected_output` | str | no | Expected output for `exact_match` / `contains_keywords` evaluators |
+| `config` | dict | no | Per-evaluator configuration overrides |
+
+**Response (201):**
+
+```json
+{
+  "trace_id": "a1b2c3d4",
+  "results": [
+    {
+      "result_id": "r1a2b3c4",
+      "evaluator": "exact_match",
+      "score": 1.0,
+      "passed": true,
+      "reason": "Output matches expected value exactly"
+    },
+    {
+      "result_id": "r9h8i7j6",
+      "evaluator": "cost_threshold",
+      "score": 0.0,
+      "passed": false,
+      "reason": "Trace cost $0.08 exceeds threshold $0.05"
+    }
+  ],
+  "summary": {
+    "total": 2,
+    "passed": 1,
+    "failed": 1,
+    "avg_score": 0.5
+  }
+}
+```
+
+```bash
+curl -X POST http://localhost:8585/v1/evaluations/run \
+  -H "Content-Type: application/json" \
+  -d '{
+    "trace_id": "a1b2c3d4",
+    "evaluators": ["exact_match", "cost_threshold"],
+    "expected_output": "The answer is 42",
+    "config": {"cost_threshold": {"max_cost_usd": 0.05}}
+  }'
+```
+
+---
+
+### `GET /v1/evaluators`
+
+List all available evaluators and their configuration options.
+
+**Response (200):**
+
+```json
+{
+  "evaluators": [
+    {
+      "name": "exact_match",
+      "description": "Checks whether the trace output exactly matches the expected string",
+      "config_fields": ["expected_output"]
+    },
+    {
+      "name": "contains_keywords",
+      "description": "Checks whether the output contains all required keywords",
+      "config_fields": ["keywords", "case_sensitive"]
+    },
+    {
+      "name": "json_schema_valid",
+      "description": "Validates the output against a JSON Schema",
+      "config_fields": ["schema"]
+    },
+    {
+      "name": "cost_threshold",
+      "description": "Passes if trace total cost is below the configured maximum",
+      "config_fields": ["max_cost_usd"]
+    },
+    {
+      "name": "latency_threshold",
+      "description": "Passes if trace duration is below the configured maximum",
+      "config_fields": ["max_duration_ms"]
+    },
+    {
+      "name": "llm_judge",
+      "description": "Uses an LLM to semantically assess output quality against criteria",
+      "config_fields": ["criteria", "model", "threshold_score"]
+    }
+  ]
+}
+```
+
+```bash
+curl http://localhost:8585/v1/evaluators | jq '.evaluators[].name'
+```
+
+---
+
+### `POST /v1/datasets`
+
+Create a named evaluation dataset by associating a set of trace IDs with an optional name and description.
+
+**Request body:**
+
+```json
+{
+  "name": "production-sample-march",
+  "description": "Random sample of 50 production traces from March 2026",
+  "trace_ids": ["a1b2c3d4", "x9y8z7w6", "m3n4o5p6"]
+}
+```
+
+**Fields:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | str | yes | Human-readable dataset name (unique) |
+| `description` | str | no | Optional description |
+| `trace_ids` | list[str] | yes | Trace IDs to include in the dataset |
+
+**Response (201):**
+
+```json
+{
+  "dataset_id": "ds1a2b3c4",
+  "name": "production-sample-march",
+  "description": "Random sample of 50 production traces from March 2026",
+  "trace_count": 3,
+  "created_at": "2026-03-18T10:00:00Z"
+}
+```
+
+**Error (409) — name already exists:**
+
+```json
+{"detail": "Dataset 'production-sample-march' already exists"}
+```
+
+```bash
+curl -X POST http://localhost:8585/v1/datasets \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "production-sample-march",
+    "description": "Random sample of 50 production traces from March 2026",
+    "trace_ids": ["a1b2c3d4", "x9y8z7w6", "m3n4o5p6"]
+  }'
 ```
 
 ---

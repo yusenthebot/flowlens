@@ -1,3 +1,27 @@
+# Agent Status — 2026-03-18
+
+## Cycle 30: Documentation Update — COMPLETE (Alpha, 2026-03-18)
+
+**Alpha**: Updated all docs to cover Permissions tab and Evaluation Engine
+- Branch: `main`
+- Files: `README.md`, `README_EN.md`, `CHANGELOG.md`, `docs/api-reference.md`
+- Delivered:
+  - `README.md` (Chinese): Added Permissions section (reads `.claude/settings.local.json`) and Evaluation Engine section (5 evaluators + LLM Judge + dataset management + CLI commands `flowlens eval run` / `flowlens eval gate`). Updated CLI reference with eval commands.
+  - `README_EN.md` (English): Identical additions in English. Updated CLI reference with eval commands.
+  - `CHANGELOG.md`: New `[1.1.0]` entry covering Cycles 24-29 — Permissions tab, Evaluation Engine, Smart Features, DB Optimization, Reliability, Data Richness. Full technical decisions and changed-items sections.
+  - `docs/api-reference.md`: Table of Contents updated. 5 new endpoint docs added: `GET /v1/permissions`, `GET /v1/evaluations/results`, `POST /v1/evaluations/run`, `GET /v1/evaluators`, `POST /v1/datasets` — each with full request/response schemas and curl examples.
+- Status: **COMPLETE** ✓
+
+---
+
+## Cycle 30: Screenshots & Verification — IN PROGRESS (Gamma, 2026-03-18)
+
+**Gamma**: Seed data, verify all API endpoints, take fresh Playwright screenshots, run CI checks
+- Branch: `main`
+- Status: **in_progress**
+
+---
+
 # Agent Status — 2026-03-15
 
 ## Cycle 28: FINAL INTEGRATION & SHIP — COMPLETE (Lead/PM, 2026-03-15)
@@ -248,6 +272,24 @@ All prior development cycles (1-13) completed successfully with comprehensive fe
   - `_buildDemoEvalData()` — generates synthetic evaluations from real traces when API not present
   - CSS: `.eval-score-bar-track/fill` gradient bar, `.eval-label-pass/fail/partial` pills (sage/coral/amber), `.eval-evaluator-badge`, `.eval-quality-dot`, `.eval-inline-card`, both dark and light theme
 - Status: **COMPLETE** ✓
+
+---
+
+## Cycle 31: GitHub Pages Demo Update — IN PROGRESS (Beta, 2026-03-18)
+
+**Beta**: Adding Evals and Permissions tabs to demo_dashboard.html, updating demo_autoplay.html Scene 10 with eval gate mention, updating pages.yml index.html feature chips
+- Branch: `main`
+- Files: `examples/demo_dashboard.html`, `examples/demo_autoplay.html`, `.github/workflows/pages.yml`
+- Status: **IN PROGRESS**
+
+---
+
+## Cycle 30: Documentation Update — IN PROGRESS (Alpha, 2026-03-18)
+
+**Alpha**: Updating README.md, README_EN.md, CHANGELOG.md, docs/api-reference.md to document Permissions tab and Evaluation Engine
+- Branch: `main`
+- Files: `README.md`, `README_EN.md`, `CHANGELOG.md`, `docs/api-reference.md`
+- Status: **IN PROGRESS**
 
 ---
 

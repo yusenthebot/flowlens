@@ -119,6 +119,21 @@ Group traces by session. See the full chronological story — which agents were 
 
 Every agent gets a unique avatar, color, and dashboard card. See trace counts, error rates, cost, latency, and activity sparklines at a glance. An interactive SVG network shows spawn hierarchies with animated particles.
 
+### Permissions
+*View all Claude Code agent permissions*
+
+See every permission granted or denied to each agent — file reads, bash execution, network access, and more. Permissions are read directly from `.claude/settings.local.json` with no additional configuration required. Instantly identify high-privilege agents for security review and compliance auditing.
+
+### Evaluation Engine
+*5 built-in evaluators + LLM Judge + datasets*
+
+Systematically evaluate agent output quality. Five built-in evaluators (ExactMatch, ContainsKeywords, JsonSchemaValid, CostThreshold, LatencyThreshold) plus an LLM-based semantic judge. Supports dataset management and batch evaluation runs.
+
+```bash
+flowlens eval run   --trace-id <id> --evaluator exact_match   # run a single evaluation
+flowlens eval gate  --dataset <name> --threshold 0.8           # batch quality gate
+```
+
 ---
 
 ## Instrument in 5 Lines
@@ -202,6 +217,8 @@ flowlens import   <json-file> [--db PATH]                     # import traces
 flowlens stats    [--db PATH]                                 # show statistics
 flowlens health   [--db PATH]                                 # health check
 flowlens demo     [--all] [--dashboard] [--quick]             # run demos
+flowlens eval run  --trace-id <id> [--evaluator NAME]         # run an evaluation
+flowlens eval gate --dataset <name> [--threshold FLOAT]       # batch quality gate
 flowlens version                                              # show version
 ```
 

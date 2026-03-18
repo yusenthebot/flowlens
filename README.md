@@ -119,6 +119,21 @@ FlowLens 监控重试风暴、无限循环、context 溢出、超时级联、tok
 
 每个 Agent 都有独特的头像、颜色和仪表盘卡片。一眼看到 trace 数量、错误率、成本、延迟和活动曲线。交互式 SVG 网络展示调用层级关系和动态粒子。
 
+### 权限管理
+*查看 Claude Code agent 的所有权限配置*
+
+查看 agent 被授予或拒绝的所有权限 — 文件读写、bash 执行、网络访问等。权限数据直接从 `.claude/settings.local.json` 读取，无需额外配置。一眼看清哪些 agent 拥有高权限，方便安全审查和合规检查。
+
+### 评估引擎
+*5 个内置评估器 + LLM Judge + 数据集管理*
+
+对 agent 输出质量进行系统化评估。内置 5 种评估器（精确匹配、关键词包含、JSON Schema 校验、成本阈值、延迟阈值），以及基于 LLM 的语义判断（LLM Judge）。支持数据集管理和批量评估。
+
+```bash
+flowlens eval run   --trace-id <id> --evaluator exact_match   # 运行单条评估
+flowlens eval gate  --dataset <name> --threshold 0.8           # 批量质量门控
+```
+
 ---
 
 ## 5 行代码接入
@@ -202,6 +217,8 @@ flowlens import   <json-file> [--db PATH]                     # 导入 trace
 flowlens stats    [--db PATH]                                 # 统计信息
 flowlens health   [--db PATH]                                 # 健康检查
 flowlens demo     [--all] [--dashboard] [--quick]             # 运行演示
+flowlens eval run  --trace-id <id> [--evaluator NAME]         # 运行评估
+flowlens eval gate --dataset <name> [--threshold FLOAT]       # 批量质量门控
 flowlens version                                              # 查看版本
 ```
 

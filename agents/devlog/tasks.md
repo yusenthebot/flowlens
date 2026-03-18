@@ -198,6 +198,13 @@ The following tasks are deprioritized and deferred to future major versions:
 
 ---
 
+## Cycle 30: Complete (2026-03-18) — DOCUMENTATION UPDATE
+
+### Done (2026-03-18)
+- [x] **Documentation update — Permissions tab + Evaluation Engine** — Alpha — Updated README.md (Chinese), README_EN.md (English), CHANGELOG.md (v1.1.0 entry with Cycles 24-29), docs/api-reference.md (5 new endpoints). Added Permissions and Evaluation Engine sections to both READMEs with CLI examples. Added `GET /v1/permissions`, `GET /v1/evaluations/results`, `POST /v1/evaluations/run`, `GET /v1/evaluators`, `POST /v1/datasets` to API reference — `README.md`, `README_EN.md`, `CHANGELOG.md`, `docs/api-reference.md`
+
+---
+
 ## Cycle 29: Complete (2026-03-16) — EVALUATION ENGINE: TESTS & EXAMPLES
 
 ### Done (2026-03-16)
