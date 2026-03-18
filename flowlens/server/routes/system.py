@@ -310,4 +310,95 @@ def create_system_router(store: TraceStore, server_start_time: float) -> APIRout
             headers={"Cache-Control": "no-cache, must-revalidate"},
         )
 
+    @router.get("/v1/permissions")
+    async def get_permissions() -> JSONResponse:
+        """Return all Claude Code agent permissions configured for this project.
+
+        Reads from .claude/settings.local.json in the project root and
+        also scans for CLAUDE.md and .claude/ configuration files.
+        """
+        import os
+
+        project_root = Path(__file__).parent.parent.parent.parent
+        permissions_data: dict[str, Any] = {
+            "source_files": [],
+            "permissions": [],
+            "categories": {},
+        }
+
+        # 1. Read .claude/settings.local.json
+        settings_path = project_root / ".claude" / "settings.local.json"
+        if settings_path.exists():
+            try:
+                settings = json.loads(settings_path.read_text())
+                perms = settings.get("permissions", {})
+                allow_list = perms.get("allow", [])
+                deny_list = perms.get("deny", [])
+
+                permissions_data["source_files"].append(str(settings_path.relative_to(project_root)))
+
+                # Categorize permissions
+                categories: dict[str, list[str]] = {
+                    "bash": [],
+                    "file_ops": [],
+                    "pip": [],
+                    "git": [],
+                    "other": [],
+                }
+
+                for perm in allow_list:
+                    entry = {"rule": perm, "type": "allow"}
+                    permissions_data["permissions"].append(entry)
+
+                    perm_lower = perm.lower()
+                    if "bash(" in perm_lower:
+                        if "pip " in perm_lower or "pip install" in perm_lower:
+                            categories["pip"].append(perm)
+                        elif "git " in perm_lower:
+                            categories["git"].append(perm)
+                        elif "cp " in perm_lower or "mkdir " in perm_lower:
+                            categories["file_ops"].append(perm)
+                        else:
+                            categories["bash"].append(perm)
+                    else:
+                        categories["other"].append(perm)
+
+                for perm in deny_list:
+                    permissions_data["permissions"].append({"rule": perm, "type": "deny"})
+
+                permissions_data["categories"] = {
+                    k: v for k, v in categories.items() if v
+                }
+            except Exception as exc:
+                permissions_data["error"] = f"Failed to read settings: {exc}"
+
+        # 2. Check for CLAUDE.md
+        claude_md = project_root / "CLAUDE.md"
+        if claude_md.exists():
+            permissions_data["source_files"].append("CLAUDE.md")
+            permissions_data["claude_md_exists"] = True
+            try:
+                content = claude_md.read_text()[:2000]  # first 2000 chars
+                permissions_data["claude_md_preview"] = content
+            except Exception:
+                pass
+
+        # 3. Check for .claude/ directory contents
+        claude_dir = project_root / ".claude"
+        if claude_dir.is_dir():
+            for item in sorted(claude_dir.iterdir()):
+                if item.is_file() and not item.name.startswith("."):
+                    permissions_data["source_files"].append(
+                        str(item.relative_to(project_root))
+                    )
+
+        permissions_data["total_allow"] = sum(
+            1 for p in permissions_data["permissions"] if p["type"] == "allow"
+        )
+        permissions_data["total_deny"] = sum(
+            1 for p in permissions_data["permissions"] if p["type"] == "deny"
+        )
+
+        return JSONResponse(permissions_data)
+
     return router

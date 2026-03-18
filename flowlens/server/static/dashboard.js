@@ -418,6 +418,7 @@ function switchView(view) {
   else if (view === 'compare') { renderCompareView(); }
   else if (view === 'evaluations') { loadEvaluations(); }
   else if (view === 'agents') { loadAgentData(); }
+  else if (view === 'permissions') { loadPermissions(); }
 
   // Persist current view to sessionStorage
   try { sessionStorage.setItem('flowlens-view', view); } catch (_) {}
@@ -7025,4 +7026,130 @@ function getTraceSpanSummary(trace) {
     .slice(0, 4)
     .map(([k, n]) => `${n} ${k.charAt(0).toUpperCase() + k.slice(1)}`);
   return parts.join(', ');
+}
+
+// =========================================================================
+// Permissions Tab
+// =========================================================================
+
+async function loadPermissions() {
+  const container = document.getElementById('permissions-content');
+  if (!container) return;
+  container.innerHTML = '<div class="text-center py-8 text-slate-500 text-sm">Loading permissions...</div>';
+
+  try {
+    const data = await apiFetch('/v1/permissions');
+
+    if (!data.permissions || data.permissions.length === 0) {
+      container.innerHTML = `
+        <div class="glass rounded-xl p-6 text-center">
+          <div style="font-size:32px;margin-bottom:12px;">🔓</div>
+          <div class="text-sm font-medium text-slate-300">No permissions configured</div>
+          <div class="text-xs text-slate-500 mt-1">Create a <code>.claude/settings.local.json</code> file to define agent permissions.</div>
+        </div>`;
+      return;
+    }
+
+    let html = '';
+
+    // Summary cards
+    html += `<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      <div class="glass rounded-xl p-4 text-center">
+        <div class="text-2xl font-bold text-emerald-400">${data.total_allow || 0}</div>
+        <div class="text-[10px] text-slate-500 uppercase tracking-wider mt-1">Allowed Rules</div>
+      </div>
+      <div class="glass rounded-xl p-4 text-center">
+        <div class="text-2xl font-bold" style="color:var(--color-coral,#e07a5f)">${data.total_deny || 0}</div>
+        <div class="text-[10px] text-slate-500 uppercase tracking-wider mt-1">Denied Rules</div>
+      </div>
+      <div class="glass rounded-xl p-4 text-center">
+        <div class="text-2xl font-bold text-slate-300">${(data.source_files || []).length}</div>
+        <div class="text-[10px] text-slate-500 uppercase tracking-wider mt-1">Config Files</div>
+      </div>
+    </div>`;
+
+    // Source files
+    if (data.source_files && data.source_files.length > 0) {
+      html += `<div class="glass rounded-xl p-5 mb-4">
+        <div class="card-section-label mb-3">Configuration Sources</div>
+        <div class="space-y-2">
+          ${data.source_files.map(f => `
+            <div class="flex items-center gap-2 text-xs">
+              <span style="color:#6b5ce7;">📄</span>
+              <code class="text-slate-300 font-mono text-[11px]">${escHtml(f)}</code>
+            </div>
+          `).join('')}
+        </div>
+      </div>`;
+    }
+
+    // Categories
+    const categories = data.categories || {};
+    const catIcons = { bash: '⚡', file_ops: '📁', pip: '📦', git: '🔀', other: '⚙️' };
+    const catLabels = { bash: 'Bash Commands', file_ops: 'File Operations', pip: 'Package Management', git: 'Git Operations', other: 'Other' };
+    const catColors = { bash: '#e6a65d', file_ops: '#6b5ce7', pip: '#81b29a', git: '#e07a5f', other: '#94a3b8' };
+
+    if (Object.keys(categories).length > 0) {
+      html += `<div class="glass rounded-xl p-5 mb-4">
+        <div class="card-section-label mb-3">Permissions by Category</div>
+        <div class="space-y-4">`;
+
+      for (const [cat, rules] of Object.entries(categories)) {
+        const icon = catIcons[cat] || '⚙️';
+        const label = catLabels[cat] || cat;
+        const color = catColors[cat] || '#94a3b8';
+
+        html += `<div>
+          <div class="flex items-center gap-2 mb-2">
+            <span>${icon}</span>
+            <span class="text-xs font-semibold" style="color:${color}">${escHtml(label)}</span>
+            <span class="text-[10px] text-slate-500">(${rules.length})</span>
+          </div>
+          <div class="space-y-1 pl-6">
+            ${rules.map(r => `
+              <div class="flex items-center gap-2 py-1 border-b border-white/5">
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium">ALLOW</span>
+                <code class="text-[11px] text-slate-400 font-mono break-all">${escHtml(r)}</code>
+              </div>
+            `).join('')}
+          </div>
+        </div>`;
+      }
+
+      html += `</div></div>`;
+    }
+
+    // All permissions (full list)
+    html += `<div class="glass rounded-xl p-5">
+      <div class="card-section-label mb-3">All Permission Rules (${data.permissions.length})</div>
+      <div class="space-y-1 max-h-[500px] overflow-y-auto">
+        ${data.permissions.map((p, i) => {
+          const isAllow = p.type === 'allow';
+          const badgeClass = isAllow ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400';
+          const badgeText = isAllow ? 'ALLOW' : 'DENY';
+          return `
+            <div class="flex items-start gap-2 py-2 border-b border-white/5">
+              <span class="text-[10px] text-slate-600 font-mono w-6 text-right flex-shrink-0">${i + 1}</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded ${badgeClass} font-medium flex-shrink-0">${badgeText}</span>
+              <code class="text-[11px] text-slate-400 font-mono break-all">${escHtml(p.rule)}</code>
+            </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+
+    // CLAUDE.md preview
+    if (data.claude_md_preview) {
+      html += `<div class="glass rounded-xl p-5 mt-4">
+        <div class="card-section-label mb-3">CLAUDE.md Preview</div>
+        <pre class="text-[11px] text-slate-400 font-mono whitespace-pre-wrap max-h-[300px] overflow-y-auto bg-black/20 rounded-lg p-4">${escHtml(data.claude_md_preview)}</pre>
+      </div>`;
+    }
+
+    container.innerHTML = html;
+  } catch (e) {
+    container.innerHTML = `<div class="glass rounded-xl p-6 text-center">
+      <div style="font-size:32px;margin-bottom:12px;">⚠️</div>
+      <div class="text-sm text-slate-400">Failed to load permissions: ${escHtml(String(e.message || e))}</div>
+    </div>`;
+  }
 }

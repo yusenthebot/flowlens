@@ -167,6 +167,9 @@
         Agents
         <span id="tab-badge-agents" class="tab-count-badge" style="display:none;" aria-hidden="true"></span>
       </button>
+      <button onclick="switchView('permissions')" data-tab="permissions" class="tab-btn pill-tab tab-inactive ripple-btn" aria-label="Permissions">
+        Permissions
+      </button>
     </div>
   </nav>
 
@@ -1075,6 +1078,20 @@
       <div id="agent-modal-body"></div>
     </div>
   </div>
+
+    <!-- PERMISSIONS VIEW -->
+    <div id="view-permissions" class="view-panel hidden">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="text-sm font-semibold text-white">Agent Permissions</h2>
+          <p class="text-[11px] text-slate-500 mt-0.5">All permissions granted to Claude Code agents in this project</p>
+        </div>
+        <button onclick="loadPermissions()" class="ripple-btn px-3 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition">Refresh</button>
+      </div>
+      <div id="permissions-content" class="space-y-4">
+        <div class="text-center py-8 text-slate-500 text-sm">Loading permissions...</div>
+      </div>
+    </div>
 
   </main>
 
