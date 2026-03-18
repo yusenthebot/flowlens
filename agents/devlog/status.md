@@ -1,5 +1,19 @@
 # Agent Status — 2026-03-18
 
+## Cycle 31: GitHub Pages Demo Update — COMPLETE (Beta, 2026-03-18)
+
+**Beta**: Added Evals and Permissions tabs to demo_dashboard.html, updated demo_autoplay.html Scene 10 with eval gate mention, updated pages.yml index.html feature chips
+- Branch: `main`
+- Commit: 61a4a14
+- Files: `examples/demo_dashboard.html`, `examples/demo_autoplay.html`, `.github/workflows/pages.yml`
+- Delivered:
+  - `demo_dashboard.html`: Evals tab — 4 summary cards (47 evals, 0.82 avg score, 87% pass rate, last eval time), filterable results table with evaluator badge, gradient score bar, pass/fail/partial verdict pills, reason text. Permissions tab — stats bar (32 allow, 0 deny, 5 categories), category filter chips (All/Bash/File Ops/Pip/Git/Web), per-rule rows with type badge + allow badge + pattern + description. Full CSS for both tabs with dark/light theme support.
+  - `demo_autoplay.html`: Scene 10 now includes `flowlens eval gate --min-pass-rate 0.85` code line with a comment, subtitle updated to mention eval gate.
+  - `pages.yml`: Dashboard card updated to "8 tabs", description calls out evaluations + permissions. Feature grid: "Evaluation engine + gate" and "Permissions browser" chips added.
+- Status: **COMPLETE** ✓
+
+---
+
 ## Cycle 32: Screenshots & Verification — COMPLETE (Gamma, 2026-03-18)
 
 **Gamma**: Seeded 50 traces, verified all API endpoints, took 11 fresh Playwright screenshots, fixed pre-existing lint issues in system.py, ran full CI suite
