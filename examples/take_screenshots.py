@@ -160,7 +160,23 @@ def main() -> None:
         print("  screenshot_agents.png")
 
         # ------------------------------------------------------------------
-        # 8. screenshot_terminal.png — Tmux-style floating terminal overlay
+        # 8. screenshot_permissions.png — Permissions tab
+        # ------------------------------------------------------------------
+        _click_tab(page, "permissions")
+        page.evaluate("window.scrollTo(0, 0)")
+        page.screenshot(path=os.path.join(OUT_DIR, "screenshot_permissions.png"), full_page=False)
+        print("  screenshot_permissions.png")
+
+        # ------------------------------------------------------------------
+        # 9. screenshot_evaluations.png — Evaluations tab
+        # ------------------------------------------------------------------
+        _click_tab(page, "evaluations")
+        page.evaluate("window.scrollTo(0, 0)")
+        page.screenshot(path=os.path.join(OUT_DIR, "screenshot_evaluations.png"), full_page=False)
+        print("  screenshot_evaluations.png")
+
+        # ------------------------------------------------------------------
+        # 10. screenshot_terminal.png — Tmux-style floating terminal overlay
         # ------------------------------------------------------------------
         _click_tab(page, "overview")
         page.evaluate("window.scrollTo(0, 0)")
@@ -191,6 +207,8 @@ def main() -> None:
         "screenshot_patterns.png",
         "screenshot_sessions.png",
         "screenshot_agents.png",
+        "screenshot_permissions.png",
+        "screenshot_evaluations.png",
         "screenshot_terminal.png",
     ]
     for name in saved:

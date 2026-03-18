@@ -317,8 +317,6 @@ def create_system_router(store: TraceStore, server_start_time: float) -> APIRout
         Reads from .claude/settings.local.json in the project root and
         also scans for CLAUDE.md and .claude/ configuration files.
         """
-        import os
-
         project_root = Path(__file__).parent.parent.parent.parent
         permissions_data: dict[str, Any] = {
             "source_files": [],
@@ -335,7 +333,9 @@ def create_system_router(store: TraceStore, server_start_time: float) -> APIRout
                 allow_list = perms.get("allow", [])
                 deny_list = perms.get("deny", [])
 
-                permissions_data["source_files"].append(str(settings_path.relative_to(project_root)))
+                permissions_data["source_files"].append(
+                    str(settings_path.relative_to(project_root))
+                )
 
                 # Categorize permissions
                 categories: dict[str, list[str]] = {
@@ -366,9 +366,7 @@ def create_system_router(store: TraceStore, server_start_time: float) -> APIRout
                 for perm in deny_list:
                     permissions_data["permissions"].append({"rule": perm, "type": "deny"})
 
-                permissions_data["categories"] = {
-                    k: v for k, v in categories.items() if v
-                }
+                permissions_data["categories"] = {k: v for k, v in categories.items() if v}
             except Exception as exc:
                 permissions_data["error"] = f"Failed to read settings: {exc}"
 
@@ -388,9 +386,7 @@ def create_system_router(store: TraceStore, server_start_time: float) -> APIRout
         if claude_dir.is_dir():
             for item in sorted(claude_dir.iterdir()):
                 if item.is_file() and not item.name.startswith("."):
-                    permissions_data["source_files"].append(
-                        str(item.relative_to(project_root))
-                    )
+                    permissions_data["source_files"].append(str(item.relative_to(project_root)))
 
         permissions_data["total_allow"] = sum(
             1 for p in permissions_data["permissions"] if p["type"] == "allow"
